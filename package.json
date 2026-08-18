@@ -1,0 +1,15 @@
+{
+  "name": "closet",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.20.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @closet/web --filter @closet/api dev",
+    "dev:web": "pnpm --filter @closet/web dev",
+    "dev:api": "pnpm --filter @closet/api dev",
+    "dev:native": "pnpm --filter @closet/native start",
+    "build": "pnpm -r --if-present build",
+    "lint": "pnpm -r --if-present lint",
+    "typecheck": "pnpm -r --if-present typecheck"
+  }
+}

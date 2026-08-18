@@ -1,0 +1,333 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum AuthProvider {
+  apple
+  google
+  kakao
+}
+
+enum PreferredFit {
+  wide
+  regular
+  skinny
+}
+
+enum Gender {
+  male
+  female
+}
+
+enum BodyBuild {
+  slim
+  average
+  athletic
+  broad
+}
+
+enum Season {
+  spring
+  summer
+  autumn
+  winter
+}
+
+enum OutfitStyle {
+  minimal
+  casual
+  street
+  classic
+  vintage
+  sporty
+}
+
+enum ClothingCategory {
+  top
+  bottom
+  outer
+  midlayer
+  dress
+  shoes
+  accessory
+  other
+}
+
+enum ClassificationStatus {
+  pending
+  classified
+  failed
+}
+
+enum ColorMode {
+  solid
+  patterned
+  multicolor
+}
+
+enum ImageAssetKind {
+  wardrobeOriginal
+  wardrobeCutout
+  outfitGenerated
+}
+
+enum ImageUploadStatus {
+  pending
+  ready
+  failed
+}
+
+enum OutfitSource {
+  manual
+  ai
+}
+
+enum GenerationStatus {
+  queued
+  processing
+  completed
+  failed
+}
+
+model User {
+  id              String                @id @default(auto()) @map("_id") @db.ObjectId
+  displayName     String?
+  email           String?
+  isTemporary     Boolean               @default(true)
+  lastLoginAt     DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  oauthAccounts   OAuthAccount[]
+  testAccount     TestAccount?
+  sessions        UserSession[]
+  styleProfile    StyleProfile?
+  preferredStyles UserStylePreference[]
+  wardrobeItems   WardrobeItem[]
+  imageAssets     ImageAsset[]
+  outfits         Outfit[]
+  plannerWeeks    PlannerWeek[]
+  generations     OutfitGeneration[]
+}
+
+model TestAccount {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String   @unique @db.ObjectId
+  loginId      String   @unique
+  passwordHash String
+  passwordSalt String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id])
+}
+
+model UserSession {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String   @db.ObjectId
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  lastUsedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// 임시 로그인 사용자는 User만 만들고, 네이티브 OAuth 도입 시 이 계정을 연결한다.
+model OAuthAccount {
+  id                String       @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String       @db.ObjectId
+  provider          AuthProvider
+  providerAccountId String
+  providerEmail     String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  user              User         @relation(fields: [userId], references: [id])
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model StyleProfile {
+  id                   String       @id @default(auto()) @map("_id") @db.ObjectId
+  userId               String       @unique @db.ObjectId
+  gender               Gender?
+  bodyBuild            BodyBuild?
+  heightCm             Float?
+  weightKg             Float?
+  chestCircumferenceCm Float?
+  waistCircumferenceCm Float?
+  hipCircumferenceCm   Float?
+  shoulderWidthCm      Float?
+  inseamCm             Float?
+  preferredFit         PreferredFit @default(regular)
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+  user                 User         @relation(fields: [userId], references: [id])
+}
+
+model UserStylePreference {
+  id        String      @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String      @db.ObjectId
+  style     OutfitStyle
+  createdAt DateTime    @default(now())
+  user      User        @relation(fields: [userId], references: [id])
+
+  @@unique([userId, style])
+  @@index([userId])
+}
+
+// 실제 이미지는 Cloudflare Images에 저장하고 cloudflareImageId만 DB에 보관한다.
+model ImageAsset {
+  id                    String             @id @default(auto()) @map("_id") @db.ObjectId
+  userId                String             @db.ObjectId
+  cloudflareImageId     String             @unique
+  kind                  ImageAssetKind
+  uploadStatus          ImageUploadStatus  @default(pending)
+  deliveryVariant       String?
+  deliveryUrl           String?
+  originalFilename      String?
+  storageFilename       String?
+  mimeType              String?
+  width                 Int?
+  height                Int?
+  metadata              Json?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  user                  User               @relation(fields: [userId], references: [id])
+  wardrobeDisplayItems  WardrobeItem[]     @relation("WardrobeDisplayImage")
+  wardrobeOriginalItems WardrobeItem[]     @relation("WardrobeOriginalImage")
+  outfitGenerations     OutfitGeneration[]
+
+  @@index([userId, kind])
+}
+
+model WardrobeItem {
+  id                       String               @id @default(auto()) @map("_id") @db.ObjectId
+  userId                   String               @db.ObjectId
+  name                     String
+  displayImageAssetId      String?              @db.ObjectId
+  originalImageAssetId     String?              @db.ObjectId
+  category                 ClothingCategory?
+  subcategory              String?
+  colorName                String?
+  colorDetailName          String?
+  colorHex                 String?
+  colorMode                ColorMode?
+  seasons                  Season[]             @default([])
+  sizeLabel                String?
+  shoulderWidthCm          Float?
+  chestWidthCm             Float?
+  sleeveLengthCm           Float?
+  totalLengthCm            Float?
+  waistWidthCm             Float?
+  hipWidthCm               Float?
+  inseamCm                 Float?
+  thighWidthCm             Float?
+  riseCm                   Float?
+  hemWidthCm               Float?
+  classificationStatus     ClassificationStatus @default(pending)
+  classificationConfidence Float?
+  classificationModel      String?
+  classificationCandidates Json?
+  wearCount                Int                  @default(0)
+  lastWornAt               DateTime?
+  archivedAt               DateTime?
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
+  user                     User                 @relation(fields: [userId], references: [id])
+  displayImageAsset        ImageAsset?          @relation("WardrobeDisplayImage", fields: [displayImageAssetId], references: [id])
+  originalImageAsset       ImageAsset?          @relation("WardrobeOriginalImage", fields: [originalImageAssetId], references: [id])
+  outfitItems              OutfitItem[]
+
+  @@index([userId, category, subcategory])
+  @@index([userId, classificationStatus])
+}
+
+model Outfit {
+  id          String             @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String             @db.ObjectId
+  name        String
+  style       String
+  seasons     Season[]           @default([])
+  source      OutfitSource       @default(manual)
+  note        String?
+  plannerOnly Boolean            @default(false)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  user        User               @relation(fields: [userId], references: [id])
+  items       OutfitItem[]
+  planEntries PlannerEntry[]
+  generations OutfitGeneration[]
+
+  @@index([userId, style, createdAt])
+}
+
+model OutfitItem {
+  id             String           @id @default(auto()) @map("_id") @db.ObjectId
+  outfitId       String           @db.ObjectId
+  wardrobeItemId String           @db.ObjectId
+  slot           ClothingCategory
+  layerOrder     Int              @default(0)
+  outfit         Outfit           @relation(fields: [outfitId], references: [id])
+  wardrobeItem   WardrobeItem     @relation(fields: [wardrobeItemId], references: [id])
+
+  @@unique([outfitId, wardrobeItemId])
+  @@index([wardrobeItemId])
+}
+
+model PlannerWeek {
+  id           String         @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String         @db.ObjectId
+  weekStartsOn DateTime
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  user         User           @relation(fields: [userId], references: [id])
+  entries      PlannerEntry[]
+
+  @@unique([userId, weekStartsOn])
+  @@index([userId])
+}
+
+model PlannerEntry {
+  id             String      @id @default(auto()) @map("_id") @db.ObjectId
+  plannerWeekId  String      @db.ObjectId
+  outfitId       String?     @db.ObjectId
+  date           DateTime
+  title          String?
+  occasion       String?
+  weatherSummary String?
+  temperatureC   Float?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  plannerWeek    PlannerWeek @relation(fields: [plannerWeekId], references: [id])
+  outfit         Outfit?     @relation(fields: [outfitId], references: [id])
+
+  @@unique([plannerWeekId, date])
+  @@index([outfitId])
+}
+
+// 한 코디에서 여러 번 생성할 수 있으므로 결과와 실행 이력을 분리한다.
+model OutfitGeneration {
+  id           String           @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String           @db.ObjectId
+  outfitId     String           @db.ObjectId
+  imageAssetId String?          @db.ObjectId
+  status       GenerationStatus @default(queued)
+  model        String?
+  prompt       String?
+  errorMessage String?
+  requestedAt  DateTime         @default(now())
+  completedAt  DateTime?
+  user         User             @relation(fields: [userId], references: [id])
+  outfit       Outfit           @relation(fields: [outfitId], references: [id])
+  imageAsset   ImageAsset?      @relation(fields: [imageAssetId], references: [id])
+
+  @@index([userId, requestedAt])
+  @@index([outfitId, status])
+}

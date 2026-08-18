@@ -1,0 +1,474 @@
+export const typeDefs = `#graphql
+  enum ClothingCategory {
+    top
+    bottom
+    outer
+    midlayer
+    dress
+    shoes
+    accessory
+    other
+  }
+
+  enum ClassificationStatus {
+    pending
+    classified
+    failed
+  }
+
+  enum ColorMode {
+    solid
+    patterned
+    multicolor
+  }
+
+  enum PreferredFit {
+    wide
+    regular
+    skinny
+  }
+
+  enum Gender {
+    male
+    female
+  }
+
+  enum BodyBuild {
+    slim
+    average
+    athletic
+    broad
+  }
+
+  enum Season {
+    spring
+    summer
+    autumn
+    winter
+  }
+
+  enum OutfitStyle {
+    minimal
+    casual
+    street
+    classic
+    vintage
+    sporty
+  }
+
+  enum OutfitSource {
+    manual
+    ai
+  }
+
+  enum ImageAssetKind {
+    wardrobeOriginal
+    wardrobeCutout
+    outfitGenerated
+  }
+
+  enum ImageUploadStatus {
+    pending
+    ready
+    failed
+  }
+
+  enum GenerationStatus {
+    queued
+    processing
+    completed
+    failed
+  }
+
+  type ApiHealth {
+    service: String!
+    status: String!
+    classifier: String!
+  }
+
+  type ViewerStyleProfile {
+    gender: Gender
+    bodyBuild: BodyBuild
+    heightCm: Float
+    weightKg: Float
+    chestCircumferenceCm: Float
+    waistCircumferenceCm: Float
+    hipCircumferenceCm: Float
+    shoulderWidthCm: Float
+    inseamCm: Float
+    preferredFit: PreferredFit!
+    preferredStyles: [OutfitStyle!]!
+  }
+
+  type Viewer {
+    id: ID!
+    displayName: String
+    email: String
+    isTemporary: Boolean!
+    styleProfile: ViewerStyleProfile!
+  }
+
+  input TestLoginInput {
+    loginId: String!
+    password: String!
+    displayName: String
+  }
+
+  type AuthPayload {
+    accessToken: String!
+    viewer: Viewer!
+  }
+
+  input UpdateMyStyleProfileInput {
+    gender: Gender!
+    bodyBuild: BodyBuild!
+    heightCm: Float
+    weightKg: Float
+    chestCircumferenceCm: Float
+    waistCircumferenceCm: Float
+    hipCircumferenceCm: Float
+    shoulderWidthCm: Float
+    inseamCm: Float
+    preferredFit: PreferredFit!
+    preferredStyles: [OutfitStyle!]!
+  }
+
+  type ImageAsset {
+    id: ID!
+    cloudflareImageId: String!
+    kind: ImageAssetKind!
+    uploadStatus: ImageUploadStatus!
+    deliveryVariant: String
+    deliveryUrl: String
+    originalFilename: String
+    storageFilename: String
+    mimeType: String
+    width: Int
+    height: Int
+  }
+
+  input PrepareImageUploadInput {
+    kind: ImageAssetKind!
+    originalFilename: String
+    mimeType: String!
+  }
+
+  type PreparedImageUpload {
+    asset: ImageAsset!
+    uploadUrl: String!
+    uploadFilename: String!
+  }
+
+  type WardrobeItem {
+    id: ID!
+    name: String!
+    displayImageAsset: ImageAsset
+    originalImageAsset: ImageAsset
+    category: ClothingCategory
+    subcategory: String
+    colorName: String
+    colorDetailName: String
+    colorHex: String
+    colorMode: ColorMode
+    seasons: [Season!]!
+    sizeLabel: String
+    shoulderWidthCm: Float
+    chestWidthCm: Float
+    sleeveLengthCm: Float
+    totalLengthCm: Float
+    waistWidthCm: Float
+    hipWidthCm: Float
+    inseamCm: Float
+    thighWidthCm: Float
+    riseCm: Float
+    hemWidthCm: Float
+    classificationStatus: ClassificationStatus!
+    classificationConfidence: Float
+    classificationModel: String
+    wearCount: Int!
+    lastWornAt: String
+    createdAt: String!
+    updatedAt: String!
+  }
+
+  input CreateWardrobeItemInput {
+    name: String!
+    displayImageAssetId: ID!
+    originalImageAssetId: ID
+    category: ClothingCategory
+    subcategory: String
+    colorName: String
+    colorDetailName: String
+    colorHex: String
+    colorMode: ColorMode
+    seasons: [Season!]!
+    sizeLabel: String
+    shoulderWidthCm: Float
+    chestWidthCm: Float
+    sleeveLengthCm: Float
+    totalLengthCm: Float
+    waistWidthCm: Float
+    hipWidthCm: Float
+    inseamCm: Float
+    thighWidthCm: Float
+    riseCm: Float
+    hemWidthCm: Float
+    classificationStatus: ClassificationStatus
+    classificationConfidence: Float
+    classificationModel: String
+  }
+
+  input UpdateWardrobeItemInput {
+    name: String
+    category: ClothingCategory
+    subcategory: String
+    colorName: String
+    colorDetailName: String
+    colorHex: String
+    colorMode: ColorMode
+    seasons: [Season!]
+    sizeLabel: String
+    shoulderWidthCm: Float
+    chestWidthCm: Float
+    sleeveLengthCm: Float
+    totalLengthCm: Float
+    waistWidthCm: Float
+    hipWidthCm: Float
+    inseamCm: Float
+    thighWidthCm: Float
+    riseCm: Float
+    hemWidthCm: Float
+  }
+
+  type OutfitItem {
+    id: ID!
+    wardrobeItemId: ID!
+    slot: ClothingCategory!
+    layerOrder: Int!
+    wardrobeItem: WardrobeItem!
+  }
+
+  type OutfitGeneration {
+    id: ID!
+    status: GenerationStatus!
+    model: String
+    prompt: String
+    errorMessage: String
+    requestedAt: String!
+    completedAt: String
+    imageAsset: ImageAsset
+  }
+
+  type OutfitRecommendationColor {
+    name: String!
+    hex: String!
+    reason: String!
+    role: String!
+  }
+
+  type OutfitRecommendationCandidate {
+    item: WardrobeItem!
+    reason: String!
+    relation: String!
+  }
+
+  type OutfitRecommendation {
+    targetCategory: ClothingCategory!
+    headline: String!
+    summary: String!
+    recommendedColors: [OutfitRecommendationColor!]!
+    candidates: [OutfitRecommendationCandidate!]!
+    model: String!
+    source: String!
+  }
+
+  type OutfitPreview {
+    imageBase64: String!
+    mimeType: String!
+    model: String!
+  }
+
+  type Outfit {
+    id: ID!
+    name: String!
+    style: String!
+    seasons: [Season!]!
+    source: OutfitSource!
+    plannerOnly: Boolean!
+    note: String
+    items: [OutfitItem!]!
+    generations: [OutfitGeneration!]!
+    createdAt: String!
+    updatedAt: String!
+  }
+
+  input CreateOutfitItemInput {
+    wardrobeItemId: ID!
+    layerOrder: Int!
+  }
+
+  input OutfitPreviewImageInput {
+    imageBase64: String!
+    mimeType: String!
+    model: String!
+  }
+
+  input CreateOutfitInput {
+    name: String!
+    style: String!
+    seasons: [Season!]!
+    source: OutfitSource
+    note: String
+    items: [CreateOutfitItemInput!]!
+    previewImage: OutfitPreviewImageInput
+  }
+
+  input UpdateOutfitInput {
+    name: String!
+    style: String!
+    seasons: [Season!]!
+    items: [CreateOutfitItemInput!]!
+    previewImage: OutfitPreviewImageInput
+  }
+
+  input OutfitRecommendationInput {
+    selectedItemIds: [ID!]!
+    targetCategory: ClothingCategory!
+  }
+
+  input OutfitPreviewInput {
+    selectedItemIds: [ID!]!
+  }
+
+  type PlannerEntry {
+    id: ID!
+    date: String!
+    title: String
+    occasion: String
+    weatherSummary: String
+    temperatureC: Float
+    outfit: Outfit
+    createdAt: String!
+    updatedAt: String!
+  }
+
+  type PlannerWeek {
+    id: ID!
+    weekStartsOn: String!
+    entries: [PlannerEntry!]!
+  }
+
+  type OutfitWearRecord {
+    outfitId: ID!
+    date: String!
+  }
+
+  input SetPlannerEntryInput {
+    weekStartsOn: String!
+    date: String!
+    outfitId: ID!
+    title: String
+    occasion: String
+    weatherSummary: String
+    temperatureC: Float
+  }
+
+  input SetDirectPlannerEntryInput {
+    weekStartsOn: String!
+    date: String!
+    itemIds: [ID!]!
+    previewImage: OutfitPreviewImageInput
+  }
+
+  input ClassifyWardrobeImageInput {
+    imageBase64: String!
+    mimeType: String!
+    filename: String
+  }
+
+  input AnalyzeGarmentSizeChartInput {
+    imageBase64: String!
+    mimeType: String!
+    filename: String
+    category: ClothingCategory!
+  }
+
+  type ClassificationCandidate {
+    category: ClothingCategory!
+    subcategory: String!
+    label: String!
+    score: Float!
+  }
+
+  type ClothingClassification {
+    category: ClothingCategory!
+    categoryLabel: String!
+    subcategory: String!
+    subcategoryLabel: String!
+    suggestedName: String!
+    colorName: String!
+    colorDetailName: String!
+    colorHex: String!
+    colorRgb: [Int!]!
+    colorMode: ColorMode!
+    confidence: Float!
+    model: String!
+    candidates: [ClassificationCandidate!]!
+    cutoutImageBase64: String
+    cutoutMimeType: String
+  }
+
+  type GarmentSizeChartRow {
+    sizeLabel: String!
+    shoulderWidthCm: Float
+    chestWidthCm: Float
+    sleeveLengthCm: Float
+    totalLengthCm: Float
+    waistWidthCm: Float
+    hipWidthCm: Float
+    inseamCm: Float
+    thighWidthCm: Float
+    riseCm: Float
+    hemWidthCm: Float
+  }
+
+  type GarmentSizeChartAnalysis {
+    rows: [GarmentSizeChartRow!]!
+    notes: [String!]!
+    model: String!
+  }
+
+  type Query {
+    health: ApiHealth!
+    me: Viewer!
+    wardrobeItems(category: ClothingCategory, subcategory: String): [WardrobeItem!]!
+    wardrobeItem(id: ID!): WardrobeItem!
+    outfits(style: String, wardrobeItemIds: [ID!]): [Outfit!]!
+    outfit(id: ID!): Outfit!
+    outfitRecommendation(input: OutfitRecommendationInput!): OutfitRecommendation!
+    plannerWeek(weekStartsOn: String!): PlannerWeek
+    plannerEntries(from: String!, to: String!): [PlannerEntry!]!
+    outfitWearHistory(outfitIds: [ID!]!): [OutfitWearRecord!]!
+  }
+
+  type Mutation {
+    testLogin(input: TestLoginInput!): AuthPayload!
+    logout: Boolean!
+    updateMyStyleProfile(input: UpdateMyStyleProfileInput!): Viewer!
+    prepareImageUpload(input: PrepareImageUploadInput!): PreparedImageUpload!
+    confirmImageUpload(assetId: ID!): ImageAsset!
+    createWardrobeItem(input: CreateWardrobeItemInput!): WardrobeItem!
+    updateWardrobeItem(id: ID!, input: UpdateWardrobeItemInput!): WardrobeItem!
+    archiveWardrobeItem(id: ID!): WardrobeItem!
+    createOutfit(input: CreateOutfitInput!): Outfit!
+    updateOutfit(id: ID!, input: UpdateOutfitInput!): Outfit!
+    generateOutfitPreview(input: OutfitPreviewInput!): OutfitPreview!
+    deleteOutfit(id: ID!): Boolean!
+    setPlannerEntry(input: SetPlannerEntryInput!): PlannerWeek!
+    setDirectPlannerEntry(input: SetDirectPlannerEntryInput!): PlannerWeek!
+    savePlannerOutfitToLookbook(outfitId: ID!, previewImage: OutfitPreviewImageInput): Outfit!
+    clearPlannerEntry(weekStartsOn: String!, date: String!): PlannerWeek
+    classifyWardrobeImage(input: ClassifyWardrobeImageInput!): ClothingClassification!
+    analyzeGarmentSizeChart(input: AnalyzeGarmentSizeChartInput!): GarmentSizeChartAnalysis!
+  }
+`
