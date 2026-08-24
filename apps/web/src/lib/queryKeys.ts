@@ -1,6 +1,6 @@
 import type { OutfitStyle } from '../constants/styleOptions'
 import type { ClosetFilter } from '../features/closet/constants'
-import type { ClothingCategory } from '@closet/types'
+import type { ClothingCategory, Season } from '@closet/types'
 
 export const queryKeys = {
   me: ['me'] as const,
@@ -26,6 +26,23 @@ export const queryKeys = {
   },
   planner: {
     all: ['planner'] as const,
+    todayRecommendation: (
+      viewerId: string,
+      date: string,
+      season: Season,
+      style: OutfitStyle,
+      variation: number,
+    ) =>
+      [
+        'planner',
+        'today-recommendation',
+        'v4',
+        viewerId,
+        date,
+        season,
+        style,
+        variation,
+      ] as const,
     week: (weekStartsOn: string) =>
       ['planner', 'week', weekStartsOn] as const,
     entries: (from: string, to: string) =>

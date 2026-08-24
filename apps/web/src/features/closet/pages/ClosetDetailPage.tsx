@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowRight, CalendarDays, Palette, Sparkles } from 'lucide-react'
+import { ArrowRight, CalendarDays, Palette, Sparkles, Tag } from 'lucide-react'
 import {
   Navigate,
   useNavigate,
@@ -7,7 +7,7 @@ import {
   useSearchParams,
 } from 'react-router-dom'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
-import { formatSeasonLabels } from '../../../constants/seasons'
+import { seasonLabels } from '../../../constants/seasons'
 import { useUiStore } from '../../../stores/useUiStore'
 import { ClosetDetailHeader } from '../components/ClosetDetailHeader'
 import { ClosetItemEditModal } from '../components/ClosetItemEditModal'
@@ -22,6 +22,7 @@ import {
   useUpdateWardrobeItemMutation,
 } from '../api/wardrobeQueries'
 import { colorHexToRgb, colorModeLabels } from '../utils/color'
+import { getWardrobeItemCategories } from '../utils/wardrobeCategories'
 
 export function ClosetDetailPage() {
   const navigate = useNavigate()
@@ -42,7 +43,7 @@ export function ClosetDetailPage() {
       ? requestedBackPath
       : date
         ? `/plan/${date}`
-        : '/closet'
+        : `/closet${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
   const backLabel = date ? '플래너 코디로 돌아가기' : '내 옷장으로 돌아가기'
 
   useEffect(() => {
@@ -98,6 +99,7 @@ export function ClosetDetailPage() {
       ? 'AI가 옷 정보를 분석하고 있어요.'
       : `${selectedItem.subcategory ?? (selectedItem.category ? closetCategoryLabels[selectedItem.category] : '미분류')} · ${selectedItem.colorDetailName ?? selectedItem.colorName}`
   const colorRgb = colorHexToRgb(selectedItem.colorHex)
+  const itemCategories = getWardrobeItemCategories(selectedItem)
   const sizeDetails = [
     ['표기 사이즈', selectedItem.sizeLabel],
     ['어깨너비', selectedItem.shoulderWidthCm],
@@ -151,17 +153,73 @@ export function ClosetDetailPage() {
                 : '아직 착용 기록이 없습니다.'}
             </p>
 
-            <span className="mt-5 inline-flex items-center gap-2 rounded-full bg-sage px-3 py-2 text-xs font-bold">
-              <Sparkles size={14} />
-              {selectedItem.classificationStatus === 'pending'
-                ? 'AI 분류 대기'
-                : `${selectedItem.subcategory ?? (selectedItem.category ? closetCategoryLabels[selectedItem.category] : '미분류')} · ${selectedItem.colorDetailName ?? selectedItem.colorName}`}
-            </span>
+            {itemCategories.length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-2" aria-label="카테고리">
+                {itemCategories.map((category, index) => (
+                  <button
+                    type="button"
+                    className={`rounded-full px-3 py-1.5 text-xs font-bold ${
+                      index === 0
+                        ? 'bg-ink text-white'
+                        : 'border border-line bg-surface text-muted'
+                    }`}
+                    key={category}
+                    onClick={() => navigate(`/closet?category=${category}`)}
+                  >
+                    {closetCategoryLabels[category]}
+                    {index === 0 ? ' · 대표' : ''}
+                  </button>
+                ))}
+              </div>
+            )}
 
-            {selectedItem.seasons.length > 0 && (
-              <span className="mt-2 ml-2 inline-flex rounded-full border border-line bg-surface px-3 py-2 text-xs font-bold text-muted">
-                {formatSeasonLabels(selectedItem.seasons)}
-              </span>
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className="inline-flex h-9 items-center gap-2 rounded-full bg-sage px-3 text-xs font-bold"
+                onClick={() => {
+                  const query = [selectedItem.subcategory, selectedItem.colorName]
+                    .filter(Boolean)
+                    .join(' ')
+                  navigate(`/closet?q=${encodeURIComponent(query)}`)
+                }}
+              >
+                <Sparkles size={14} />
+                {selectedItem.classificationStatus === 'pending'
+                  ? 'AI 분류 대기'
+                  : `${selectedItem.subcategory ?? (selectedItem.category ? closetCategoryLabels[selectedItem.category] : '미분류')} · ${selectedItem.colorDetailName ?? selectedItem.colorName}`}
+              </button>
+
+              {selectedItem.seasons.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {selectedItem.seasons.map((season) => (
+                    <button
+                      type="button"
+                      key={season}
+                      className="inline-flex h-9 items-center rounded-full border border-line bg-surface px-3 text-xs font-bold text-muted"
+                      onClick={() => navigate(`/closet?season=${season}`)}
+                    >
+                      {seasonLabels[season]}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {selectedItem.tags.length > 0 && (
+              <div className="mt-4 flex flex-wrap items-center gap-2" aria-label="태그">
+                <Tag size={14} className="text-muted" />
+                {selectedItem.tags.map((tag) => (
+                  <button
+                    type="button"
+                    key={tag}
+                    className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-bold"
+                    onClick={() => navigate(`/closet?tag=${encodeURIComponent(tag)}`)}
+                  >
+                    #{tag}
+                  </button>
+                ))}
+              </div>
             )}
 
             {selectedItem.colorDetailName && colorRgb && (

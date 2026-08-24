@@ -11,6 +11,10 @@ const isoDate = (value: Date | null | undefined) => value?.toISOString() ?? null
 
 export const wardrobeResolvers = {
   WardrobeItem: {
+    additionalCategories: (item: {
+      additionalCategories?: ClothingCategory[] | null
+    }) => item.additionalCategories ?? [],
+    tags: (item: { tags?: string[] | null }) => item.tags ?? [],
     createdAt: (item: { createdAt: Date }) => item.createdAt.toISOString(),
     updatedAt: (item: { updatedAt: Date }) => item.updatedAt.toISOString(),
     lastWornAt: (item: { lastWornAt?: Date | null }) => isoDate(item.lastWornAt),

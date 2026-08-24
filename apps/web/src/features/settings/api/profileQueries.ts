@@ -62,9 +62,10 @@ const viewerFields = `
   }
 `
 
-export function useMeQuery() {
+export function useMeQuery(enabled = true) {
   return useQuery({
     queryKey: queryKeys.me,
+    enabled,
     queryFn: async ({ signal }) => {
       const data = await graphqlRequest<{ me: ViewerProfile }>(
         `query Me { me { ${viewerFields} } }`,

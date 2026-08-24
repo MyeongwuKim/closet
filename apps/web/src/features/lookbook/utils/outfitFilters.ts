@@ -5,6 +5,7 @@ import {
   outfitStyleOptions,
 } from '../../../constants/styleOptions'
 import { closetCategoryLabels } from '../../closet/constants'
+import { wardrobeItemMatchesColor } from '../../closet/utils/color'
 import type { SavedOutfit } from '../types'
 
 export function createOutfitSearchTokens(searchQuery: string) {
@@ -35,6 +36,7 @@ export function filterSavedOutfits({
   selectedItemIds = [],
   activeStyle,
   activeSeason,
+  activeColor = null,
   searchQuery,
 }: {
   outfits: SavedOutfit[]
@@ -42,6 +44,7 @@ export function filterSavedOutfits({
   selectedItemIds?: string[]
   activeStyle: string
   activeSeason: Season | null
+  activeColor?: string | null
   searchQuery: string
 }) {
   const wardrobeItemsById = new Map(
@@ -50,6 +53,10 @@ export function filterSavedOutfits({
   const searchTokens = createOutfitSearchTokens(searchQuery)
 
   return outfits.filter((outfit) => {
+    const outfitItems = outfit.layers.flatMap((layer) => {
+      const item = wardrobeItemsById.get(layer.wardrobeItemId)
+      return item ? [item] : []
+    })
     const matchesItems = selectedItemIds.every((itemId) =>
       outfit.layers.some((layer) => layer.wardrobeItemId === itemId),
     )
@@ -57,15 +64,15 @@ export function filterSavedOutfits({
       activeStyle === 'all' || outfit.style === activeStyle
     const matchesSeason =
       activeSeason === null || outfit.seasons.includes(activeSeason)
+    const matchesColor =
+      activeColor === null ||
+      outfitItems.some((item) => wardrobeItemMatchesColor(item, activeColor))
     const searchableText = [
       outfit.name,
       outfit.style,
       getOutfitStyleLabel(outfit.style),
       ...outfit.seasons.map((season) => seasonLabels[season]),
-      ...outfit.layers.flatMap((layer) => {
-        const item = wardrobeItemsById.get(layer.wardrobeItemId)
-        if (!item) return []
-
+      ...outfitItems.flatMap((item) => {
         return [
           item.name,
           item.category ?? '',
@@ -83,6 +90,7 @@ export function filterSavedOutfits({
       matchesItems &&
       matchesStyle &&
       matchesSeason &&
+      matchesColor &&
       searchTokens.every((token) => searchableText.includes(token))
     )
   })

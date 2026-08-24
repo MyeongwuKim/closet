@@ -223,7 +223,7 @@ export const outfitRepository = {
   async remove(id: string) {
     await prisma.plannerEntry.updateMany({
       where: { outfitId: id },
-      data: { outfitId: null },
+      data: { outfitId: null, title: null },
     })
     await prisma.outfitGeneration.deleteMany({ where: { outfitId: id } })
     await prisma.outfitItem.deleteMany({ where: { outfitId: id } })

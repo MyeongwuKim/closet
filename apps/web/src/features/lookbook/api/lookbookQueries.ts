@@ -239,6 +239,33 @@ export function useUpdateOutfitMutation() {
   })
 }
 
+export function useDeleteOutfitMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await graphqlRequest<{ deleteOutfit: boolean }, { id: string }>(
+        `
+          mutation DeleteOutfit($id: ID!) {
+            deleteOutfit(id: $id)
+          }
+        `,
+        { id },
+      )
+      return id
+    },
+    onSuccess: (deletedOutfitId) => {
+      queryClient.setQueryData<SavedOutfit[]>(
+        queryKeys.outfits.list(),
+        (currentOutfits = []) =>
+          currentOutfits.filter((outfit) => outfit.id !== deletedOutfitId),
+      )
+      void queryClient.invalidateQueries({ queryKey: queryKeys.outfits.all })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.planner.all })
+    },
+  })
+}
+
 export function useGenerateOutfitPreviewMutation() {
   return useMutation({
     mutationFn: async (selectedItemIds: string[]) => {

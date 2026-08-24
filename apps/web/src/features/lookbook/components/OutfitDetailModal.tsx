@@ -6,8 +6,10 @@ import {
   Pencil,
   Save,
   Sparkles,
+  Trash2,
   X,
 } from 'lucide-react'
+import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import {
   getOutfitStyleLabel,
   outfitStyleOptions,
@@ -16,6 +18,7 @@ import { formatSeasonLabels } from '../../../constants/seasons'
 import { SeasonMultiSelect } from '../../../components/SeasonMultiSelect'
 import { useUiStore } from '../../../stores/useUiStore'
 import {
+  useDeleteOutfitMutation,
   useGenerateOutfitPreviewMutation,
   useUpdateOutfitMutation,
 } from '../api/lookbookQueries'
@@ -68,8 +71,10 @@ export function OutfitDetailModal({
 }: OutfitDetailModalProps) {
   const outfits = useLookbookStore((state) => state.outfits)
   const addOutfit = useLookbookStore((state) => state.addOutfit)
+  const removeOutfit = useLookbookStore((state) => state.removeOutfit)
   const pushToast = useUiStore((state) => state.pushToast)
   const updateOutfit = useUpdateOutfitMutation()
+  const deleteOutfit = useDeleteOutfitMutation()
   const generateOutfitPreview = useGenerateOutfitPreviewMutation()
   const [draftItems, setDraftItems] = useState(() =>
     getOutfitItems(outfit, items),
@@ -78,6 +83,7 @@ export function OutfitDetailModal({
   const [draftStyle, setDraftStyle] = useState(outfit.style)
   const [draftSeasons, setDraftSeasons] = useState<Season[]>(outfit.seasons)
   const [isInfoOpen, setIsInfoOpen] = useState(false)
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [draftPreview, setDraftPreview] = useState(createPreviewState)
   const outfitCompletionMessage = getOutfitCompletionMessage(draftItems)
@@ -267,6 +273,15 @@ export function OutfitDetailModal({
           >
             <Pencil size={17} />
           </button>
+          <button
+            type="button"
+            onClick={() => setIsDeleteConfirmOpen(true)}
+            className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-[#fff0ec] hover:text-accent"
+            aria-label="코디북에서 삭제"
+            title="코디북에서 삭제"
+          >
+            <Trash2 size={17} />
+          </button>
         </div>
       </header>
 
@@ -446,6 +461,32 @@ export function OutfitDetailModal({
         }
         isPrimaryPending={updateOutfit.isPending}
       />
+      {isDeleteConfirmOpen && (
+        <ConfirmDialog
+          title="코디북에서 삭제할까요?"
+          description={`${outfit.name} 코디가 코디북에서 사라지고, 이 코디를 등록한 플래너 일정도 비워져요.`}
+          confirmLabel="코디 삭제"
+          isPending={deleteOutfit.isPending}
+          onCancel={() => setIsDeleteConfirmOpen(false)}
+          onConfirm={() => {
+            void deleteOutfit
+              .mutateAsync(outfit.id)
+              .then(() => {
+                removeOutfit(outfit.id)
+                pushToast('코디북에서 삭제했습니다.', 'success')
+                onClose()
+              })
+              .catch((error: unknown) => {
+                pushToast(
+                  error instanceof Error
+                    ? error.message
+                    : '코디를 삭제하지 못했습니다.',
+                  'error',
+                )
+              })
+          }}
+        />
+      )}
     </section>
   )
 }

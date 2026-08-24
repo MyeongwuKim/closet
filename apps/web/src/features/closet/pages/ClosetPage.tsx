@@ -7,7 +7,8 @@ import type {
 } from '@closet/types'
 import { useIsMutating } from '@tanstack/react-query'
 import { Shirt } from 'lucide-react'
-import { Outlet, useNavigate } from 'react-router-dom'
+import { Outlet, useNavigate, useSearchParams } from 'react-router-dom'
+import { ColorFilter } from '../../../components/ColorFilter'
 import { SeasonFilter } from '../../../components/SeasonFilter'
 import { seasonLabels } from '../../../constants/seasons'
 import { useUiStore } from '../../../stores/useUiStore'
@@ -26,6 +27,20 @@ import { ClosetCategoryFilter } from '../components/ClosetCategoryFilter'
 import { ClosetItemCard } from '../components/ClosetItemCard'
 import { ClosetMultiSelectBar } from '../components/ClosetMultiSelectBar'
 import { ClosetPageHeader } from '../components/ClosetPageHeader'
+import { ClosetSearchFilter } from '../components/ClosetSearchFilter'
+import {
+  getWardrobeColorOptions,
+  wardrobeItemMatchesColor,
+} from '../utils/color'
+import {
+  getWardrobeItemCategories,
+  wardrobeItemHasCategory,
+} from '../utils/wardrobeCategories'
+import {
+  getRankedWardrobeTags,
+  wardrobeItemHasTag,
+  wardrobeItemMatchesSearch,
+} from '../utils/wardrobeTags'
 
 function createImageObjectUrl(base64: string, mimeType: string) {
   const binary = window.atob(base64)
@@ -45,6 +60,7 @@ type FilterTransitionPhase = 'idle' | 'leaving' | 'entering'
 
 export function ClosetPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const items = useClosetStore((state) => state.items)
   const enqueueClassification = useUiStore(
@@ -55,36 +71,57 @@ export function ClosetPage() {
   const analyzingCount = useIsMutating({
     mutationKey: clothingAnalysisMutationKey,
   })
-  const [activeCategory, setActiveCategory] =
-    useState<ClothingCategory | null>(null)
-  const [activeSeason, setActiveSeason] = useState<Season | null>(null)
-  const [activeSubcategory, setActiveSubcategory] = useState<string | null>(
-    null,
-  )
   const [filterTransitionPhase, setFilterTransitionPhase] =
     useState<FilterTransitionPhase>('idle')
   const filterTransitionTimersRef = useRef<number[]>([])
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const categoryParam = searchParams.get('category')
+  const activeCategory =
+    categoryParam && categoryParam in closetCategoryLabels
+      ? (categoryParam as ClothingCategory)
+      : null
+  const seasonParam = searchParams.get('season')
+  const activeSeason =
+    seasonParam && seasonParam in seasonLabels ? (seasonParam as Season) : null
+  const activeColor = searchParams.get('color')
+  const activeSubcategory = activeCategory
+    ? searchParams.get('subcategory')
+    : null
+  const searchQuery = searchParams.get('q') ?? ''
+  const activeTag = searchParams.get('tag')
 
   const availableCategorySet = new Set(
-    items.flatMap((item) => (item.category ? [item.category] : [])),
+    items.flatMap(getWardrobeItemCategories),
   )
   const availableCategories = (
     Object.keys(closetCategoryLabels) as ClothingCategory[]
   ).filter((category) => availableCategorySet.has(category))
+  const availableColors = getWardrobeColorOptions(items)
+  const availableTags = getRankedWardrobeTags(
+    items.flatMap((item) => item.tags),
+  )
+  const selectedTag =
+    activeTag && availableTags.includes(activeTag) ? activeTag : null
   const availableSubcategories = Array.from(
     new Set(
       items.flatMap((item) =>
-        item.category === activeCategory && item.subcategory?.trim()
+        activeCategory &&
+        wardrobeItemHasCategory(item, activeCategory) &&
+        item.subcategory?.trim()
           ? [item.subcategory.trim()]
           : [],
       ),
     ),
   )
   const filteredItems = items.filter((item) => {
+    if (!wardrobeItemMatchesSearch(item, searchQuery)) return false
+    if (selectedTag && !wardrobeItemHasTag(item, selectedTag)) return false
     if (activeSeason && !item.seasons.includes(activeSeason)) return false
+    if (activeColor && !wardrobeItemMatchesColor(item, activeColor)) {
+      return false
+    }
     if (activeCategory === null) return true
-    if (item.category !== activeCategory) return false
+    if (!wardrobeItemHasCategory(item, activeCategory)) return false
     return activeSubcategory === null || item.subcategory === activeSubcategory
   })
 
@@ -96,6 +133,38 @@ export function ClosetPage() {
     },
     [],
   )
+
+  const updateFilterParam = (key: string, value: string | null) => {
+    setSearchParams(
+      (currentParams) => {
+        const nextParams = new URLSearchParams(currentParams)
+        if (value) nextParams.set(key, value)
+        else nextParams.delete(key)
+        return nextParams
+      },
+      { replace: true },
+    )
+  }
+
+  const applyCategoryFilter = (
+    nextCategory: ClothingCategory | null,
+    nextSubcategory: string | null,
+  ) => {
+    setSearchParams(
+      (currentParams) => {
+        const nextParams = new URLSearchParams(currentParams)
+        if (nextCategory) nextParams.set('category', nextCategory)
+        else nextParams.delete('category')
+        if (nextCategory && nextSubcategory) {
+          nextParams.set('subcategory', nextSubcategory)
+        } else {
+          nextParams.delete('subcategory')
+        }
+        return nextParams
+      },
+      { replace: true },
+    )
+  }
 
   const changeFilter = (
     nextCategory: ClothingCategory | null,
@@ -114,8 +183,7 @@ export function ClosetPage() {
     filterTransitionTimersRef.current = []
 
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      setActiveCategory(nextCategory)
-      setActiveSubcategory(nextSubcategory)
+      applyCategoryFilter(nextCategory, nextSubcategory)
       setFilterTransitionPhase('idle')
       return
     }
@@ -123,8 +191,7 @@ export function ClosetPage() {
     setFilterTransitionPhase('leaving')
 
     const swapTimer = window.setTimeout(() => {
-      setActiveCategory(nextCategory)
-      setActiveSubcategory(nextSubcategory)
+      applyCategoryFilter(nextCategory, nextSubcategory)
       setFilterTransitionPhase('entering')
 
       const settleTimer = window.setTimeout(() => {
@@ -216,6 +283,7 @@ export function ClosetPage() {
             colorHex: classification.colorHex,
             colorRgb: classification.colorRgb,
             colorMode: classification.colorMode,
+            fashionAttributes: classification.fashionAttributes ?? null,
             confidence: classification.confidence,
             model: classification.model,
             candidates: classification.candidates,
@@ -223,15 +291,20 @@ export function ClosetPage() {
           })
         })
         .catch((error: unknown) => {
+          const rejectedImageCodes = new Set([
+            'PERSON_DETECTED',
+            'FASHION_ITEM_NOT_DETECTED',
+            'MULTIPLE_FASHION_ITEMS_DETECTED',
+            'UNCLEAR_FASHION_IMAGE',
+          ])
+
           if (
             error instanceof ClothingAnalysisError &&
-            error.code === 'PERSON_DETECTED'
+            error.code &&
+            rejectedImageCodes.has(error.code)
           ) {
             URL.revokeObjectURL(item.imageUrl)
-            pushToast(
-              '사람이 포함된 이미지예요. 옷만 나온 사진을 올려주세요.',
-              'error',
-            )
+            pushToast(error.message, 'error')
             return
           }
 
@@ -253,6 +326,7 @@ export function ClosetPage() {
             colorHex: '#d9d5cc',
             colorRgb: [217, 213, 204],
             colorMode: null,
+            fashionAttributes: null,
             confidence: null,
             model: null,
             candidates: [],
@@ -263,7 +337,8 @@ export function ClosetPage() {
   }
 
   const handleItemClick = (itemId: string) => {
-    navigate(`/closet/${itemId}`)
+    const query = searchParams.toString()
+    navigate(`/closet/${itemId}${query ? `?${query}` : ''}`)
   }
 
   const toggleItemSelection = (item: WardrobeItem) => {
@@ -332,10 +407,19 @@ export function ClosetPage() {
         onAddItem={openFilePicker}
       />
       {items.length > 0 && (
+        <ClosetSearchFilter
+          query={searchQuery}
+          tags={availableTags}
+          activeTag={selectedTag}
+          onQueryChange={(query) => updateFilterParam('q', query)}
+          onTagChange={(tag) => updateFilterParam('tag', tag)}
+        />
+      )}
+      {items.length > 0 && (
         <SeasonFilter
-          className="mt-6"
+          className="mt-4"
           value={activeSeason}
-          onChange={setActiveSeason}
+          onChange={(season) => updateFilterParam('season', season)}
         />
       )}
       <div
@@ -343,31 +427,49 @@ export function ClosetPage() {
         aria-busy={filterTransitionPhase !== 'idle'}
       >
         {items.length > 0 && (
-          <ClosetCategoryFilter
-            className="mt-3"
-            category={activeCategory}
-            subcategory={activeSubcategory}
-            availableCategories={availableCategories}
-            availableSubcategories={availableSubcategories}
-            onCategoryChange={(category) => changeFilter(category, null)}
-            onSubcategoryChange={(subcategory) =>
-              changeFilter(activeCategory, subcategory)
-            }
-          />
+          <div className="mt-3 flex min-w-0 items-start gap-2">
+            {availableColors.length > 1 && (
+              <ColorFilter
+                value={activeColor}
+                options={availableColors}
+                onChange={(color) => updateFilterParam('color', color)}
+              />
+            )}
+            <ClosetCategoryFilter
+              className="min-w-0 flex-1"
+              category={activeCategory}
+              subcategory={activeSubcategory}
+              availableCategories={availableCategories}
+              availableSubcategories={availableSubcategories}
+              onCategoryChange={(category) => changeFilter(category, null)}
+              onSubcategoryChange={(subcategory) =>
+                changeFilter(activeCategory, subcategory)
+              }
+            />
+          </div>
         )}
 
         {filteredItems.length > 0 ? (
-          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {filteredItems.map((item) => (
-              <ClosetItemCard
-                item={item}
-                isSelected={selectedIds.includes(item.id)}
-                onOpen={() => handleItemClick(item.id)}
-                onToggleSelection={() => toggleItemSelection(item)}
-                key={item.id}
-              />
-            ))}
-          </div>
+          <>
+            {(searchQuery.trim() || selectedTag) && (
+              <p className="mt-4 px-1 text-xs font-bold text-muted">
+                검색 결과 {filteredItems.length}개
+              </p>
+            )}
+            <div
+              className={`${searchQuery.trim() || selectedTag ? 'mt-3' : 'mt-5'} grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4`}
+            >
+              {filteredItems.map((item) => (
+                <ClosetItemCard
+                  item={item}
+                  isSelected={selectedIds.includes(item.id)}
+                  onOpen={() => handleItemClick(item.id)}
+                  onToggleSelection={() => toggleItemSelection(item)}
+                  key={item.id}
+                />
+              ))}
+            </div>
+          </>
         ) : (
           <div
             className={
@@ -386,6 +488,12 @@ export function ClosetPage() {
             >
               {items.length === 0
                 ? '옷장이 비어 있어요'
+                : searchQuery.trim()
+                  ? '검색 결과가 없어요'
+                  : selectedTag
+                    ? `#${selectedTag} 태그의 옷이 없어요`
+                : activeColor
+                  ? `${activeColor} 색상 옷이 없어요`
                 : activeSeason
                   ? `${seasonLabels[activeSeason]}에 입을 옷이 없어요`
                   : '이 카테고리에 저장된 옷이 없어요'}
@@ -399,6 +507,10 @@ export function ClosetPage() {
             >
               {items.length === 0
                 ? '내 옷장에 옷 사진을 추가해보세요.'
+                : searchQuery.trim() || selectedTag
+                  ? '검색어를 바꾸거나 선택한 태그를 해제해보세요.'
+                : activeColor
+                  ? '다른 색상이나 카테고리를 선택해보세요.'
                 : activeSeason
                   ? '다른 계절을 선택하거나 옷의 계절 정보를 수정해보세요.'
                   : '다른 카테고리를 확인하거나 새 옷을 추가해보세요.'}

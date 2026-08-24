@@ -62,6 +62,9 @@ export async function classifyClothing(
             colorHex
             colorRgb
             colorMode
+            fashionAttributes {
+              layerRole silhouette pattern material warmth formality confidence
+            }
             confidence
             model
             cutoutImageBase64

@@ -2,7 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { OutfitPreview } from '@closet/types'
 import { graphqlRequest } from '../../../lib/graphql'
 import { queryKeys } from '../../../lib/queryKeys'
-import type { PlanEntry } from '../data/weeklyPlan'
+import {
+  mergeWeeklyPlanEntries,
+  moveWeeklyPlanOutfits,
+  type PlanEntry,
+} from '../data/weeklyPlan'
 
 interface PlannerWeekPayload {
   id: string
@@ -39,6 +43,14 @@ export interface SetDirectPlannerEntryVariables {
   date: string
   itemIds: string[]
   previewImage?: OutfitPreview
+  recommendationName?: string
+  recommendationStyle?: string
+}
+
+export interface MovePlannerEntryVariables {
+  weekStartsOn: string
+  sourceDate: string
+  targetDate: string
 }
 
 export interface OutfitWearRecord {
@@ -104,7 +116,10 @@ export function usePlannerWeekQuery(weekStartsOn: string, enabled = true) {
         { weekStartsOn },
         signal,
       )
-      return data.plannerWeek?.entries.map(toPlanEntry) ?? []
+      return mergeWeeklyPlanEntries(
+        weekStartsOn,
+        data.plannerWeek?.entries.map(toPlanEntry) ?? [],
+      )
     },
     enabled: enabled && Boolean(weekStartsOn),
   })
@@ -202,6 +217,75 @@ export function useSetDirectPlannerEntryMutation() {
       return data.setDirectPlannerEntry.entries.map(toPlanEntry)
     },
     onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.planner.all }),
+  })
+}
+
+export function useMovePlannerEntryMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (input: MovePlannerEntryVariables) => {
+      const data = await graphqlRequest<
+        { movePlannerEntry: PlannerWeekPayload },
+        { input: MovePlannerEntryVariables }
+      >(
+        `
+          mutation MovePlannerEntry($input: MovePlannerEntryInput!) {
+            movePlannerEntry(input: $input) {
+              id weekStartsOn
+              entries {
+                date title occasion weatherSummary temperatureC
+                outfit {
+                  id name plannerOnly
+                  items { wardrobeItemId }
+                  generations { status imageAsset { deliveryUrl } }
+                }
+              }
+            }
+          }
+        `,
+        { input },
+      )
+
+      return mergeWeeklyPlanEntries(
+        data.movePlannerEntry.weekStartsOn,
+        data.movePlannerEntry.entries.map(toPlanEntry),
+      )
+    },
+    onMutate: async (input) => {
+      const queryKey = queryKeys.planner.week(input.weekStartsOn)
+      await queryClient.cancelQueries({ queryKey })
+      const previousEntries = queryClient.getQueryData<PlanEntry[]>(queryKey)
+
+      if (previousEntries) {
+        queryClient.setQueryData(
+          queryKey,
+          moveWeeklyPlanOutfits(
+            previousEntries,
+            input.sourceDate,
+            input.targetDate,
+          ),
+        )
+      }
+
+      return { previousEntries }
+    },
+    onError: (_error, input, context) => {
+      if (context?.previousEntries) {
+        queryClient.setQueryData(
+          queryKeys.planner.week(input.weekStartsOn),
+          context.previousEntries,
+        )
+      }
+    },
+    onSuccess: (entries, input) => {
+      queryClient.setQueryData(
+        queryKeys.planner.week(input.weekStartsOn),
+        entries,
+      )
+    },
+    onSettled: () =>
       queryClient.invalidateQueries({ queryKey: queryKeys.planner.all }),
   })
 }

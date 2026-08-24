@@ -1,3 +1,4 @@
+import type { OutfitStyle } from '@prisma/client'
 import { ServiceError } from '../../graphql/errors.js'
 import { parseDateOnly } from '../../lib/date.js'
 import { outfitRepository } from '../outfit/outfit.repository.js'
@@ -22,6 +23,22 @@ export interface SetDirectPlannerEntryInput {
   date: string
   itemIds: string[]
   previewImage?: CreateOutfitInput['previewImage']
+  recommendationName?: string | null
+  recommendationStyle?: OutfitStyle | null
+}
+
+export interface MovePlannerEntryInput {
+  weekStartsOn: string
+  sourceDate: string
+  targetDate: string
+}
+
+function moveArrayItem<T>(items: T[], fromIndex: number, toIndex: number) {
+  const nextItems = [...items]
+  const [movedItem] = nextItems.splice(fromIndex, 1)
+  if (movedItem === undefined) return items
+  nextItems.splice(toIndex, 0, movedItem)
+  return nextItems
 }
 
 function parseWeekAndDate(weekStartsOnValue: string, dateValue: string) {
@@ -37,7 +54,7 @@ function parseWeekAndDate(weekStartsOnValue: string, dateValue: string) {
     )
   }
 
-  return { weekStartsOn, date }
+  return { weekStartsOn, date, dayOffset }
 }
 
 export const plannerService = {
@@ -130,7 +147,14 @@ export const plannerService = {
     const uniqueItemIds = [...new Set(input.itemIds)]
     const duplicate =
       uniqueItemIds.length >= 2 && uniqueItemIds.length === input.itemIds.length
-        ? await outfitService.findSavedDuplicate(userId, uniqueItemIds)
+        ? await outfitService.findSavedDuplicate(
+            userId,
+            uniqueItemIds,
+            undefined,
+            input.recommendationStyle
+              ? { style: input.recommendationStyle, source: 'ai' }
+              : undefined,
+          )
         : undefined
     const createdPlannerOnly = !duplicate
     const outfit = duplicate
@@ -144,6 +168,9 @@ export const plannerService = {
       : await outfitService.createPlannerOnly(userId, {
           itemIds: input.itemIds,
           previewImage: input.previewImage,
+          name: input.recommendationName,
+          style: input.recommendationStyle,
+          source: input.recommendationStyle ? 'ai' : undefined,
         })
     const week =
       currentWeek ?? (await plannerRepository.upsertWeek(userId, weekStartsOn))
@@ -177,6 +204,70 @@ export const plannerService = {
     previewImage?: CreateOutfitInput['previewImage'],
   ) {
     return outfitService.promotePlannerOutfit(userId, outfitId, previewImage)
+  },
+
+  async moveEntry(userId: string, input: MovePlannerEntryInput) {
+    const source = parseWeekAndDate(input.weekStartsOn, input.sourceDate)
+    const target = parseWeekAndDate(input.weekStartsOn, input.targetDate)
+
+    if (source.date.getTime() === target.date.getTime()) {
+      throw new ServiceError(
+        '서로 다른 날짜를 선택해주세요.',
+        'SAME_PLANNER_DATE',
+      )
+    }
+
+    const week = await plannerRepository.findWeek(userId, source.weekStartsOn)
+    if (!week) {
+      throw new ServiceError(
+        '옮길 플래너를 찾을 수 없습니다.',
+        'PLANNER_WEEK_NOT_FOUND',
+      )
+    }
+
+    const sourceEntry = week.entries.find(
+      (entry) => entry.date.getTime() === source.date.getTime(),
+    )
+    if (!sourceEntry?.outfitId) {
+      throw new ServiceError(
+        '옮길 코디가 없습니다.',
+        'PLANNER_OUTFIT_NOT_FOUND',
+      )
+    }
+
+    const affectedStart = Math.min(source.dayOffset, target.dayOffset)
+    const affectedEnd = Math.max(source.dayOffset, target.dayOffset)
+    const affectedDates = Array.from(
+      { length: affectedEnd - affectedStart + 1 },
+      (_, index) => {
+        const date = new Date(source.weekStartsOn)
+        date.setDate(date.getDate() + affectedStart + index)
+        return date
+      },
+    )
+    const snapshots = affectedDates.map((date) => {
+      const entry = week.entries.find(
+        (candidate) => candidate.date.getTime() === date.getTime(),
+      )
+      return {
+        outfitId: entry?.outfitId ?? null,
+        title: entry?.title ?? null,
+      }
+    })
+    const movedSnapshots = moveArrayItem(
+      snapshots,
+      source.dayOffset - affectedStart,
+      target.dayOffset - affectedStart,
+    )
+
+    return plannerRepository.moveEntryOutfits({
+      plannerWeekId: week.id,
+      entries: affectedDates.map((date, index) => ({
+        date,
+        outfitId: movedSnapshots[index]?.outfitId ?? null,
+        title: movedSnapshots[index]?.title ?? null,
+      })),
+    })
   },
 
   async clearEntry(userId: string, weekStartsOnValue: string, dateValue: string) {

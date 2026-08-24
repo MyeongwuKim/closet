@@ -9,6 +9,7 @@ import {
 } from '../../../constants/seasons'
 import { getOutfitStyleLabel } from '../../../constants/styleOptions'
 import { useClosetStore } from '../../closet/stores/useClosetStore'
+import { getWardrobeColorOptions } from '../../closet/utils/color'
 import { OutfitCardVisual } from '../components/OutfitCardVisual'
 import { OutfitDetailModal } from '../components/OutfitDetailModal'
 import { OutfitFilterControls } from '../components/OutfitFilterControls'
@@ -28,6 +29,7 @@ export function LookbookPage() {
   const outfits = useLookbookStore((state) => state.outfits)
   const [activeStyle, setActiveStyle] = useState('all')
   const [activeSeason, setActiveSeason] = useState<Season | null>(null)
+  const [activeColor, setActiveColor] = useState<string | null>(null)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedOutfitId, setSelectedOutfitId] = useState<string | null>(null)
@@ -41,6 +43,14 @@ export function LookbookPage() {
   const selectedItems = items.filter((item) =>
     selectedItemIds.includes(item.id),
   )
+  const outfitItemIds = new Set(
+    outfits.flatMap((outfit) =>
+      outfit.layers.map((layer) => layer.wardrobeItemId),
+    ),
+  )
+  const colorOptions = getWardrobeColorOptions(
+    items.filter((item) => outfitItemIds.has(item.id)),
+  )
   const searchTokens = createOutfitSearchTokens(searchQuery)
   const visibleOutfits = filterSavedOutfits({
     outfits,
@@ -48,6 +58,7 @@ export function LookbookPage() {
     selectedItemIds,
     activeStyle,
     activeSeason,
+    activeColor,
     searchQuery,
   })
   const selectedOutfit = outfits.find(
@@ -107,11 +118,14 @@ export function LookbookPage() {
         <OutfitFilterControls
           activeSeason={activeSeason}
           activeStyle={activeStyle}
+          activeColor={activeColor}
+          colorOptions={colorOptions}
           isSearchOpen={isSearchOpen}
           searchQuery={searchQuery}
           styleOptions={visibleStyleOptions}
           onSeasonChange={setActiveSeason}
           onStyleChange={setActiveStyle}
+          onColorChange={setActiveColor}
           onSearchChange={setSearchQuery}
         />
       )}
@@ -219,6 +233,8 @@ export function LookbookPage() {
               ? '선택한 옷이 들어간 코디가 없어요'
               : activeSeason
                 ? `${seasonLabels[activeSeason]} 코디가 없어요`
+                : activeColor
+                  ? `${activeColor} 색상이 들어간 코디가 없어요`
                 : activeStyle !== 'all'
                   ? `${getOutfitStyleLabel(activeStyle)} 코디가 없어요`
                   : '조건에 맞는 코디가 없어요'}

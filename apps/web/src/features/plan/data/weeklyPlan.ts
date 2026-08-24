@@ -51,6 +51,74 @@ export function createEmptyWeeklyPlan(weekStartsOn = getCurrentWeekStart()) {
   })
 }
 
+export function mergeWeeklyPlanEntries(
+  weekStartsOn: string,
+  entries: PlanEntry[],
+) {
+  const entryByDate = new Map(entries.map((entry) => [entry.date, entry]))
+
+  return createEmptyWeeklyPlan(weekStartsOn).map(
+    (emptyEntry) => entryByDate.get(emptyEntry.date) ?? emptyEntry,
+  )
+}
+
+function getOutfitFields(entry: PlanEntry) {
+  return {
+    title: entry.title,
+    itemIds: entry.itemIds,
+    outfitId: entry.outfitId,
+    plannerOnly: entry.plannerOnly,
+    previewImageUrl: entry.previewImageUrl,
+  }
+}
+
+export function moveArrayItem<T>(
+  items: T[],
+  fromIndex: number,
+  toIndex: number,
+) {
+  if (
+    fromIndex === toIndex ||
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= items.length ||
+    toIndex >= items.length
+  ) {
+    return items
+  }
+
+  const nextItems = [...items]
+  const [movedItem] = nextItems.splice(fromIndex, 1)
+  if (movedItem === undefined) return items
+  nextItems.splice(toIndex, 0, movedItem)
+  return nextItems
+}
+
+export function moveWeeklyPlanOutfits(
+  entries: PlanEntry[],
+  sourceDate: string,
+  targetDate: string,
+) {
+  if (sourceDate === targetDate) return entries
+
+  const sourceIndex = entries.findIndex((entry) => entry.date === sourceDate)
+  const targetIndex = entries.findIndex((entry) => entry.date === targetDate)
+  if (sourceIndex < 0 || targetIndex < 0 || !entries[sourceIndex]?.outfitId) {
+    return entries
+  }
+
+  const movedOutfits = moveArrayItem(
+    entries.map(getOutfitFields),
+    sourceIndex,
+    targetIndex,
+  )
+
+  return entries.map((entry, index) => ({
+    ...entry,
+    ...movedOutfits[index],
+  }))
+}
+
 export interface MonthCalendarDay {
   date: string
   dayNumber: number

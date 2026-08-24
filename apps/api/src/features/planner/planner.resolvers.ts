@@ -3,6 +3,7 @@ import { toGraphQLError } from '../../graphql/errors.js'
 import { toDateOnly } from '../../lib/date.js'
 import {
   plannerService,
+  type MovePlannerEntryInput,
   type SetDirectPlannerEntryInput,
   type SetPlannerEntryInput,
 } from './planner.service.js'
@@ -93,6 +94,22 @@ export const plannerResolvers = {
           error,
           '직접 고른 코디를 플래너에 저장하지 못했습니다.',
           'PLANNER_DIRECT_OUTFIT_FAILED',
+        )
+      }
+    },
+    movePlannerEntry: async (
+      _parent: unknown,
+      { input }: { input: MovePlannerEntryInput },
+      context: GraphQLContext,
+    ) => {
+      try {
+        const viewer = await context.getViewer()
+        return plannerService.moveEntry(viewer.id, input)
+      } catch (error) {
+        throw toGraphQLError(
+          error,
+          '코디 위치를 옮기지 못했습니다.',
+          'PLANNER_MOVE_FAILED',
         )
       }
     },

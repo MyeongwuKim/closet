@@ -32,7 +32,7 @@ export function ToastViewport() {
 
         return (
           <div
-            className={`toast-enter pointer-events-auto flex items-start gap-3 rounded-2xl border p-4 shadow-lg ${style.className}`}
+            className={`${toast.isLeaving ? 'toast-leave' : 'toast-enter'} pointer-events-auto flex items-start gap-3 rounded-2xl border p-4 shadow-lg ${style.className}`}
             role={toast.variant === 'error' ? 'alert' : 'status'}
             key={toast.id}
           >

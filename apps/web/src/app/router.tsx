@@ -1,4 +1,8 @@
-import { Navigate, createBrowserRouter } from 'react-router-dom'
+import {
+  Navigate,
+  createBrowserRouter,
+  createHashRouter,
+} from 'react-router-dom'
 import { AppLayout } from '../components/layout/AppLayout'
 import { RequireAuth } from '../features/auth/components/RequireAuth'
 import { LoginPage } from '../features/auth/pages/LoginPage'
@@ -12,8 +16,15 @@ import {
   SettingsPage,
   StyleProfilePage,
 } from '../features/settings/pages/SettingsPage'
+import { AppInfoPage } from '../features/settings/pages/AppInfoPage'
+import { NotificationWeatherPage } from '../features/settings/pages/NotificationWeatherPage'
+import { isNativeWebViewRuntime } from '../native-bridge'
 
-export const router = createBrowserRouter([
+const createRouter = isNativeWebViewRuntime()
+  ? createHashRouter
+  : createBrowserRouter
+
+export const router = createRouter([
   { path: 'login', element: <LoginPage /> },
   {
     element: <RequireAuth />,
@@ -38,6 +49,11 @@ export const router = createBrowserRouter([
           { path: 'recommend', element: <Navigate to="/lookbook" replace /> },
           { path: 'settings', element: <SettingsPage /> },
           { path: 'settings/style-profile', element: <StyleProfilePage /> },
+          {
+            path: 'settings/notifications-weather',
+            element: <NotificationWeatherPage />,
+          },
+          { path: 'settings/app-info', element: <AppInfoPage /> },
           {
             path: 'profile',
             element: <Navigate to="/settings/style-profile" replace />,

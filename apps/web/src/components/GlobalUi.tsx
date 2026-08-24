@@ -12,6 +12,7 @@ import type { GarmentSizeInput } from '../features/closet/utils/garmentSize'
 
 export function GlobalUi() {
   const candidate = useUiStore((state) => state.classificationQueue[0])
+  const wardrobeItems = useClosetStore((state) => state.items)
   const addItems = useClosetStore((state) => state.addItems)
   const hydrateItems = useClosetStore((state) => state.hydrateItems)
   const pushToast = useUiStore((state) => state.pushToast)
@@ -33,12 +34,14 @@ export function GlobalUi() {
     result: {
       name: string
       category: ClothingCategory
+      additionalCategories: ClothingCategory[]
       subcategory: string
       colorName: string
       colorDetailName: string | null
       colorHex: string
       colorMode: ColorMode | null
       seasons: Season[]
+      tags: string[]
     } & GarmentSizeInput,
   ) => {
     if (!candidate) return
@@ -65,6 +68,7 @@ export function GlobalUi() {
         <ClassificationConfirmModal
           key={candidate.itemId}
           candidate={candidate}
+          wardrobeItems={wardrobeItems}
           onConfirm={handleConfirm}
         />
       )}

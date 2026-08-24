@@ -1,4 +1,4 @@
-import type { ClothingCategory } from '@prisma/client'
+import type { ClothingCategory, OutfitStyle, Season } from '@prisma/client'
 import type { GraphQLContext } from '../../graphql/context.js'
 import { toGraphQLError } from '../../graphql/errors.js'
 import {
@@ -8,6 +8,7 @@ import {
 } from './outfit.service.js'
 import { outfitRecommendationService } from './outfit-recommendation.service.js'
 import { outfitPreviewService } from './outfit-preview.service.js'
+import { todayOutfitRecommendationService } from './today-outfit-recommendation.service.js'
 
 export const outfitResolvers = {
   Outfit: {
@@ -23,6 +24,31 @@ export const outfitResolvers = {
       generation.completedAt?.toISOString() ?? null,
   },
   Query: {
+    todayOutfitRecommendation: async (
+      _parent: unknown,
+      {
+        input,
+      }: {
+        input: {
+          date: string
+          season: Season
+          style?: OutfitStyle | null
+          variation?: number | null
+        }
+      },
+      context: GraphQLContext,
+    ) => {
+      try {
+        const viewer = await context.getViewer()
+        return todayOutfitRecommendationService.recommend(viewer.id, input)
+      } catch (error) {
+        throw toGraphQLError(
+          error,
+          '오늘의 코디를 불러오지 못했습니다.',
+          'TODAY_OUTFIT_RECOMMENDATION_FAILED',
+        )
+      }
+    },
     outfitRecommendation: async (
       _parent: unknown,
       {

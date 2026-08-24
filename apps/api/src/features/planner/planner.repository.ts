@@ -21,6 +21,17 @@ export interface SetPlannerEntryData {
   temperatureC?: number | null
 }
 
+interface PlannerEntryOutfitSnapshot {
+  date: Date
+  outfitId: string | null
+  title: string | null
+}
+
+interface MovePlannerEntryData {
+  plannerWeekId: string
+  entries: PlannerEntryOutfitSnapshot[]
+}
+
 export const plannerRepository = {
   findWeek(userId: string, weekStartsOn: Date) {
     return prisma.plannerWeek.findUnique({
@@ -96,6 +107,36 @@ export const plannerRepository = {
 
     return prisma.plannerWeek.findUnique({
       where: { id: plannerWeekId },
+      include: plannerWeekInclude,
+    })
+  },
+
+  async moveEntryOutfits(data: MovePlannerEntryData) {
+    await prisma.$transaction(
+      data.entries.map((entry) =>
+        prisma.plannerEntry.upsert({
+          where: {
+            plannerWeekId_date: {
+              plannerWeekId: data.plannerWeekId,
+              date: entry.date,
+            },
+          },
+          update: {
+            outfitId: entry.outfitId,
+            title: entry.title,
+          },
+          create: {
+            plannerWeekId: data.plannerWeekId,
+            date: entry.date,
+            outfitId: entry.outfitId,
+            title: entry.title,
+          },
+        }),
+      ),
+    )
+
+    return prisma.plannerWeek.findUnique({
+      where: { id: data.plannerWeekId },
       include: plannerWeekInclude,
     })
   },

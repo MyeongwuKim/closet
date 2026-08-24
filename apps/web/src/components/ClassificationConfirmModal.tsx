@@ -1,31 +1,32 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { ClothingCategory, ColorMode, Season } from '@closet/types'
+import type {
+  ClothingCategory,
+  ColorMode,
+  Season,
+  WardrobeItem,
+} from '@closet/types'
 import { ChevronLeft, Palette, Sparkles } from 'lucide-react'
 import {
   useUiStore,
   type ClassificationCandidate,
 } from '../stores/useUiStore'
-import {
-  closetCategoryLabels,
-  closetSubcategoryOptions,
-} from '../features/closet/constants'
+import { closetSubcategoryOptions } from '../features/closet/constants'
 import { OptionPickerField } from './OptionPickerField'
 import { SeasonMultiSelect } from './SeasonMultiSelect'
 import { WardrobeSavingOverlay } from './WardrobeSavingOverlay'
 import {
   GarmentSizeFields,
 } from '../features/closet/components/GarmentSizeFields'
+import { SimilarWardrobeItems } from '../features/closet/components/SimilarWardrobeItems'
+import { CategoryMultiSelectField } from '../features/closet/components/CategoryMultiSelectField'
+import { WardrobeTagField } from '../features/closet/components/WardrobeTagField'
 import {
   emptyGarmentSize,
   toGarmentSizeInput,
   type GarmentSizeFormValue,
   type GarmentSizeInput,
 } from '../features/closet/utils/garmentSize'
-
-const categoryOptions = Object.entries(closetCategoryLabels).map(
-  ([value, label]) => ({ value, label }),
-)
 
 const colorModeLabels: Record<ColorMode, string> = {
   solid: '단색',
@@ -35,23 +36,27 @@ const colorModeLabels: Record<ColorMode, string> = {
 
 interface ClassificationConfirmModalProps {
   candidate: ClassificationCandidate
+  wardrobeItems: WardrobeItem[]
   onConfirm: (
     itemId: string,
     result: {
       name: string
       category: ClothingCategory
+      additionalCategories: ClothingCategory[]
       subcategory: string
       colorName: string
       colorDetailName: string | null
       colorHex: string
       colorMode: ColorMode | null
       seasons: Season[]
+      tags: string[]
     } & GarmentSizeInput,
   ) => Promise<void>
 }
 
 export function ClassificationConfirmModal({
   candidate,
+  wardrobeItems,
   onConfirm,
 }: ClassificationConfirmModalProps) {
   const completeClassification = useUiStore(
@@ -63,10 +68,14 @@ export function ClassificationConfirmModal({
   const [category, setCategory] = useState<ClothingCategory | ''>(
     candidate.category ?? '',
   )
+  const [additionalCategories, setAdditionalCategories] = useState<
+    ClothingCategory[]
+  >([])
   const [name, setName] = useState(candidate.itemName)
   const [subcategory, setSubcategory] = useState(candidate.subcategory)
   const [colorName, setColorName] = useState(candidate.colorName)
   const [seasons, setSeasons] = useState<Season[]>([])
+  const [tags, setTags] = useState<string[]>([])
   const [garmentSize, setGarmentSize] =
     useState<GarmentSizeFormValue>(emptyGarmentSize)
   const [isSaving, setIsSaving] = useState(false)
@@ -104,18 +113,50 @@ export function ClassificationConfirmModal({
       await onConfirm(candidate.itemId, {
         name: name.trim(),
         category,
+        additionalCategories,
         subcategory: subcategory.trim(),
         colorName: colorName.trim(),
         colorDetailName: candidate.colorDetailName.trim() || null,
         colorHex: candidate.colorHex,
         colorMode: candidate.colorMode,
         seasons,
+        tags,
         ...toGarmentSizeInput(category, garmentSize),
       })
       completeClassification()
     } catch {
       setIsSaving(false)
     }
+  }
+
+  const changeCategories = (nextCategories: ClothingCategory[]) => {
+    const [nextCategory, ...nextAdditionalCategories] = nextCategories
+    if (!nextCategory) return
+
+    if (
+      nextCategory !== category &&
+      !closetSubcategoryOptions[nextCategory].includes(subcategory)
+    ) {
+      setSubcategory(closetSubcategoryOptions[nextCategory][0] ?? '')
+    }
+    setCategory(nextCategory)
+    setAdditionalCategories(nextAdditionalCategories)
+  }
+
+  const promoteCandidateCategory = (
+    nextCategory: ClothingCategory,
+    nextSubcategory: string,
+  ) => {
+    const currentCategories = category
+      ? [category, ...additionalCategories]
+      : additionalCategories
+    setCategory(nextCategory)
+    setAdditionalCategories(
+      currentCategories
+        .filter((currentCategory) => currentCategory !== nextCategory)
+        .slice(0, 2),
+    )
+    setSubcategory(nextSubcategory)
   }
 
   return (
@@ -241,18 +282,9 @@ export function ClassificationConfirmModal({
                 />
               </label>
 
-              <OptionPickerField
-                label="카테고리"
-                value={category}
-                options={categoryOptions}
-                placeholder="카테고리를 선택해주세요"
-                onChange={(value) => {
-                  const nextCategory = value as ClothingCategory
-                  setCategory(nextCategory)
-                  setSubcategory(
-                    closetSubcategoryOptions[nextCategory][0] ?? '',
-                  )
-                }}
+              <CategoryMultiSelectField
+                value={category ? [category, ...additionalCategories] : []}
+                onChange={changeCategories}
                 required
               />
 
@@ -305,6 +337,12 @@ export function ClassificationConfirmModal({
                 onChange={setGarmentSize}
               />
 
+              <WardrobeTagField
+                value={tags}
+                suggestions={wardrobeItems.flatMap((item) => item.tags)}
+                onChange={setTags}
+              />
+
               {!candidate.analysisFailed &&
                 candidate.candidates.length > 0 && (
                   <div>
@@ -316,8 +354,7 @@ export function ClassificationConfirmModal({
                         <button
                           type="button"
                           onClick={() => {
-                            setCategory(item.category)
-                            setSubcategory(item.label)
+                            promoteCandidateCategory(item.category, item.label)
                           }}
                           className="rounded-full border border-line bg-surface px-3 py-2 text-xs font-bold hover:border-accent"
                           key={`${item.category}-${item.subcategory}`}
@@ -328,6 +365,17 @@ export function ClassificationConfirmModal({
                     </div>
                   </div>
                 )}
+
+              {!candidate.analysisFailed && category && subcategory.trim() && (
+                <SimilarWardrobeItems
+                  category={category}
+                  subcategory={subcategory}
+                  colorName={candidate.colorName}
+                  colorHex={candidate.colorHex}
+                  colorMode={candidate.colorMode}
+                  wardrobeItems={wardrobeItems}
+                />
+              )}
             </div>
           </div>
         </div>

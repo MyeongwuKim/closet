@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { clearAccessToken, setAccessToken } from '../../../lib/auth'
 import { graphqlRequest } from '../../../lib/graphql'
 import { queryKeys } from '../../../lib/queryKeys'
+import { syncNativeAuthSession } from '../../../native-bridge'
 import type { ViewerProfile } from '../../settings/api/profileQueries'
 
 export interface TestLoginVariables {
@@ -45,6 +46,7 @@ export function useTestLoginMutation() {
     },
     onSuccess: ({ accessToken, viewer }) => {
       setAccessToken(accessToken)
+      void syncNativeAuthSession(accessToken)
       queryClient.clear()
       queryClient.setQueryData(queryKeys.me, viewer)
     },
@@ -61,6 +63,7 @@ export function useLogoutMutation() {
       ),
     onSettled: () => {
       clearAccessToken()
+      void syncNativeAuthSession(null)
       queryClient.clear()
     },
   })

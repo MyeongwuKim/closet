@@ -48,5 +48,5 @@ src/
 루트에서 다음 명령을 실행한다.
 
 ```bash
-pnpm dev:web
+pnpm web:dev
 ```

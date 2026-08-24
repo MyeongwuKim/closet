@@ -53,9 +53,11 @@ pnpm dev
 개별 앱은 다음 명령으로 실행한다.
 
 ```bash
-pnpm dev:web
-pnpm dev:api
-pnpm dev:native
+pnpm web:dev
+pnpm api:dev
+pnpm native:dev
+pnpm native:ios:dev
+pnpm native:android:dev
 ```
 
 API 상태 확인 주소는 `http://localhost:4000/health`다.

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
   ClothingCategory,
   ColorMode,
+  FashionItemAttributes,
   Season,
   WardrobeItem,
 } from '@closet/types'
@@ -13,12 +14,15 @@ export interface WardrobeItemPayload {
   name: string
   createdAt: string
   category: ClothingCategory | null
+  additionalCategories: ClothingCategory[]
   subcategory: string | null
   colorName: string | null
   colorDetailName: string | null
   colorHex: string | null
   colorMode: ColorMode | null
+  fashionAttributes: FashionItemAttributes | null
   seasons: Season[]
+  tags: string[] | null
   sizeLabel: string | null
   shoulderWidthCm: number | null
   chestWidthCm: number | null
@@ -43,12 +47,15 @@ export function toWardrobeItem(item: WardrobeItemPayload): WardrobeItem {
     name: item.name,
     createdAt: item.createdAt,
     category: item.category,
+    additionalCategories: item.additionalCategories,
     subcategory: item.subcategory ?? undefined,
     colorName: item.colorName ?? '',
     colorDetailName: item.colorDetailName ?? undefined,
     colorHex: item.colorHex ?? '#d9d5cc',
     colorMode: item.colorMode ?? undefined,
+    fashionAttributes: item.fashionAttributes ?? undefined,
     seasons: item.seasons,
+    tags: item.tags ?? [],
     sizeLabel: item.sizeLabel ?? undefined,
     shoulderWidthCm: item.shoulderWidthCm ?? undefined,
     chestWidthCm: item.chestWidthCm ?? undefined,
@@ -76,8 +83,11 @@ export function useWardrobeItemsQuery() {
         `
           query WardrobeItems {
             wardrobeItems {
-              id name createdAt category subcategory colorName colorDetailName
-              colorHex colorMode seasons
+              id name createdAt category additionalCategories subcategory colorName colorDetailName
+              colorHex colorMode seasons tags
+              fashionAttributes {
+                layerRole silhouette pattern material warmth formality confidence
+              }
               sizeLabel shoulderWidthCm chestWidthCm sleeveLengthCm
               totalLengthCm waistWidthCm hipWidthCm inseamCm
               thighWidthCm riseCm hemWidthCm
@@ -100,12 +110,14 @@ export interface UpdateWardrobeItemVariables {
   input: {
     name?: string
     category?: ClothingCategory
+    additionalCategories?: ClothingCategory[]
     subcategory?: string
     colorName?: string
     colorDetailName?: string | null
     colorHex?: string
     colorMode?: ColorMode | null
     seasons?: Season[]
+    tags?: string[]
     sizeLabel?: string | null
     shoulderWidthCm?: number | null
     chestWidthCm?: number | null
@@ -121,8 +133,11 @@ export interface UpdateWardrobeItemVariables {
 }
 
 export const wardrobeItemFields = `
-  id name createdAt category subcategory colorName colorDetailName
-  colorHex colorMode seasons
+  id name createdAt category additionalCategories subcategory colorName colorDetailName
+  colorHex colorMode seasons tags
+  fashionAttributes {
+    layerRole silhouette pattern material warmth formality confidence
+  }
   sizeLabel shoulderWidthCm chestWidthCm sleeveLengthCm
   totalLengthCm waistWidthCm hipWidthCm inseamCm
   thighWidthCm riseCm hemWidthCm

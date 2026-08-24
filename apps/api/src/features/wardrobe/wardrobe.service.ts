@@ -3,7 +3,9 @@ import type {
   ClothingCategory,
   ColorMode,
   Season,
+  Prisma,
 } from '@prisma/client'
+import type { FashionItemAttributes } from '@closet/types'
 import { ServiceError } from '../../graphql/errors.js'
 import { imageRepository } from '../image/image.repository.js'
 import {
@@ -17,12 +19,15 @@ export interface CreateWardrobeItemInput {
   displayImageAssetId: string
   originalImageAssetId?: string | null
   category?: ClothingCategory | null
+  additionalCategories?: ClothingCategory[]
   subcategory?: string | null
   colorName?: string | null
   colorDetailName?: string | null
   colorHex?: string | null
   colorMode?: ColorMode | null
+  fashionAttributes?: FashionItemAttributes | null
   seasons?: Season[]
+  tags?: string[]
   sizeLabel?: string | null
   shoulderWidthCm?: number | null
   chestWidthCm?: number | null
@@ -37,6 +42,61 @@ export interface CreateWardrobeItemInput {
   classificationStatus?: ClassificationStatus
   classificationConfidence?: number | null
   classificationModel?: string | null
+}
+
+const fashionAttributeValues = {
+  layerRole: ['base', 'mid', 'outer', 'single', 'unknown'],
+  silhouette: ['slim', 'regular', 'relaxed', 'oversized', 'unknown'],
+  pattern: ['solid', 'stripe', 'check', 'graphic', 'floral', 'other', 'unknown'],
+  material: ['cotton', 'denim', 'knit', 'wool', 'leather', 'linen', 'synthetic', 'other', 'unknown'],
+  warmth: ['light', 'medium', 'heavy', 'unknown'],
+} as const
+
+function normalizeFashionAttributes(
+  value: FashionItemAttributes | null | undefined,
+  category: ClothingCategory | null | undefined,
+) {
+  if (!value) return undefined
+
+  const isValid =
+    fashionAttributeValues.layerRole.includes(value.layerRole) &&
+    fashionAttributeValues.silhouette.includes(value.silhouette) &&
+    fashionAttributeValues.pattern.includes(value.pattern) &&
+    fashionAttributeValues.material.includes(value.material) &&
+    fashionAttributeValues.warmth.includes(value.warmth) &&
+    Number.isFinite(value.formality) &&
+    value.formality >= 0 &&
+    value.formality <= 1 &&
+    Number.isFinite(value.confidence) &&
+    value.confidence >= 0 &&
+    value.confidence <= 1
+
+  if (!isValid) {
+    throw new ServiceError(
+      'AI 패션 속성값이 올바르지 않습니다.',
+      'INVALID_FASHION_ATTRIBUTES',
+    )
+  }
+
+  const fixedLayerRole =
+    category === 'outer'
+      ? 'outer'
+      : category === 'midlayer'
+        ? 'mid'
+        : category === 'top'
+          ? value.layerRole === 'outer' || value.layerRole === 'single'
+            ? 'base'
+            : value.layerRole
+          : category
+            ? 'single'
+            : value.layerRole
+
+  return {
+    ...value,
+    layerRole: fixedLayerRole,
+    formality: Math.round(value.formality * 100) / 100,
+    confidence: Math.round(value.confidence * 100) / 100,
+  } satisfies FashionItemAttributes
 }
 
 const garmentMeasurementLabels = {
@@ -116,6 +176,66 @@ function normalizeSeasons(seasons: Season[] | undefined) {
   return uniqueSeasons
 }
 
+function normalizeTags(tags: string[] | undefined) {
+  const normalizedTags: string[] = []
+  const normalizedTagSet = new Set<string>()
+
+  for (const value of tags ?? []) {
+    const tag = value
+      .normalize('NFKC')
+      .replace(/^#+/, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+    if (!tag) continue
+    if (tag.length > 15) {
+      throw new ServiceError(
+        '태그는 15자 이내로 입력해주세요.',
+        'INVALID_WARDROBE_TAGS',
+      )
+    }
+
+    const normalizedKey = tag.toLocaleLowerCase('ko-KR')
+    if (normalizedTagSet.has(normalizedKey)) continue
+
+    normalizedTagSet.add(normalizedKey)
+    normalizedTags.push(tag)
+  }
+
+  if (normalizedTags.length > 5) {
+    throw new ServiceError(
+      '태그는 다섯 개까지 추가할 수 있습니다.',
+      'INVALID_WARDROBE_TAGS',
+    )
+  }
+
+  return normalizedTags
+}
+
+function normalizeAdditionalCategories(
+  category: ClothingCategory | null | undefined,
+  additionalCategories: ClothingCategory[] | undefined,
+) {
+  const uniqueCategories = [...new Set(additionalCategories ?? [])].filter(
+    (additionalCategory) => additionalCategory !== category,
+  )
+
+  if (!category && uniqueCategories.length > 0) {
+    throw new ServiceError(
+      '대표 카테고리를 먼저 선택해주세요.',
+      'INVALID_WARDROBE_CATEGORIES',
+    )
+  }
+  if (uniqueCategories.length > 2) {
+    throw new ServiceError(
+      '카테고리는 대표 카테고리를 포함해 세 개까지 선택할 수 있습니다.',
+      'INVALID_WARDROBE_CATEGORIES',
+    )
+  }
+
+  return uniqueCategories
+}
+
 async function requireWardrobeItem(userId: string, itemId: string) {
   const item = await wardrobeRepository.findById(userId, itemId)
   if (!item) {
@@ -161,10 +281,19 @@ export const wardrobeService = {
       userId,
       ...input,
       name,
+      additionalCategories: normalizeAdditionalCategories(
+        input.category,
+        input.additionalCategories,
+      ),
       seasons: normalizeSeasons(input.seasons),
+      tags: normalizeTags(input.tags),
       sizeLabel: normalizeSizeLabel(input.sizeLabel),
       colorDetailName: normalizeColorDetailName(input.colorDetailName),
       colorHex: normalizeColorHex(input.colorHex),
+      fashionAttributes: normalizeFashionAttributes(
+        input.fashionAttributes,
+        input.category,
+      ) as unknown as Prisma.InputJsonValue | undefined,
       classificationStatus:
         input.classificationStatus ??
         (input.category ? 'classified' : 'pending'),
@@ -176,19 +305,31 @@ export const wardrobeService = {
     itemId: string,
     input: UpdateWardrobeItemData,
   ) {
-    await requireWardrobeItem(userId, itemId)
+    const currentItem = await requireWardrobeItem(userId, itemId)
     if (input.name !== undefined && !input.name.trim()) {
       throw new ServiceError('아이템 이름을 입력해주세요.', 'INVALID_WARDROBE_ITEM')
     }
     validateGarmentMeasurements(input)
 
+    const nextCategory =
+      input.category === undefined ? currentItem.category : input.category
+    const nextAdditionalCategories =
+      input.additionalCategories === undefined
+        ? currentItem.additionalCategories
+        : input.additionalCategories
+
     return wardrobeRepository.update(itemId, {
       ...input,
       name: input.name?.trim(),
+      additionalCategories: normalizeAdditionalCategories(
+        nextCategory,
+        nextAdditionalCategories,
+      ),
       seasons:
         input.seasons === undefined
           ? undefined
           : normalizeSeasons(input.seasons),
+      tags: input.tags === undefined ? undefined : normalizeTags(input.tags),
       sizeLabel: normalizeSizeLabel(input.sizeLabel),
       colorDetailName: normalizeColorDetailName(input.colorDetailName),
       colorHex: normalizeColorHex(input.colorHex),

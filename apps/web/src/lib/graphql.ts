@@ -1,4 +1,8 @@
 import { clearAccessToken, getAccessToken } from './auth'
+import {
+  navigateNativeWebView,
+  syncNativeAuthSession,
+} from '../native-bridge'
 
 interface GraphqlErrorPayload {
   message: string
@@ -43,7 +47,11 @@ export async function graphqlRequest<
     const error = payload.errors?.[0]
     if (error?.extensions?.code === 'UNAUTHENTICATED') {
       clearAccessToken()
-      if (window.location.pathname !== '/login') {
+      void syncNativeAuthSession(null)
+      if (
+        !navigateNativeWebView('/login') &&
+        window.location.pathname !== '/login'
+      ) {
         window.location.assign('/login')
       }
     }

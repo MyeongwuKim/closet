@@ -23,12 +23,15 @@ export interface CreateWardrobeItemData {
   displayImageAssetId: string
   originalImageAssetId?: string | null
   category?: ClothingCategory | null
+  additionalCategories: ClothingCategory[]
   subcategory?: string | null
   colorName?: string | null
   colorDetailName?: string | null
   colorHex?: string | null
   colorMode?: ColorMode | null
+  fashionAttributes?: Prisma.InputJsonValue
   seasons: Season[]
+  tags: string[]
   sizeLabel?: string | null
   shoulderWidthCm?: number | null
   chestWidthCm?: number | null
@@ -48,12 +51,14 @@ export interface CreateWardrobeItemData {
 export interface UpdateWardrobeItemData {
   name?: string
   category?: ClothingCategory | null
+  additionalCategories?: ClothingCategory[]
   subcategory?: string | null
   colorName?: string | null
   colorDetailName?: string | null
   colorHex?: string | null
   colorMode?: ColorMode | null
   seasons?: Season[]
+  tags?: string[]
   sizeLabel?: string | null
   shoulderWidthCm?: number | null
   chestWidthCm?: number | null
@@ -79,8 +84,17 @@ export const wardrobeRepository = {
     return prisma.wardrobeItem.findMany({
       where: {
         userId,
-        ...activeWardrobeItemFilter,
-        category: filter.category,
+        AND: [
+          activeWardrobeItemFilter,
+          filter.category
+            ? {
+                OR: [
+                  { category: filter.category },
+                  { additionalCategories: { has: filter.category } },
+                ],
+              }
+            : {},
+        ],
         subcategory: filter.subcategory,
       },
       include: wardrobeItemInclude,

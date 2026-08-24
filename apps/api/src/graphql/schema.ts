@@ -22,6 +22,71 @@ export const typeDefs = `#graphql
     multicolor
   }
 
+  enum FashionLayerRole {
+    base
+    mid
+    outer
+    single
+    unknown
+  }
+
+  enum FashionSilhouette {
+    slim
+    regular
+    relaxed
+    oversized
+    unknown
+  }
+
+  enum FashionPattern {
+    solid
+    stripe
+    check
+    graphic
+    floral
+    other
+    unknown
+  }
+
+  enum FashionMaterial {
+    cotton
+    denim
+    knit
+    wool
+    leather
+    linen
+    synthetic
+    other
+    unknown
+  }
+
+  enum FashionWarmth {
+    light
+    medium
+    heavy
+    unknown
+  }
+
+  type FashionItemAttributes {
+    layerRole: FashionLayerRole!
+    silhouette: FashionSilhouette!
+    pattern: FashionPattern!
+    material: FashionMaterial!
+    warmth: FashionWarmth!
+    formality: Float!
+    confidence: Float!
+  }
+
+  input FashionItemAttributesInput {
+    layerRole: FashionLayerRole!
+    silhouette: FashionSilhouette!
+    pattern: FashionPattern!
+    material: FashionMaterial!
+    warmth: FashionWarmth!
+    formality: Float!
+    confidence: Float!
+  }
+
   enum PreferredFit {
     wide
     regular
@@ -165,12 +230,15 @@ export const typeDefs = `#graphql
     displayImageAsset: ImageAsset
     originalImageAsset: ImageAsset
     category: ClothingCategory
+    additionalCategories: [ClothingCategory!]!
     subcategory: String
     colorName: String
     colorDetailName: String
     colorHex: String
     colorMode: ColorMode
+    fashionAttributes: FashionItemAttributes
     seasons: [Season!]!
+    tags: [String!]!
     sizeLabel: String
     shoulderWidthCm: Float
     chestWidthCm: Float
@@ -196,12 +264,15 @@ export const typeDefs = `#graphql
     displayImageAssetId: ID!
     originalImageAssetId: ID
     category: ClothingCategory
+    additionalCategories: [ClothingCategory!]
     subcategory: String
     colorName: String
     colorDetailName: String
     colorHex: String
     colorMode: ColorMode
+    fashionAttributes: FashionItemAttributesInput
     seasons: [Season!]!
+    tags: [String!]
     sizeLabel: String
     shoulderWidthCm: Float
     chestWidthCm: Float
@@ -221,12 +292,14 @@ export const typeDefs = `#graphql
   input UpdateWardrobeItemInput {
     name: String
     category: ClothingCategory
+    additionalCategories: [ClothingCategory!]
     subcategory: String
     colorName: String
     colorDetailName: String
     colorHex: String
     colorMode: ColorMode
     seasons: [Season!]
+    tags: [String!]
     sizeLabel: String
     shoulderWidthCm: Float
     chestWidthCm: Float
@@ -278,6 +351,20 @@ export const typeDefs = `#graphql
     summary: String!
     recommendedColors: [OutfitRecommendationColor!]!
     candidates: [OutfitRecommendationCandidate!]!
+    model: String!
+    source: String!
+  }
+
+  type TodayOutfitRecommendation {
+    date: String!
+    season: Season!
+    ready: Boolean!
+    headline: String!
+    summary: String!
+    style: String!
+    items: [WardrobeItem!]!
+    reasons: [String!]!
+    profileSummary: [String!]!
     model: String!
     source: String!
   }
@@ -336,6 +423,13 @@ export const typeDefs = `#graphql
     targetCategory: ClothingCategory!
   }
 
+  input TodayOutfitRecommendationInput {
+    date: String!
+    season: Season!
+    style: OutfitStyle
+    variation: Int
+  }
+
   input OutfitPreviewInput {
     selectedItemIds: [ID!]!
   }
@@ -378,6 +472,14 @@ export const typeDefs = `#graphql
     date: String!
     itemIds: [ID!]!
     previewImage: OutfitPreviewImageInput
+    recommendationName: String
+    recommendationStyle: OutfitStyle
+  }
+
+  input MovePlannerEntryInput {
+    weekStartsOn: String!
+    sourceDate: String!
+    targetDate: String!
   }
 
   input ClassifyWardrobeImageInput {
@@ -411,6 +513,7 @@ export const typeDefs = `#graphql
     colorHex: String!
     colorRgb: [Int!]!
     colorMode: ColorMode!
+    fashionAttributes: FashionItemAttributes
     confidence: Float!
     model: String!
     candidates: [ClassificationCandidate!]!
@@ -446,6 +549,7 @@ export const typeDefs = `#graphql
     outfits(style: String, wardrobeItemIds: [ID!]): [Outfit!]!
     outfit(id: ID!): Outfit!
     outfitRecommendation(input: OutfitRecommendationInput!): OutfitRecommendation!
+    todayOutfitRecommendation(input: TodayOutfitRecommendationInput!): TodayOutfitRecommendation!
     plannerWeek(weekStartsOn: String!): PlannerWeek
     plannerEntries(from: String!, to: String!): [PlannerEntry!]!
     outfitWearHistory(outfitIds: [ID!]!): [OutfitWearRecord!]!
@@ -466,6 +570,7 @@ export const typeDefs = `#graphql
     deleteOutfit(id: ID!): Boolean!
     setPlannerEntry(input: SetPlannerEntryInput!): PlannerWeek!
     setDirectPlannerEntry(input: SetDirectPlannerEntryInput!): PlannerWeek!
+    movePlannerEntry(input: MovePlannerEntryInput!): PlannerWeek!
     savePlannerOutfitToLookbook(outfitId: ID!, previewImage: OutfitPreviewImageInput): Outfit!
     clearPlannerEntry(weekStartsOn: String!, date: String!): PlannerWeek
     classifyWardrobeImage(input: ClassifyWardrobeImageInput!): ClothingClassification!

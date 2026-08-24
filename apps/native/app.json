@@ -4,12 +4,40 @@
     "slug": "closet",
     "version": "0.1.0",
     "orientation": "portrait",
+    "scheme": "closet",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "plugins": [
+      "expo-secure-store",
+      "expo-notifications",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "현재 위치의 날씨 정보를 제공하기 위해 위치 접근이 필요합니다."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "옷 사진을 등록하기 위해 사진 보관함 접근이 필요합니다.",
+          "cameraPermission": "옷 사진을 촬영하기 위해 카메라 접근이 필요합니다.",
+          "microphonePermission": false
+        }
+      ]
+    ],
     "ios": {
-      "supportsTablet": true
+      "bundleIdentifier": "com.myeongwu.closet",
+      "buildNumber": "1",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
+      }
     },
     "android": {
+      "package": "com.myeongwu.closet",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#F3F0E9"
       },

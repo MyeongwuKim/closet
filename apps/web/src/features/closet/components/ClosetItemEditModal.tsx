@@ -8,11 +8,11 @@ import type {
 import { ChevronLeft, Save } from 'lucide-react'
 import { OptionPickerField } from '../../../components/OptionPickerField'
 import { SeasonMultiSelect } from '../../../components/SeasonMultiSelect'
+import { CategoryMultiSelectField } from './CategoryMultiSelectField'
 import { ClosetItemVisual } from './ClosetItemVisual'
-import {
-  closetCategoryLabels,
-  closetSubcategoryOptions,
-} from '../constants'
+import { WardrobeTagField } from './WardrobeTagField'
+import { closetSubcategoryOptions } from '../constants'
+import { useClosetStore } from '../stores/useClosetStore'
 import {
   GarmentSizeFields,
 } from './GarmentSizeFields'
@@ -23,17 +23,15 @@ import {
   type GarmentSizeInput,
 } from '../utils/garmentSize'
 
-const categoryOptions = Object.entries(closetCategoryLabels).map(
-  ([value, label]) => ({ value, label }),
-)
-
 export interface ClosetItemUpdates {
   name: string
   category: ClothingCategory
+  additionalCategories: ClothingCategory[]
   subcategory: string
   colorName: string
   colorHex: string
   seasons: Season[]
+  tags: string[]
 }
 
 export type ClosetItemUpdateInput = ClosetItemUpdates & GarmentSizeInput
@@ -53,9 +51,17 @@ export function ClosetItemEditModal({
   const [category, setCategory] = useState<ClothingCategory | ''>(
     item.category ?? '',
   )
+  const [additionalCategories, setAdditionalCategories] = useState(
+    item.additionalCategories,
+  )
   const [subcategory, setSubcategory] = useState(item.subcategory ?? '')
   const [colorName, setColorName] = useState(item.colorName)
   const [seasons, setSeasons] = useState<Season[]>(item.seasons)
+  const [tags, setTags] = useState<string[]>(item.tags)
+  const wardrobeItems = useClosetStore((state) => state.items)
+  const tagSuggestions = wardrobeItems.flatMap(
+    (wardrobeItem) => wardrobeItem.tags,
+  )
   const [garmentSize, setGarmentSize] = useState<GarmentSizeFormValue>(() =>
     garmentSizeFromItem(item),
   )
@@ -87,10 +93,12 @@ export function ClosetItemEditModal({
       await onSave({
         name: name.trim(),
         category,
+        additionalCategories,
         subcategory: subcategory.trim(),
         colorName: colorName.trim(),
         colorHex: item.colorHex,
         seasons,
+        tags,
         ...toGarmentSizeInput(category, garmentSize),
       })
     } catch {
@@ -98,8 +106,12 @@ export function ClosetItemEditModal({
     }
   }
 
-  const changeCategory = (nextCategory: ClothingCategory) => {
+  const changeCategories = (nextCategories: ClothingCategory[]) => {
+    const [nextCategory, ...nextAdditionalCategories] = nextCategories
+    if (!nextCategory) return
+
     setCategory(nextCategory)
+    setAdditionalCategories(nextAdditionalCategories)
     if (!closetSubcategoryOptions[nextCategory].includes(subcategory)) {
       setSubcategory(closetSubcategoryOptions[nextCategory][0] ?? '')
     }
@@ -154,14 +166,9 @@ export function ClosetItemEditModal({
                 />
               </label>
 
-              <OptionPickerField
-                label="카테고리"
-                value={category}
-                options={categoryOptions}
-                placeholder="카테고리를 선택해주세요"
-                onChange={(value) =>
-                  changeCategory(value as ClothingCategory)
-                }
+              <CategoryMultiSelectField
+                value={category ? [category, ...additionalCategories] : []}
+                onChange={changeCategories}
                 required
               />
 
@@ -212,6 +219,13 @@ export function ClosetItemEditModal({
                 category={category}
                 value={garmentSize}
                 onChange={setGarmentSize}
+              />
+
+              <WardrobeTagField
+                value={tags}
+                suggestions={tagSuggestions}
+                onChange={setTags}
+                defaultOpen={tags.length > 0}
               />
             </div>
           </div>

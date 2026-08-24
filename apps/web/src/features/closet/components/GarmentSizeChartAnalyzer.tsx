@@ -1,7 +1,16 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import type { ClothingCategory } from '@closet/types'
-import { ImagePlus, LoaderCircle, Sparkles } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import {
+  Check,
+  ChevronRight,
+  ImagePlus,
+  Info,
+  LoaderCircle,
+  Sparkles,
+  X,
+} from 'lucide-react'
 import {
   useAnalyzeGarmentSizeChartMutation,
   type AnalyzedGarmentSizeRow,
@@ -55,14 +64,34 @@ export function GarmentSizeChartAnalyzer({
     null,
   )
   const [selectedRowIndex, setSelectedRowIndex] = useState(0)
+  const [isResultOpen, setIsResultOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [applyMessage, setApplyMessage] = useState<string | null>(null)
+  const [appliedLabel, setAppliedLabel] = useState<string | null>(null)
 
   const fields = getGarmentMeasurementFields(category)
   const selectedRow = analysis?.rows[selectedRowIndex] ?? null
   const matchedFields = selectedRow
     ? fields.filter(({ key }) => selectedRow[key] !== null)
     : []
+
+  useEffect(() => {
+    if (!isResultOpen) return
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      setIsResultOpen(false)
+    }
+    window.addEventListener('keydown', handleKeyDown, true)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', handleKeyDown, true)
+    }
+  }, [isResultOpen])
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -79,7 +108,7 @@ export function GarmentSizeChartAnalyzer({
 
     setAnalysis(null)
     setErrorMessage(null)
-    setApplyMessage(null)
+    setAppliedLabel(null)
 
     try {
       const nextAnalysis = await analysisMutation.mutateAsync({
@@ -94,6 +123,8 @@ export function GarmentSizeChartAnalyzer({
         setErrorMessage(
           '사이즈 행을 찾지 못했어요. 표가 선명하게 보이는 이미지를 다시 올려주세요.',
         )
+      } else {
+        setIsResultOpen(true)
       }
     } catch (error) {
       setErrorMessage(
@@ -107,32 +138,25 @@ export function GarmentSizeChartAnalyzer({
   const applySelectedRow = () => {
     if (!selectedRow) return
 
-    const nextValue = { ...value }
-    let appliedCount = 0
-
-    if (!nextValue.sizeLabel.trim() && selectedRow.sizeLabel.trim()) {
-      nextValue.sizeLabel = selectedRow.sizeLabel.trim()
-      appliedCount += 1
+    const nextValue = {
+      ...value,
+      sizeLabel: selectedRow.sizeLabel.trim(),
     }
 
     fields.forEach(({ key }) => {
       const measurement = selectedRow[key]
-      if (!nextValue[key].trim() && measurement !== null) {
+      if (measurement !== null) {
         nextValue[key] = String(measurement)
-        appliedCount += 1
       }
     })
 
     onChange(nextValue)
-    setApplyMessage(
-      appliedCount > 0
-        ? `빈 칸 ${appliedCount}개를 채웠어요.`
-        : '이미 입력된 값은 그대로 유지했어요.',
-    )
+    setAppliedLabel(`${selectedRow.sizeLabel.trim()} 값을 적용했어요.`)
+    setIsResultOpen(false)
   }
 
   return (
-    <div>
+    <div className="mt-4">
       <input
         ref={fileInputRef}
         type="file"
@@ -141,107 +165,185 @@ export function GarmentSizeChartAnalyzer({
         onChange={handleFileChange}
         aria-label="사이즈표 이미지 선택"
       />
-      <button
-        type="button"
-        onClick={() => fileInputRef.current?.click()}
-        disabled={analysisMutation.isPending}
-        className="absolute top-2 right-3 inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-line bg-white px-3 text-xs font-bold hover:border-ink disabled:cursor-wait disabled:opacity-60"
-      >
-        {analysisMutation.isPending ? (
-          <LoaderCircle className="animate-spin" size={17} />
-        ) : (
-          <ImagePlus size={17} />
-        )}
-        {analysisMutation.isPending
-          ? '분석 중'
-          : analysis
-            ? '다시 분석'
-            : '사진으로 입력'}
-      </button>
+
+      {analysis && analysis.rows.length > 0 ? (
+        <div className="grid grid-cols-2 gap-2 rounded-2xl border border-line bg-surface p-3">
+          <button
+            type="button"
+            onClick={() => setIsResultOpen(true)}
+            aria-haspopup="dialog"
+            className="inline-flex h-11 items-center justify-center gap-1.5 rounded-xl bg-ink px-3 text-xs font-bold text-white"
+          >
+            <Sparkles size={16} /> 결과 보기
+          </button>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={analysisMutation.isPending}
+            className="inline-flex h-11 items-center justify-center gap-1.5 rounded-xl border border-line bg-white px-3 text-xs font-bold transition hover:border-ink disabled:cursor-wait disabled:opacity-60"
+          >
+            {analysisMutation.isPending ? (
+              <LoaderCircle className="animate-spin" size={17} />
+            ) : (
+              <ImagePlus size={17} />
+            )}
+            {analysisMutation.isPending ? '분석 중...' : '다시 분석'}
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={analysisMutation.isPending}
+          className="flex w-full items-center gap-3 rounded-2xl border border-line bg-surface p-4 text-left transition hover:border-ink disabled:cursor-wait disabled:opacity-60"
+        >
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sage">
+            {analysisMutation.isPending ? (
+              <LoaderCircle className="animate-spin" size={19} />
+            ) : (
+              <ImagePlus size={19} />
+            )}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-black">
+              {analysisMutation.isPending
+                ? '사이즈표 분석 중...'
+                : '사이즈표 사진 올리기'}
+            </span>
+            <span className="mt-1 block whitespace-nowrap text-xs leading-5 text-muted">
+              {analysisMutation.isPending
+                ? '사이즈와 치수를 찾고 있어요.'
+                : 'AI가 치수를 자동으로 채워드려요.'}
+            </span>
+          </span>
+          {!analysisMutation.isPending && (
+            <ChevronRight className="shrink-0 text-muted" size={18} />
+          )}
+        </button>
+      )}
 
       {errorMessage && (
-        <p className="mt-4 text-xs leading-5 text-red-600" role="alert">
+        <p className="mt-3 text-xs leading-5 text-red-600" role="alert">
           {errorMessage}
         </p>
       )}
+      {appliedLabel && (
+        <p
+          className="mt-3 flex items-center gap-1.5 text-xs font-bold text-accent"
+          role="status"
+        >
+          <Check size={14} /> {appliedLabel}
+        </p>
+      )}
 
-      {analysis && analysis.rows.length > 0 && (
-        <div className="mt-4 rounded-xl border border-line bg-white p-3">
-          <div className="flex items-center gap-1.5 text-xs font-black">
-            <Sparkles size={14} /> 분석된 사이즈 선택
-          </div>
+      {analysis &&
+        analysis.rows.length > 0 &&
+        isResultOpen &&
+        createPortal(
           <div
-            className="mt-2 flex gap-2 overflow-x-auto pb-1"
-            role="radiogroup"
-            aria-label="분석된 사이즈"
+            className="option-picker-backdrop fixed inset-0 z-[120] flex items-end justify-center bg-black/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-6"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setIsResultOpen(false)
+            }}
           >
-            {analysis.rows.map((row, index) => {
-              const isSelected = selectedRowIndex === index
-              return (
+            <section
+              className="option-picker-enter flex max-h-[86dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-surface shadow-2xl sm:rounded-3xl"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="analyzed-size-title"
+            >
+              <header className="flex shrink-0 items-start gap-3 border-b border-line px-5 py-4">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-sage">
+                  <Sparkles size={17} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h2 id="analyzed-size-title" className="text-base font-black">
+                    분석된 사이즈 선택
+                  </h2>
+                  <p className="mt-1 text-xs leading-5 text-muted">
+                    내 사이즈를 고르면 분석값이 입력란에 바로 적용돼요.
+                  </p>
+                </div>
                 <button
                   type="button"
-                  role="radio"
-                  aria-checked={isSelected}
-                  onClick={() => {
-                    setSelectedRowIndex(index)
-                    setApplyMessage(null)
-                  }}
-                  className={`shrink-0 rounded-xl border px-3 py-2 text-xs font-bold ${
-                    isSelected
-                      ? 'border-ink bg-ink text-white'
-                      : 'border-line bg-canvas text-muted hover:text-ink'
-                  }`}
-                  key={`${row.sizeLabel}-${index}`}
+                  onClick={() => setIsResultOpen(false)}
+                  className="flex size-9 shrink-0 items-center justify-center rounded-full hover:bg-canvas"
+                  aria-label="분석 결과 닫기"
+                  autoFocus
                 >
-                  {row.sizeLabel}
+                  <X size={18} />
                 </button>
-              )
-            })}
-          </div>
+              </header>
 
-          <div className="mt-3 rounded-xl bg-canvas p-3">
-            {matchedFields.length > 0 ? (
-              <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
-                {matchedFields.map((field) => (
-                  <div className="flex justify-between gap-2" key={field.key}>
-                    <dt className="text-muted">{field.label}</dt>
-                    <dd className="font-black">{selectedRow?.[field.key]}cm</dd>
-                  </div>
-                ))}
-              </dl>
-            ) : (
-              <p className="text-xs leading-5 text-muted">
-                이 사이즈에서 현재 카테고리에 맞는 실측값을 찾지 못했어요.
-              </p>
-            )}
-          </div>
+              <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+                <div
+                  className="scrollbar-hidden flex gap-2 overflow-x-auto pb-1"
+                  role="radiogroup"
+                  aria-label="분석된 사이즈"
+                >
+                  {analysis.rows.map((row, index) => {
+                    const isSelected = selectedRowIndex === index
+                    return (
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={isSelected}
+                        onClick={() => setSelectedRowIndex(index)}
+                        className={`shrink-0 rounded-xl border px-4 py-2.5 text-sm font-bold transition ${
+                          isSelected
+                            ? 'border-ink bg-ink text-white'
+                            : 'border-line bg-canvas text-muted hover:border-ink hover:text-ink'
+                        }`}
+                        key={`${row.sizeLabel}-${index}`}
+                      >
+                        {row.sizeLabel}
+                      </button>
+                    )
+                  })}
+                </div>
 
-          {analysis.notes.length > 0 && (
-            <div className="mt-2 space-y-1 text-[11px] leading-5 text-muted">
-              {analysis.notes.map((note) => (
-                <p key={note}>· {note}</p>
-              ))}
-            </div>
-          )}
+                <div className="mt-5 rounded-2xl bg-canvas p-4">
+                  {matchedFields.length > 0 ? (
+                    <dl className="grid grid-cols-2 gap-x-5 gap-y-3 text-sm">
+                      {matchedFields.map((field) => (
+                        <div
+                          className="flex min-w-0 items-center justify-between gap-2"
+                          key={field.key}
+                        >
+                          <dt className="truncate text-muted">{field.label}</dt>
+                          <dd className="shrink-0 font-black">
+                            {selectedRow?.[field.key]}cm
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : (
+                    <p className="text-xs leading-5 text-muted">
+                      이 사이즈에서 현재 카테고리에 맞는 실측값을 찾지
+                      못했어요. 표기 사이즈만 적용할 수 있어요.
+                    </p>
+                  )}
+                </div>
 
-          <button
-            type="button"
-            onClick={applySelectedRow}
-            disabled={matchedFields.length === 0}
-            className="mt-3 w-full rounded-xl bg-ink px-3 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-35"
-          >
-            선택한 사이즈 적용
-          </button>
-          <p className="mt-2 text-[11px] leading-5 text-muted">
-            직접 입력한 값은 덮어쓰지 않고 빈 칸만 채워요.
-          </p>
-          {applyMessage && (
-            <p className="mt-1 text-xs font-bold text-accent" role="status">
-              {applyMessage}
-            </p>
-          )}
-        </div>
-      )}
+                <p className="mt-3 flex items-center gap-1.5 text-xs leading-5 text-muted">
+                  <Info className="shrink-0" size={15} aria-hidden="true" />
+                  AI 분석 결과는 실제 치수와 다를 수 있어요.
+                </p>
+              </div>
+
+              <footer className="shrink-0 border-t border-line bg-canvas/70 px-5 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:pb-4">
+                <button
+                  type="button"
+                  onClick={applySelectedRow}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-ink px-4 py-3 text-sm font-bold text-white"
+                >
+                  <Check size={17} /> {selectedRow?.sizeLabel} 적용
+                </button>
+              </footer>
+            </section>
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }

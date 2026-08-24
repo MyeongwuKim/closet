@@ -30,6 +30,14 @@ export type UpdateOutfitInput = Pick<
 export interface PlannerOnlyOutfitInput {
   itemIds: string[]
   previewImage?: CreateOutfitInput['previewImage']
+  name?: string | null
+  style?: string | null
+  source?: OutfitSource
+}
+
+interface SavedDuplicateMetadata {
+  style: string
+  source: OutfitSource
 }
 
 function normalizeSeasons(seasons: Season[], allowEmpty = false) {
@@ -64,6 +72,7 @@ async function findSavedDuplicate(
   userId: string,
   itemIds: string[],
   excludeOutfitId?: string,
+  metadata?: SavedDuplicateMetadata,
 ) {
   const uniqueItemIds = [...new Set(itemIds)]
   const candidates = await outfitRepository.findSavedCandidatesByItems(
@@ -76,7 +85,10 @@ async function findSavedDuplicate(
       candidate.items.length === uniqueItemIds.length &&
       candidate.items.every((item) =>
         uniqueItemIds.includes(item.wardrobeItemId),
-      ),
+      ) &&
+      (!metadata ||
+        (candidate.style === metadata.style &&
+          candidate.source === metadata.source)),
   )
 }
 
@@ -126,8 +138,9 @@ export const outfitService = {
     userId: string,
     itemIds: string[],
     excludeOutfitId?: string,
+    metadata?: SavedDuplicateMetadata,
   ) {
-    return findSavedDuplicate(userId, itemIds, excludeOutfitId)
+    return findSavedDuplicate(userId, itemIds, excludeOutfitId, metadata)
   },
 
   async addPreview(
@@ -283,14 +296,29 @@ export const outfitService = {
         })
       : null
     const itemById = new Map(wardrobeItems.map((item) => [item.id, item]))
+    const name = input.name?.trim() || '직접 고른 코디'
+    const style = input.style?.trim() || '직접 구성'
+
+    if (name.length > 50) {
+      throw new ServiceError(
+        '코디 이름은 50자 이내로 입력해주세요.',
+        'INVALID_OUTFIT',
+      )
+    }
+    if (style.length > 20) {
+      throw new ServiceError(
+        '코디 스타일은 20자 이내로 입력해주세요.',
+        'INVALID_OUTFIT_STYLE',
+      )
+    }
 
     try {
       return await outfitRepository.create({
         userId,
-        name: '직접 고른 코디',
-        style: '직접 구성',
+        name,
+        style,
         seasons: getCommonSeasons(wardrobeItems),
-        source: imageAsset ? 'ai' : 'manual',
+        source: input.source ?? (imageAsset ? 'ai' : 'manual'),
         plannerOnly: true,
         items: uniqueItemIds.map((wardrobeItemId, layerOrder) => ({
           wardrobeItemId,
@@ -324,6 +352,7 @@ export const outfitService = {
       userId,
       outfit.items.map((item) => item.wardrobeItemId),
       outfit.id,
+      { style: outfit.style, source: outfit.source },
     )
     if (duplicate) {
       if (previewImage) {

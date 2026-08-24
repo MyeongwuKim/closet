@@ -6,21 +6,21 @@ import {
 } from '@huggingface/transformers'
 
 const DEFAULT_PERSON_DETECTION_MODEL = 'Xenova/yolos-tiny'
-const DEFAULT_PERSON_DETECTION_THRESHOLD = 0.7
+const DEFAULT_PERSON_DETECTION_BLOCK_THRESHOLD = 0.9
 
 function getPersonDetectionModelId() {
   return process.env.PERSON_DETECTION_MODEL ?? DEFAULT_PERSON_DETECTION_MODEL
 }
 
-function getPersonDetectionThreshold() {
+function getPersonDetectionBlockThreshold() {
   const configuredThreshold = Number(
-    process.env.PERSON_DETECTION_THRESHOLD ??
-      DEFAULT_PERSON_DETECTION_THRESHOLD,
+    process.env.PERSON_DETECTION_BLOCK_THRESHOLD ??
+      DEFAULT_PERSON_DETECTION_BLOCK_THRESHOLD,
   )
 
   return Number.isFinite(configuredThreshold)
     ? configuredThreshold
-    : DEFAULT_PERSON_DETECTION_THRESHOLD
+    : DEFAULT_PERSON_DETECTION_BLOCK_THRESHOLD
 }
 
 async function loadPersonDetector(): Promise<ObjectDetectionPipeline> {
@@ -46,7 +46,7 @@ export async function containsPerson(imageBuffer: Buffer, mimeType: string) {
   const bytes = Uint8Array.from(imageBuffer)
   const image = await RawImage.fromBlob(new Blob([bytes], { type: mimeType }))
   const detections = await detector(image, {
-    threshold: getPersonDetectionThreshold(),
+    threshold: getPersonDetectionBlockThreshold(),
   })
 
   return detections.some(

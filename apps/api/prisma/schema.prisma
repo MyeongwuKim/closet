@@ -214,12 +214,15 @@ model WardrobeItem {
   displayImageAssetId      String?              @db.ObjectId
   originalImageAssetId     String?              @db.ObjectId
   category                 ClothingCategory?
+  additionalCategories     ClothingCategory[]     @default([])
   subcategory              String?
   colorName                String?
   colorDetailName          String?
   colorHex                 String?
   colorMode                ColorMode?
+  fashionAttributes        Json?
   seasons                  Season[]             @default([])
+  tags                     String[]             @default([])
   sizeLabel                String?
   shoulderWidthCm          Float?
   chestWidthCm             Float?
@@ -246,6 +249,7 @@ model WardrobeItem {
   outfitItems              OutfitItem[]
 
   @@index([userId, category, subcategory])
+  @@index([userId, additionalCategories])
   @@index([userId, classificationStatus])
 }
 

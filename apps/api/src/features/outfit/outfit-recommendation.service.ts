@@ -8,6 +8,7 @@ import type { OutfitMatchRelation } from '@closet/types'
 import { ServiceError } from '../../graphql/errors.js'
 import { colorHexToRgb } from '../classification/color.js'
 import { categoryLabels, fashionColorLabels } from '../classification/taxonomy.js'
+import { userRepository } from '../user/user.repository.js'
 import {
   wardrobeItemInclude,
   wardrobeRepository,
@@ -249,6 +250,7 @@ function isOpenAiRecommendation(value: unknown): value is OpenAiRecommendation {
 
 async function requestOpenAiRecommendation(
   userId: string,
+  profile: Awaited<ReturnType<typeof userRepository.findViewerById>>,
   selectedItems: WardrobeItem[],
   candidates: WardrobeItemWithImages[],
   targetCategory: ClothingCategory,
@@ -274,11 +276,18 @@ async function requestOpenAiRecommendation(
         {
           role: 'system',
           content:
-            '당신은 일상복 컬러 조합을 돕는 스타일리스트입니다. 사용자가 이미 고른 옷과 목표 카테고리를 보고 컬러를 추천하세요. colorName은 넓은 분류이고 colorDetailName, colorHex, colorRgb는 실제 원단에서 분석한 대표색이므로 상세 톤 판단에는 이 값을 우선하세요. solid는 대표색을 정밀하게 비교하고, patterned 또는 multicolor는 바탕색뿐 아니라 패턴끼리 과하게 경쟁하지 않는지도 고려하세요. 추천 색상은 서로 달라야 하며 safe는 무난한 색, harmony는 자연스럽게 이어지는 색, accent는 확실한 포인트 색으로 각각 하나씩 제안하세요. 옷장 후보가 없더라도 컬러 추천은 반드시 제공하고, 아이템은 제공된 후보 안에서만 추천하세요. 각 이유는 짧은 한국어 한 문장으로 쓰고 절대적인 패션 점수는 만들지 마세요.',
+            '당신은 일상복 컬러 조합을 돕는 스타일리스트입니다. 사용자가 이미 고른 옷과 목표 카테고리를 보고 컬러를 추천하세요. 선호 스타일과 선호 핏을 우선 반영하고, 성별은 스타일링 맥락으로만 참고하되 특정 옷을 배제하는 조건으로 사용하지 마세요. colorName은 넓은 분류이고 colorDetailName, colorHex, colorRgb는 실제 원단에서 분석한 대표색이므로 상세 톤 판단에는 이 값을 우선하세요. solid는 대표색을 정밀하게 비교하고, patterned 또는 multicolor는 바탕색뿐 아니라 패턴끼리 과하게 경쟁하지 않는지도 고려하세요. 추천 색상은 서로 달라야 하며 safe는 무난한 색, harmony는 자연스럽게 이어지는 색, accent는 확실한 포인트 색으로 각각 하나씩 제안하세요. 옷장 후보가 없더라도 컬러 추천은 반드시 제공하고, 아이템은 제공된 후보 안에서만 추천하세요. 각 이유는 짧은 한국어 한 문장으로 쓰고 절대적인 패션 점수는 만들지 마세요.',
         },
         {
           role: 'user',
           content: JSON.stringify({
+            styleProfile: {
+              gender: profile?.styleProfile?.gender ?? null,
+              preferredFit:
+                profile?.styleProfile?.preferredFit ?? 'regular',
+              preferredStyles:
+                profile?.preferredStyles.map(({ style }) => style) ?? [],
+            },
             selectedItems: selectedItems.map((item) => ({
               id: item.id,
               name: item.name,
@@ -401,10 +410,10 @@ export const outfitRecommendationService = {
       throw new ServiceError('기준이 될 옷을 하나 이상 골라주세요.', 'INVALID_OUTFIT_RECOMMENDATION')
     }
 
-    const selectedItemsFromDb = await wardrobeRepository.findManyOwnedByIds(
-      userId,
-      selectedItemIds,
-    )
+    const [selectedItemsFromDb, profile] = await Promise.all([
+      wardrobeRepository.findManyOwnedByIds(userId, selectedItemIds),
+      userRepository.findViewerById(userId),
+    ])
     if (
       selectedItemsFromDb.length !== selectedItemIds.length ||
       selectedItemsFromDb.some(
@@ -440,6 +449,7 @@ export const outfitRecommendationService = {
     try {
       const aiResult = await requestOpenAiRecommendation(
         userId,
+        profile,
         selectedItems,
         candidates.slice(0, 30),
         input.targetCategory,

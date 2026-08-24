@@ -5,9 +5,14 @@
   "packageManager": "pnpm@10.20.0",
   "scripts": {
     "dev": "pnpm --parallel --filter @closet/web --filter @closet/api dev",
-    "dev:web": "pnpm --filter @closet/web dev",
-    "dev:api": "pnpm --filter @closet/api dev",
-    "dev:native": "pnpm --filter @closet/native start",
+    "api:dev": "pnpm --filter @closet/api dev",
+    "web:dev": "pnpm --filter @closet/web dev",
+    "native:dev": "pnpm --filter @closet/native start",
+    "native:bundle": "pnpm --filter @closet/native bundle:web",
+    "native:ios:dev": "pnpm run native:ios:local",
+    "native:ios:local": "pnpm --filter @closet/native ios:local",
+    "native:ios:device": "pnpm --filter @closet/native ios:device",
+    "native:android:dev": "pnpm --filter @closet/native android",
     "build": "pnpm -r --if-present build",
     "lint": "pnpm -r --if-present lint",
     "typecheck": "pnpm -r --if-present typecheck"

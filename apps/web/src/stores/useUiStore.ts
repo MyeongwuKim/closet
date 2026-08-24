@@ -3,6 +3,7 @@ import type {
   ClothingCategory,
   ClothingClassificationSuggestion,
   ColorMode,
+  FashionItemAttributes,
 } from '@closet/types'
 
 export interface ClassificationCandidate {
@@ -18,6 +19,7 @@ export interface ClassificationCandidate {
   colorHex: string
   colorRgb: [number, number, number]
   colorMode: ColorMode | null
+  fashionAttributes: FashionItemAttributes | null
   confidence: number | null
   model: string | null
   candidates: ClothingClassificationSuggestion[]
@@ -28,7 +30,10 @@ interface Toast {
   id: string
   message: string
   variant: 'info' | 'success' | 'error'
+  isLeaving: boolean
 }
+
+const TOAST_EXIT_DURATION_MS = 260
 
 interface UiState {
   classificationQueue: ClassificationCandidate[]
@@ -78,13 +83,25 @@ export const useUiStore = create<UiState>((set, get) => ({
   pushToast: (message, variant = 'info') => {
     const id = crypto.randomUUID()
     set((state) => ({
-      toasts: [...state.toasts, { id, message, variant }],
+      toasts: [...state.toasts, { id, message, variant, isLeaving: false }],
     }))
 
     window.setTimeout(() => get().dismissToast(id), 3500)
   },
-  dismissToast: (id) =>
+  dismissToast: (id) => {
+    const toast = get().toasts.find((item) => item.id === id)
+    if (!toast || toast.isLeaving) return
+
     set((state) => ({
-      toasts: state.toasts.filter((toast) => toast.id !== id),
-    })),
+      toasts: state.toasts.map((item) =>
+        item.id === id ? { ...item, isLeaving: true } : item,
+      ),
+    }))
+
+    window.setTimeout(() => {
+      set((state) => ({
+        toasts: state.toasts.filter((item) => item.id !== id),
+      }))
+    }, TOAST_EXIT_DURATION_MS)
+  },
 }))
