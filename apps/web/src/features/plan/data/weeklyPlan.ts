@@ -7,6 +7,7 @@ export interface PlanEntry {
   weather: string
   itemIds: string[]
   outfitId?: string
+  outfitStyle?: string
   plannerOnly?: boolean
   previewImageUrl?: string
 }
@@ -67,8 +68,19 @@ function getOutfitFields(entry: PlanEntry) {
     title: entry.title,
     itemIds: entry.itemIds,
     outfitId: entry.outfitId,
+    outfitStyle: entry.outfitStyle,
     plannerOnly: entry.plannerOnly,
     previewImageUrl: entry.previewImageUrl,
+  }
+}
+
+export function placePlanOutfitInDate(
+  dateEntry: PlanEntry,
+  outfitEntry: PlanEntry,
+) {
+  return {
+    ...dateEntry,
+    ...getOutfitFields(outfitEntry),
   }
 }
 
@@ -92,6 +104,20 @@ export function moveArrayItem<T>(
   if (movedItem === undefined) return items
   nextItems.splice(toIndex, 0, movedItem)
   return nextItems
+}
+
+export function shouldMovePlanRow(
+  dragIndex: number,
+  hoverIndex: number,
+  pointerOffsetY: number,
+  rowHeight: number,
+) {
+  if (dragIndex === hoverIndex || rowHeight <= 0) return false
+
+  const rowMiddleY = rowHeight / 2
+  return dragIndex < hoverIndex
+    ? pointerOffsetY >= rowMiddleY
+    : pointerOffsetY <= rowMiddleY
 }
 
 export function moveWeeklyPlanOutfits(

@@ -189,7 +189,7 @@ export function OutfitDetailModal({
     if (generateOutfitPreview.isPending) return
 
     void generateOutfitPreview
-      .mutateAsync(draftItemIds)
+      .mutateAsync({ selectedItemIds: draftItemIds, style: draftStyle })
       .then((result) => {
         setDraftPreview({
           isOpen: true,

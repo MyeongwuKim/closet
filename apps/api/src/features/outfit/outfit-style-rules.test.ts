@@ -3,6 +3,7 @@ import test from 'node:test'
 import type { ClothingCategory } from '@prisma/client'
 import {
   buildOutfitCombinations,
+  excludeOuterItems,
   getItemStyleScore,
   type StyleRuleItem,
 } from './outfit-style-rules.js'
@@ -78,3 +79,66 @@ test('선택한 목표 스타일 하나만 아이템 점수에 반영한다', ()
   )
 })
 
+test('코트도 캐주얼 조합 후보에서 제외하지 않는다', () => {
+  const combinations = buildOutfitCombinations(
+    [
+      createItem('top', 'top', '긴팔'),
+      createItem('bottom', 'bottom', '데님'),
+      createItem('shoes', 'shoes', '스니커즈'),
+      createItem('jacket', 'outer', '재킷'),
+      createItem('cardigan', 'outer', '가디건'),
+      createItem('hoodie-outer', 'outer', '후드'),
+      createItem('denim-outer', 'outer', '데님'),
+      createItem('coat', 'outer', '코트'),
+    ],
+    'casual',
+    'regular',
+    'winter',
+  )
+
+  assert.ok(
+    combinations.some((combination) =>
+      combination.items.some((item) => item.id === 'coat'),
+    ),
+  )
+})
+
+test('캐주얼 요소와 매치한 코트는 겨울 캐주얼 점수를 보완한다', () => {
+  const combinations = buildOutfitCombinations(
+    [
+      createItem('shirt', 'top', '셔츠'),
+      createItem('denim', 'bottom', '데님'),
+      createItem('sneakers', 'shoes', '스니커즈'),
+      createItem('coat', 'outer', '코트'),
+    ],
+    'casual',
+    'regular',
+    'winter',
+  )
+  const withoutCoat = combinations.find(
+    (combination) =>
+      combination.items.length === 3 &&
+      combination.items.every((item) => item.id !== 'coat'),
+  )
+  const withCoat = combinations.find((combination) =>
+    combination.items.some((item) => item.id === 'coat'),
+  )
+
+  assert.ok(withoutCoat)
+  assert.ok(withCoat)
+  assert.ok(withCoat.score > withoutCoat.score)
+})
+
+test('다른 추천에서는 직전 아우터만 제외한다', () => {
+  const top = createItem('top', 'top', '긴팔')
+  const previousOuter = createItem('previous-outer', 'outer', '패딩')
+  const nextOuter = createItem('next-outer', 'outer', '코트')
+
+  assert.deepEqual(
+    excludeOuterItems(
+      [top, previousOuter, nextOuter],
+      [previousOuter.id],
+    ).map((item) => item.id),
+    [top.id, nextOuter.id],
+  )
+})

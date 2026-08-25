@@ -428,10 +428,12 @@ export const typeDefs = `#graphql
     season: Season!
     style: OutfitStyle
     variation: Int
+    excludedOuterItemIds: [ID!]
   }
 
   input OutfitPreviewInput {
     selectedItemIds: [ID!]!
+    style: String
   }
 
   type PlannerEntry {

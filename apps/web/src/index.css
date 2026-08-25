@@ -107,6 +107,19 @@ button {
   }
 }
 
+@keyframes ai-recommendation-refresh-item {
+  0%,
+  100% {
+    opacity: 0.24;
+    transform: translateY(0.2rem) scale(0.92);
+  }
+
+  48% {
+    opacity: 0.78;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @keyframes wardrobe-shirt-drop {
   0%,
   8% {
@@ -393,6 +406,11 @@ button {
   will-change: opacity, transform;
 }
 
+.ai-recommendation-refresh-item {
+  animation: ai-recommendation-refresh-item 1.45s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+
 .wardrobe-saving-shirt {
   animation: wardrobe-shirt-drop 1.8s ease-in-out infinite;
   transform-box: fill-box;
@@ -531,6 +549,10 @@ button {
   }
 
   .ai-recommendation-chat-enter {
+    animation: none;
+  }
+
+  .ai-recommendation-refresh-item {
     animation: none;
   }
 

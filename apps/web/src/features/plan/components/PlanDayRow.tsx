@@ -1,18 +1,26 @@
 import type { WardrobeItem } from '@closet/types'
 import { ChevronRight, GripVertical } from 'lucide-react'
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import { useDrag, useDrop } from 'react-dnd'
 import { Link } from 'react-router-dom'
-import type { PlanEntry } from '../data/weeklyPlan'
+import { shouldMovePlanRow, type PlanEntry } from '../data/weeklyPlan'
 import { PlanOutfitThumbnails } from './PlanOutfitThumbnails'
 
 const WEEKLY_PLAN_OUTFIT = 'weekly-plan-outfit'
 
-interface WeeklyPlanDragItem {
+export interface WeeklyPlanDragItem {
   type: typeof WEEKLY_PLAN_OUTFIT
+  dragKey: string
   date: string
   originalIndex: number
   index: number
+  entry: PlanEntry
+  items: WardrobeItem[]
+  isToday: boolean
+  rowWidth: number
+  rowHeight: number
+  handleOffsetX: number
+  handleOffsetY: number
 }
 
 interface WeeklyPlanDropResult {
@@ -20,6 +28,7 @@ interface WeeklyPlanDropResult {
 }
 
 interface PlanDayRowProps {
+  dragKey: string
   entry: PlanEntry
   index: number
   items: WardrobeItem[]
@@ -34,7 +43,51 @@ interface PlanDayRowProps {
   ) => void
 }
 
+interface PlanDayRowContentProps {
+  entry: PlanEntry
+  items: WardrobeItem[]
+  isToday: boolean
+}
+
+export function PlanDayRowContent({
+  entry,
+  items,
+  isToday,
+}: PlanDayRowContentProps) {
+  return (
+    <>
+      <span className="text-center">
+        <strong className="block text-lg leading-none font-black sm:text-xl sm:leading-normal">
+          {entry.dayNumber}
+        </strong>
+        <span
+          className={`mt-1 block text-[11px] leading-none sm:mt-0 sm:text-xs sm:leading-normal ${
+            isToday ? 'font-bold text-accent' : 'text-muted'
+          }`}
+        >
+          {entry.dayLabel}
+          <span className="hidden sm:inline">{isToday ? ' · 오늘' : ''}</span>
+        </span>
+      </span>
+
+      <span className="hidden min-w-0 sm:block">
+        <strong className="block truncate text-sm">
+          {entry.title || '코디를 설정해주세요'}
+        </strong>
+        <span className="mt-1 block text-xs text-muted">
+          {[entry.occasion, entry.weather].filter(Boolean).join(' · ') ||
+            '저장된 코디 없음'}
+        </span>
+      </span>
+
+      <PlanOutfitThumbnails items={items} />
+      <ChevronRight className="size-4 text-muted sm:size-[18px]" />
+    </>
+  )
+}
+
 export function PlanDayRow({
+  dragKey,
   entry,
   index,
   items,
@@ -44,6 +97,8 @@ export function PlanDayRow({
   onMovePreview,
   onDragEnd,
 }: PlanDayRowProps) {
+  const rowRef = useRef<HTMLDivElement | null>(null)
+  const handleRef = useRef<HTMLButtonElement | null>(null)
   const canDrag = Boolean(entry.outfitId) && !disabled
   const [{ isDragging }, drag] = useDrag<
     WeeklyPlanDragItem,
@@ -53,20 +108,33 @@ export function PlanDayRow({
     () => ({
       type: WEEKLY_PLAN_OUTFIT,
       item: () => {
+        const rowRect = rowRef.current?.getBoundingClientRect()
+        const handleRect = handleRef.current?.getBoundingClientRect()
         onDragStart()
         return {
           type: WEEKLY_PLAN_OUTFIT,
+          dragKey,
           date: entry.date,
           originalIndex: index,
           index,
+          entry,
+          items,
+          isToday,
+          rowWidth: rowRect?.width ?? 0,
+          rowHeight: rowRect?.height ?? 0,
+          handleOffsetX:
+            rowRect && handleRect ? handleRect.left - rowRect.left : 0,
+          handleOffsetY:
+            rowRect && handleRect ? handleRect.top - rowRect.top : 0,
         }
       },
       canDrag,
+      isDragging: (monitor) => monitor.getItem().dragKey === dragKey,
       end: (dragged, monitor) =>
         onDragEnd(dragged.originalIndex, dragged.index, monitor.didDrop()),
       collect: (monitor) => ({ isDragging: monitor.isDragging() }),
     }),
-    [canDrag, entry.date, index, onDragEnd, onDragStart],
+    [canDrag, dragKey, entry, index, isToday, items, onDragEnd, onDragStart],
   )
   const [{ isOver }, drop] = useDrop<
     WeeklyPlanDragItem,
@@ -76,8 +144,26 @@ export function PlanDayRow({
     () => ({
       accept: WEEKLY_PLAN_OUTFIT,
       canDrop: () => !disabled,
-      hover: (dragged) => {
-        if (disabled || dragged.index === index) return
+      hover: (dragged, monitor) => {
+        const rowElement = rowRef.current
+        if (!rowElement || disabled || dragged.index === index) return
+
+        const clientOffset = monitor.getClientOffset()
+        if (!clientOffset) return
+
+        const rowRect = rowElement.getBoundingClientRect()
+        const pointerY = clientOffset.y - rowRect.top
+        if (
+          !shouldMovePlanRow(
+            dragged.index,
+            index,
+            pointerY,
+            rowRect.height,
+          )
+        ) {
+          return
+        }
+
         onMovePreview(dragged.index, index)
         dragged.index = index
       },
@@ -91,12 +177,14 @@ export function PlanDayRow({
 
   const connectRow = useCallback(
     (node: HTMLDivElement | null) => {
+      rowRef.current = node
       drop(node)
     },
     [drop],
   )
   const connectDragHandle = useCallback(
     (node: HTMLButtonElement | null) => {
+      handleRef.current = node
       drag(node)
     },
     [drag],
@@ -105,10 +193,8 @@ export function PlanDayRow({
   return (
     <div
       ref={connectRow}
-      className={`relative min-h-11 rounded-xl border bg-surface transition sm:rounded-2xl ${
-        isDragging
-          ? 'z-20 scale-[1.015] border-ink opacity-75 shadow-[0_12px_28px_rgba(27,27,24,0.18)]'
-          : ''
+      className={`relative h-full min-h-11 rounded-xl border bg-surface sm:rounded-2xl ${
+        isDragging ? 'opacity-0 transition-none' : 'opacity-100 transition'
       } ${
         isOver && !isDragging
           ? 'border-ink bg-sage/45'
@@ -123,32 +209,7 @@ export function PlanDayRow({
         className="grid h-full min-h-11 grid-cols-[38px_minmax(0,1fr)_16px] items-center gap-2 rounded-[inherit] py-1.5 pr-10 pl-2 transition hover:bg-canvas/35 sm:grid-cols-[58px_minmax(220px,0.85fr)_minmax(180px,1fr)_auto] sm:gap-3 sm:p-4 sm:pr-12 sm:hover:-translate-y-0.5"
         aria-current={isToday ? 'date' : undefined}
       >
-        <span className="text-center">
-          <strong className="block text-lg leading-none font-black sm:text-xl sm:leading-normal">
-            {entry.dayNumber}
-          </strong>
-          <span
-            className={`mt-1 block text-[11px] leading-none sm:mt-0 sm:text-xs sm:leading-normal ${
-              isToday ? 'font-bold text-accent' : 'text-muted'
-            }`}
-          >
-            {entry.dayLabel}
-            <span className="hidden sm:inline">{isToday ? ' · 오늘' : ''}</span>
-          </span>
-        </span>
-
-        <span className="hidden min-w-0 sm:block">
-          <strong className="block truncate text-sm">
-            {entry.title || '코디를 설정해주세요'}
-          </strong>
-          <span className="mt-1 block text-xs text-muted">
-            {[entry.occasion, entry.weather].filter(Boolean).join(' · ') ||
-              '저장된 코디 없음'}
-          </span>
-        </span>
-
-        <PlanOutfitThumbnails items={items} />
-        <ChevronRight className="size-4 text-muted sm:size-[18px]" />
+        <PlanDayRowContent entry={entry} items={items} isToday={isToday} />
       </Link>
 
       <button

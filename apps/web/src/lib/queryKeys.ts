@@ -32,16 +32,18 @@ export const queryKeys = {
       season: Season,
       style: OutfitStyle,
       variation: number,
+      excludedOuterItemIds: string[],
     ) =>
       [
         'planner',
         'today-recommendation',
-        'v4',
+        'v5',
         viewerId,
         date,
         season,
         style,
         variation,
+        excludedOuterItemIds,
       ] as const,
     week: (weekStartsOn: string) =>
       ['planner', 'week', weekStartsOn] as const,

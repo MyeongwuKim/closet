@@ -5,6 +5,8 @@ import {
   mergeWeeklyPlanEntries,
   moveArrayItem,
   moveWeeklyPlanOutfits,
+  placePlanOutfitInDate,
+  shouldMovePlanRow,
 } from '../src/features/plan/data/weeklyPlan'
 
 test('빈 요일로 옮기면 코디만 이동하고 날짜 정보는 유지한다', () => {
@@ -70,6 +72,29 @@ test('화면 미리보기 순서도 드래그 위치에 맞춰 이동한다', ()
     '화',
     '수',
   ])
+})
+
+test('드래그 포인터가 행의 중간을 지나야 순서를 바꾼다', () => {
+  assert.equal(shouldMovePlanRow(0, 1, 39, 80), false)
+  assert.equal(shouldMovePlanRow(0, 1, 40, 80), true)
+  assert.equal(shouldMovePlanRow(2, 1, 41, 80), false)
+  assert.equal(shouldMovePlanRow(2, 1, 40, 80), true)
+})
+
+test('미리보기 코디를 옮겨도 화면 슬롯의 날짜 정보는 유지한다', () => {
+  const [monday, tuesday] = createEmptyWeeklyPlan('2026-08-24')
+  const mondayOutfit = {
+    ...monday!,
+    title: '월요일 코디',
+    itemIds: ['coat'],
+    outfitId: 'outfit-monday',
+  }
+  const preview = placePlanOutfitInDate(tuesday!, mondayOutfit)
+
+  assert.equal(preview.date, '2026-08-25')
+  assert.equal(preview.dayLabel, '화')
+  assert.equal(preview.outfitId, 'outfit-monday')
+  assert.deepEqual(preview.itemIds, ['coat'])
 })
 
 test('서버에 없는 날짜를 합칠 때도 한 주 7일을 채운다', () => {

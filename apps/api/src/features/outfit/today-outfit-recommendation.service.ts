@@ -13,6 +13,7 @@ import {
 } from '../wardrobe/wardrobe.repository.js'
 import {
   buildOutfitCombinations,
+  excludeOuterItems,
   getFashionAttributes,
   styleDefinitions,
   type OutfitCombination,
@@ -23,6 +24,7 @@ interface TodayOutfitRecommendationInput {
   season: Season
   style?: OutfitStyle | null
   variation?: number | null
+  excludedOuterItemIds?: string[] | null
 }
 
 type WardrobeItemWithImages = Prisma.WardrobeItemGetPayload<{
@@ -60,6 +62,65 @@ const fitLabels: Record<PreferredFit, string> = {
   skinny: '슬림한 핏',
 }
 
+const categoryLabels: Record<
+  NonNullable<WardrobeItemWithImages['category']>,
+  string
+> = {
+  top: '상의',
+  bottom: '하의',
+  outer: '아우터',
+  midlayer: '중간 레이어',
+  dress: '원피스',
+  shoes: '신발',
+  accessory: '액세서리',
+  other: '기타',
+}
+
+const layerRoleLabels = {
+  base: '기본 상의',
+  mid: '중간 레이어',
+  outer: '아우터',
+  single: '단독 아이템',
+  unknown: '확인 어려움',
+} as const
+
+const silhouetteLabels = {
+  slim: '슬림 핏',
+  regular: '기본 핏',
+  relaxed: '여유로운 핏',
+  oversized: '오버핏',
+  unknown: '확인 어려움',
+} as const
+
+const patternLabels = {
+  solid: '무지',
+  stripe: '스트라이프',
+  check: '체크',
+  graphic: '그래픽',
+  floral: '플로럴',
+  other: '기타 패턴',
+  unknown: '확인 어려움',
+} as const
+
+const materialLabels = {
+  cotton: '면',
+  denim: '데님',
+  knit: '니트',
+  wool: '울',
+  leather: '가죽',
+  linen: '린넨',
+  synthetic: '합성 소재',
+  other: '기타 소재',
+  unknown: '확인 어려움',
+} as const
+
+const warmthLabels = {
+  light: '가벼움',
+  medium: '보통',
+  heavy: '도톰함',
+  unknown: '확인 어려움',
+} as const
+
 const styleOrder: OutfitStyle[] = [
   'minimal',
   'casual',
@@ -84,6 +145,25 @@ function getProfileSummary(profile: ViewerProfile) {
       : null,
     fitLabels[fit],
   ].filter((value): value is string => Boolean(value))
+}
+
+function getFormalityLabel(value: number) {
+  if (value <= 0.3) return '편안한 일상복에 가까움'
+  if (value <= 0.6) return '일상적으로 단정한 편'
+  if (value <= 0.8) return '격식이 있는 편'
+  return '격식이 높은 편'
+}
+
+function getRecommendationAttributes(item: WardrobeItemWithImages) {
+  const attributes = getFashionAttributes(item)
+  return {
+    레이어역할: layerRoleLabels[attributes.layerRole],
+    실루엣: silhouetteLabels[attributes.silhouette],
+    패턴: patternLabels[attributes.pattern],
+    소재: materialLabels[attributes.material],
+    두께감: warmthLabels[attributes.warmth],
+    격식도: getFormalityLabel(attributes.formality),
+  }
 }
 
 function getOutputText(payload: unknown) {
@@ -159,32 +239,61 @@ async function requestOpenAiRecommendation(
       input: [
         {
           role: 'system',
-          content:
-            '당신은 사용자의 실제 옷장으로 미리 검증된 완성 코디 후보 중 하나를 고르는 스타일리스트입니다. 아이템을 새로 조합하거나 candidate 안의 아이템을 빼지 말고 반드시 제공된 candidateId 하나만 선택하세요. targetStyle과 styleGuide를 가장 우선하고 색상, 실루엣, 선호 핏을 함께 고려하세요. 후보는 이미 계절과 레이어 규칙을 통과했으므로 아우터가 있는 조합에서는 이너를 생략하지 마세요. 성별은 스타일링 맥락으로만 참고하고 고정관념으로 옷을 제한하지 마세요. headline은 사용자가 바로 이해할 수 있는 자연스러운 한국어 코디 제목으로 작성하세요. "추천 코디 —" 같은 앞말을 붙이지 말고 "루킹", "룩킹" 같은 번역투 대신 "코디"를 사용하세요. 이유는 제공된 정보만 사용해 짧은 한국어로 작성하며 날씨는 아직 연결되지 않았으므로 언급하지 마세요.',
+          content: [
+            '당신은 사용자의 실제 옷장으로 미리 검증된 완성 코디 후보 중 하나를 고르는 스타일리스트입니다.',
+            '아이템을 새로 조합하거나 candidate 안의 아이템을 빼지 말고 반드시 제공된 candidateId 하나만 선택하세요.',
+            '스타일은 개별 아이템의 이름이나 카테고리가 아니라 candidate 전체 조합이 만드는 인상으로 판단하세요.',
+            '셔츠, 슬랙스, 후드, 스니커즈처럼 여러 스타일에 쓰일 수 있는 아이템을 특정 스타일 전용으로 간주하지 마세요.',
+            '먼저 상의·하의·아우터·신발의 실루엣과 볼륨 균형을 보고, 다음으로 소재의 구조감, 전체 격식도, 레이어 관계, 패턴과 색 조화를 평가하세요.',
+            '각 옷의 관찰 속성은 판단 단서일 뿐 그 자체가 스타일 이름은 아닙니다. 한 속성이나 키워드만 일치하는 후보보다 여러 아이템의 관계가 목표 스타일을 만드는 후보를 우선하세요.',
+            '예를 들어 셔츠는 데님과 스니커즈를 만나면 캐주얼할 수 있고, 테일러드 슬랙스와 로퍼 또는 블레이저를 만나면 클래식할 수 있습니다.',
+            '슬랙스도 여유로운 상의, 와이드한 실루엣, 편한 신발과 조합되면 캐주얼할 수 있습니다. 다만 와이드 아이템 하나만으로 캐주얼이나 스트릿이라고 단정하지 마세요.',
+            '목표 스타일과 스타일 가이드를 가장 우선하고 사용자가 선호하는 핏은 착용 취향을 반영하는 보조 기준으로 사용하세요.',
+            '후보는 이미 계절과 레이어 규칙을 통과했으므로 아우터가 있는 조합에서는 이너를 생략하지 마세요.',
+            '성별은 스타일링 맥락으로만 참고하고 고정관념으로 옷을 제한하지 마세요.',
+            'headline은 사용자가 바로 이해할 수 있는 자연스러운 한국어 코디 제목으로 작성하세요. "추천 코디 —" 같은 앞말을 붙이지 말고 "루킹", "룩킹" 같은 번역투 대신 "코디"를 사용하세요.',
+            'summary와 reasons는 아이템 이름을 나열하거나 스타일을 반영했다는 말만 하지 말고, 어떤 실루엣과 아이템 관계가 목표 스타일을 만드는지 제공된 정보 안에서 구체적으로 설명하세요.',
+            'summary는 한두 개의 완결된 한국어 문장으로 작성하고 reasons의 각 항목도 한 문장으로 끝내세요. 글자 수를 맞추려고 단어나 문장을 중간에서 자르지 말고 내용의 수를 줄여서라도 반드시 자연스럽게 끝내세요.',
+            '사용자에게 보여주는 headline, summary, reasons에는 candidateId, targetStyle, preferredFit, fashionAttributes 같은 내부 필드명이나 regular, relaxed 같은 영문 분류값, 점수, 코드, 괄호로 덧붙인 메타데이터를 절대 노출하지 마세요. 모든 속성은 기본 핏, 여유로운 핏처럼 자연스러운 한국어로 풀어 쓰세요.',
+            '날씨는 아직 연결되지 않았으므로 언급하지 마세요.',
+          ].join(' '),
         },
         {
           role: 'user',
           content: JSON.stringify({
             date,
-            season,
+            season: seasonLabels[season],
             variation,
-            targetStyle,
+            targetStyle: styleLabels[targetStyle],
             styleGuide: styleDefinitions[targetStyle].description,
             profile: {
-              gender: profile?.styleProfile?.gender ?? null,
-              preferredFit: profile?.styleProfile?.preferredFit ?? 'regular',
+              성별:
+                profile?.styleProfile?.gender === 'male'
+                  ? '남성'
+                  : profile?.styleProfile?.gender === 'female'
+                    ? '여성'
+                    : '지정하지 않음',
+              선호하는핏:
+                fitLabels[profile?.styleProfile?.preferredFit ?? 'regular'],
             },
             candidates: candidates.map((candidate) => ({
               candidateId: candidate.id,
               items: candidate.items.map((item) => ({
                 id: item.id,
-                name: item.name,
-                category: item.category,
-                subcategory: item.subcategory,
-                colorName: item.colorName,
-                colorDetailName: item.colorDetailName,
-                colorMode: item.colorMode,
-                fashionAttributes: getFashionAttributes(item),
+                이름: item.name,
+                종류: item.category ? categoryLabels[item.category] : null,
+                세부종류: item.subcategory,
+                대표색: item.colorName,
+                상세색: item.colorDetailName,
+                색구성:
+                  item.colorMode === 'solid'
+                    ? '단색'
+                    : item.colorMode === 'patterned'
+                      ? '패턴'
+                      : item.colorMode === 'multicolor'
+                        ? '여러 색'
+                        : '확인 어려움',
+                관찰속성: getRecommendationAttributes(item),
               })),
             })),
           }),
@@ -201,14 +310,14 @@ async function requestOpenAiRecommendation(
             additionalProperties: false,
             required: ['headline', 'summary', 'candidateId', 'reasons'],
             properties: {
-              headline: { type: 'string', minLength: 1, maxLength: 50 },
-              summary: { type: 'string', minLength: 1, maxLength: 120 },
+              headline: { type: 'string', minLength: 1, maxLength: 80 },
+              summary: { type: 'string', minLength: 1, maxLength: 240 },
               candidateId: { type: 'string', enum: candidateIds },
               reasons: {
                 type: 'array',
                 minItems: 1,
                 maxItems: 3,
-                items: { type: 'string', minLength: 1, maxLength: 80 },
+                items: { type: 'string', minLength: 1, maxLength: 160 },
               },
             },
           },
@@ -295,6 +404,10 @@ export const todayOutfitRecommendationService = {
     const seasonalItems = classifiedItems.filter((item) =>
       isSeasonSuitable(item, season),
     )
+    const recommendationItems = excludeOuterItems(
+      seasonalItems,
+      (input.excludedOuterItemIds ?? []).slice(0, 10),
+    )
     const preferredStyleSet = new Set(
       profile?.preferredStyles.map(({ style }) => style) ?? [],
     )
@@ -308,7 +421,7 @@ export const todayOutfitRecommendationService = {
         : 'casual')
     const preferredFit = profile?.styleProfile?.preferredFit ?? 'regular'
     const combinations = buildOutfitCombinations(
-      seasonalItems,
+      recommendationItems,
       targetStyle,
       preferredFit,
       season,

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ChangeEvent } from 'react'
+import type { ChangeEvent, DragEvent } from 'react'
 import type { ClothingCategory } from '@closet/types'
 import { createPortal } from 'react-dom'
 import {
@@ -59,6 +59,7 @@ export function GarmentSizeChartAnalyzer({
   onChange,
 }: GarmentSizeChartAnalyzerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const dragDepthRef = useRef(0)
   const analysisMutation = useAnalyzeGarmentSizeChartMutation()
   const [analysis, setAnalysis] = useState<GarmentSizeChartAnalysis | null>(
     null,
@@ -67,6 +68,7 @@ export function GarmentSizeChartAnalyzer({
   const [isResultOpen, setIsResultOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [appliedLabel, setAppliedLabel] = useState<string | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
 
   const fields = getGarmentMeasurementFields(category)
   const selectedRow = analysis?.rows[selectedRowIndex] ?? null
@@ -93,11 +95,7 @@ export function GarmentSizeChartAnalyzer({
     }
   }, [isResultOpen])
 
-  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    event.target.value = ''
-    if (!file) return
-
+  const analyzeFile = async (file: File) => {
     if (
       !SUPPORTED_CLOTHING_IMAGE_TYPES.some((type) => type === file.type) ||
       file.size > MAX_CLOTHING_IMAGE_SIZE
@@ -135,6 +133,53 @@ export function GarmentSizeChartAnalyzer({
     }
   }
 
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (file) void analyzeFile(file)
+  }
+
+  const handleDragEnter = (event: DragEvent<HTMLElement>) => {
+    if (!event.dataTransfer.types.includes('Files')) return
+
+    event.preventDefault()
+    dragDepthRef.current += 1
+    if (!analysisMutation.isPending) setIsDragging(true)
+  }
+
+  const handleDragOver = (event: DragEvent<HTMLElement>) => {
+    if (!event.dataTransfer.types.includes('Files')) return
+
+    event.preventDefault()
+    event.dataTransfer.dropEffect = analysisMutation.isPending ? 'none' : 'copy'
+  }
+
+  const handleDragLeave = (event: DragEvent<HTMLElement>) => {
+    if (!event.dataTransfer.types.includes('Files')) return
+
+    event.preventDefault()
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+    if (dragDepthRef.current === 0) setIsDragging(false)
+  }
+
+  const handleDrop = (event: DragEvent<HTMLElement>) => {
+    event.preventDefault()
+    dragDepthRef.current = 0
+    setIsDragging(false)
+
+    if (analysisMutation.isPending) return
+
+    const file = event.dataTransfer.files[0]
+    if (file) void analyzeFile(file)
+  }
+
+  const dropZoneHandlers = {
+    onDragEnter: handleDragEnter,
+    onDragOver: handleDragOver,
+    onDragLeave: handleDragLeave,
+    onDrop: handleDrop,
+  }
+
   const applySelectedRow = () => {
     if (!selectedRow) return
 
@@ -167,7 +212,14 @@ export function GarmentSizeChartAnalyzer({
       />
 
       {analysis && analysis.rows.length > 0 ? (
-        <div className="grid grid-cols-2 gap-2 rounded-2xl border border-line bg-surface p-3">
+        <div
+          {...dropZoneHandlers}
+          className={`grid grid-cols-2 gap-2 rounded-2xl border p-3 transition ${
+            isDragging
+              ? 'border-dashed border-ink bg-sage/60'
+              : 'border-line bg-surface'
+          }`}
+        >
           <button
             type="button"
             onClick={() => setIsResultOpen(true)}
@@ -192,10 +244,15 @@ export function GarmentSizeChartAnalyzer({
         </div>
       ) : (
         <button
+          {...dropZoneHandlers}
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={analysisMutation.isPending}
-          className="flex w-full items-center gap-3 rounded-2xl border border-line bg-surface p-4 text-left transition hover:border-ink disabled:cursor-wait disabled:opacity-60"
+          className={`flex w-full items-center gap-3 rounded-2xl border p-4 text-left transition hover:border-ink disabled:cursor-wait disabled:opacity-60 ${
+            isDragging
+              ? 'border-dashed border-ink bg-sage/60'
+              : 'border-line bg-surface'
+          }`}
         >
           <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sage">
             {analysisMutation.isPending ? (
@@ -213,7 +270,9 @@ export function GarmentSizeChartAnalyzer({
             <span className="mt-1 block whitespace-nowrap text-xs leading-5 text-muted">
               {analysisMutation.isPending
                 ? '사이즈와 치수를 찾고 있어요.'
-                : 'AI가 치수를 자동으로 채워드려요.'}
+                : isDragging
+                  ? '여기에 놓으면 바로 분석해요.'
+                  : '클릭하거나 이미지를 끌어다 놓으세요.'}
             </span>
           </span>
           {!analysisMutation.isPending && (

@@ -5,6 +5,7 @@ interface ClosetSearchFilterProps {
   query: string
   tags: string[]
   activeTag: string | null
+  isSearchOpen: boolean
   onQueryChange: (query: string) => void
   onTagChange: (tag: string | null) => void
 }
@@ -13,6 +14,7 @@ export function ClosetSearchFilter({
   query,
   tags,
   activeTag,
+  isSearchOpen,
   onQueryChange,
   onTagChange,
 }: ClosetSearchFilterProps) {
@@ -30,31 +32,39 @@ export function ClosetSearchFilter({
   }, [activeTag])
 
   return (
-    <section className="mt-6 rounded-2xl border border-line bg-surface p-3 sm:p-4">
-      <label className="flex h-12 items-center gap-2 rounded-xl border border-line bg-white px-3 focus-within:border-ink">
-        <Search size={18} className="shrink-0 text-muted" />
-        <span className="sr-only">옷장 검색</span>
-        <input
-          type="search"
-          value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="이름, 종류, 색상, 태그 검색"
-          className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
-        />
-        {query && (
-          <button
-            type="button"
-            className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted hover:bg-canvas hover:text-ink"
-            onClick={() => onQueryChange('')}
-            aria-label="검색어 지우기"
-          >
-            <X size={16} />
-          </button>
-        )}
-      </label>
+    <>
+      {isSearchOpen && (
+        <div className="relative mt-5">
+          <Search
+            size={18}
+            className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-muted"
+          />
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder="이름, 종류, 색상, 태그 검색"
+            className="h-12 w-full rounded-2xl border border-line bg-surface pr-12 pl-11 text-sm outline-none transition placeholder:text-muted/70 focus:border-ink"
+            aria-label="옷장 검색어"
+            autoFocus
+          />
+          {query && (
+            <button
+              type="button"
+              className="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-muted transition hover:bg-canvas hover:text-ink"
+              onClick={() => onQueryChange('')}
+              aria-label="검색어 지우기"
+            >
+              <X size={15} />
+            </button>
+          )}
+        </div>
+      )}
 
       {tags.length > 0 && (
-        <div className="mt-3">
+        <section
+          className={`${isSearchOpen ? 'mt-3' : 'mt-5'} rounded-2xl border border-line bg-surface p-3 sm:p-4`}
+        >
           <p className="flex items-center gap-1.5 px-1 text-[11px] font-bold text-muted">
             <Tag size={13} /> 태그로 빠르게 보기
           </p>
@@ -82,8 +92,8 @@ export function ClosetSearchFilter({
               )
             })}
           </div>
-        </div>
+        </section>
       )}
-    </section>
+    </>
   )
 }

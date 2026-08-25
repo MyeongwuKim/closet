@@ -2,6 +2,10 @@ import type { Season } from '@closet/types'
 import { Search, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { ColorFilter } from '../../../components/ColorFilter'
+import {
+  DateSortButton,
+  type DateSortOrder,
+} from '../../../components/DateSortButton'
 import { SeasonFilter } from '../../../components/SeasonFilter'
 import type { WardrobeColorOption } from '../../closet/utils/color'
 
@@ -12,11 +16,13 @@ interface OutfitFilterControlsProps {
   colorOptions?: WardrobeColorOption[]
   isSearchOpen: boolean
   searchQuery: string
+  sortOrder?: DateSortOrder
   styleOptions: Array<{ label: string; value: string }>
   onSeasonChange: (season: Season | null) => void
   onStyleChange: (style: string) => void
   onColorChange?: (color: string | null) => void
   onSearchChange: (query: string) => void
+  onSortOrderChange?: (order: DateSortOrder) => void
 }
 
 export function OutfitFilterControls({
@@ -26,11 +32,13 @@ export function OutfitFilterControls({
   colorOptions = [],
   isSearchOpen,
   searchQuery,
+  sortOrder,
   styleOptions,
   onSeasonChange,
   onStyleChange,
   onColorChange,
   onSearchChange,
+  onSortOrderChange,
 }: OutfitFilterControlsProps) {
   const styleScrollContainerRef = useRef<HTMLDivElement>(null)
   const activeStyleButtonRef = useRef<HTMLButtonElement>(null)
@@ -96,7 +104,10 @@ export function OutfitFilterControls({
         onChange={onSeasonChange}
       />
 
-      <div className="mt-3 flex min-w-0 items-start gap-2">
+      <div className="mt-3 flex items-center gap-2">
+        {sortOrder && onSortOrderChange && (
+          <DateSortButton value={sortOrder} onChange={onSortOrderChange} />
+        )}
         {onColorChange && colorOptions.length > 1 && (
           <ColorFilter
             value={activeColor}
@@ -104,43 +115,42 @@ export function OutfitFilterControls({
             onChange={onColorChange}
           />
         )}
-        <div
-          ref={styleScrollContainerRef}
-          className="scrollbar-hidden flex min-w-0 flex-1 gap-2 overflow-x-auto pb-2"
-          aria-label="코디 스타일 필터"
+      </div>
+
+      <div
+        ref={styleScrollContainerRef}
+        className="scrollbar-hidden mt-2 flex gap-2 overflow-x-auto pb-2"
+        aria-label="코디 스타일 필터"
+      >
+        <button
+          ref={activeStyle === 'all' ? activeStyleButtonRef : undefined}
+          type="button"
+          onClick={() => onStyleChange('all')}
+          className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold ${
+            activeStyle === 'all'
+              ? 'bg-ink text-white'
+              : 'border border-line bg-surface text-muted'
+          }`}
         >
+          전체
+        </button>
+        {styleOptions.map((option) => (
           <button
-            ref={activeStyle === 'all' ? activeStyleButtonRef : undefined}
+            ref={
+              activeStyle === option.value ? activeStyleButtonRef : undefined
+            }
             type="button"
-            onClick={() => onStyleChange('all')}
+            onClick={() => onStyleChange(option.value)}
             className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold ${
-              activeStyle === 'all'
+              activeStyle === option.value
                 ? 'bg-ink text-white'
                 : 'border border-line bg-surface text-muted'
             }`}
+            key={option.value}
           >
-            전체
+            {option.label}
           </button>
-          {styleOptions.map((option) => (
-            <button
-              ref={
-                activeStyle === option.value
-                  ? activeStyleButtonRef
-                  : undefined
-              }
-              type="button"
-              onClick={() => onStyleChange(option.value)}
-              className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold ${
-                activeStyle === option.value
-                  ? 'bg-ink text-white'
-                  : 'border border-line bg-surface text-muted'
-              }`}
-              key={option.value}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
+        ))}
       </div>
     </>
   )

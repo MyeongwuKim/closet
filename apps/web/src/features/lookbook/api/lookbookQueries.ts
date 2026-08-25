@@ -268,10 +268,16 @@ export function useDeleteOutfitMutation() {
 
 export function useGenerateOutfitPreviewMutation() {
   return useMutation({
-    mutationFn: async (selectedItemIds: string[]) => {
+    mutationFn: async ({
+      selectedItemIds,
+      style,
+    }: {
+      selectedItemIds: string[]
+      style?: string
+    }) => {
       const data = await graphqlRequest<
         { generateOutfitPreview: OutfitPreview },
-        { input: { selectedItemIds: string[] } }
+        { input: { selectedItemIds: string[]; style?: string } }
       >(
         `
           mutation GenerateOutfitPreview($input: OutfitPreviewInput!) {
@@ -280,7 +286,7 @@ export function useGenerateOutfitPreviewMutation() {
             }
           }
         `,
-        { input: { selectedItemIds } },
+        { input: { selectedItemIds, style } },
       )
       return data.generateOutfitPreview
     },

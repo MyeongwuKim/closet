@@ -125,9 +125,10 @@ export function PlanDetailPage() {
     }
 
     try {
-      const preview = await generatePreview.mutateAsync(
-        outfitItems.map((item) => item.id),
-      )
+      const preview = await generatePreview.mutateAsync({
+        selectedItemIds: outfitItems.map((item) => item.id),
+        style: entry.outfitStyle,
+      })
       setGeneratedPreview(preview)
       setIsLookbookOpen(true)
     } catch (error) {
@@ -150,18 +151,24 @@ export function PlanDetailPage() {
         date: entry.date,
         itemIds: outfitItems.map((item) => item.id),
         previewImage: generatedPreview ?? undefined,
+        recommendationStyle: entry.outfitStyle,
       })
       hydrateEntries(nextEntries)
       const savedEntry = nextEntries.find(
         (nextEntry) => nextEntry.date === entry.date,
       )
-      pushToast(
-        savedEntry?.plannerOnly === false
-          ? `같은 조합의 '${savedEntry.title}' 코디를 연결했습니다.`
-          : '이 날짜에만 사용할 코디를 추가했습니다.',
-        'success',
-      )
-      navigate(backPath)
+      if (!savedEntry?.outfitId) {
+        throw new Error('저장된 코디 정보를 찾을 수 없습니다.')
+      }
+
+      if (savedEntry.plannerOnly) {
+        pushToast('변경한 코디를 이 날짜에 저장했습니다.', 'success')
+      } else {
+        pushToast(
+          `같은 조합의 '${savedEntry.title}' 코디를 이 날짜에 연결했습니다.`,
+          'success',
+        )
+      }
     } catch (error) {
       pushToast(
         error instanceof Error ? error.message : '코디를 추가하지 못했습니다.',
@@ -295,8 +302,8 @@ export function PlanDetailPage() {
               : isSavedToLookbook
                 ? '코디북 저장됨'
                 : isPlannerOnly
-                  ? '코디북에 저장'
-                  : '이대로 추가'}
+                  ? '코디북에 추가'
+                  : '변경사항 저장'}
           </button>
         </div>
       </footer>

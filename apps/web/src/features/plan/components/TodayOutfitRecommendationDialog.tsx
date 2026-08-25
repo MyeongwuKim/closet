@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { OutfitPreview, WardrobeItem } from '@closet/types'
+import type { OutfitStyle } from '../../../constants/styleOptions'
 import {
   CalendarPlus,
   ChevronLeft,
@@ -18,6 +19,7 @@ interface TodayOutfitRecommendationDialogProps {
   date: string
   items: WardrobeItem[]
   initialItems: WardrobeItem[]
+  style: OutfitStyle
   hasTodayOutfit: boolean
   isSaving: boolean
   onClose: () => void
@@ -43,6 +45,7 @@ export function TodayOutfitRecommendationDialog({
   date,
   items,
   initialItems,
+  style,
   hasTodayOutfit,
   isSaving,
   onClose,
@@ -89,7 +92,10 @@ export function TodayOutfitRecommendationDialog({
     })
 
     void generateOutfitPreview
-      .mutateAsync(selectedItems.map((item) => item.id))
+      .mutateAsync({
+        selectedItemIds: selectedItems.map((item) => item.id),
+        style,
+      })
       .then((result) => {
         setPreview({
           isOpen: true,

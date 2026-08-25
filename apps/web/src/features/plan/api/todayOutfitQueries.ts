@@ -14,7 +14,9 @@ interface TodayOutfitRecommendationPayload
   items: WardrobeItemPayload[]
 }
 
-interface StoredTodayRecommendation {
+export interface TodayRecommendationHistoryEntry {
+  id: string
+  createdAt: string
   date: string
   season: Season
   style: OutfitStyle
@@ -22,8 +24,9 @@ interface StoredTodayRecommendation {
   recommendation: TodayOutfitRecommendation
 }
 
+const MAX_TODAY_RECOMMENDATION_HISTORY = 10
 const TODAY_RECOMMENDATION_STORAGE_PREFIX =
-  'closet:today-outfit-recommendation:v4'
+  'closet:today-outfit-recommendation:v7'
 
 function getStorageKey(
   viewerId: string,
@@ -34,33 +37,58 @@ function getStorageKey(
   return `${TODAY_RECOMMENDATION_STORAGE_PREFIX}:${viewerId}:${date}:${season}:${style}`
 }
 
-export function readStoredTodayRecommendation(
+export function getTodayRecommendationItemKey(
+  recommendation: TodayOutfitRecommendation,
+) {
+  return recommendation.items
+    .map((item) => item.id)
+    .sort()
+    .join(':')
+}
+
+function isHistoryEntry(
+  value: unknown,
+  date: string,
+  season: Season,
+  style: OutfitStyle,
+): value is TodayRecommendationHistoryEntry {
+  if (!value || typeof value !== 'object') return false
+
+  const entry = value as Partial<TodayRecommendationHistoryEntry>
+  return (
+    typeof entry.id === 'string' &&
+    typeof entry.createdAt === 'string' &&
+    entry.date === date &&
+    entry.season === season &&
+    entry.style === style &&
+    Number.isInteger(entry.variation) &&
+    Boolean(entry.recommendation) &&
+    entry.recommendation?.date === date &&
+    entry.recommendation.season === season &&
+    Array.isArray(entry.recommendation.items)
+  )
+}
+
+export function readTodayRecommendationHistory(
   viewerId: string,
   date: string,
   season: Season,
   style: OutfitStyle,
-): StoredTodayRecommendation | null {
+): TodayRecommendationHistoryEntry[] {
   try {
     const rawValue = window.localStorage.getItem(
       getStorageKey(viewerId, date, season, style),
     )
-    if (!rawValue) return null
+    if (!rawValue) return []
 
-    const stored = JSON.parse(rawValue) as Partial<StoredTodayRecommendation>
-    if (
-      stored.date !== date ||
-      stored.season !== season ||
-      stored.style !== style ||
-      !Number.isInteger(stored.variation) ||
-      !stored.recommendation ||
-      stored.recommendation.date !== date ||
-      stored.recommendation.season !== season
-    ) {
-      return null
-    }
-    return stored as StoredTodayRecommendation
+    const stored: unknown = JSON.parse(rawValue)
+    if (!Array.isArray(stored)) return []
+
+    return stored
+      .filter((entry) => isHistoryEntry(entry, date, season, style))
+      .slice(0, MAX_TODAY_RECOMMENDATION_HISTORY)
   } catch {
-    return null
+    return []
   }
 }
 
@@ -72,10 +100,44 @@ export function storeTodayRecommendation(
   variation: number,
   recommendation: TodayOutfitRecommendation,
 ) {
-  window.localStorage.setItem(
-    getStorageKey(viewerId, date, season, style),
-    JSON.stringify({ date, season, style, variation, recommendation }),
+  const history = readTodayRecommendationHistory(
+    viewerId,
+    date,
+    season,
+    style,
   )
+  const itemKey = getTodayRecommendationItemKey(recommendation)
+  const existingEntry = history.find(
+    (entry) => getTodayRecommendationItemKey(entry.recommendation) === itemKey,
+  )
+  const entry: TodayRecommendationHistoryEntry = {
+    id:
+      existingEntry?.id ??
+      `${Date.now()}:${variation}:${itemKey || 'empty-recommendation'}`,
+    createdAt: existingEntry?.createdAt ?? new Date().toISOString(),
+    date,
+    season,
+    style,
+    variation,
+    recommendation,
+  }
+  const nextHistory = [
+    entry,
+    ...history.filter(
+      (historyEntry) =>
+        getTodayRecommendationItemKey(historyEntry.recommendation) !== itemKey,
+    ),
+  ].slice(0, MAX_TODAY_RECOMMENDATION_HISTORY)
+
+  try {
+    window.localStorage.setItem(
+      getStorageKey(viewerId, date, season, style),
+      JSON.stringify(nextHistory),
+    )
+    return nextHistory
+  } catch {
+    return history
+  }
 }
 
 export function useTodayOutfitRecommendationQuery(
@@ -84,6 +146,7 @@ export function useTodayOutfitRecommendationQuery(
   season: Season,
   style: OutfitStyle,
   variation: number,
+  excludedOuterItemIds: string[],
   initialData?: TodayOutfitRecommendation,
   enabled = true,
 ) {
@@ -94,6 +157,7 @@ export function useTodayOutfitRecommendationQuery(
       season,
       style,
       variation,
+      excludedOuterItemIds,
     ),
     enabled: enabled && Boolean(viewerId) && Boolean(date),
     initialData,
@@ -108,6 +172,7 @@ export function useTodayOutfitRecommendationQuery(
             season: Season
             style: OutfitStyle
             variation: number
+            excludedOuterItemIds: string[]
           }
         }
       >(
@@ -122,14 +187,33 @@ export function useTodayOutfitRecommendationQuery(
             }
           }
         `,
-        { input: { date, season, style, variation } },
+        {
+          input: {
+            date,
+            season,
+            style,
+            variation,
+            excludedOuterItemIds,
+          },
+        },
         signal,
       )
 
-      return {
+      const recommendation = {
         ...data.todayOutfitRecommendation,
         items: data.todayOutfitRecommendation.items.map(toWardrobeItem),
       }
+      if (recommendation.ready && recommendation.items.length > 0) {
+        storeTodayRecommendation(
+          viewerId,
+          date,
+          season,
+          style,
+          variation,
+          recommendation,
+        )
+      }
+      return recommendation
     },
   })
 }

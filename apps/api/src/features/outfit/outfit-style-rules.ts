@@ -43,7 +43,8 @@ interface StyleDefinition {
 
 export const styleDefinitions: Record<OutfitStyle, StyleDefinition> = {
   minimal: {
-    description: '무지와 중성색, 장식이 적은 단정한 실루엣을 중심으로 구성',
+    description:
+      '아이템 종류보다 전체 코디의 절제된 인상을 본다. 색과 패턴 수가 적고 장식이 과하지 않으며, 상하의 볼륨이 정돈된 조합을 우선한다. 여유로운 옷도 선이 깔끔하고 색 구성이 단순하면 미니멀로 볼 수 있다.',
     keywords: ['무지', '셔츠', '슬랙스', '니트', '코트', '로퍼', '블레이저'],
     subcategories: ['셔츠', '니트', '슬랙스', '일반 긴바지', '블레이저', '코트', '로퍼'],
     silhouettes: ['slim', 'regular', 'relaxed'],
@@ -53,7 +54,8 @@ export const styleDefinitions: Record<OutfitStyle, StyleDefinition> = {
     neutralColorBonus: true,
   },
   casual: {
-    description: '티셔츠·맨투맨·데님처럼 편안한 기본 아이템과 자연스러운 핏으로 구성',
+    description:
+      '특정 아이템 종류가 아니라 전체 코디에서 느껴지는 편안함과 자연스러운 실루엣을 본다. 셔츠·니트·코트처럼 단정한 아이템도 데님·치노·스니커즈나 여유로운 이너와 조합되면 캐주얼이며, 슬랙스도 편안한 상의·와이드 실루엣·편한 신발과 맞추면 캐주얼이 될 수 있다. 반대로 코트·셔츠·니트·슬랙스가 하나 들어갔다는 이유만으로 클래식으로 판단하지 않는다.',
     keywords: ['티셔츠', '반팔', '긴팔', '데님', '청바지', '스니커즈', '후드', '맨투맨', '치노'],
     subcategories: ['반팔', '긴팔', '맨투맨', '후드', '폴로 셔츠', '데님', '치노 팬츠', '일반 긴바지', '스니커즈', '재킷', '가디건'],
     silhouettes: ['regular', 'relaxed'],
@@ -63,7 +65,8 @@ export const styleDefinitions: Record<OutfitStyle, StyleDefinition> = {
     neutralColorBonus: false,
   },
   street: {
-    description: '오버핏·와이드·카고·조거와 레이어드가 드러나는 여유로운 조합',
+    description:
+      '상의와 하의의 오버사이즈·와이드 볼륨, 레이어드, 그래픽이나 스포티한 디테일이 전체 조합에서 분명하게 드러나는지 본다. 와이드 아이템 하나만으로 스트릿으로 판단하지 않고 다른 아이템과 만든 실루엣을 함께 본다.',
     keywords: ['오버핏', '와이드', '카고', '후드', '조거', '스니커즈', '그래픽', '집업', '패딩'],
     subcategories: ['맨투맨', '후드', '와이드 팬츠', '조거 팬츠', '집업', '패딩', '스니커즈', '모자'],
     silhouettes: ['relaxed', 'oversized'],
@@ -73,7 +76,8 @@ export const styleDefinitions: Record<OutfitStyle, StyleDefinition> = {
     neutralColorBonus: false,
   },
   classic: {
-    description: '셔츠·슬랙스·블레이저처럼 구조적이고 포멀한 아이템으로 구성',
+    description:
+      '구조적인 소재와 정돈된 레귤러·슬림 실루엣, 셔츠·테일러드 슬랙스·블레이저·로퍼 같은 아이템의 결합으로 전체 격식이 높아지는 조합을 본다. 셔츠나 슬랙스 하나만 포함됐다는 이유로 클래식으로 판단하지 않는다.',
     keywords: ['셔츠', '슬랙스', '블레이저', '재킷', '코트', '로퍼', '구두', '니트'],
     subcategories: ['셔츠', '니트', '슬랙스', '블레이저', '코트', '로퍼', '구두'],
     silhouettes: ['slim', 'regular'],
@@ -83,7 +87,8 @@ export const styleDefinitions: Record<OutfitStyle, StyleDefinition> = {
     neutralColorBonus: true,
   },
   vintage: {
-    description: '워싱·체크·코듀로이·레더처럼 질감과 시간이 느껴지는 아이템으로 구성',
+    description:
+      '워싱, 체크, 코듀로이, 레더처럼 시간이 느껴지는 질감과 색이 여러 아이템 사이에서 자연스럽게 이어지는지 본다. 특정 소재 하나보다 전체 조합의 시대감과 질감 조화를 우선한다.',
     keywords: ['워싱', '코듀로이', '레더', '가죽', '체크', '데님', '브라운', '올리브'],
     subcategories: ['셔츠', '데님', '재킷', '부츠', '로퍼'],
     silhouettes: ['regular', 'relaxed', 'oversized'],
@@ -93,7 +98,8 @@ export const styleDefinitions: Record<OutfitStyle, StyleDefinition> = {
     neutralColorBonus: false,
   },
   sporty: {
-    description: '트랙·조거·바람막이·러닝화처럼 활동적인 기능성 아이템으로 구성',
+    description:
+      '기능성 소재, 활동하기 좋은 실루엣, 트랙·조거·바람막이·러닝화 같은 요소가 전체 조합에서 운동복의 인상을 만드는지 본다. 스니커즈나 후드 하나만 포함됐다는 이유로 스포티로 판단하지 않는다.',
     keywords: ['트랙', '조거', '레깅스', '러닝', '스니커즈', '바람막이', '집업', '후드'],
     subcategories: ['후드', '집업', '조거 팬츠', '레깅스', '스니커즈'],
     silhouettes: ['slim', 'regular', 'relaxed'],
@@ -132,6 +138,17 @@ const warmthLevels = new Set(['light', 'medium', 'heavy', 'unknown'])
 
 function includesCategory(item: StyleRuleItem, category: ClothingCategory) {
   return item.category === category || item.additionalCategories?.includes(category) === true
+}
+
+export function excludeOuterItems<T extends StyleRuleItem>(
+  items: T[],
+  excludedItemIds: Iterable<string>,
+) {
+  const excludedIdSet = new Set(excludedItemIds)
+  return items.filter(
+    (item) =>
+      !(excludedIdSet.has(item.id) && includesCategory(item, 'outer')),
+  )
 }
 
 function inferFashionAttributes(item: StyleRuleItem): FashionItemAttributes {
@@ -314,6 +331,47 @@ export function getItemStyleScore(
   )
 }
 
+function isCasualAnchor(item: StyleRuleItem) {
+  const definition = styleDefinitions.casual
+  const attributes = getFashionAttributes(item)
+  const text = `${item.name} ${item.subcategory ?? ''}`.toLocaleLowerCase()
+  const hasCasualKeyword = definition.keywords.some((keyword) =>
+    text.includes(keyword.toLocaleLowerCase()),
+  )
+  const hasCasualSubcategory = definition.subcategories.some(
+    (subcategory) =>
+      item.subcategory === subcategory ||
+      text.includes(subcategory.toLocaleLowerCase()),
+  )
+  const hasRelaxedEverydayShape =
+    ['relaxed', 'oversized'].includes(attributes.silhouette) &&
+    attributes.formality <= definition.formality[1]
+
+  return (
+    hasCasualKeyword ||
+    hasCasualSubcategory ||
+    attributes.formality <= 0.3 ||
+    hasRelaxedEverydayShape
+  )
+}
+
+function getStyleRelationshipScore<T extends StyleRuleItem>(
+  items: T[],
+  style: OutfitStyle,
+) {
+  if (style !== 'casual') return 0
+
+  const casualAnchorCount = items.filter(isCasualAnchor).length
+  const structuredItemCount = items.filter(
+    (item) => getFashionAttributes(item).formality > 0.62,
+  ).length
+  const casualCoherenceScore = Math.min(casualAnchorCount, 3) * 0.8
+  const mixedFormalityScore =
+    casualAnchorCount >= 2 ? Math.min(structuredItemCount, 2) * 3 : 0
+
+  return casualCoherenceScore + mixedFormalityScore
+}
+
 function scoreCombination<T extends StyleRuleItem>(
   items: T[],
   style: OutfitStyle,
@@ -354,6 +412,7 @@ function scoreCombination<T extends StyleRuleItem>(
     averageStyle * 2.4 +
     averageColor * 1.7 +
     averageRotation +
+    getStyleRelationshipScore(items, style) +
     (hasShoes ? 2 : 0) +
     layerBonus -
     patternPenalty -
@@ -373,6 +432,43 @@ function sortPool<T extends StyleRuleItem>(
         (getItemStyleScore(left, style, fit) + getRotationScore(left)),
     )
     .slice(0, 8)
+}
+
+function selectDiverseCombinations<T extends StyleRuleItem>(
+  combinations: OutfitCombination<T>[],
+  limit: number,
+) {
+  const groups = new Map<string, OutfitCombination<T>[]>()
+
+  combinations.forEach((combination) => {
+    const outerIds = combination.items
+      .filter(
+        (item) =>
+          includesCategory(item, 'outer') ||
+          getFashionAttributes(item).layerRole === 'outer',
+      )
+      .map((item) => item.id)
+      .sort()
+    const key = outerIds.length > 0 ? outerIds.join(':') : 'without-outer'
+    const group = groups.get(key) ?? []
+    group.push(combination)
+    groups.set(key, group)
+  })
+
+  const selected: OutfitCombination<T>[] = []
+  while (selected.length < limit) {
+    let added = false
+    for (const group of groups.values()) {
+      const combination = group.shift()
+      if (!combination) continue
+      selected.push(combination)
+      added = true
+      if (selected.length === limit) break
+    }
+    if (!added) break
+  }
+
+  return selected.sort((left, right) => right.score - left.score)
 }
 
 export function buildOutfitCombinations<T extends StyleRuleItem>(
@@ -440,7 +536,7 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
       pushCore(base)
 
       midlayers.slice(0, 3).forEach((midlayer) => pushCore([...base, midlayer]))
-      outers.slice(0, 3).forEach((outer) => pushCore([...base, outer]))
+      outers.forEach((outer) => pushCore([...base, outer]))
       midlayers.slice(0, 2).forEach((midlayer) => {
         outers.slice(0, 2).forEach((outer) => pushCore([...base, midlayer, outer]))
       })
@@ -449,17 +545,18 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
 
   for (const dress of dresses) {
     pushCore([dress])
-    outers.slice(0, 3).forEach((outer) => pushCore([dress, outer]))
+    outers.forEach((outer) => pushCore([dress, outer]))
   }
 
-  return [...combinations.values()]
+  const scoredCombinations = [...combinations.values()]
     .map((selectedItems) => ({
       id: '',
       items: selectedItems,
       score: scoreCombination(selectedItems, style, fit, season),
     }))
     .sort((left, right) => right.score - left.score)
-    .slice(0, 18)
+
+  return selectDiverseCombinations(scoredCombinations, 18)
     .map((combination, index) => ({
       ...combination,
       id: `combination-${index + 1}`,

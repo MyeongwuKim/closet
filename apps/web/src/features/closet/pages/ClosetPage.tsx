@@ -9,6 +9,7 @@ import { useIsMutating } from '@tanstack/react-query'
 import { Shirt } from 'lucide-react'
 import { Outlet, useNavigate, useSearchParams } from 'react-router-dom'
 import { ColorFilter } from '../../../components/ColorFilter'
+import { DateSortButton } from '../../../components/DateSortButton'
 import { SeasonFilter } from '../../../components/SeasonFilter'
 import { seasonLabels } from '../../../constants/seasons'
 import { useUiStore } from '../../../stores/useUiStore'
@@ -75,6 +76,9 @@ export function ClosetPage() {
     useState<FilterTransitionPhase>('idle')
   const filterTransitionTimersRef = useRef<number[]>([])
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [isSearchOpen, setIsSearchOpen] = useState(() =>
+    Boolean(searchParams.get('q')?.trim()),
+  )
   const categoryParam = searchParams.get('category')
   const activeCategory =
     categoryParam && categoryParam in closetCategoryLabels
@@ -89,6 +93,7 @@ export function ClosetPage() {
     : null
   const searchQuery = searchParams.get('q') ?? ''
   const activeTag = searchParams.get('tag')
+  const sortOrder = searchParams.get('sort') === 'oldest' ? 'oldest' : 'latest'
 
   const availableCategorySet = new Set(
     items.flatMap(getWardrobeItemCategories),
@@ -113,17 +118,23 @@ export function ClosetPage() {
       ),
     ),
   )
-  const filteredItems = items.filter((item) => {
-    if (!wardrobeItemMatchesSearch(item, searchQuery)) return false
-    if (selectedTag && !wardrobeItemHasTag(item, selectedTag)) return false
-    if (activeSeason && !item.seasons.includes(activeSeason)) return false
-    if (activeColor && !wardrobeItemMatchesColor(item, activeColor)) {
-      return false
-    }
-    if (activeCategory === null) return true
-    if (!wardrobeItemHasCategory(item, activeCategory)) return false
-    return activeSubcategory === null || item.subcategory === activeSubcategory
-  })
+  const filteredItems = items
+    .filter((item) => {
+      if (!wardrobeItemMatchesSearch(item, searchQuery)) return false
+      if (selectedTag && !wardrobeItemHasTag(item, selectedTag)) return false
+      if (activeSeason && !item.seasons.includes(activeSeason)) return false
+      if (activeColor && !wardrobeItemMatchesColor(item, activeColor)) {
+        return false
+      }
+      if (activeCategory === null) return true
+      if (!wardrobeItemHasCategory(item, activeCategory)) return false
+      return activeSubcategory === null || item.subcategory === activeSubcategory
+    })
+    .sort((left, right) => {
+      const dateDifference =
+        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+      return sortOrder === 'latest' ? dateDifference : -dateDifference
+    })
 
   useEffect(
     () => () => {
@@ -144,6 +155,11 @@ export function ClosetPage() {
       },
       { replace: true },
     )
+  }
+
+  const toggleSearch = () => {
+    if (isSearchOpen) updateFilterParam('q', null)
+    setIsSearchOpen((currentValue) => !currentValue)
   }
 
   const applyCategoryFilter = (
@@ -404,6 +420,8 @@ export function ClosetPage() {
       <ClosetPageHeader
         itemCount={items.length}
         analyzingCount={analyzingCount}
+        isSearchOpen={isSearchOpen}
+        onToggleSearch={toggleSearch}
         onAddItem={openFilePicker}
       />
       {items.length > 0 && (
@@ -411,13 +429,14 @@ export function ClosetPage() {
           query={searchQuery}
           tags={availableTags}
           activeTag={selectedTag}
+          isSearchOpen={isSearchOpen}
           onQueryChange={(query) => updateFilterParam('q', query)}
           onTagChange={(tag) => updateFilterParam('tag', tag)}
         />
       )}
       {items.length > 0 && (
         <SeasonFilter
-          className="mt-4"
+          className="mt-6"
           value={activeSeason}
           onChange={(season) => updateFilterParam('season', season)}
         />
@@ -427,16 +446,27 @@ export function ClosetPage() {
         aria-busy={filterTransitionPhase !== 'idle'}
       >
         {items.length > 0 && (
-          <div className="mt-3 flex min-w-0 items-start gap-2">
-            {availableColors.length > 1 && (
-              <ColorFilter
-                value={activeColor}
-                options={availableColors}
-                onChange={(color) => updateFilterParam('color', color)}
+          <div className="mt-3">
+            <div className="flex items-center gap-2">
+              <DateSortButton
+                value={sortOrder}
+                onChange={(nextOrder) =>
+                  updateFilterParam(
+                    'sort',
+                    nextOrder === 'oldest' ? 'oldest' : null,
+                  )
+                }
               />
-            )}
+              {availableColors.length > 1 && (
+                <ColorFilter
+                  value={activeColor}
+                  options={availableColors}
+                  onChange={(color) => updateFilterParam('color', color)}
+                />
+              )}
+            </div>
             <ClosetCategoryFilter
-              className="min-w-0 flex-1"
+              className="mt-2"
               category={activeCategory}
               subcategory={activeSubcategory}
               availableCategories={availableCategories}

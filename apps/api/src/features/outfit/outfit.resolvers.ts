@@ -34,6 +34,7 @@ export const outfitResolvers = {
           season: Season
           style?: OutfitStyle | null
           variation?: number | null
+          excludedOuterItemIds?: string[] | null
         }
       },
       context: GraphQLContext,
@@ -100,12 +101,18 @@ export const outfitResolvers = {
   Mutation: {
     generateOutfitPreview: async (
       _parent: unknown,
-      { input }: { input: { selectedItemIds: string[] } },
+      {
+        input,
+      }: { input: { selectedItemIds: string[]; style?: string | null } },
       context: GraphQLContext,
     ) => {
       try {
         const viewer = await context.getViewer()
-        return outfitPreviewService.generate(viewer.id, input.selectedItemIds)
+        return outfitPreviewService.generate(
+          viewer.id,
+          input.selectedItemIds,
+          input.style,
+        )
       } catch (error) {
         throw toGraphQLError(
           error,

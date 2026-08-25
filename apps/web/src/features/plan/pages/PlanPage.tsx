@@ -11,6 +11,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useClosetStore } from '../../closet/stores/useClosetStore'
 import { useUiStore } from '../../../stores/useUiStore'
 import { PlanDayRow } from '../components/PlanDayRow'
+import { PlanDayRowDragLayer } from '../components/PlanDayRowDragLayer'
 import { PlanMonthCalendar } from '../components/PlanMonthCalendar'
 import { PlanPageHeader } from '../components/PlanPageHeader'
 import { PlanPeriodHeader } from '../components/PlanPeriodHeader'
@@ -29,15 +30,16 @@ import {
   getCurrentWeekStart,
   moveArrayItem,
   moveWeeklyPlanOutfits,
+  placePlanOutfitInDate,
   type PlanEntry,
 } from '../data/weeklyPlan'
 import { usePlanStore } from '../stores/usePlanStore'
 
 const weeklyPlanDndOptions = {
   enableMouseEvents: true,
-  delayTouchStart: 90,
+  delayTouchStart: 150,
   delayMouseStart: 0,
-  touchSlop: 5,
+  touchSlop: 8,
   ignoreContextMenu: true,
 }
 
@@ -47,7 +49,18 @@ interface DisplayPlanRow {
 }
 
 function createDisplayRows(entries: PlanEntry[]): DisplayPlanRow[] {
-  return entries.map((entry) => ({ key: entry.date, entry }))
+  const identityCounts = new Map<string, number>()
+
+  return entries.map((entry) => {
+    const identity = entry.outfitId ? `outfit-${entry.outfitId}` : 'empty'
+    const occurrence = identityCounts.get(identity) ?? 0
+    identityCounts.set(identity, occurrence + 1)
+
+    return {
+      key: `${identity}-${occurrence}`,
+      entry,
+    }
+  })
 }
 
 export function PlanPage() {
@@ -74,9 +87,8 @@ export function PlanPage() {
   const today = formatDateOnly(new Date())
   const viewMode = searchParams.get('view') === 'month' ? 'month' : 'week'
   const weekStartsOn = entries[0]?.date ?? ''
-  const isCurrentWeek = weekStartsOn === getCurrentWeekStart()
-  const todayEntry = entries.find((entry) => entry.date === today)
-  const showTodayRecommendation = viewMode === 'week' && isCurrentWeek
+  const currentWeekStartsOn = getCurrentWeekStart()
+  const isCurrentWeek = weekStartsOn === currentWeekStartsOn
   const requestedMonth = searchParams.get('month')
   const monthKey = /^\d{4}-\d{2}$/.test(requestedMonth ?? '')
     ? (requestedMonth as string)
@@ -88,11 +100,20 @@ export function PlanPage() {
     weekStartsOn,
     viewMode === 'week',
   )
+  const todayPlannerWeekQuery = usePlannerWeekQuery(
+    currentWeekStartsOn,
+    viewMode !== 'week' || !isCurrentWeek,
+  )
   const plannerEntriesQuery = usePlannerEntriesQuery(
     monthRangeStart,
     monthRangeEnd,
     viewMode === 'month',
   )
+  const todayEntry = (
+    viewMode === 'week' && isCurrentWeek
+      ? entries
+      : (todayPlannerWeekQuery.data ?? [])
+  ).find((entry) => entry.date === today)
 
   useEffect(() => {
     if (plannerWeekQuery.data?.length) {
@@ -114,11 +135,7 @@ export function PlanPage() {
       return
     }
 
-    setDisplayRows((current) =>
-      current.length === entries.length
-        ? current.map((row, index) => ({ ...row, entry: entries[index]! }))
-        : createDisplayRows(entries),
-    )
+    setDisplayRows(createDisplayRows(entries))
   }, [entries])
 
   useLayoutEffect(() => {
@@ -191,12 +208,7 @@ export function PlanPage() {
         source.date,
         target.date,
       )
-      setDisplayRows((current) =>
-        current.map((row, index) => ({
-          ...row,
-          entry: movedEntries[index]!,
-        })),
-      )
+      setDisplayRows(createDisplayRows(movedEntries))
 
       void movePlannerEntry
         .mutateAsync({
@@ -278,12 +290,10 @@ export function PlanPage() {
       }`}
     >
       <PlanPageHeader viewMode={viewMode} onEditWeek={openWeekEditor} />
-      {showTodayRecommendation && (
-        <TodayOutfitRecommendationCard
-          date={today}
-          hasTodayOutfit={Boolean(todayEntry?.itemIds.length)}
-        />
-      )}
+      <TodayOutfitRecommendationCard
+        date={today}
+        hasTodayOutfit={Boolean(todayEntry?.itemIds.length)}
+      />
       <PlanViewToggle value={viewMode} onChange={changeViewMode} />
       <div
         key={periodTransitionKey}
@@ -302,26 +312,42 @@ export function PlanPage() {
 
         {viewMode === 'week' ? (
           <DndProvider backend={TouchBackend} options={weeklyPlanDndOptions}>
+            <PlanDayRowDragLayer />
             <div
               ref={rowListRef}
-              className="mt-2 grid min-h-0 flex-1 grid-rows-7 gap-1.5 sm:mt-4 sm:flex-none sm:grid-rows-none sm:gap-3"
+              className="mt-2 grid min-h-0 flex-1 grid-rows-7 gap-2 pb-2 sm:mt-4 sm:flex-none sm:grid-rows-none sm:gap-3 sm:pb-0"
             >
-              {displayRows.map((row, index) => (
-                <div data-plan-row-key={row.key} key={row.key}>
-                  <PlanDayRow
-                    entry={row.entry}
-                    index={index}
-                    items={row.entry.itemIds
-                      .map((itemId) => items.find((item) => item.id === itemId))
-                      .filter((item) => item !== undefined)}
-                    isToday={row.entry.date === today}
-                    disabled={movePlannerEntry.isPending}
-                    onDragStart={startRowDrag}
-                    onMovePreview={moveRowPreview}
-                    onDragEnd={finishRowDrag}
-                  />
-                </div>
-              ))}
+              {displayRows.map((row, index) => {
+                const dateEntry = entries[index] ?? row.entry
+                const displayEntry = placePlanOutfitInDate(
+                  dateEntry,
+                  row.entry,
+                )
+
+                return (
+                  <div
+                    className="h-full min-h-0"
+                    data-plan-row-key={row.key}
+                    key={row.key}
+                  >
+                    <PlanDayRow
+                      dragKey={row.key}
+                      entry={displayEntry}
+                      index={index}
+                      items={row.entry.itemIds
+                        .map((itemId) =>
+                          items.find((item) => item.id === itemId),
+                        )
+                        .filter((item) => item !== undefined)}
+                      isToday={dateEntry.date === today}
+                      disabled={movePlannerEntry.isPending}
+                      onDragStart={startRowDrag}
+                      onMovePreview={moveRowPreview}
+                      onDragEnd={finishRowDrag}
+                    />
+                  </div>
+                )
+              })}
             </div>
           </DndProvider>
         ) : plannerEntriesQuery.isError ? (

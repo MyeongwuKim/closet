@@ -20,6 +20,7 @@ interface PlannerWeekPayload {
     outfit: {
       id: string
       name: string
+      style: string
       plannerOnly: boolean
       items: Array<{ wardrobeItemId: string }>
       generations: Array<{
@@ -80,6 +81,7 @@ function toPlanEntry(
     weather,
     itemIds: entry.outfit?.items.map((item) => item.wardrobeItemId) ?? [],
     outfitId: entry.outfit?.id,
+    outfitStyle: entry.outfit?.style,
     plannerOnly: entry.outfit?.plannerOnly,
     previewImageUrl:
       entry.outfit?.generations.find(
@@ -105,7 +107,7 @@ export function usePlannerWeekQuery(weekStartsOn: string, enabled = true) {
               entries {
                 date title occasion weatherSummary temperatureC
                 outfit {
-                  id name plannerOnly
+                  id name style plannerOnly
                   items { wardrobeItemId }
                   generations { status imageAsset { deliveryUrl } }
                 }
@@ -142,7 +144,7 @@ export function usePlannerEntriesQuery(
             plannerEntries(from: $from, to: $to) {
               date title occasion weatherSummary temperatureC
               outfit {
-                  id name plannerOnly
+                  id name style plannerOnly
                 items { wardrobeItemId }
                 generations { status imageAsset { deliveryUrl } }
               }
@@ -204,7 +206,7 @@ export function useSetDirectPlannerEntryMutation() {
               entries {
                 date title occasion weatherSummary temperatureC
                 outfit {
-                  id name plannerOnly
+                  id name style plannerOnly
                   items { wardrobeItemId }
                   generations { status imageAsset { deliveryUrl } }
                 }
@@ -237,7 +239,7 @@ export function useMovePlannerEntryMutation() {
               entries {
                 date title occasion weatherSummary temperatureC
                 outfit {
-                  id name plannerOnly
+                  id name style plannerOnly
                   items { wardrobeItemId }
                   generations { status imageAsset { deliveryUrl } }
                 }

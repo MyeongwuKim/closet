@@ -33,6 +33,7 @@ export function LookbookPage() {
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedOutfitId, setSelectedOutfitId] = useState<string | null>(null)
+  const sortOrder = searchParams.get('sort') === 'oldest' ? 'oldest' : 'latest'
   const wearSummaries = useOutfitWearSummaries(
     outfits.map((outfit) => outfit.id),
   )
@@ -60,6 +61,10 @@ export function LookbookPage() {
     activeSeason,
     activeColor,
     searchQuery,
+  }).sort((left, right) => {
+    const dateDifference =
+      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+    return sortOrder === 'latest' ? dateDifference : -dateDifference
   })
   const selectedOutfit = outfits.find(
     (outfit) => outfit.id === selectedOutfitId,
@@ -74,6 +79,13 @@ export function LookbookPage() {
   const toggleSearch = () => {
     if (isSearchOpen) setSearchQuery('')
     setIsSearchOpen(!isSearchOpen)
+  }
+
+  const changeSortOrder = (nextOrder: 'latest' | 'oldest') => {
+    const nextSearchParams = new URLSearchParams(searchParams)
+    if (nextOrder === 'oldest') nextSearchParams.set('sort', 'oldest')
+    else nextSearchParams.delete('sort')
+    setSearchParams(nextSearchParams, { replace: true })
   }
 
   return (
@@ -122,11 +134,13 @@ export function LookbookPage() {
           colorOptions={colorOptions}
           isSearchOpen={isSearchOpen}
           searchQuery={searchQuery}
+          sortOrder={sortOrder}
           styleOptions={visibleStyleOptions}
           onSeasonChange={setActiveSeason}
           onStyleChange={setActiveStyle}
           onColorChange={setActiveColor}
           onSearchChange={setSearchQuery}
+          onSortOrderChange={changeSortOrder}
         />
       )}
 

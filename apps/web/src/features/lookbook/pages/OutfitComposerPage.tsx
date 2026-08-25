@@ -436,7 +436,7 @@ export function OutfitComposerPage() {
     if (previewMutation.isPending) return
 
     void previewMutation
-      .mutateAsync(selectedIds)
+      .mutateAsync({ selectedItemIds: selectedIds, style })
       .then((result) => {
         dispatch({
           type: 'PREVIEW_SUCCESS',

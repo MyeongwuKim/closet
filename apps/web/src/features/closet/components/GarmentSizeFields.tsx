@@ -78,61 +78,80 @@ export function GarmentSizeFields({
         </span>
         <ChevronDown
           size={18}
-          className={`shrink-0 text-muted transition-transform ${
+          className={`shrink-0 text-muted transition-transform duration-300 motion-reduce:transition-none ${
             isManualInputOpen ? 'rotate-180' : ''
           }`}
           aria-hidden="true"
         />
       </button>
 
-      {isManualInputOpen && (
-        <div id={manualInputId} className="mt-4 border-t border-line pt-4">
-          <label className="block text-xs font-bold text-muted">
-            표기 사이즈
-            <input
-              type="text"
-              value={value.sizeLabel}
-              onChange={(event) => updateField('sizeLabel', event.target.value)}
-              placeholder="예: M, 95, 28"
-              maxLength={20}
-              className="mt-2 h-11 w-full rounded-xl border border-line bg-white px-3 text-sm font-bold text-ink outline-none focus:border-accent"
-            />
-          </label>
+      <div
+        id={manualInputId}
+        aria-hidden={!isManualInputOpen}
+        inert={!isManualInputOpen}
+        className={`grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
+          isManualInputOpen
+            ? 'grid-rows-[1fr] opacity-100'
+            : 'grid-rows-[0fr] opacity-0'
+        }`}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div
+            className={`mt-4 border-t border-line pt-4 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
+              isManualInputOpen ? 'translate-y-0' : '-translate-y-2'
+            }`}
+          >
+            <label className="block text-xs font-bold text-muted">
+              표기 사이즈
+              <input
+                type="text"
+                value={value.sizeLabel}
+                disabled={!isManualInputOpen}
+                onChange={(event) =>
+                  updateField('sizeLabel', event.target.value)
+                }
+                placeholder="예: M, 95, 28"
+                maxLength={20}
+                className="mt-2 h-11 w-full rounded-xl border border-line bg-white px-3 text-sm font-bold text-ink outline-none focus:border-accent"
+              />
+            </label>
 
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            {fields.map((field) => (
-              <label
-                className="block text-xs font-bold text-muted"
-                key={field.key}
-              >
-                {field.label}
-                <span className="relative mt-2 block">
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    min="0.1"
-                    max="300"
-                    step="0.1"
-                    value={value[field.key]}
-                    onChange={(event) =>
-                      updateField(field.key, event.target.value)
-                    }
-                    placeholder="선택"
-                    className="h-11 w-full rounded-xl border border-line bg-white px-3 pr-9 text-sm font-bold text-ink outline-none focus:border-accent"
-                  />
-                  <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-[11px] font-normal text-muted">
-                    cm
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              {fields.map((field) => (
+                <label
+                  className="block text-xs font-bold text-muted"
+                  key={field.key}
+                >
+                  {field.label}
+                  <span className="relative mt-2 block">
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min="0.1"
+                      max="300"
+                      step="any"
+                      value={value[field.key]}
+                      disabled={!isManualInputOpen}
+                      onChange={(event) =>
+                        updateField(field.key, event.target.value)
+                      }
+                      placeholder="선택"
+                      className="h-11 w-full rounded-xl border border-line bg-white px-3 pr-9 text-sm font-bold text-ink outline-none focus:border-accent"
+                    />
+                    <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-[11px] font-normal text-muted">
+                      cm
+                    </span>
                   </span>
-                </span>
-              </label>
-            ))}
-          </div>
+                </label>
+              ))}
+            </div>
 
-          <p className="mt-3 text-[11px] leading-5 text-muted">
-            AI 분석값은 저장하기 전에 한 번 확인해주세요.
-          </p>
+            <p className="mt-3 text-[11px] leading-5 text-muted">
+              AI 분석값은 저장하기 전에 한 번 확인해주세요.
+            </p>
+          </div>
         </div>
-      )}
+      </div>
     </fieldset>
   )
 }
