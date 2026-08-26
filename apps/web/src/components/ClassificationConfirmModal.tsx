@@ -368,11 +368,13 @@ export function ClassificationConfirmModal({
 
               {!candidate.analysisFailed && category && subcategory.trim() && (
                 <SimilarWardrobeItems
+                  itemName={name}
                   category={category}
                   subcategory={subcategory}
-                  colorName={candidate.colorName}
+                  colorName={colorName}
                   colorHex={candidate.colorHex}
                   colorMode={candidate.colorMode}
+                  fashionAttributes={candidate.fashionAttributes}
                   wardrobeItems={wardrobeItems}
                 />
               )}

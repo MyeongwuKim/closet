@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
-import type { Season } from '@closet/types'
-import { Sparkles, X } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import type { OutfitPreview, Season, WardrobeItem } from '@closet/types'
+import { History, Sparkles, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import {
   getOutfitStyleLabel,
@@ -8,6 +8,17 @@ import {
   type OutfitStyle,
 } from '../../../../constants/styleOptions'
 import { useMeQuery } from '../../../settings/api/profileQueries'
+import { useUiStore } from '../../../../stores/useUiStore'
+import { useClosetStore } from '../../../closet/stores/useClosetStore'
+import { useSetDirectPlannerEntryMutation } from '../../api/plannerQueries'
+import {
+  readRecentTodayRecommendationHistory,
+  type TodayRecommendationHistoryEntry,
+} from '../../api/todayOutfitQueries'
+import { getCurrentWeekStart } from '../../data/weeklyPlan'
+import { usePlanStore } from '../../stores/usePlanStore'
+import { TodayOutfitRecommendationDialog } from '../TodayOutfitRecommendationDialog'
+import { RecommendationHistorySheet } from './RecommendationHistorySheet'
 import {
   getSeasonForDate,
   type RecommendationStep,
@@ -32,7 +43,17 @@ export function TodayOutfitRecommendationPopover({
   const [step, setStep] = useState<RecommendationStep>('intro')
   const [seasonChoice, setSeasonChoice] = useState<SeasonChoice | null>(null)
   const [selectedStyle, setSelectedStyle] = useState<OutfitStyle | null>(null)
+  const [historyEntries, setHistoryEntries] = useState<
+    TodayRecommendationHistoryEntry[]
+  >([])
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+  const [historyDetailEntry, setHistoryDetailEntry] =
+    useState<TodayRecommendationHistoryEntry | null>(null)
   const meQuery = useMeQuery()
+  const closetItems = useClosetStore((state) => state.items)
+  const pushToast = useUiStore((state) => state.pushToast)
+  const hydrateEntries = usePlanStore((state) => state.hydrateEntries)
+  const setDirectPlannerEntry = useSetDirectPlannerEntryMutation()
   const currentSeason = getSeasonForDate(date)
   const selectedSeason: Season | null =
     seasonChoice === 'current-weather' ? currentSeason : seasonChoice
@@ -45,24 +66,76 @@ export function TodayOutfitRecommendationPopover({
         }))
       : outfitStyleOptions
 
+  const refreshHistory = useCallback(() => {
+    if (!meQuery.data) {
+      setHistoryEntries([])
+      return
+    }
+
+    const closetItemIds = new Set(closetItems.map((item) => item.id))
+    setHistoryEntries(
+      readRecentTodayRecommendationHistory(meQuery.data.id, date).filter(
+        (entry) =>
+          entry.recommendation.items.every((item) =>
+            closetItemIds.has(item.id),
+          ),
+      ),
+    )
+  }, [closetItems, date, meQuery.data])
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (isHistoryOpen || historyDetailEntry) return
       if (event.key === 'Escape') onClose()
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
+  }, [historyDetailEntry, isHistoryOpen, onClose])
 
   const selectSeason = (choice: SeasonChoice) => {
+    setHistoryDetailEntry(null)
     setSeasonChoice(choice)
     setSelectedStyle(null)
     setStep('style')
   }
 
   const selectStyle = (style: OutfitStyle) => {
+    setHistoryDetailEntry(null)
     setSelectedStyle(style)
     setStep('result')
+  }
+
+  const applyHistoryRecommendation = async (
+    selectedItems: WardrobeItem[],
+    previewImage?: OutfitPreview,
+  ) => {
+    if (!historyDetailEntry?.recommendation.ready) return false
+
+    try {
+      const nextEntries = await setDirectPlannerEntry.mutateAsync({
+        weekStartsOn: getCurrentWeekStart(new Date(`${date}T00:00:00`)),
+        date,
+        itemIds: selectedItems.map((item) => item.id),
+        previewImage,
+        recommendationName: historyDetailEntry.recommendation.headline,
+        recommendationStyle: historyDetailEntry.style,
+      })
+      hydrateEntries(nextEntries)
+      pushToast(
+        hasTodayOutfit
+          ? '오늘의 코디를 추천 조합으로 바꿨어요.'
+          : '추천 코디를 오늘 일정에 담았어요.',
+        'success',
+      )
+      return true
+    } catch (error) {
+      pushToast(
+        error instanceof Error ? error.message : '추천 코디를 담지 못했어요.',
+        'error',
+      )
+      return false
+    }
   }
 
   let stepContent
@@ -102,6 +175,7 @@ export function TodayOutfitRecommendationPopover({
         season={selectedSeason}
         style={selectedStyle}
         hasTodayOutfit={hasTodayOutfit}
+        onHistoryChange={refreshHistory}
         onBack={() => {
           setSelectedStyle(null)
           setStep('style')
@@ -131,20 +205,58 @@ export function TodayOutfitRecommendationPopover({
               생각하기 귀찮을 때 추천받아보세요.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex size-9 shrink-0 items-center justify-center rounded-full hover:bg-canvas"
-            aria-label="AI 코디 추천 닫기"
-            autoFocus
-          >
-            <X size={18} />
-          </button>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                refreshHistory()
+                setIsHistoryOpen(true)
+              }}
+              disabled={meQuery.isLoading}
+              className="inline-flex h-9 items-center gap-1.5 rounded-full border border-line bg-white px-3 text-[11px] font-bold text-muted transition hover:border-ink hover:text-ink disabled:opacity-50"
+              aria-label={`추천 기록 ${historyEntries.length}개 보기`}
+            >
+              <History size={14} />
+              기록{historyEntries.length > 0 ? ` ${historyEntries.length}` : ''}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex size-9 shrink-0 items-center justify-center rounded-full hover:bg-canvas"
+              aria-label="AI 코디 추천 닫기"
+              autoFocus
+            >
+              <X size={18} />
+            </button>
+          </div>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto p-3 [&>section]:mt-0 sm:p-4">
           {stepContent}
         </div>
       </section>
+      {isHistoryOpen && (
+        <RecommendationHistorySheet
+          entries={historyEntries}
+          onSelect={(entry) => {
+            setHistoryDetailEntry(entry)
+            setIsHistoryOpen(false)
+          }}
+          onClose={() => setIsHistoryOpen(false)}
+        />
+      )}
+      {historyDetailEntry && (
+        <TodayOutfitRecommendationDialog
+          date={date}
+          title={historyDetailEntry.recommendation.headline}
+          items={closetItems}
+          initialItems={historyDetailEntry.recommendation.items}
+          style={historyDetailEntry.style}
+          hasTodayOutfit={hasTodayOutfit}
+          isSaving={setDirectPlannerEntry.isPending}
+          onClose={() => setHistoryDetailEntry(null)}
+          onApply={applyHistoryRecommendation}
+        />
+      )}
     </div>,
     document.body,
   )

@@ -10,6 +10,7 @@ interface RecommendationResultStepProps {
   season: Season
   style: OutfitStyle
   hasTodayOutfit: boolean
+  onHistoryChange?: () => void
   onBack: () => void
 }
 
@@ -19,6 +20,7 @@ export function RecommendationResultStep({
   season,
   style,
   hasTodayOutfit,
+  onHistoryChange,
   onBack,
 }: RecommendationResultStepProps) {
   return (
@@ -31,9 +33,10 @@ export function RecommendationResultStep({
           season={season}
           style={style}
           hasTodayOutfit={hasTodayOutfit}
+          onHistoryChange={onHistoryChange}
         />
       </div>
-      <div className="flex justify-end">
+      <div className="flex shrink-0 justify-end">
         <RecommendationQuickReply secondary delayMs={440} onClick={onBack}>
           <span className="inline-flex items-center gap-1">
             <ChevronLeft size={13} /> 뒤로가기

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { WardrobeItem } from '@closet/types'
+import type { FashionItemAttributes, WardrobeItem } from '@closet/types'
 import {
   areColorNamesCompatible,
   findSimilarWardrobeItems,
@@ -10,6 +10,7 @@ function createCoat(
   id: string,
   colorName: string,
   colorHex: string,
+  fashionAttributes?: FashionItemAttributes,
 ): WardrobeItem {
   return {
     id,
@@ -22,9 +23,25 @@ function createCoat(
     colorName,
     colorHex,
     colorMode: 'solid',
+    fashionAttributes,
     seasons: ['winter'],
     tags: [],
     wearCount: 0,
+  }
+}
+
+function createAttributes(
+  overrides: Partial<FashionItemAttributes> = {},
+): FashionItemAttributes {
+  return {
+    layerRole: 'outer',
+    silhouette: 'regular',
+    pattern: 'solid',
+    material: 'wool',
+    warmth: 'heavy',
+    formality: 0.7,
+    confidence: 0.9,
+    ...overrides,
   }
 }
 
@@ -36,6 +53,7 @@ test('브라운과 네이비는 어두운 HEX가 가까워도 같은 색감으�
       colorName: '브라운',
       colorHex: '#5A4F45',
       colorMode: 'solid',
+      fashionAttributes: null,
     },
     [createCoat('navy-coat', '네이비', '#27313D')],
   )
@@ -51,6 +69,7 @@ test('다크 브라운처럼 같은 계열인 코트는 기존 거리 비교를 
       colorName: '헤링본 짙은 브라운(토프빛)',
       colorHex: '#5A4F45',
       colorMode: 'solid',
+      fashionAttributes: null,
     },
     [createCoat('brown-coat', '다크 브라운', '#4A4038')],
   )
@@ -63,4 +82,133 @@ test('차콜과 블랙, 네이비와 블루처럼 인접 계열은 허용한다'
   assert.equal(areColorNamesCompatible('차콜', '블랙'), true)
   assert.equal(areColorNamesCompatible('네이비', '블루'), true)
   assert.equal(areColorNamesCompatible('차콜', '브라운'), false)
+})
+
+test('색상명이 같게 분류돼도 올리브 HEX와 차콜 HEX를 비슷한 색으로 보지 않는다', () => {
+  const matches = findSimilarWardrobeItems(
+    {
+      category: 'bottom',
+      subcategory: '와이드 팬츠',
+      colorName: '그레이',
+      colorHex: '#48503F',
+      colorMode: 'solid',
+      fashionAttributes: null,
+    },
+    [
+      {
+        ...createCoat('charcoal-pants', '그레이', '#3A3A3C'),
+        category: 'bottom',
+        subcategory: '와이드 팬츠',
+      },
+    ],
+  )
+
+  assert.equal(matches.length, 0)
+})
+
+test('디자인이 같으면 색상이 달라도 비슷한 디자인으로 찾는다', () => {
+  const attributes = createAttributes()
+  const matches = findSimilarWardrobeItems(
+    {
+      category: 'outer',
+      subcategory: '코트',
+      colorName: '브라운',
+      colorHex: '#775444',
+      colorMode: 'solid',
+      fashionAttributes: attributes,
+    },
+    [createCoat('navy-coat', '네이비', '#27394A', attributes)],
+  )
+
+  assert.equal(matches.length, 1)
+  assert.equal(matches[0]?.kind, 'similar-design')
+  assert.equal(matches[0]?.designSimilarityPercent, 100)
+})
+
+test('색상만 같고 소재·실루엣·패턴이 다르면 비슷한 색감으로 구분한다', () => {
+  const targetAttributes = createAttributes()
+  const differentAttributes = createAttributes({
+    silhouette: 'oversized',
+    pattern: 'graphic',
+    material: 'synthetic',
+    warmth: 'light',
+    formality: 0.1,
+  })
+  const matches = findSimilarWardrobeItems(
+    {
+      category: 'outer',
+      subcategory: '코트',
+      colorName: '네이비',
+      colorHex: '#27394A',
+      colorMode: 'solid',
+      fashionAttributes: targetAttributes,
+    },
+    [createCoat('different-coat', '네이비', '#27394A', differentAttributes)],
+  )
+
+  assert.equal(matches.length, 1)
+  assert.equal(matches[0]?.kind, 'similar-color')
+  assert.ok((matches[0]?.designSimilarityPercent ?? 100) < 70)
+})
+
+test('색상과 디자인이 모두 같으면 거의 같은 옷으로 판정한다', () => {
+  const attributes = createAttributes()
+  const matches = findSimilarWardrobeItems(
+    {
+      category: 'outer',
+      subcategory: '코트',
+      colorName: '네이비',
+      colorHex: '#27394A',
+      colorMode: 'solid',
+      fashionAttributes: attributes,
+    },
+    [createCoat('same-coat', '네이비', '#27394A', attributes)],
+  )
+
+  assert.equal(matches.length, 1)
+  assert.equal(matches[0]?.kind, 'near-duplicate')
+  assert.equal(matches[0]?.colorSimilarityPercent, 100)
+  assert.equal(matches[0]?.designSimilarityPercent, 100)
+})
+
+test('소재가 같아도 트윌과 코듀로이처럼 질감이 다르면 디자인 유사도를 낮춘다', () => {
+  const targetAttributes = createAttributes({
+    silhouette: 'relaxed',
+    material: 'cotton',
+    texture: 'twill',
+    warmth: 'medium',
+    formality: 0.2,
+  })
+  const corduroyAttributes = createAttributes({
+    silhouette: 'relaxed',
+    material: 'cotton',
+    warmth: 'medium',
+    formality: 0.2,
+  })
+  const corduroyPants: WardrobeItem = {
+    ...createCoat(
+      'corduroy-pants',
+      '다크 그레이',
+      '#3A3A3C',
+      corduroyAttributes,
+    ),
+    name: '다크 그레이 코듀로이 세미와이드 팬츠',
+    category: 'bottom',
+    subcategory: '와이드 팬츠',
+  }
+
+  const matches = findSimilarWardrobeItems(
+    {
+      itemName: '카키 트윌 와이드 팬츠',
+      category: 'bottom',
+      subcategory: '와이드 팬츠',
+      colorName: '카키',
+      colorHex: '#48503F',
+      colorMode: 'solid',
+      fashionAttributes: targetAttributes,
+    },
+    [corduroyPants],
+  )
+
+  assert.equal(matches.length, 0)
 })

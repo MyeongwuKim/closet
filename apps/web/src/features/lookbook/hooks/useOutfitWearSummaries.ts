@@ -1,17 +1,14 @@
 import { useMemo } from 'react'
+import {
+  formatRecentWearLabel,
+  formatWearDate,
+} from '../../../utils/wearDate'
 import { useOutfitWearHistoryQuery } from '../../plan/api/plannerQueries'
 import { formatDateOnly } from '../../plan/data/weeklyPlan'
 
 export interface OutfitWearSummary {
   label: string
   title: string
-}
-
-function formatWearDate(dateValue: string) {
-  return new Intl.DateTimeFormat('ko-KR', {
-    month: 'long',
-    day: 'numeric',
-  }).format(new Date(`${dateValue}T00:00:00`))
 }
 
 function createWearSummary(
@@ -24,9 +21,8 @@ function createWearSummary(
   if (wornDates.length > 0) {
     const latestDate = wornDates.at(-1) as string
     const dateLabel =
-      latestDate === today
-        ? '오늘 착용'
-        : `최근 착용 · ${formatWearDate(latestDate)}`
+      formatRecentWearLabel(latestDate, today) ??
+      `최근 착용 · ${formatWearDate(latestDate)}`
 
     return {
       label:

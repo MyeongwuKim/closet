@@ -49,6 +49,7 @@ const fashionAttributeValues = {
   silhouette: ['slim', 'regular', 'relaxed', 'oversized', 'unknown'],
   pattern: ['solid', 'stripe', 'check', 'graphic', 'floral', 'other', 'unknown'],
   material: ['cotton', 'denim', 'knit', 'wool', 'leather', 'linen', 'synthetic', 'other', 'unknown'],
+  texture: ['smooth', 'twill', 'corduroy', 'ribbed', 'cableKnit', 'fuzzy', 'boucle', 'quilted', 'suede', 'glossy', 'distressed', 'other', 'unknown'],
   warmth: ['light', 'medium', 'heavy', 'unknown'],
 } as const
 
@@ -63,6 +64,8 @@ function normalizeFashionAttributes(
     fashionAttributeValues.silhouette.includes(value.silhouette) &&
     fashionAttributeValues.pattern.includes(value.pattern) &&
     fashionAttributeValues.material.includes(value.material) &&
+    (value.texture === undefined ||
+      fashionAttributeValues.texture.includes(value.texture)) &&
     fashionAttributeValues.warmth.includes(value.warmth) &&
     Number.isFinite(value.formality) &&
     value.formality >= 0 &&
@@ -93,6 +96,7 @@ function normalizeFashionAttributes(
 
   return {
     ...value,
+    texture: value.texture ?? 'unknown',
     layerRole: fixedLayerRole,
     formality: Math.round(value.formality * 100) / 100,
     confidence: Math.round(value.confidence * 100) / 100,
@@ -127,6 +131,56 @@ function validateGarmentMeasurements(
       )
     }
   })
+}
+
+interface WardrobeWearHistoryRecord {
+  date: Date
+  outfit: { items: Array<{ wardrobeItemId: string }> } | null
+}
+
+export function getWardrobeWearStats(records: WardrobeWearHistoryRecord[]) {
+  const datesByItemId = new Map<string, Map<number, Date>>()
+
+  for (const record of records) {
+    for (const item of record.outfit?.items ?? []) {
+      const dates = datesByItemId.get(item.wardrobeItemId) ?? new Map()
+      dates.set(record.date.getTime(), record.date)
+      datesByItemId.set(item.wardrobeItemId, dates)
+    }
+  }
+
+  return new Map(
+    [...datesByItemId].map(([itemId, dates]) => {
+      const wornDates = [...dates.values()].sort(
+        (left, right) => left.getTime() - right.getTime(),
+      )
+      return [
+        itemId,
+        {
+          wearCount: wornDates.length,
+          lastWornAt: wornDates.at(-1) ?? null,
+        },
+      ]
+    }),
+  )
+}
+
+function getKoreaTodayUtc() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
+  const valueByType = new Map(parts.map((part) => [part.type, part.value]))
+
+  return new Date(
+    Date.UTC(
+      Number(valueByType.get('year')),
+      Number(valueByType.get('month')) - 1,
+      Number(valueByType.get('day')),
+    ),
+  )
 }
 
 function normalizeSizeLabel(value: string | null | undefined) {
@@ -245,8 +299,18 @@ async function requireWardrobeItem(userId: string, itemId: string) {
 }
 
 export const wardrobeService = {
-  list(userId: string, filter: WardrobeFilter) {
-    return wardrobeRepository.findMany(userId, filter)
+  async list(userId: string, filter: WardrobeFilter) {
+    const [items, wearHistory] = await Promise.all([
+      wardrobeRepository.findMany(userId, filter),
+      wardrobeRepository.findWearHistory(userId, getKoreaTodayUtc()),
+    ])
+    const wearStats = getWardrobeWearStats(wearHistory)
+
+    return items.map((item) => ({
+      ...item,
+      wearCount: wearStats.get(item.id)?.wearCount ?? 0,
+      lastWornAt: wearStats.get(item.id)?.lastWornAt ?? null,
+    }))
   },
 
   get(userId: string, itemId: string) {

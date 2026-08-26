@@ -1,6 +1,8 @@
 import type {
   ClothingCategory,
   ColorMode,
+  FashionItemAttributes,
+  FashionTexture,
   WardrobeItem,
 } from '@closet/types'
 import { wardrobeItemHasCategory } from './wardrobeCategories'
@@ -12,22 +14,37 @@ interface LabColor {
 }
 
 export interface SimilarWardrobeItemInput {
+  itemName?: string
   category: ClothingCategory
   subcategory: string
   colorName: string
   colorHex: string
   colorMode: ColorMode | null
+  fashionAttributes: FashionItemAttributes | null
 }
+
+export type SimilarWardrobeItemKind =
+  | 'near-duplicate'
+  | 'similar-design'
+  | 'similar-color'
 
 export interface SimilarWardrobeItemMatch {
   item: WardrobeItem
-  level: 'very-similar' | 'similar'
+  kind: SimilarWardrobeItemKind
   colorDistance: number
+  colorSimilarityPercent: number
+  designSimilarityPercent: number | null
   similarityPercent: number
+  reasons: string[]
 }
 
-const MAX_SIMILAR_COLOR_DISTANCE = 30
-const VERY_SIMILAR_COLOR_DISTANCE = 10
+// CIE76 색차가 12를 넘으면 육안으로 꽤 다른 색이므로 유사 색상에서 제외한다.
+// 24는 유사도 0점 기준이며 SIMILAR_COLOR_PERCENT(50)와 함께 경계를 만든다.
+const MAX_COLOR_DISTANCE = 24
+const SIMILAR_COLOR_PERCENT = 50
+const VERY_SIMILAR_COLOR_PERCENT = 72
+const SIMILAR_DESIGN_PERCENT = 70
+const VERY_SIMILAR_DESIGN_PERCENT = 75
 
 const colorFamilyKeywords = {
   black: ['블랙', '검정', '흑색', 'black'],
@@ -160,6 +177,281 @@ function getColorModePenalty(
   return targetMode === itemMode ? 0 : 12
 }
 
+function getColorSimilarity(
+  input: SimilarWardrobeItemInput,
+  item: WardrobeItem,
+  targetColor: LabColor,
+) {
+  const itemColor = hexToLab(item.colorHex)
+  if (!itemColor) return null
+
+  const colorDistance =
+    getLabDistance(targetColor, itemColor) +
+    getColorModePenalty(input.colorMode, item.colorMode)
+  const rawSimilarity = Math.round(
+    100 -
+      (Math.min(colorDistance, MAX_COLOR_DISTANCE) / MAX_COLOR_DISTANCE) *
+        100,
+  )
+  const targetFamily = getColorFamily(input.colorName)
+  const itemFamily = getColorFamily(item.colorName)
+  const familiesConflict =
+    targetFamily !== null &&
+    itemFamily !== null &&
+    !areColorNamesCompatible(input.colorName, item.colorName)
+
+  return {
+    colorDistance,
+    colorSimilarityPercent: familiesConflict
+      ? Math.min(rawSimilarity, 35)
+      : rawSimilarity,
+  }
+}
+
+function isKnownAttribute(value: string) {
+  return value !== 'unknown'
+}
+
+function inferTextureFromName(value: string): FashionTexture {
+  const normalized = value.normalize('NFKC').toLowerCase()
+  if (normalized.includes('코듀로이') || normalized.includes('골덴')) {
+    return 'corduroy'
+  }
+  if (normalized.includes('트윌') || normalized.includes('능직')) return 'twill'
+  if (normalized.includes('골지')) return 'ribbed'
+  if (normalized.includes('케이블') || normalized.includes('꽈배기')) {
+    return 'cableKnit'
+  }
+  if (normalized.includes('부클') || normalized.includes('뽀글')) return 'boucle'
+  if (normalized.includes('퀼팅') || normalized.includes('누빔')) return 'quilted'
+  if (normalized.includes('스웨이드')) return 'suede'
+  if (normalized.includes('워싱') || normalized.includes('디스트레스')) {
+    return 'distressed'
+  }
+  return 'unknown'
+}
+
+function resolveTexture(
+  attributes: FashionItemAttributes | null | undefined,
+  itemName: string,
+) {
+  return attributes?.texture && attributes.texture !== 'unknown'
+    ? attributes.texture
+    : inferTextureFromName(itemName)
+}
+
+function getTextureSimilarity(first: FashionTexture, second: FashionTexture) {
+  if (first === second) return 1
+
+  const relatedTexturePairs = [
+    ['smooth', 'twill'],
+    ['corduroy', 'ribbed'],
+    ['fuzzy', 'boucle'],
+  ]
+  return relatedTexturePairs.some(
+    ([left, right]) =>
+      (first === left && second === right) ||
+      (first === right && second === left),
+  )
+    ? 0.4
+    : 0
+}
+
+function getOrderedAttributeSimilarity(
+  first: string,
+  second: string,
+  order: string[],
+) {
+  const firstIndex = order.indexOf(first)
+  const secondIndex = order.indexOf(second)
+  if (firstIndex < 0 || secondIndex < 0) return 0
+
+  const distance = Math.abs(firstIndex - secondIndex)
+  return distance === 0 ? 1 : distance === 1 ? 0.55 : 0
+}
+
+function getDesignSimilarity(
+  target: FashionItemAttributes | null,
+  item: FashionItemAttributes | undefined,
+  targetName: string,
+  itemName: string,
+) {
+  if (!target || !item) return null
+
+  const targetTexture = resolveTexture(target, targetName)
+  const itemTexture = resolveTexture(item, itemName)
+
+  const comparisons: Array<{
+    comparable: boolean
+    similarity: number
+    weight: number
+  }> = [
+    {
+      comparable:
+        isKnownAttribute(target.silhouette) &&
+        isKnownAttribute(item.silhouette),
+      similarity: getOrderedAttributeSimilarity(
+        target.silhouette,
+        item.silhouette,
+        ['slim', 'regular', 'relaxed', 'oversized'],
+      ),
+      weight: 0.2,
+    },
+    {
+      comparable:
+        isKnownAttribute(target.material) && isKnownAttribute(item.material),
+      similarity: target.material === item.material ? 1 : 0.2,
+      weight: 0.15,
+    },
+    {
+      comparable:
+        isKnownAttribute(targetTexture) && isKnownAttribute(itemTexture),
+      similarity: getTextureSimilarity(targetTexture, itemTexture),
+      weight: 0.35,
+    },
+    {
+      comparable:
+        isKnownAttribute(target.pattern) && isKnownAttribute(item.pattern),
+      similarity: target.pattern === item.pattern ? 1 : 0,
+      weight: 0.15,
+    },
+    {
+      comparable:
+        isKnownAttribute(target.warmth) && isKnownAttribute(item.warmth),
+      similarity: getOrderedAttributeSimilarity(
+        target.warmth,
+        item.warmth,
+        ['light', 'medium', 'heavy'],
+      ),
+      weight: 0.08,
+    },
+    {
+      comparable:
+        Number.isFinite(target.formality) && Number.isFinite(item.formality),
+      similarity: Math.max(
+        0,
+        1 - Math.abs(target.formality - item.formality) / 0.5,
+      ),
+      weight: 0.07,
+    },
+  ]
+  const comparable = comparisons.filter((comparison) => comparison.comparable)
+  if (comparable.length < 2) return null
+
+  const totalWeight = comparable.reduce(
+    (sum, comparison) => sum + comparison.weight,
+    0,
+  )
+  const weightedSimilarity = comparable.reduce(
+    (sum, comparison) =>
+      sum + comparison.similarity * comparison.weight,
+    0,
+  )
+
+  return Math.round((weightedSimilarity / totalWeight) * 100)
+}
+
+const silhouetteLabels: Record<string, string> = {
+  slim: '슬림한',
+  regular: '기본 핏',
+  relaxed: '여유로운 핏',
+  oversized: '오버핏',
+}
+
+const materialLabels: Record<string, string> = {
+  cotton: '면',
+  denim: '데님',
+  knit: '니트',
+  wool: '울',
+  leather: '가죽',
+  linen: '리넨',
+  synthetic: '합성 소재',
+  other: '기타 소재',
+}
+
+const patternLabels: Record<string, string> = {
+  solid: '무지',
+  stripe: '스트라이프',
+  check: '체크',
+  graphic: '그래픽',
+  floral: '플로럴',
+  other: '기타 패턴',
+}
+
+const textureLabels: Record<FashionTexture, string> = {
+  smooth: '매끈한',
+  twill: '트윌',
+  corduroy: '코듀로이',
+  ribbed: '골지',
+  cableKnit: '케이블 니트',
+  fuzzy: '보송한',
+  boucle: '부클',
+  quilted: '퀼팅',
+  suede: '스웨이드',
+  glossy: '광택',
+  distressed: '워싱·헤짐',
+  other: '기타',
+  unknown: '확인되지 않은',
+}
+
+function getSimilarityReasons(
+  input: SimilarWardrobeItemInput,
+  item: WardrobeItem,
+  colorSimilarityPercent: number,
+  designSimilarityPercent: number | null,
+) {
+  const reasons = [`같은 ${input.subcategory}`]
+
+  if (colorSimilarityPercent >= VERY_SIMILAR_COLOR_PERCENT) {
+    reasons.push('매우 비슷한 색상')
+  } else if (colorSimilarityPercent >= SIMILAR_COLOR_PERCENT) {
+    reasons.push('비슷한 색상')
+  } else if (
+    designSimilarityPercent !== null &&
+    designSimilarityPercent >= SIMILAR_DESIGN_PERCENT
+  ) {
+    reasons.push('다른 색상')
+  }
+
+  const target = input.fashionAttributes
+  const current = item.fashionAttributes
+  if (!target || !current) return reasons
+
+  const targetTexture = resolveTexture(target, input.itemName ?? '')
+  const itemTexture = resolveTexture(current, item.name)
+
+  if (
+    target.silhouette === current.silhouette &&
+    isKnownAttribute(target.silhouette)
+  ) {
+    reasons.push(`${silhouetteLabels[target.silhouette] ?? '같은'} 실루엣`)
+  }
+  if (
+    target.material === current.material &&
+    isKnownAttribute(target.material)
+  ) {
+    reasons.push(`${materialLabels[target.material] ?? '같은'} 소재`)
+  }
+  if (targetTexture === itemTexture && isKnownAttribute(targetTexture)) {
+    reasons.push(`${textureLabels[targetTexture]} 질감`)
+  } else if (
+    isKnownAttribute(targetTexture) &&
+    isKnownAttribute(itemTexture)
+  ) {
+    reasons.push(
+      `${textureLabels[targetTexture]}·${textureLabels[itemTexture]} 질감 차이`,
+    )
+  }
+  if (
+    target.pattern === current.pattern &&
+    isKnownAttribute(target.pattern)
+  ) {
+    reasons.push(`${patternLabels[target.pattern] ?? '같은'} 패턴`)
+  }
+
+  return reasons.slice(0, 4)
+}
+
 export function findSimilarWardrobeItems(
   input: SimilarWardrobeItemInput,
   wardrobeItems: WardrobeItem[],
@@ -180,35 +472,65 @@ export function findSimilarWardrobeItems(
         return []
       }
 
-      const itemColor = hexToLab(item.colorHex)
-      if (!itemColor) return []
-      if (!areColorNamesCompatible(input.colorName, item.colorName)) return []
-
-      const colorDistance =
-        getLabDistance(targetColor, itemColor) +
-        getColorModePenalty(input.colorMode, item.colorMode)
-
-      if (colorDistance > MAX_SIMILAR_COLOR_DISTANCE) return []
-
-      const similarityPercent = Math.round(
-        100 -
-          (Math.min(colorDistance, MAX_SIMILAR_COLOR_DISTANCE) /
-            MAX_SIMILAR_COLOR_DISTANCE) *
-            40,
+      const color = getColorSimilarity(input, item, targetColor)
+      if (!color) return []
+      const designSimilarityPercent = getDesignSimilarity(
+        input.fashionAttributes,
+        item.fashionAttributes,
+        input.itemName ?? '',
+        item.name,
       )
+      const hasSimilarColor =
+        color.colorSimilarityPercent >= SIMILAR_COLOR_PERCENT
+      const hasSimilarDesign =
+        designSimilarityPercent !== null &&
+        designSimilarityPercent >= SIMILAR_DESIGN_PERCENT
+
+      if (!hasSimilarColor && !hasSimilarDesign) return []
+
+      const kind: SimilarWardrobeItemKind =
+        color.colorSimilarityPercent >= VERY_SIMILAR_COLOR_PERCENT &&
+        designSimilarityPercent !== null &&
+        designSimilarityPercent >= VERY_SIMILAR_DESIGN_PERCENT
+          ? 'near-duplicate'
+          : hasSimilarDesign
+            ? 'similar-design'
+            : 'similar-color'
+      const similarityPercent =
+        designSimilarityPercent === null
+          ? color.colorSimilarityPercent
+          : Math.round(
+              color.colorSimilarityPercent * 0.45 +
+                designSimilarityPercent * 0.55,
+            )
 
       return [
         {
           item,
-          level:
-            colorDistance <= VERY_SIMILAR_COLOR_DISTANCE
-              ? 'very-similar'
-              : 'similar',
-          colorDistance,
+          kind,
+          colorDistance: color.colorDistance,
+          colorSimilarityPercent: color.colorSimilarityPercent,
+          designSimilarityPercent,
           similarityPercent,
+          reasons: getSimilarityReasons(
+            input,
+            item,
+            color.colorSimilarityPercent,
+            designSimilarityPercent,
+          ),
         },
       ]
     })
-    .sort((first, second) => first.colorDistance - second.colorDistance)
+    .sort((first, second) => {
+      const kindPriority: Record<SimilarWardrobeItemKind, number> = {
+        'near-duplicate': 3,
+        'similar-design': 2,
+        'similar-color': 1,
+      }
+      return (
+        kindPriority[second.kind] - kindPriority[first.kind] ||
+        second.similarityPercent - first.similarityPercent
+      )
+    })
     .slice(0, limit)
 }

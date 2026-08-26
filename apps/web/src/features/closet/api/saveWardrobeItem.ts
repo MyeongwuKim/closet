@@ -185,7 +185,7 @@ export async function saveWardrobeItem(
           id name createdAt category additionalCategories subcategory colorName colorDetailName
           colorHex colorMode seasons tags
           fashionAttributes {
-            layerRole silhouette pattern material warmth formality confidence
+            layerRole silhouette pattern material texture warmth formality confidence
           }
           sizeLabel shoulderWidthCm chestWidthCm sleeveLengthCm
           totalLengthCm waistWidthCm hipWidthCm inseamCm

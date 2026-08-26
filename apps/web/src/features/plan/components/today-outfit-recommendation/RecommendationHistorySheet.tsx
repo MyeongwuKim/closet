@@ -1,6 +1,5 @@
 import { useEffect } from 'react'
-import type { TodayOutfitRecommendation } from '@closet/types'
-import { Check, History, X } from 'lucide-react'
+import { History, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import {
   getOutfitStyleLabel,
@@ -8,14 +7,10 @@ import {
 } from '../../../../constants/styleOptions'
 import { seasonLabels } from '../../../../constants/seasons'
 import { ClosetItemVisual } from '../../../closet/components/ClosetItemVisual'
-import {
-  getTodayRecommendationItemKey,
-  type TodayRecommendationHistoryEntry,
-} from '../../api/todayOutfitQueries'
+import type { TodayRecommendationHistoryEntry } from '../../api/todayOutfitQueries'
 
 interface RecommendationHistorySheetProps {
   entries: TodayRecommendationHistoryEntry[]
-  currentRecommendation: TodayOutfitRecommendation
   onSelect: (entry: TodayRecommendationHistoryEntry) => void
   onClose: () => void
 }
@@ -32,24 +27,24 @@ function formatStoredAt(value: string) {
 
 export function RecommendationHistorySheet({
   entries,
-  currentRecommendation,
   onSelect,
   onClose,
 }: RecommendationHistorySheetProps) {
-  const currentItemKey = getTodayRecommendationItemKey(currentRecommendation)
-
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      onClose()
     }
 
-    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keydown', handleKeyDown, { capture: true })
     return () => {
       document.body.style.overflow = previousOverflow
-      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keydown', handleKeyDown, true)
     }
   }, [onClose])
 
@@ -57,6 +52,7 @@ export function RecommendationHistorySheet({
     <div
       className="option-picker-backdrop fixed inset-0 z-[120] flex items-end justify-center bg-black/45 backdrop-blur-[2px] sm:items-center sm:p-6"
       onMouseDown={(event) => {
+        event.stopPropagation()
         if (event.target === event.currentTarget) onClose()
       }}
     >
@@ -75,7 +71,8 @@ export function RecommendationHistorySheet({
               추천 기록
             </h2>
             <p className="mt-1 text-xs leading-5 text-muted">
-              최근 추천 10개를 이 기기에 자동으로 보관해요.
+              최근 추천 10개를 보관해요. 카드를 누르면 코디를 편집하고
+              일정에 추가할 수 있어요.
             </p>
           </div>
           <button
@@ -90,57 +87,60 @@ export function RecommendationHistorySheet({
         </header>
 
         <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-          {entries.map((entry) => {
-            const recommendation = entry.recommendation
-            const isCurrent =
-              getTodayRecommendationItemKey(recommendation) === currentItemKey
+          {entries.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-line bg-canvas px-5 py-10 text-center">
+              <span className="mx-auto flex size-11 items-center justify-center rounded-2xl bg-sage">
+                <History size={19} />
+              </span>
+              <p className="mt-3 text-sm font-black">아직 추천 기록이 없어요</p>
+              <p className="mt-1 text-xs leading-5 text-muted">
+                코디를 추천받으면 최근 10개까지 여기에 보관해요.
+              </p>
+            </div>
+          ) : (
+            entries.map((entry) => {
+              const recommendation = entry.recommendation
 
-            return (
-              <button
-                type="button"
-                key={entry.id}
-                onClick={() => onSelect(entry)}
-                aria-current={isCurrent ? 'true' : undefined}
-                className={`flex w-full items-center gap-3 rounded-2xl border p-2.5 text-left transition ${
-                  isCurrent
-                    ? 'border-ink bg-canvas'
-                    : 'border-line bg-white hover:border-ink'
-                }`}
-              >
-                <span className="grid size-20 shrink-0 grid-cols-2 gap-1 rounded-xl bg-canvas p-1.5">
-                  {recommendation.items.slice(0, 4).map((item) => (
-                    <span
-                      className="flex min-h-0 items-center justify-center overflow-hidden rounded-lg bg-surface"
-                      key={item.id}
-                    >
-                      <ClosetItemVisual item={item} compact />
+              return (
+                <button
+                  type="button"
+                  key={`${entry.season}:${entry.style}:${entry.id}`}
+                  onClick={() => onSelect(entry)}
+                  className="flex w-full items-center gap-3 rounded-2xl border border-line bg-white p-2.5 text-left transition hover:border-ink"
+                  aria-label={`${recommendation.headline} 코디 상세 열기`}
+                >
+                  <span className="grid size-20 shrink-0 grid-cols-2 gap-1 rounded-xl bg-canvas p-1.5">
+                    {recommendation.items.slice(0, 4).map((item) => (
+                      <span
+                        className="flex min-h-0 items-center justify-center overflow-hidden rounded-lg bg-surface"
+                        key={item.id}
+                      >
+                        <ClosetItemVisual item={item} compact />
+                      </span>
+                    ))}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1.5 text-[10px] font-bold text-muted">
+                      <span>
+                        {seasonLabels[recommendation.season]} ·{' '}
+                        {getOutfitStyleLabel(
+                          recommendation.style as OutfitStyle,
+                        )}
+                      </span>
+                      <span aria-hidden="true">·</span>
+                      <span>{formatStoredAt(entry.createdAt)}</span>
                     </span>
-                  ))}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-1.5 text-[10px] font-bold text-muted">
-                    <span>
-                      {seasonLabels[recommendation.season]} ·{' '}
-                      {getOutfitStyleLabel(recommendation.style as OutfitStyle)}
+                    <span className="mt-1 line-clamp-2 block text-sm leading-5 font-black">
+                      {recommendation.headline}
                     </span>
-                    <span aria-hidden="true">·</span>
-                    <span>{formatStoredAt(entry.createdAt)}</span>
+                    <span className="mt-1 line-clamp-1 block text-[11px] text-muted">
+                      {recommendation.items.map((item) => item.name).join(', ')}
+                    </span>
                   </span>
-                  <span className="mt-1 line-clamp-2 block text-sm leading-5 font-black">
-                    {recommendation.headline}
-                  </span>
-                  <span className="mt-1 line-clamp-1 block text-[11px] text-muted">
-                    {recommendation.items.map((item) => item.name).join(', ')}
-                  </span>
-                </span>
-                {isCurrent && (
-                  <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-ink text-white">
-                    <Check size={14} />
-                  </span>
-                )}
-              </button>
-            )
-          })}
+                </button>
+              )
+            })
+          )}
         </div>
       </section>
     </div>,

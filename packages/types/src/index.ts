@@ -41,6 +41,21 @@ export type FashionMaterial =
   | 'other'
   | 'unknown'
 
+export type FashionTexture =
+  | 'smooth'
+  | 'twill'
+  | 'corduroy'
+  | 'ribbed'
+  | 'cableKnit'
+  | 'fuzzy'
+  | 'boucle'
+  | 'quilted'
+  | 'suede'
+  | 'glossy'
+  | 'distressed'
+  | 'other'
+  | 'unknown'
+
 export type FashionWarmth = 'light' | 'medium' | 'heavy' | 'unknown'
 
 export interface FashionItemAttributes {
@@ -48,6 +63,7 @@ export interface FashionItemAttributes {
   silhouette: FashionSilhouette
   pattern: FashionPattern
   material: FashionMaterial
+  texture?: FashionTexture
   warmth: FashionWarmth
   formality: number
   confidence: number

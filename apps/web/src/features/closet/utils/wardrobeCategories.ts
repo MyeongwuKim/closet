@@ -13,3 +13,13 @@ export function wardrobeItemHasCategory(
 ) {
   return getWardrobeItemCategories(item).includes(category)
 }
+
+export function wardrobeItemMatchesCategoryFilter(
+  item: WardrobeItem,
+  category: ClothingCategory | null,
+  subcategory: string | null,
+) {
+  if (category === null) return true
+  if (!wardrobeItemHasCategory(item, category)) return false
+  return subcategory === null || item.subcategory?.trim() === subcategory
+}

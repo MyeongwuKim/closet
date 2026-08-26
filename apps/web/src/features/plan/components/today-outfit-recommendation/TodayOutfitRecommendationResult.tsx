@@ -3,7 +3,6 @@ import type { OutfitPreview, Season, WardrobeItem } from '@closet/types'
 import {
   CalendarPlus,
   ChevronRight,
-  History,
   LoaderCircle,
   RefreshCw,
   Sparkles,
@@ -22,14 +21,12 @@ import { useClosetStore } from '../../../closet/stores/useClosetStore'
 import { useSetDirectPlannerEntryMutation } from '../../api/plannerQueries'
 import {
   readTodayRecommendationHistory,
-  type TodayRecommendationHistoryEntry,
   useTodayOutfitRecommendationQuery,
 } from '../../api/todayOutfitQueries'
 import { getCurrentWeekStart } from '../../data/weeklyPlan'
 import { usePlanStore } from '../../stores/usePlanStore'
 import { TodayOutfitRecommendationDialog } from '../TodayOutfitRecommendationDialog'
 import { TodayOutfitRecommendationLoading } from '../TodayOutfitRecommendationLoading'
-import { RecommendationHistorySheet } from './RecommendationHistorySheet'
 
 interface TodayOutfitRecommendationResultProps {
   viewerId: string
@@ -37,6 +34,7 @@ interface TodayOutfitRecommendationResultProps {
   season: Season
   style: OutfitStyle
   hasTodayOutfit: boolean
+  onHistoryChange?: () => void
 }
 
 function formatRecommendationHeadline(value: string) {
@@ -217,6 +215,7 @@ export function TodayOutfitRecommendationResult({
   season,
   style,
   hasTodayOutfit,
+  onHistoryChange,
 }: TodayOutfitRecommendationResultProps) {
   const navigate = useNavigate()
   const closetItems = useClosetStore((state) => state.items)
@@ -227,9 +226,6 @@ export function TodayOutfitRecommendationResult({
   const [initialHistory] = useState(() =>
     readTodayRecommendationHistory(viewerId, date, season, style),
   )
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false)
-  const [selectedHistoryEntry, setSelectedHistoryEntry] =
-    useState<TodayRecommendationHistoryEntry | null>(null)
   const storedRecommendation = initialHistory[0] ?? null
   const [variation, setVariation] = useState(
     storedRecommendation?.variation ?? 0,
@@ -253,18 +249,11 @@ export function TodayOutfitRecommendationResult({
   )
   const setDirectPlannerEntry = useSetDirectPlannerEntryMutation()
   const queriedRecommendation = recommendationQuery.data
-  const recommendation =
-    selectedHistoryEntry?.recommendation ?? queriedRecommendation
-  const history = readTodayRecommendationHistory(
-    viewerId,
-    date,
-    season,
-    style,
-  )
-  const closetItemIds = new Set(closetItems.map((item) => item.id))
-  const visibleHistory = history.filter((entry) =>
-    entry.recommendation.items.every((item) => closetItemIds.has(item.id)),
-  )
+  const recommendation = queriedRecommendation
+
+  useEffect(() => {
+    if (queriedRecommendation?.ready) onHistoryChange?.()
+  }, [onHistoryChange, queriedRecommendation])
 
   const requestAnotherRecommendation = () => {
     const currentOuterItemIds = (recommendation?.items ?? [])
@@ -277,7 +266,6 @@ export function TodayOutfitRecommendationResult({
 
     setExcludedOuterItemIds(currentOuterItemIds)
     setRefreshSourceItems(recommendation?.items ?? [])
-    setSelectedHistoryEntry(null)
     setVariation((current) => (current + 1) % 21)
   }
 
@@ -403,7 +391,7 @@ export function TodayOutfitRecommendationResult({
               </span>
             </button>
             <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
                 <span
                   className="ai-recommendation-chat-enter inline-flex min-w-0 items-center gap-1 rounded-full bg-accent/10 px-2 py-1 text-[10px] font-black text-accent"
                   style={{ animationDelay: '70ms' }}
@@ -414,17 +402,6 @@ export function TodayOutfitRecommendationResult({
                     {getOutfitStyleLabel(recommendation.style)}
                   </span>
                 </span>
-                {visibleHistory.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setIsHistoryOpen(true)}
-                    className="ai-recommendation-chat-enter inline-flex shrink-0 items-center gap-1 rounded-full border border-line bg-white px-2 py-1 text-[10px] font-bold text-muted"
-                    style={{ animationDelay: '100ms' }}
-                    aria-label={`추천 기록 ${visibleHistory.length}개 보기`}
-                  >
-                    <History size={11} /> 기록 {visibleHistory.length}
-                  </button>
-                )}
               </div>
               <h2
                 className="ai-recommendation-chat-enter mt-2 line-clamp-2 text-sm leading-5 font-black tracking-[-0.02em]"
@@ -487,6 +464,7 @@ export function TodayOutfitRecommendationResult({
       {isDetailOpen && (
         <TodayOutfitRecommendationDialog
           date={date}
+          title={formatRecommendationHeadline(recommendation.headline)}
           items={closetItems}
           initialItems={recommendation.items}
           style={style}
@@ -508,18 +486,6 @@ export function TodayOutfitRecommendationResult({
         />
       )}
 
-      {isHistoryOpen && visibleHistory.length > 0 && (
-        <RecommendationHistorySheet
-          entries={visibleHistory}
-          currentRecommendation={recommendation}
-          onSelect={(entry) => {
-            setSelectedHistoryEntry(entry)
-            setIsHistoryOpen(false)
-            setIsExplanationOpen(false)
-          }}
-          onClose={() => setIsHistoryOpen(false)}
-        />
-      )}
     </>
   )
 }

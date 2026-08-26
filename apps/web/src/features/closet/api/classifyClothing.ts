@@ -63,7 +63,7 @@ export async function classifyClothing(
             colorRgb
             colorMode
             fashionAttributes {
-              layerRole silhouette pattern material warmth formality confidence
+              layerRole silhouette pattern material texture warmth formality confidence
             }
             confidence
             model

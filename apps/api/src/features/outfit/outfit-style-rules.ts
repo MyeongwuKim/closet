@@ -9,7 +9,9 @@ import type {
   FashionMaterial,
   FashionPattern,
   FashionSilhouette,
+  FashionTexture,
 } from '@closet/types'
+import { colorHexToRgb } from '../classification/color.js'
 
 export interface StyleRuleItem {
   id: string
@@ -18,6 +20,7 @@ export interface StyleRuleItem {
   additionalCategories?: ClothingCategory[]
   subcategory: string | null
   colorName: string | null
+  colorHex: string | null
   colorMode: string | null
   fashionAttributes?: unknown
   wearCount: number
@@ -130,10 +133,143 @@ const colorMatches: Record<string, string[]> = {
   퍼플: ['그레이', '크림', '블랙', '화이트', '네이비'],
 }
 
+interface OklchColor {
+  lightness: number
+  chroma: number
+  hue: number
+}
+
+const NEUTRAL_CHROMA_MAX = 0.045
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max)
+}
+
+function rgbChannelToLinear(value: number) {
+  const normalized = value / 255
+  return normalized <= 0.04045
+    ? normalized / 12.92
+    : ((normalized + 0.055) / 1.055) ** 2.4
+}
+
+function colorHexToOklch(value: string | null): OklchColor | null {
+  const rgb = colorHexToRgb(value)
+  if (!rgb) return null
+
+  const red = rgbChannelToLinear(rgb[0])
+  const green = rgbChannelToLinear(rgb[1])
+  const blue = rgbChannelToLinear(rgb[2])
+  const l = Math.cbrt(
+    0.4122214708 * red + 0.5363325363 * green + 0.0514459929 * blue,
+  )
+  const m = Math.cbrt(
+    0.2119034982 * red + 0.6806995451 * green + 0.1073969566 * blue,
+  )
+  const s = Math.cbrt(
+    0.0883024619 * red + 0.2817188376 * green + 0.6299787005 * blue,
+  )
+  const lightness = 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s
+  const a = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s
+  const b = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s
+  const chroma = Math.sqrt(a ** 2 + b ** 2)
+  const hue = (Math.atan2(b, a) * 180) / Math.PI
+
+  return {
+    lightness,
+    chroma,
+    hue: hue < 0 ? hue + 360 : hue,
+  }
+}
+
+function getHueDistance(left: number, right: number) {
+  const distance = Math.abs(left - right)
+  return Math.min(distance, 360 - distance)
+}
+
+function getColorNameScore(left: StyleRuleItem, right: StyleRuleItem) {
+  const leftColor = left.colorName?.trim() ?? ''
+  const rightColor = right.colorName?.trim() ?? ''
+  if (leftColor && leftColor === rightColor) return 2
+  if (colorMatches[leftColor]?.includes(rightColor)) return 6
+  if (colorMatches[rightColor]?.includes(leftColor)) return 6
+  if (neutralColors.has(leftColor) || neutralColors.has(rightColor)) return 4
+  return 1
+}
+
+function softenRepresentativeColorScore(
+  score: number,
+  left: StyleRuleItem,
+  right: StyleRuleItem,
+) {
+  const hasComplexColor = [left.colorMode, right.colorMode].some(
+    (mode) => mode === 'patterned' || mode === 'multicolor',
+  )
+  return hasComplexColor ? 3.5 + (score - 3.5) * 0.7 : score
+}
+
+export function getColorHarmonyScore(
+  left: StyleRuleItem,
+  right: StyleRuleItem,
+) {
+  const leftColor = colorHexToOklch(left.colorHex)
+  const rightColor = colorHexToOklch(right.colorHex)
+  if (!leftColor || !rightColor) return getColorNameScore(left, right)
+
+  const lightnessDistance = Math.abs(
+    leftColor.lightness - rightColor.lightness,
+  )
+  const leftIsNeutral = leftColor.chroma <= NEUTRAL_CHROMA_MAX
+  const rightIsNeutral = rightColor.chroma <= NEUTRAL_CHROMA_MAX
+  let score: number
+
+  if (leftIsNeutral && rightIsNeutral) {
+    score = 4.25 + Math.min(lightnessDistance / 0.22, 1) * 1.25
+  } else if (leftIsNeutral || rightIsNeutral) {
+    const colored = leftIsNeutral ? rightColor : leftColor
+    const contrastBonus = Math.min(lightnessDistance / 0.24, 1) * 0.65
+    const vividnessPenalty = Math.max(0, colored.chroma - 0.24) * 4
+    score = 5 + contrastBonus - vividnessPenalty
+  } else {
+    const hueDistance = getHueDistance(leftColor.hue, rightColor.hue)
+    const lightnessBonus =
+      lightnessDistance >= 0.08 && lightnessDistance <= 0.48 ? 0.45 : 0
+
+    if (hueDistance <= 18) {
+      score = 5.25 + lightnessBonus
+    } else if (hueDistance <= 55) {
+      score = 5 + lightnessBonus
+    } else if (hueDistance >= 145 && hueDistance <= 215) {
+      score = 4.85 + lightnessBonus
+    } else if (hueDistance >= 105 && hueDistance <= 135) {
+      score = 4.4 + lightnessBonus
+    } else {
+      score = 2.75 + lightnessBonus
+    }
+
+    if (
+      leftColor.chroma + rightColor.chroma > 0.34 &&
+      hueDistance > 55 &&
+      hueDistance < 145
+    ) {
+      score -= 0.75
+    }
+  }
+
+  return clamp(softenRepresentativeColorScore(score, left, right), 1, 6)
+}
+
+function isNeutralItemColor(item: StyleRuleItem) {
+  const color = colorHexToOklch(item.colorHex)
+  return color
+    ? color.chroma <= NEUTRAL_CHROMA_MAX
+    : neutralColors.has(item.colorName?.trim() ?? '')
+}
+
 const layerRoles = new Set(['base', 'mid', 'outer', 'single', 'unknown'])
 const silhouettes = new Set(['slim', 'regular', 'relaxed', 'oversized', 'unknown'])
 const patterns = new Set(['solid', 'stripe', 'check', 'graphic', 'floral', 'other', 'unknown'])
 const materials = new Set(['cotton', 'denim', 'knit', 'wool', 'leather', 'linen', 'synthetic', 'other', 'unknown'])
+const textures = new Set<FashionTexture>(['smooth', 'twill', 'corduroy', 'ribbed', 'cableKnit', 'fuzzy', 'boucle', 'quilted', 'suede', 'glossy', 'distressed', 'other', 'unknown'])
 const warmthLevels = new Set(['light', 'medium', 'heavy', 'unknown'])
 
 function includesCategory(item: StyleRuleItem, category: ClothingCategory) {
@@ -196,6 +332,23 @@ function inferFashionAttributes(item: StyleRuleItem): FashionItemAttributes {
           : text.includes('린넨')
             ? 'linen'
             : 'unknown'
+  const texture: FashionTexture = text.includes('코듀로이') || text.includes('골덴')
+    ? 'corduroy'
+    : text.includes('트윌') || text.includes('능직')
+      ? 'twill'
+      : text.includes('골지')
+        ? 'ribbed'
+        : text.includes('케이블') || text.includes('꽈배기')
+          ? 'cableKnit'
+          : text.includes('부클') || text.includes('뽀글')
+            ? 'boucle'
+            : text.includes('퀼팅') || text.includes('누빔')
+              ? 'quilted'
+              : text.includes('스웨이드')
+                ? 'suede'
+                : text.includes('워싱')
+                  ? 'distressed'
+                  : 'unknown'
   const warmth = text.includes('패딩') || text.includes('코트')
     ? 'heavy'
     : text.includes('민소매') || text.includes('반팔') || text.includes('샌들')
@@ -214,6 +367,7 @@ function inferFashionAttributes(item: StyleRuleItem): FashionItemAttributes {
     silhouette,
     pattern,
     material,
+    texture,
     warmth,
     formality,
     confidence: 0.35,
@@ -230,6 +384,8 @@ export function getFashionAttributes(item: StyleRuleItem): FashionItemAttributes
     typeof value.silhouette !== 'string' || !silhouettes.has(value.silhouette) ||
     typeof value.pattern !== 'string' || !patterns.has(value.pattern) ||
     typeof value.material !== 'string' || !materials.has(value.material) ||
+    (value.texture !== undefined &&
+      (typeof value.texture !== 'string' || !textures.has(value.texture))) ||
     typeof value.warmth !== 'string' || !warmthLevels.has(value.warmth) ||
     typeof value.formality !== 'number' || value.formality < 0 || value.formality > 1 ||
     typeof value.confidence !== 'number' || value.confidence < 0 || value.confidence > 1
@@ -250,20 +406,11 @@ export function getFashionAttributes(item: StyleRuleItem): FashionItemAttributes
     silhouette: value.silhouette,
     pattern: value.pattern,
     material: value.material,
+    texture: value.texture ?? inferred.texture,
     warmth: value.warmth,
     formality: value.formality,
     confidence: value.confidence ?? inferred.confidence,
   }
-}
-
-function getColorScore(left: StyleRuleItem, right: StyleRuleItem) {
-  const leftColor = left.colorName?.trim() ?? ''
-  const rightColor = right.colorName?.trim() ?? ''
-  if (leftColor && leftColor === rightColor) return 2
-  if (colorMatches[leftColor]?.includes(rightColor)) return 6
-  if (colorMatches[rightColor]?.includes(leftColor)) return 6
-  if (neutralColors.has(leftColor) || neutralColors.has(rightColor)) return 4
-  return 1
 }
 
 function getRotationScore(item: StyleRuleItem) {
@@ -315,7 +462,7 @@ export function getItemStyleScore(
           ) * 6,
         )
   const colorScore =
-    definition.neutralColorBonus && neutralColors.has(item.colorName?.trim() ?? '')
+    definition.neutralColorBonus && isNeutralItemColor(item)
       ? 1.5
       : 0
 
@@ -387,7 +534,10 @@ function scoreCombination<T extends StyleRuleItem>(
   })
   const averageColor =
     pairs.length > 0
-      ? pairs.reduce((sum, [left, right]) => sum + getColorScore(left, right), 0) /
+      ? pairs.reduce(
+          (sum, [left, right]) => sum + getColorHarmonyScore(left, right),
+          0,
+        ) /
         pairs.length
       : 0
   const averageRotation =
@@ -439,6 +589,7 @@ function selectDiverseCombinations<T extends StyleRuleItem>(
   limit: number,
 ) {
   const groups = new Map<string, OutfitCombination<T>[]>()
+  const itemUsage = new Map<string, number>()
 
   combinations.forEach((combination) => {
     const outerIds = combination.items
@@ -455,13 +606,51 @@ function selectDiverseCombinations<T extends StyleRuleItem>(
     groups.set(key, group)
   })
 
+  const getReusePenalty = (combination: OutfitCombination<T>) =>
+    combination.items.reduce((penalty, item) => {
+      const usage = itemUsage.get(item.id) ?? 0
+      const category = item.category
+      const weight =
+        category === 'top'
+          ? 4
+          : category === 'bottom'
+            ? 3.5
+            : category === 'outer' || category === 'dress'
+              ? 4
+              : category === 'midlayer'
+                ? 3
+                : category === 'shoes'
+                  ? 2
+                  : 1
+      return penalty + usage * weight
+    }, 0)
+
+  const takeBestAvailable = (group: OutfitCombination<T>[]) => {
+    let bestIndex = 0
+    let bestAdjustedScore = Number.NEGATIVE_INFINITY
+
+    group.forEach((combination, index) => {
+      const adjustedScore = combination.score - getReusePenalty(combination)
+      if (adjustedScore > bestAdjustedScore) {
+        bestIndex = index
+        bestAdjustedScore = adjustedScore
+      }
+    })
+
+    const [combination] = group.splice(bestIndex, 1)
+    return combination
+  }
+
   const selected: OutfitCombination<T>[] = []
   while (selected.length < limit) {
     let added = false
     for (const group of groups.values()) {
-      const combination = group.shift()
+      const combination = takeBestAvailable(group)
       if (!combination) continue
       selected.push(combination)
+      combination.items.forEach((item) => {
+        itemUsage.set(item.id, (itemUsage.get(item.id) ?? 0) + 1)
+      })
       added = true
       if (selected.length === limit) break
     }

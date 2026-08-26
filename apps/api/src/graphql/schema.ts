@@ -60,6 +60,22 @@ export const typeDefs = `#graphql
     unknown
   }
 
+  enum FashionTexture {
+    smooth
+    twill
+    corduroy
+    ribbed
+    cableKnit
+    fuzzy
+    boucle
+    quilted
+    suede
+    glossy
+    distressed
+    other
+    unknown
+  }
+
   enum FashionWarmth {
     light
     medium
@@ -72,6 +88,7 @@ export const typeDefs = `#graphql
     silhouette: FashionSilhouette!
     pattern: FashionPattern!
     material: FashionMaterial!
+    texture: FashionTexture
     warmth: FashionWarmth!
     formality: Float!
     confidence: Float!
@@ -82,6 +99,7 @@ export const typeDefs = `#graphql
     silhouette: FashionSilhouette!
     pattern: FashionPattern!
     material: FashionMaterial!
+    texture: FashionTexture
     warmth: FashionWarmth!
     formality: Float!
     confidence: Float!

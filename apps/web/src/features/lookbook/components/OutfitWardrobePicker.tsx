@@ -1,8 +1,10 @@
 import type { WardrobeItem } from '@closet/types'
-import { Check, ChevronLeft, Shirt } from 'lucide-react'
-import { useState } from 'react'
+import { CalendarDays, Check, ChevronLeft, Shirt } from 'lucide-react'
+import { useLayoutEffect, useRef, useState } from 'react'
+import { formatRecentWearLabel } from '../../../utils/wearDate'
 import { ClosetItemVisual } from '../../closet/components/ClosetItemVisual'
 import { closetCategoryLabels } from '../../closet/constants'
+import { getCenteredScrollTop } from '../utils/outfitPickerScroll'
 import type { OutfitSlot } from './outfitSlots'
 
 interface OutfitWardrobePickerProps {
@@ -31,6 +33,11 @@ export function OutfitWardrobePicker({
     ),
   ]
   const selectionLimit = slot.limit ?? 1
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const itemButtonRefs = useRef(new Map<string, HTMLButtonElement>())
+  const initialSelectedItemIdRef = useRef(
+    selectedItems.find((item) => slot.matches(item))?.id ?? null,
+  )
   const [activeSubcategory, setActiveSubcategory] = useState('all')
   const [selectedIds, setSelectedIds] = useState(() =>
     selectedItems
@@ -44,6 +51,30 @@ export function OutfitWardrobePicker({
       : selectableItems.filter(
           (item) => item.subcategory === activeSubcategory,
         )
+
+  useLayoutEffect(() => {
+    const selectedItemId = initialSelectedItemIdRef.current
+    const scrollContainer = scrollContainerRef.current
+    const itemButton = selectedItemId
+      ? itemButtonRefs.current.get(selectedItemId)
+      : null
+    if (!scrollContainer || !itemButton) return
+
+    const containerRect = scrollContainer.getBoundingClientRect()
+    const itemRect = itemButton.getBoundingClientRect()
+    const centeredScrollTop = getCenteredScrollTop({
+      currentScrollTop: scrollContainer.scrollTop,
+      containerTop: containerRect.top,
+      containerHeight: scrollContainer.clientHeight,
+      itemTop: itemRect.top,
+      itemHeight: itemRect.height,
+    })
+
+    scrollContainer.scrollTo({
+      top: centeredScrollTop,
+      behavior: 'auto',
+    })
+  }, [])
 
   const toggleItem = (itemId: string) => {
     setSelectedIds((currentIds) => {
@@ -127,14 +158,24 @@ export function OutfitWardrobePicker({
         </nav>
       )}
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
+      <div
+        ref={scrollContainerRef}
+        className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6"
+      >
         <div className="mx-auto max-w-3xl">
           {visibleItems.length > 0 ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {visibleItems.map((item) => {
                 const isSelected = selectedIds.includes(item.id)
+                const wearLabel = item.lastWornAt
+                  ? formatRecentWearLabel(item.lastWornAt)
+                  : null
                 return (
                   <button
+                    ref={(button) => {
+                      if (button) itemButtonRefs.current.set(item.id, button)
+                      else itemButtonRefs.current.delete(item.id)
+                    }}
                     type="button"
                     onClick={() => toggleItem(item.id)}
                     className={`relative overflow-hidden rounded-3xl bg-surface p-2 text-left transition ${
@@ -145,8 +186,14 @@ export function OutfitWardrobePicker({
                     aria-pressed={isSelected}
                     key={item.id}
                   >
-                    <span className="flex aspect-square items-center justify-center overflow-hidden rounded-[1.25rem] bg-canvas">
+                    <span className="relative flex aspect-square items-center justify-center overflow-hidden rounded-[1.25rem] bg-canvas">
                       <ClosetItemVisual item={item} />
+                      {wearLabel && (
+                        <span className="pointer-events-none absolute bottom-2 left-2 flex max-w-[calc(100%_-_1rem)] items-center gap-1 rounded-full bg-black/65 px-2 py-1 text-[10px] font-bold text-white shadow-sm backdrop-blur">
+                          <CalendarDays className="shrink-0" size={11} />
+                          <span className="truncate">{wearLabel}</span>
+                        </span>
+                      )}
                     </span>
                     <span className="block px-2 pt-3 pb-2">
                       <strong className="block truncate text-sm">

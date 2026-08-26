@@ -36,6 +36,7 @@ import {
 import {
   getWardrobeItemCategories,
   wardrobeItemHasCategory,
+  wardrobeItemMatchesCategoryFilter,
 } from '../utils/wardrobeCategories'
 import {
   getRankedWardrobeTags,
@@ -101,7 +102,19 @@ export function ClosetPage() {
   const availableCategories = (
     Object.keys(closetCategoryLabels) as ClothingCategory[]
   ).filter((category) => availableCategorySet.has(category))
-  const availableColors = getWardrobeColorOptions(items)
+  const categoryItems = items.filter((item) =>
+    wardrobeItemMatchesCategoryFilter(
+      item,
+      activeCategory,
+      activeSubcategory,
+    ),
+  )
+  const availableColors = getWardrobeColorOptions(categoryItems)
+  const selectedColor =
+    activeColor &&
+    availableColors.some((option) => option.name === activeColor)
+      ? activeColor
+      : null
   const availableTags = getRankedWardrobeTags(
     items.flatMap((item) => item.tags),
   )
@@ -123,12 +136,14 @@ export function ClosetPage() {
       if (!wardrobeItemMatchesSearch(item, searchQuery)) return false
       if (selectedTag && !wardrobeItemHasTag(item, selectedTag)) return false
       if (activeSeason && !item.seasons.includes(activeSeason)) return false
-      if (activeColor && !wardrobeItemMatchesColor(item, activeColor)) {
+      if (selectedColor && !wardrobeItemMatchesColor(item, selectedColor)) {
         return false
       }
-      if (activeCategory === null) return true
-      if (!wardrobeItemHasCategory(item, activeCategory)) return false
-      return activeSubcategory === null || item.subcategory === activeSubcategory
+      return wardrobeItemMatchesCategoryFilter(
+        item,
+        activeCategory,
+        activeSubcategory,
+      )
     })
     .sort((left, right) => {
       const dateDifference =
@@ -161,6 +176,19 @@ export function ClosetPage() {
     if (isSearchOpen) updateFilterParam('q', null)
     setIsSearchOpen((currentValue) => !currentValue)
   }
+
+  useEffect(() => {
+    if (!activeColor || selectedColor !== null) return
+
+    setSearchParams(
+      (currentParams) => {
+        const nextParams = new URLSearchParams(currentParams)
+        nextParams.delete('color')
+        return nextParams
+      },
+      { replace: true },
+    )
+  }, [activeColor, selectedColor, setSearchParams])
 
   const applyCategoryFilter = (
     nextCategory: ClothingCategory | null,
@@ -459,7 +487,7 @@ export function ClosetPage() {
               />
               {availableColors.length > 1 && (
                 <ColorFilter
-                  value={activeColor}
+                  value={selectedColor}
                   options={availableColors}
                   onChange={(color) => updateFilterParam('color', color)}
                 />
@@ -522,8 +550,8 @@ export function ClosetPage() {
                   ? '검색 결과가 없어요'
                   : selectedTag
                     ? `#${selectedTag} 태그의 옷이 없어요`
-                : activeColor
-                  ? `${activeColor} 색상 옷이 없어요`
+                : selectedColor
+                  ? `${selectedColor} 색상 옷이 없어요`
                 : activeSeason
                   ? `${seasonLabels[activeSeason]}에 입을 옷이 없어요`
                   : '이 카테고리에 저장된 옷이 없어요'}
@@ -539,7 +567,7 @@ export function ClosetPage() {
                 ? '내 옷장에 옷 사진을 추가해보세요.'
                 : searchQuery.trim() || selectedTag
                   ? '검색어를 바꾸거나 선택한 태그를 해제해보세요.'
-                : activeColor
+                : selectedColor
                   ? '다른 색상이나 카테고리를 선택해보세요.'
                 : activeSeason
                   ? '다른 계절을 선택하거나 옷의 계절 정보를 수정해보세요.'

@@ -9,6 +9,7 @@ import {
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { seasonLabels } from '../../../constants/seasons'
 import { useUiStore } from '../../../stores/useUiStore'
+import { formatRecentWearLabel } from '../../../utils/wearDate'
 import { ClosetDetailHeader } from '../components/ClosetDetailHeader'
 import { ClosetItemEditModal } from '../components/ClosetItemEditModal'
 import { ClosetItemVisual } from '../components/ClosetItemVisual'
@@ -100,6 +101,9 @@ export function ClosetDetailPage() {
       : `${selectedItem.subcategory ?? (selectedItem.category ? closetCategoryLabels[selectedItem.category] : '미분류')} · ${selectedItem.colorDetailName ?? selectedItem.colorName}`
   const colorRgb = colorHexToRgb(selectedItem.colorHex)
   const itemCategories = getWardrobeItemCategories(selectedItem)
+  const recentWearLabel = selectedItem.lastWornAt
+    ? (formatRecentWearLabel(selectedItem.lastWornAt) ?? '최근 착용')
+    : '착용 기록 있음'
   const sizeDetails = [
     ['표기 사이즈', selectedItem.sizeLabel],
     ['어깨너비', selectedItem.shoulderWidthCm],
@@ -149,7 +153,7 @@ export function ClosetDetailPage() {
             </p>
             <p className="mt-2 text-sm text-muted">
               {selectedItem.wearCount > 0
-                ? `최근 착용 ${selectedItem.lastWornAt} · 총 ${selectedItem.wearCount}회`
+                ? `${recentWearLabel} · 총 ${selectedItem.wearCount}회`
                 : '아직 착용 기록이 없습니다.'}
             </p>
 

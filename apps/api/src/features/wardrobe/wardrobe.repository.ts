@@ -102,6 +102,24 @@ export const wardrobeRepository = {
     })
   },
 
+  findWearHistory(userId: string, throughDate: Date) {
+    return prisma.plannerEntry.findMany({
+      where: {
+        date: { lte: throughDate },
+        outfitId: { not: null },
+        plannerWeek: { is: { userId } },
+      },
+      select: {
+        date: true,
+        outfit: {
+          select: {
+            items: { select: { wardrobeItemId: true } },
+          },
+        },
+      },
+    })
+  },
+
   findById(userId: string, id: string) {
     return prisma.wardrobeItem.findFirst({
       where: { id, userId, ...activeWardrobeItemFilter },
