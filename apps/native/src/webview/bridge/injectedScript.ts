@@ -7,29 +7,58 @@ export const CLOSET_WEBVIEW_BRIDGE_SCRIPT = `
     var pendingRequests = {};
     var requestSequence = 0;
 
-    function request(type, payload, timeoutMs) {
+    function request(type, payload, timeoutMs, signal) {
       if (!window.ReactNativeWebView) {
         return Promise.reject(new Error('Native bridge is not available'));
+      }
+      if (signal && signal.aborted) {
+        return Promise.reject(signal.reason || new DOMException('Aborted', 'AbortError'));
       }
 
       var id = 'closet-native-' + Date.now() + '-' + requestSequence++;
 
       return new Promise(function (resolve, reject) {
-        var timeoutId = setTimeout(function () {
+        function cleanup() {
+          clearTimeout(timeoutId);
           delete pendingRequests[id];
-          reject(new Error('Native bridge request timed out'));
+          if (signal) signal.removeEventListener('abort', onAbort);
+        }
+
+        function cancel(error) {
+          cleanup();
+          if (type === 'closet:native-graphql') {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'closet:native-cancel-graphql', id: id
+            }));
+          }
+          reject(error);
+        }
+
+        function onAbort() {
+          cancel(signal.reason || new DOMException('Aborted', 'AbortError'));
+        }
+
+        var timeoutId = setTimeout(function () {
+          cancel(new Error('Native bridge request timed out'));
         }, timeoutMs || 15000);
 
         pendingRequests[id] = {
           resolve: resolve,
           reject: reject,
-          timeoutId: timeoutId
+          cleanup: cleanup
         };
 
-        window.ReactNativeWebView.postMessage(JSON.stringify(Object.assign({
-          type: type,
-          id: id
-        }, payload || {})));
+        if (signal) signal.addEventListener('abort', onAbort, { once: true });
+
+        try {
+          window.ReactNativeWebView.postMessage(JSON.stringify(Object.assign({
+            type: type,
+            id: id
+          }, payload || {})));
+        } catch (error) {
+          cleanup();
+          reject(error);
+        }
       });
     }
 
@@ -37,8 +66,7 @@ export const CLOSET_WEBVIEW_BRIDGE_SCRIPT = `
       var pending = pendingRequests[id];
       if (!pending) return;
 
-      clearTimeout(pending.timeoutId);
-      delete pendingRequests[id];
+      pending.cleanup();
 
       if (!response || !response.ok) {
         pending.reject(new Error(response && response.error || 'Native bridge failed'));
@@ -49,6 +77,11 @@ export const CLOSET_WEBVIEW_BRIDGE_SCRIPT = `
     };
 
     window.ClosetNative = {
+      requestGraphql: function (query, variables, signal) {
+        return request('closet:native-graphql', {
+          query: query, variables: variables
+        }, 180000, signal);
+      },
       getAppInfo: function () {
         return request('closet:native-app-info');
       },

@@ -20,6 +20,11 @@ export interface NativeAppInfo {
 }
 
 export interface ClosetNativeBridge {
+  requestGraphql: (
+    query: string,
+    variables?: object,
+    signal?: AbortSignal,
+  ) => Promise<{ ok: boolean; status: number; payload: unknown }>
   getAppInfo: () => Promise<NativeAppInfo>
   openAppSettings: () => Promise<void>
   requestPermission: (

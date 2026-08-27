@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs'
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { constrainNativeDocument } from './native-document.mjs'
 
 const nativeRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
 const webRoot = path.resolve(nativeRoot, '../web')
@@ -174,7 +175,7 @@ function prepareHtmlDocument(html) {
     webBundleVersion,
   }
 
-  return html
+  return constrainNativeDocument(html)
     .replace(/<link\b(?=[^>]*\brel=["']modulepreload["'])[^>]*>\s*/gi, '')
     .replace(
       /<script\b(?=[^>]*\btype=["']module["'])(?=[^>]*\bsrc=)[^>]*><\/script>\s*/gi,

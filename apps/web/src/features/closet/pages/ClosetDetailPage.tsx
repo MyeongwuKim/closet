@@ -17,24 +17,27 @@ import { MatchedOutfitsRail } from '../components/MatchedOutfitsRail'
 import { closetCategoryLabels } from '../constants'
 import { useClosetStore } from '../stores/useClosetStore'
 import { OutfitDetailModal } from '../../lookbook/components/OutfitDetailModal'
-import { useLookbookStore } from '../../lookbook/stores/useLookbookStore'
 import {
   useArchiveWardrobeItemMutation,
   useUpdateWardrobeItemMutation,
 } from '../api/wardrobeQueries'
 import { colorHexToRgb, colorModeLabels } from '../utils/color'
 import { getWardrobeItemCategories } from '../utils/wardrobeCategories'
+import { useWardrobeItemQuery } from '../../../lib/catalogQueries'
+import { useOutfitsQuery } from '../../lookbook/api/lookbookQueries'
 
 export function ClosetDetailPage() {
   const navigate = useNavigate()
   const { date, itemId } = useParams()
   const [searchParams] = useSearchParams()
   const items = useClosetStore((state) => state.items)
-  const outfits = useLookbookStore((state) => state.outfits)
+  const relatedQuery = useOutfitsQuery(Boolean(itemId), { wardrobeItemIds: itemId ? [itemId] : [] })
+  const outfits = relatedQuery.data ?? []
+  const itemQuery = useWardrobeItemQuery(itemId)
   const pushToast = useUiStore((state) => state.pushToast)
   const updateWardrobeItem = useUpdateWardrobeItemMutation()
   const archiveWardrobeItem = useArchiveWardrobeItemMutation()
-  const selectedItem = items.find((item) => item.id === itemId)
+  const selectedItem = itemQuery.data
   const [isEditing, setIsEditing] = useState(false)
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [selectedOutfitId, setSelectedOutfitId] = useState<string | null>(null)
@@ -78,6 +81,7 @@ export function ClosetDetailPage() {
     selectedOutfitId,
   ])
 
+  if (itemQuery.isPending) return <div className="fixed inset-0 z-[60] grid place-items-center bg-canvas" role="status">옷을 불러오는 중...</div>
   if (!selectedItem) return <Navigate to="/closet" replace />
 
   const relatedOutfits = outfits

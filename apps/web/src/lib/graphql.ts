@@ -30,18 +30,25 @@ export async function graphqlRequest<
   TData,
   TVariables extends object = object,
 >(query: string, variables?: TVariables, signal?: AbortSignal) {
-  const response = await fetch(`${apiBaseUrl}/graphql`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      ...(getAccessToken()
-        ? { authorization: `Bearer ${getAccessToken()}` }
-        : {}),
-    },
-    body: JSON.stringify({ query, variables }),
-    signal,
-  })
-  const payload = (await response.json().catch(() => ({}))) as GraphqlResponse<TData>
+  // The native transport can reach a local HTTP API from our HTTPS WebView.
+  const nativeRequest = window.ClosetNative?.requestGraphql
+  const response = nativeRequest
+    ? await nativeRequest(query, variables, signal)
+    : await fetch(`${apiBaseUrl}/graphql`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(getAccessToken()
+            ? { authorization: `Bearer ${getAccessToken()}` }
+            : {}),
+        },
+        body: JSON.stringify({ query, variables }),
+        signal,
+      }).then(async (result) => ({
+        ok: result.ok,
+        payload: await result.json().catch(() => ({})),
+      }))
+  const payload = response.payload as GraphqlResponse<TData>
 
   if (!response.ok || !payload.data) {
     const error = payload.errors?.[0]

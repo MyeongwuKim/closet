@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import type { ClothingCategory, ColorMode, Season } from '@closet/types'
 import { ClassificationConfirmModal } from './ClassificationConfirmModal'
 import { ToastViewport } from './ToastViewport'
@@ -11,23 +12,26 @@ import { useUiStore } from '../stores/useUiStore'
 import type { GarmentSizeInput } from '../features/closet/utils/garmentSize'
 
 export function GlobalUi() {
+  const { pathname } = useLocation()
   const candidate = useUiStore((state) => state.classificationQueue[0])
   const wardrobeItems = useClosetStore((state) => state.items)
   const addItems = useClosetStore((state) => state.addItems)
   const hydrateItems = useClosetStore((state) => state.hydrateItems)
   const pushToast = useUiStore((state) => state.pushToast)
-  const wardrobeItemsQuery = useWardrobeItemsQuery()
-  const outfitsQuery = useOutfitsQuery()
+  // Only the planner/composer need the full catalog for their editing controls.
+  const needsCatalog = pathname.startsWith('/plan') || pathname === '/lookbook/new'
+  const wardrobeItemsQuery = useWardrobeItemsQuery(needsCatalog || Boolean(candidate))
+  const outfitsQuery = useOutfitsQuery(needsCatalog)
   const hydrateOutfits = useLookbookStore((state) => state.hydrateOutfits)
   const saveWardrobeItem = useSaveWardrobeItemMutation()
 
   useEffect(() => {
-    if (wardrobeItemsQuery.data) hydrateItems(wardrobeItemsQuery.data)
-  }, [hydrateItems, wardrobeItemsQuery.data])
+    if ((needsCatalog || candidate) && wardrobeItemsQuery.data) hydrateItems(wardrobeItemsQuery.data)
+  }, [candidate, needsCatalog, hydrateItems, wardrobeItemsQuery.data])
 
   useEffect(() => {
-    if (outfitsQuery.data) hydrateOutfits(outfitsQuery.data)
-  }, [hydrateOutfits, outfitsQuery.data])
+    if (needsCatalog && outfitsQuery.data) hydrateOutfits(outfitsQuery.data)
+  }, [needsCatalog, hydrateOutfits, outfitsQuery.data])
 
   const handleConfirm = async (
     _itemId: string,

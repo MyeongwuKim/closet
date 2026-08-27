@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import {
+  BarChart3,
   ChevronLeft,
   ChevronRight,
   CloudSun,
@@ -479,6 +480,17 @@ export function SettingsPage() {
             <span className="mt-1 block text-xs leading-5 text-muted">
               AI 작업 완료 알림과 위치 기반 날씨 설정
             </span>
+          </span>
+          <ChevronRight className="shrink-0 text-muted" size={20} />
+        </Link>
+        <Link
+          to="/settings/statistics"
+          className="flex items-center gap-4 border-t border-line p-5 transition hover:bg-canvas sm:p-6"
+        >
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-sage"><BarChart3 size={22} /></span>
+          <span className="min-w-0 flex-1">
+            <strong className="block text-sm font-black">옷장 통계</strong>
+            <span className="mt-1 block text-xs leading-5 text-muted">옷 종류·색상 비중과 자주 입은 옷·스타일</span>
           </span>
           <ChevronRight className="shrink-0 text-muted" size={20} />
         </Link>

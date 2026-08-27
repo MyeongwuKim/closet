@@ -6,12 +6,13 @@ export const queryKeys = {
   me: ['me'] as const,
   wardrobe: {
     all: ['wardrobe'] as const,
+    statistics: ['wardrobe', 'statistics'] as const,
     list: (filter?: { category?: ClosetFilter; subcategory?: string }) =>
       ['wardrobe', 'list', filter ?? {}] as const,
   },
   outfits: {
     all: ['outfits'] as const,
-    list: (filter?: { style?: OutfitStyle; wardrobeItemIds?: string[] }) =>
+    list: (filter?: { style?: string; wardrobeItemIds?: string[] }) =>
       ['outfits', 'list', filter ?? {}] as const,
     recommendation: (
       selectedItemIds: string[],

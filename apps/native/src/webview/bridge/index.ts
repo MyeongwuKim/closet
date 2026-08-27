@@ -2,6 +2,7 @@ import type { WebViewMessageEvent } from 'react-native-webview'
 import { handleNativeAppInfoRequest } from './appInfoBridge'
 import { handleNativeOpenAppSettingsRequest } from './appSettingsBridge'
 import { handleNativeAuthSessionRequest } from './authSessionBridge'
+import { cancelNativeGraphqlRequest, handleNativeGraphqlRequest } from './graphqlBridge'
 import { handleNativeOpenExternalUrlRequest } from './externalLinkBridge'
 import { handleNativeRequestPermission } from './permissionBridge'
 import { CLOSET_WEBVIEW_BRIDGE_SCRIPT } from './injectedScript'
@@ -9,6 +10,8 @@ import {
   isNativeAppInfoRequest,
   isNativeAuthSessionRequest,
   isNativeBridgeReadyMessage,
+  isNativeCancelGraphqlRequest,
+  isNativeGraphqlRequest,
   isNativeOpenAppSettingsRequest,
   isNativeOpenExternalUrlRequest,
   isNativeRequestPermissionRequest,
@@ -19,6 +22,7 @@ import type { WebViewRef } from './types'
 export { CLOSET_WEBVIEW_BRIDGE_SCRIPT }
 
 interface NativeBridgeHandlers {
+  accessToken?: string
   onReady?: () => void
   onAuthSessionChange?: (
     accessToken: string | null,
@@ -35,6 +39,16 @@ export async function handleNativeBridgeMessage(
 
   if (isNativeBridgeReadyMessage(request)) {
     handlers.onReady?.()
+    return
+  }
+
+  if (isNativeGraphqlRequest(request)) {
+    await handleNativeGraphqlRequest(request, webViewRef, handlers.accessToken)
+    return
+  }
+
+  if (isNativeCancelGraphqlRequest(request)) {
+    cancelNativeGraphqlRequest(request.id)
     return
   }
 

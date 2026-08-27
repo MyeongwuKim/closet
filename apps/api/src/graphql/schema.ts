@@ -561,7 +561,62 @@ export const typeDefs = `#graphql
     model: String!
   }
 
+  enum CatalogSort { latest oldest }
+  input WardrobePageInput {
+    limit: Int = 20
+    cursor: String
+    sort: CatalogSort = latest
+    category: ClothingCategory
+    subcategory: String
+    season: Season
+    color: String
+    tag: String
+    search: String
+  }
+  input OutfitPageInput {
+    limit: Int = 20
+    cursor: String
+    sort: CatalogSort = latest
+    style: String
+    season: Season
+    color: String
+    wardrobeItemIds: [ID!]
+    search: String
+  }
+  type WardrobePage { items: [WardrobeItem!]! totalCount: Int! hasNextPage: Boolean! nextCursor: String }
+  type OutfitPage { items: [Outfit!]! totalCount: Int! hasNextPage: Boolean! nextCursor: String }
+  type CatalogColor { name: String! hex: String! }
+  type WardrobeFilterOptions {
+    totalCount: Int!
+    categories: [ClothingCategory!]!
+    subcategories: [String!]!
+    colors: [CatalogColor!]!
+    tags: [String!]!
+  }
+  type OutfitFilterOptions { totalCount: Int! styles: [String!]! colors: [CatalogColor!]! }
+  type StatisticsBucket { key: String! label: String! count: Int! color: String }
+  type MostWornItem { id: ID! name: String! wearCount: Int! imageUrl: String }
+  type MostWornOutfit { id: ID! name: String! wearCount: Int! imageUrl: String itemImageUrls: [String!]! }
+  type WardrobeStatistics {
+    totalItems: Int!
+    totalOutfits: Int!
+    wearRecordCount: Int!
+    unwornCount: Int!
+    unwornOutfitCount: Int!
+    throughDate: String!
+    categories: [StatisticsBucket!]!
+    colors: [StatisticsBucket!]!
+    wornStyles: [StatisticsBucket!]!
+    mostWorn: [MostWornItem!]!
+    mostWornOutfits: [MostWornOutfit!]!
+  }
+
   type Query {
+    wardrobePage(input: WardrobePageInput): WardrobePage!
+    outfitPage(input: OutfitPageInput): OutfitPage!
+    wardrobeFilterOptions(category: ClothingCategory, subcategory: String): WardrobeFilterOptions!
+    outfitFilterOptions: OutfitFilterOptions!
+    wardrobeStatistics: WardrobeStatistics!
     health: ApiHealth!
     me: Viewer!
     wardrobeItems(category: ClothingCategory, subcategory: String): [WardrobeItem!]!

@@ -1,3 +1,4 @@
+import { fetchNativeGraphql } from '../api/nativeGraphql'
 import type {
   NativeAuthSession,
   NativeTestLoginInput,
@@ -23,23 +24,12 @@ export class NativeAuthApiError extends Error {
   }
 }
 
-const apiBaseUrl = (
-  process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000'
-).replace(/\/+$/, '')
-
 async function nativeGraphqlRequest<T>(
   query: string,
   variables?: object,
   accessToken?: string,
 ) {
-  const response = await fetch(`${apiBaseUrl}/graphql`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
-    },
-    body: JSON.stringify({ query, variables }),
-  })
+  const response = await fetchNativeGraphql(query, variables, accessToken)
   const payload = (await response.json().catch(() => ({}))) as GraphqlResponse<T>
 
   if (!response.ok || !payload.data) {

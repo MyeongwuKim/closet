@@ -36,6 +36,18 @@ export interface NativeAuthSessionRequest {
   accessToken: string | null
 }
 
+export interface NativeGraphqlRequest {
+  type: 'closet:native-graphql'
+  id: string
+  query: string
+  variables?: Record<string, unknown>
+}
+
+export interface NativeCancelGraphqlRequest {
+  type: 'closet:native-cancel-graphql'
+  id: string
+}
+
 export type NativeBridgeRequest =
   | NativeBridgeReadyMessage
   | NativeAppInfoRequest
@@ -43,6 +55,8 @@ export type NativeBridgeRequest =
   | NativeRequestPermissionRequest
   | NativeOpenExternalUrlRequest
   | NativeAuthSessionRequest
+  | NativeGraphqlRequest
+  | NativeCancelGraphqlRequest
 
 export type NativeBridgeResponse<T> =
   | { ok: true; data: T }

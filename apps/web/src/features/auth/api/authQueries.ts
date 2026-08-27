@@ -4,6 +4,8 @@ import { graphqlRequest } from '../../../lib/graphql'
 import { queryKeys } from '../../../lib/queryKeys'
 import { syncNativeAuthSession } from '../../../native-bridge'
 import type { ViewerProfile } from '../../settings/api/profileQueries'
+import { useClosetStore } from '../../closet/stores/useClosetStore'
+import { useLookbookStore } from '../../lookbook/stores/useLookbookStore'
 
 export interface TestLoginVariables {
   loginId: string
@@ -48,6 +50,8 @@ export function useTestLoginMutation() {
       setAccessToken(accessToken)
       void syncNativeAuthSession(accessToken)
       queryClient.clear()
+      useClosetStore.getState().hydrateItems([])
+      useLookbookStore.getState().hydrateOutfits([])
       queryClient.setQueryData(queryKeys.me, viewer)
     },
   })
@@ -65,6 +69,8 @@ export function useLogoutMutation() {
       clearAccessToken()
       void syncNativeAuthSession(null)
       queryClient.clear()
+      useClosetStore.getState().hydrateItems([])
+      useLookbookStore.getState().hydrateOutfits([])
     },
   })
 }

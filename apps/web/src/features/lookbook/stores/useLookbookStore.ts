@@ -6,6 +6,7 @@ interface LookbookState {
   addOutfit: (outfit: SavedOutfit) => void
   removeOutfit: (outfitId: string) => void
   hydrateOutfits: (outfits: SavedOutfit[]) => void
+  mergeOutfits: (outfits: SavedOutfit[]) => void
 }
 
 export const useLookbookStore = create<LookbookState>((set) => ({
@@ -24,4 +25,7 @@ export const useLookbookStore = create<LookbookState>((set) => ({
       outfits: state.outfits.filter((outfit) => outfit.id !== outfitId),
     })),
   hydrateOutfits: (outfits) => set({ outfits }),
+  mergeOutfits: (outfits) => set((state) => ({
+    outfits: [...new Map([...state.outfits, ...outfits].map((outfit) => [outfit.id, outfit])).values()],
+  })),
 }))

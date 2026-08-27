@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { OutfitPreview, Season, WardrobeItem } from '@closet/types'
 import {
   ChevronLeft,
@@ -33,11 +33,14 @@ import { OutfitSlotEditor } from './OutfitSlotEditor'
 import { OutfitPreviewDialogView } from './OutfitPreviewDialog'
 import { OutfitStyleSelector } from './OutfitStyleSelector'
 import { SavedOutfitPreviewDialog } from './SavedOutfitPreviewDialog'
+import { useWardrobeItemsQuery } from '../../closet/api/wardrobeQueries'
+import { useClosetStore } from '../../closet/stores/useClosetStore'
 
 interface OutfitDetailModalProps {
   outfit: SavedOutfit
   items: WardrobeItem[]
   onClose: () => void
+  backLabel?: string
 }
 
 function getOutfitItems(outfit: SavedOutfit, items: WardrobeItem[]) {
@@ -68,7 +71,12 @@ export function OutfitDetailModal({
   outfit,
   items,
   onClose,
+  backLabel = '코디북으로 돌아가기',
 }: OutfitDetailModalProps) {
+  const catalog = useWardrobeItemsQuery()
+  useEffect(() => {
+    if (catalog.data) useClosetStore.getState().mergeItems(catalog.data)
+  }, [catalog.data])
   const outfits = useLookbookStore((state) => state.outfits)
   const addOutfit = useLookbookStore((state) => state.addOutfit)
   const removeOutfit = useLookbookStore((state) => state.removeOutfit)
@@ -248,7 +256,7 @@ export function OutfitDetailModal({
             type="button"
             onClick={onClose}
             className="flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-surface"
-            aria-label="코디북으로 돌아가기"
+            aria-label={backLabel}
             autoFocus
           >
             <ChevronLeft size={25} strokeWidth={2.2} />

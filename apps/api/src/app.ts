@@ -17,7 +17,14 @@ export async function buildApp() {
   })
 
   await app.register(cors, {
-    origin: process.env.WEB_ORIGIN?.split(',') ?? ['http://localhost:5173'],
+    origin: [
+      ...(process.env.WEB_ORIGIN ?? 'http://localhost:5173')
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean),
+      // The bundled WebView uses this base URL in both development and release.
+      'https://closet.native',
+    ],
   })
 
   app.get('/health', async () => ({

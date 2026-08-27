@@ -14,8 +14,9 @@ import {
   type WardrobeItemPayload,
 } from '../../closet/api/wardrobeQueries'
 import type { SavedOutfit } from '../types'
+import { useClosetStore } from '../../closet/stores/useClosetStore'
 
-interface OutfitPayload {
+export interface OutfitPayload {
   id: string
   name: string
   style: string
@@ -24,6 +25,7 @@ interface OutfitPayload {
   items: Array<{
     wardrobeItemId: string
     layerOrder: number
+    wardrobeItem?: WardrobeItemPayload
   }>
   generations: Array<{
     status: 'queued' | 'processing' | 'completed' | 'failed'
@@ -70,7 +72,7 @@ export type UpdateOutfitVariables = Pick<
   'name' | 'style' | 'seasons' | 'items' | 'previewImage'
 > & { id: string }
 
-function toSavedOutfit(outfit: OutfitPayload): SavedOutfit {
+export function toSavedOutfit(outfit: OutfitPayload): SavedOutfit {
   const previewImageUrl = outfit.generations.find(
     (generation) =>
       generation.status === 'completed' && generation.imageAsset?.deliveryUrl,
@@ -90,23 +92,27 @@ function toSavedOutfit(outfit: OutfitPayload): SavedOutfit {
   }
 }
 
-export function useOutfitsQuery() {
+export function useOutfitsQuery(enabled = true, filter?: { style?: string; wardrobeItemIds?: string[] }) {
   return useQuery({
-    queryKey: queryKeys.outfits.list(),
+    queryKey: queryKeys.outfits.list(filter),
+    enabled,
     queryFn: async ({ signal }) => {
       const data = await graphqlRequest<{ outfits: OutfitPayload[] }>(
         `
-          query Outfits {
-            outfits {
+          query Outfits($style: String, $wardrobeItemIds: [ID!]) {
+            outfits(style: $style, wardrobeItemIds: $wardrobeItemIds) {
               id name style seasons createdAt
-              items { wardrobeItemId layerOrder }
+              items { wardrobeItemId layerOrder wardrobeItem { ${wardrobeItemFields} } }
               generations { status imageAsset { deliveryUrl } }
             }
           }
         `,
-        undefined,
+        filter,
         signal,
       )
+      useClosetStore.getState().mergeItems(data.outfits.flatMap((outfit) =>
+        outfit.items.flatMap((item) => item.wardrobeItem ? [toWardrobeItem(item.wardrobeItem)] : []),
+      ))
       return data.outfits.map(toSavedOutfit)
     },
   })
@@ -199,6 +205,7 @@ export function useCreateOutfitMutation() {
         ],
       )
       void queryClient.invalidateQueries({ queryKey: queryKeys.outfits.all })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.wardrobe.all })
     },
   })
 }
@@ -234,6 +241,7 @@ export function useUpdateOutfitMutation() {
           ),
       )
       void queryClient.invalidateQueries({ queryKey: queryKeys.outfits.all })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.wardrobe.all })
       void queryClient.invalidateQueries({ queryKey: queryKeys.planner.all })
     },
   })
@@ -261,6 +269,7 @@ export function useDeleteOutfitMutation() {
           currentOutfits.filter((outfit) => outfit.id !== deletedOutfitId),
       )
       void queryClient.invalidateQueries({ queryKey: queryKeys.outfits.all })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.wardrobe.all })
       void queryClient.invalidateQueries({ queryKey: queryKeys.planner.all })
     },
   })

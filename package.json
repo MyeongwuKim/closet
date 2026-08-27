@@ -9,6 +9,7 @@
     "web:dev": "pnpm --filter @closet/web dev",
     "native:dev": "pnpm --filter @closet/native start",
     "native:bundle": "pnpm --filter @closet/native bundle:web",
+    "native:web:sync": "pnpm --filter @closet/native web:sync",
     "native:ios:dev": "pnpm run native:ios:local",
     "native:ios:local": "pnpm --filter @closet/native ios:local",
     "native:ios:device": "pnpm --filter @closet/native ios:device",

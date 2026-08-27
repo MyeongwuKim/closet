@@ -5,6 +5,7 @@ interface ClosetState {
   items: WardrobeItem[]
   addItems: (items: WardrobeItem[]) => void
   hydrateItems: (items: WardrobeItem[]) => void
+  mergeItems: (items: WardrobeItem[]) => void
   updateItem: (itemId: WardrobeItem['id'], updates: Partial<WardrobeItem>) => void
   disposeUploadedImages: () => void
 }
@@ -16,6 +17,9 @@ export const useClosetStore = create<ClosetState>((set, get) => ({
       items: [...items, ...state.items],
     })),
   hydrateItems: (items) => set({ items }),
+  mergeItems: (items) => set((state) => ({
+    items: [...new Map([...state.items, ...items].map((item) => [item.id, item])).values()],
+  })),
   updateItem: (itemId, updates) =>
     set((state) => ({
       items: state.items.map((item) =>

@@ -18,6 +18,8 @@ export function OutfitCardVisual({
       <div className={`overflow-hidden rounded-[1.25rem] bg-canvas ${className}`}>
         <img
           src={outfit.previewImageUrl}
+          loading="lazy"
+          decoding="async"
           alt={`${outfit.name} AI 룩북 이미지`}
           className="size-full object-contain"
         />

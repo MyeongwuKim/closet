@@ -12,7 +12,7 @@ import { todayOutfitRecommendationService } from './today-outfit-recommendation.
 
 export const outfitResolvers = {
   Outfit: {
-    plannerOnly: (outfit: { plannerOnly?: boolean }) =>
+    plannerOnly: (outfit: { plannerOnly?: boolean | null }) =>
       outfit.plannerOnly ?? false,
     createdAt: (outfit: { createdAt: Date }) => outfit.createdAt.toISOString(),
     updatedAt: (outfit: { updatedAt: Date }) => outfit.updatedAt.toISOString(),

@@ -14,13 +14,13 @@ export const outfitSlots: OutfitSlot[] = [
     id: 'outer',
     label: '아우터',
     matches: (item) => item.category === 'outer',
-    position: 'top-[11%] left-[1%]',
+    position: 'col-start-1 row-start-1',
   },
   {
     id: 'top',
     label: '상의',
     matches: (item) => item.category === 'top' || item.category === 'dress',
-    position: 'top-[25%] left-[36%]',
+    position: 'col-start-2 row-start-2',
     onBody: true,
   },
   {
@@ -28,28 +28,28 @@ export const outfitSlots: OutfitSlot[] = [
     label: '액세서리',
     matches: (item) =>
       item.category === 'accessory' || item.category === 'other',
-    position: 'top-[11%] right-[1%]',
+    position: 'col-start-3 row-start-1',
     limit: 4,
   },
   {
     id: 'midlayer',
     label: '중간 아우터',
     matches: (item) => item.category === 'midlayer',
-    position: 'top-[52%] left-[1%]',
+    position: 'col-start-1 row-start-4',
     limit: 2,
   },
   {
     id: 'bottom',
     label: '하의',
     matches: (item) => item.category === 'bottom',
-    position: 'top-[50%] left-[36%]',
+    position: 'col-start-2 row-start-4',
     onBody: true,
   },
   {
     id: 'shoes',
     label: '신발',
     matches: (item) => item.category === 'shoes',
-    position: 'top-[75%] left-[36%]',
+    position: 'col-start-2 row-start-6',
     onBody: true,
   },
 ]

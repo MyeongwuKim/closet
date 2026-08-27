@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import type { OutfitPreview } from '@closet/types'
 import { graphqlRequest } from '../../../lib/graphql'
 import { queryKeys } from '../../../lib/queryKeys'
@@ -29,6 +29,13 @@ interface PlannerWeekPayload {
       }>
     } | null
   }>
+}
+
+function invalidatePlannerAndWearStats(queryClient: QueryClient) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.planner.all }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.wardrobe.all }),
+  ])
 }
 
 export interface SetPlannerEntryVariables {
@@ -219,7 +226,7 @@ export function useSetDirectPlannerEntryMutation() {
       return data.setDirectPlannerEntry.entries.map(toPlanEntry)
     },
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.planner.all }),
+      invalidatePlannerAndWearStats(queryClient),
   })
 }
 
@@ -288,7 +295,7 @@ export function useMovePlannerEntryMutation() {
       )
     },
     onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.planner.all }),
+      invalidatePlannerAndWearStats(queryClient),
   })
 }
 
@@ -321,7 +328,7 @@ export function useSavePlannerOutfitToLookbookMutation() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.outfits.all })
-      void queryClient.invalidateQueries({ queryKey: queryKeys.planner.all })
+      void invalidatePlannerAndWearStats(queryClient)
     },
   })
 }
@@ -345,9 +352,7 @@ export function useSetPlannerEntryMutation() {
       return input
     },
     onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.planner.all,
-      }),
+      invalidatePlannerAndWearStats(queryClient),
   })
 }
 
@@ -373,8 +378,6 @@ export function useClearPlannerEntryMutation() {
       return variables
     },
     onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.planner.all,
-      }),
+      invalidatePlannerAndWearStats(queryClient),
   })
 }

@@ -17,6 +17,7 @@ import {
   StyleProfilePage,
 } from '../features/settings/pages/SettingsPage'
 import { AppInfoPage } from '../features/settings/pages/AppInfoPage'
+import { WardrobeStatisticsPage } from '../features/settings/pages/WardrobeStatisticsPage'
 import { NotificationWeatherPage } from '../features/settings/pages/NotificationWeatherPage'
 import { isNativeWebViewRuntime } from '../native-bridge'
 
@@ -48,6 +49,7 @@ export const router = createRouter([
           { path: 'lookbook/new', element: <OutfitComposerPage /> },
           { path: 'recommend', element: <Navigate to="/lookbook" replace /> },
           { path: 'settings', element: <SettingsPage /> },
+          { path: 'settings/statistics', element: <WardrobeStatisticsPage /> },
           { path: 'settings/style-profile', element: <StyleProfilePage /> },
           {
             path: 'settings/notifications-weather',

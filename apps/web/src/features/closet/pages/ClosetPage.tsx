@@ -24,25 +24,13 @@ import {
   closetCategoryLabels,
 } from '../constants'
 import { useClosetStore } from '../stores/useClosetStore'
+import { useInfiniteWardrobeQuery, useWardrobeFilterOptions } from '../../../lib/catalogQueries'
+import { InfiniteScrollFooter } from '../../../components/InfiniteScrollFooter'
 import { ClosetCategoryFilter } from '../components/ClosetCategoryFilter'
 import { ClosetItemCard } from '../components/ClosetItemCard'
 import { ClosetMultiSelectBar } from '../components/ClosetMultiSelectBar'
 import { ClosetPageHeader } from '../components/ClosetPageHeader'
 import { ClosetSearchFilter } from '../components/ClosetSearchFilter'
-import {
-  getWardrobeColorOptions,
-  wardrobeItemMatchesColor,
-} from '../utils/color'
-import {
-  getWardrobeItemCategories,
-  wardrobeItemHasCategory,
-  wardrobeItemMatchesCategoryFilter,
-} from '../utils/wardrobeCategories'
-import {
-  getRankedWardrobeTags,
-  wardrobeItemHasTag,
-  wardrobeItemMatchesSearch,
-} from '../utils/wardrobeTags'
 
 function createImageObjectUrl(base64: string, mimeType: string) {
   const binary = window.atob(base64)
@@ -96,60 +84,22 @@ export function ClosetPage() {
   const activeTag = searchParams.get('tag')
   const sortOrder = searchParams.get('sort') === 'oldest' ? 'oldest' : 'latest'
 
-  const availableCategorySet = new Set(
-    items.flatMap(getWardrobeItemCategories),
-  )
-  const availableCategories = (
-    Object.keys(closetCategoryLabels) as ClothingCategory[]
-  ).filter((category) => availableCategorySet.has(category))
-  const categoryItems = items.filter((item) =>
-    wardrobeItemMatchesCategoryFilter(
-      item,
-      activeCategory,
-      activeSubcategory,
-    ),
-  )
-  const availableColors = getWardrobeColorOptions(categoryItems)
-  const selectedColor =
-    activeColor &&
-    availableColors.some((option) => option.name === activeColor)
-      ? activeColor
-      : null
-  const availableTags = getRankedWardrobeTags(
-    items.flatMap((item) => item.tags),
-  )
-  const selectedTag =
-    activeTag && availableTags.includes(activeTag) ? activeTag : null
-  const availableSubcategories = Array.from(
-    new Set(
-      items.flatMap((item) =>
-        activeCategory &&
-        wardrobeItemHasCategory(item, activeCategory) &&
-        item.subcategory?.trim()
-          ? [item.subcategory.trim()]
-          : [],
-      ),
-    ),
-  )
-  const filteredItems = items
-    .filter((item) => {
-      if (!wardrobeItemMatchesSearch(item, searchQuery)) return false
-      if (selectedTag && !wardrobeItemHasTag(item, selectedTag)) return false
-      if (activeSeason && !item.seasons.includes(activeSeason)) return false
-      if (selectedColor && !wardrobeItemMatchesColor(item, selectedColor)) {
-        return false
-      }
-      return wardrobeItemMatchesCategoryFilter(
-        item,
-        activeCategory,
-        activeSubcategory,
-      )
-    })
-    .sort((left, right) => {
-      const dateDifference =
-        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
-      return sortOrder === 'latest' ? dateDifference : -dateDifference
-    })
+  const filterOptions = useWardrobeFilterOptions(activeCategory, activeSubcategory)
+  const selectedColor = activeColor
+  const selectedTag = activeTag
+  const wardrobeItemsQuery = useInfiniteWardrobeQuery({
+    category: activeCategory, subcategory: activeSubcategory,
+    season: activeSeason, color: selectedColor, tag: selectedTag,
+    search: searchQuery, sort: sortOrder,
+  })
+  const filteredItems = wardrobeItemsQuery.data?.pages.flatMap((page) => page.items) ?? []
+  const totalCount = filterOptions.data?.totalCount ?? wardrobeItemsQuery.data?.pages[0]?.totalCount ?? 0
+  const matchCount = wardrobeItemsQuery.data?.pages[0]?.totalCount ?? 0
+  const availableCategories = (Object.keys(closetCategoryLabels) as ClothingCategory[])
+    .filter((category) => filterOptions.data?.categories.includes(category))
+  const availableColors = filterOptions.data?.colors ?? []
+  const availableTags = filterOptions.data?.tags ?? []
+  const availableSubcategories = filterOptions.data?.subcategories ?? []
 
   useEffect(
     () => () => {
@@ -178,7 +128,7 @@ export function ClosetPage() {
   }
 
   useEffect(() => {
-    if (!activeColor || selectedColor !== null) return
+    if (!activeColor || !filterOptions.data || filterOptions.data.colors.some((color) => color.name === activeColor)) return
 
     setSearchParams(
       (currentParams) => {
@@ -188,7 +138,7 @@ export function ClosetPage() {
       },
       { replace: true },
     )
-  }, [activeColor, selectedColor, setSearchParams])
+  }, [activeColor, filterOptions.data, setSearchParams])
 
   const applyCategoryFilter = (
     nextCategory: ClothingCategory | null,
@@ -446,13 +396,13 @@ export function ClosetPage() {
       />
 
       <ClosetPageHeader
-        itemCount={items.length}
+        itemCount={totalCount}
         analyzingCount={analyzingCount}
         isSearchOpen={isSearchOpen}
         onToggleSearch={toggleSearch}
         onAddItem={openFilePicker}
       />
-      {items.length > 0 && (
+      {totalCount > 0 && (
         <ClosetSearchFilter
           query={searchQuery}
           tags={availableTags}
@@ -462,7 +412,7 @@ export function ClosetPage() {
           onTagChange={(tag) => updateFilterParam('tag', tag)}
         />
       )}
-      {items.length > 0 && (
+      {totalCount > 0 && (
         <SeasonFilter
           className="mt-6"
           value={activeSeason}
@@ -473,7 +423,7 @@ export function ClosetPage() {
         className={filterTransitionClass}
         aria-busy={filterTransitionPhase !== 'idle'}
       >
-        {items.length > 0 && (
+        {totalCount > 0 && (
           <div className="mt-3">
             <div className="flex items-center gap-2">
               <DateSortButton
@@ -507,11 +457,30 @@ export function ClosetPage() {
           </div>
         )}
 
-        {filteredItems.length > 0 ? (
+        {wardrobeItemsQuery.isPending ? (
+          <p role="status" className="mt-6 py-12 text-center text-sm text-muted">
+            옷장을 불러오고 있어요.
+          </p>
+        ) : filteredItems.length === 0 && wardrobeItemsQuery.isError ? (
+          <div role="alert" className="mt-6 rounded-3xl border border-line bg-surface p-6 text-center">
+            <h2 className="text-lg font-black">옷장을 불러오지 못했어요</h2>
+            <p className="mt-2 text-sm text-muted">
+              서버 연결을 확인한 뒤 다시 시도해주세요. 저장된 옷이 없다는 뜻은 아니에요.
+            </p>
+            <button
+              type="button"
+              className="mt-4 rounded-xl bg-ink px-5 py-3 text-sm font-bold text-white disabled:opacity-50"
+              disabled={wardrobeItemsQuery.isFetching}
+              onClick={() => void wardrobeItemsQuery.refetch()}
+            >
+              {wardrobeItemsQuery.isFetching ? '다시 불러오는 중...' : '다시 시도'}
+            </button>
+          </div>
+        ) : filteredItems.length > 0 ? (
           <>
             {(searchQuery.trim() || selectedTag) && (
               <p className="mt-4 px-1 text-xs font-bold text-muted">
-                검색 결과 {filteredItems.length}개
+                검색 결과 {matchCount}개
               </p>
             )}
             <div
@@ -531,7 +500,7 @@ export function ClosetPage() {
         ) : (
           <div
             className={
-              items.length === 0
+              totalCount === 0
                 ? 'mt-6 rounded-3xl border border-line bg-surface p-6 text-center sm:p-8'
                 : 'mt-6 rounded-3xl border border-dashed border-line bg-surface px-6 py-12 text-center'
             }
@@ -541,10 +510,10 @@ export function ClosetPage() {
             </span>
             <h2
               className={`mt-5 font-black ${
-                items.length === 0 ? 'text-xl' : 'text-lg'
+                totalCount === 0 ? 'text-xl' : 'text-lg'
               }`}
             >
-              {items.length === 0
+              {totalCount === 0
                 ? '옷장이 비어 있어요'
                 : searchQuery.trim()
                   ? '검색 결과가 없어요'
@@ -558,12 +527,12 @@ export function ClosetPage() {
             </h2>
             <p
               className={
-                items.length === 0
+                totalCount === 0
                   ? 'mx-auto mt-2 max-w-md text-sm leading-7 text-muted'
                   : 'mt-2 text-sm text-muted'
               }
             >
-              {items.length === 0
+              {totalCount === 0
                 ? '내 옷장에 옷 사진을 추가해보세요.'
                 : searchQuery.trim() || selectedTag
                   ? '검색어를 바꾸거나 선택한 태그를 해제해보세요.'
@@ -576,6 +545,15 @@ export function ClosetPage() {
           </div>
         )}
       </div>
+
+      {filteredItems.length > 0 && (
+        <InfiniteScrollFooter
+          hasNextPage={wardrobeItemsQuery.hasNextPage}
+          isFetching={wardrobeItemsQuery.isFetching}
+          isError={wardrobeItemsQuery.isFetchNextPageError}
+          onLoadMore={wardrobeItemsQuery.fetchNextPage}
+        />
+      )}
 
       {selectedIds.length > 0 && (
         <ClosetMultiSelectBar

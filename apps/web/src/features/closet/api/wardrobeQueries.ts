@@ -8,6 +8,7 @@ import type {
 } from '@closet/types'
 import { graphqlRequest } from '../../../lib/graphql'
 import { queryKeys } from '../../../lib/queryKeys'
+import { useClosetStore } from '../stores/useClosetStore'
 
 export interface WardrobeItemPayload {
   id: string
@@ -75,9 +76,10 @@ export function toWardrobeItem(item: WardrobeItemPayload): WardrobeItem {
   }
 }
 
-export function useWardrobeItemsQuery() {
+export function useWardrobeItemsQuery(enabled = true) {
   return useQuery({
     queryKey: queryKeys.wardrobe.list(),
+    enabled,
     queryFn: async ({ signal }) => {
       const data = await graphqlRequest<{ wardrobeItems: WardrobeItemPayload[] }>(
         `
@@ -167,6 +169,8 @@ export function useUpdateWardrobeItemMutation() {
       return toWardrobeItem(data.updateWardrobeItem)
     },
     onSuccess: (updatedItem) => {
+      useClosetStore.getState().mergeItems([updatedItem])
+      queryClient.setQueryData(['wardrobe', 'detail', updatedItem.id], updatedItem)
       queryClient.setQueryData<WardrobeItem[]>(
         queryKeys.wardrobe.list(),
         (currentItems = []) =>
@@ -175,6 +179,7 @@ export function useUpdateWardrobeItemMutation() {
           ),
       )
       void queryClient.invalidateQueries({ queryKey: queryKeys.wardrobe.all })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.outfits.all })
     },
   })
 }

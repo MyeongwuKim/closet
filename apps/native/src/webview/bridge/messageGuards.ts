@@ -3,6 +3,8 @@ import type {
   NativeAuthSessionRequest,
   NativeBridgeReadyMessage,
   NativeBridgeRequest,
+  NativeCancelGraphqlRequest,
+  NativeGraphqlRequest,
   NativeOpenAppSettingsRequest,
   NativeOpenExternalUrlRequest,
   NativeRequestPermissionRequest,
@@ -88,9 +90,33 @@ export function parseNativeBridgeRequest(
     if (isNativeRequestPermissionRequest(value)) return value
     if (isNativeOpenExternalUrlRequest(value)) return value
     if (isNativeAuthSessionRequest(value)) return value
+    if (isNativeGraphqlRequest(value)) return value
+    if (isNativeCancelGraphqlRequest(value)) return value
 
     return null
   } catch {
     return null
   }
+}
+
+export function isNativeGraphqlRequest(value: unknown): value is NativeGraphqlRequest {
+  return (
+    isRecord(value) &&
+    value.type === 'closet:native-graphql' &&
+    hasRequestId(value) &&
+    typeof value.query === 'string' &&
+    value.query.trim().length > 0 &&
+    (value.variables === undefined ||
+      (isRecord(value.variables) && !Array.isArray(value.variables)))
+  )
+}
+
+export function isNativeCancelGraphqlRequest(
+  value: unknown,
+): value is NativeCancelGraphqlRequest {
+  return (
+    isRecord(value) &&
+    value.type === 'closet:native-cancel-graphql' &&
+    hasRequestId(value)
+  )
 }

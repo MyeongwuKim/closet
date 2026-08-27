@@ -165,7 +165,7 @@ export function getWardrobeWearStats(records: WardrobeWearHistoryRecord[]) {
   )
 }
 
-function getKoreaTodayUtc() {
+export function getKoreaTodayUtc() {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Seoul',
     year: 'numeric',
@@ -313,8 +313,11 @@ export const wardrobeService = {
     }))
   },
 
-  get(userId: string, itemId: string) {
-    return requireWardrobeItem(userId, itemId)
+  async get(userId: string, itemId: string) {
+    const item = await requireWardrobeItem(userId, itemId)
+    const history = await wardrobeRepository.findWearHistory(userId, getKoreaTodayUtc(), [itemId])
+    const wear = getWardrobeWearStats(history).get(itemId)
+    return { ...item, wearCount: wear?.wearCount ?? 0, lastWornAt: wear?.lastWornAt ?? null }
   },
 
   async create(userId: string, input: CreateWardrobeItemInput) {

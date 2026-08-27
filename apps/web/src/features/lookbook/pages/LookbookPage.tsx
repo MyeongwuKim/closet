@@ -9,24 +9,22 @@ import {
 } from '../../../constants/seasons'
 import { getOutfitStyleLabel } from '../../../constants/styleOptions'
 import { useClosetStore } from '../../closet/stores/useClosetStore'
-import { getWardrobeColorOptions } from '../../closet/utils/color'
 import { OutfitCardVisual } from '../components/OutfitCardVisual'
 import { OutfitDetailModal } from '../components/OutfitDetailModal'
 import { OutfitFilterControls } from '../components/OutfitFilterControls'
 import { OutfitWearStatus } from '../components/OutfitWearStatus'
 import { useOutfitWearSummaries } from '../hooks/useOutfitWearSummaries'
-import { useLookbookStore } from '../stores/useLookbookStore'
+import { useInfiniteOutfitsQuery, useOutfitFilterOptions } from '../../../lib/catalogQueries'
+import { InfiniteScrollFooter } from '../../../components/InfiniteScrollFooter'
+import { outfitStyleOptions } from '../../../constants/styleOptions'
 import {
   createOutfitSearchTokens,
-  filterSavedOutfits,
-  getVisibleOutfitStyleOptions,
 } from '../utils/outfitFilters'
 
 export function LookbookPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const items = useClosetStore((state) => state.items)
-  const outfits = useLookbookStore((state) => state.outfits)
   const [activeStyle, setActiveStyle] = useState('all')
   const [activeSeason, setActiveSeason] = useState<Season | null>(null)
   const [activeColor, setActiveColor] = useState<string | null>(null)
@@ -34,38 +32,29 @@ export function LookbookPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedOutfitId, setSelectedOutfitId] = useState<string | null>(null)
   const sortOrder = searchParams.get('sort') === 'oldest' ? 'oldest' : 'latest'
-  const wearSummaries = useOutfitWearSummaries(
-    outfits.map((outfit) => outfit.id),
-  )
-  const visibleStyleOptions = getVisibleOutfitStyleOptions(outfits)
   const selectedItemIds = (searchParams.get('items') ?? '')
     .split(',')
     .filter(Boolean)
   const selectedItems = items.filter((item) =>
     selectedItemIds.includes(item.id),
   )
-  const outfitItemIds = new Set(
-    outfits.flatMap((outfit) =>
-      outfit.layers.map((layer) => layer.wardrobeItemId),
-    ),
-  )
-  const colorOptions = getWardrobeColorOptions(
-    items.filter((item) => outfitItemIds.has(item.id)),
-  )
-  const searchTokens = createOutfitSearchTokens(searchQuery)
-  const visibleOutfits = filterSavedOutfits({
-    outfits,
-    wardrobeItems: items,
-    selectedItemIds,
-    activeStyle,
-    activeSeason,
-    activeColor,
-    searchQuery,
-  }).sort((left, right) => {
-    const dateDifference =
-      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
-    return sortOrder === 'latest' ? dateDifference : -dateDifference
+  const outfitsQuery = useInfiniteOutfitsQuery({
+    style: activeStyle, season: activeSeason, color: activeColor,
+    search: searchQuery, sort: sortOrder, wardrobeItemIds: selectedItemIds,
   })
+  const outfits = outfitsQuery.data?.pages.flatMap((page) => page.items) ?? []
+  const filterOptions = useOutfitFilterOptions()
+  const totalCount = filterOptions.data?.totalCount ?? outfitsQuery.data?.pages[0]?.totalCount ?? 0
+  const wearSummaries = useOutfitWearSummaries(outfits.map((outfit) => outfit.id))
+  const visibleStyleOptions = [
+    ...outfitStyleOptions,
+    ...(filterOptions.data?.styles ?? [])
+      .filter((style) => !outfitStyleOptions.some((option) => option.value === style))
+      .map((style) => ({ label: style, value: style })),
+  ]
+  const colorOptions = filterOptions.data?.colors ?? []
+  const searchTokens = createOutfitSearchTokens(searchQuery)
+  const visibleOutfits = outfits
   const selectedOutfit = outfits.find(
     (outfit) => outfit.id === selectedOutfitId,
   )
@@ -94,11 +83,11 @@ export function LookbookPage() {
         <div className="min-w-0 [&_p]:hidden sm:[&_p]:block">
           <PageTitle
             title="코디북"
-            description={`내 옷으로 만든 코디를 모아보세요 · ${outfits.length}개`}
+            description={`내 옷으로 만든 코디를 모아보세요 · ${totalCount}개`}
           />
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {outfits.length > 0 && (
+          {totalCount > 0 && (
             <button
               type="button"
               onClick={toggleSearch}
@@ -126,7 +115,7 @@ export function LookbookPage() {
         </div>
       </div>
 
-      {outfits.length > 0 && (
+      {totalCount > 0 && (
         <OutfitFilterControls
           activeSeason={activeSeason}
           activeStyle={activeStyle}
@@ -165,7 +154,15 @@ export function LookbookPage() {
         </div>
       )}
 
-      {outfits.length === 0 ? (
+      {outfitsQuery.isPending ? (
+        <p role="status" className="py-12 text-center text-sm text-muted">코디북을 불러오는 중...</p>
+      ) : outfitsQuery.isError && outfits.length === 0 ? (
+        <div role="alert" className="mt-6 rounded-3xl border border-line bg-surface p-6 text-center">
+          <p>코디북을 불러오지 못했어요.</p>
+          <button type="button" className="mt-4 rounded-full bg-ink px-5 py-2 text-sm font-bold text-white"
+            onClick={() => void outfitsQuery.refetch()}>다시 시도</button>
+        </div>
+      ) : totalCount === 0 ? (
         <div className="mt-6 rounded-3xl border border-line bg-surface p-6 text-center sm:p-8">
           <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-sage">
             <Images size={24} />
@@ -272,6 +269,14 @@ export function LookbookPage() {
             </button>
           )}
         </div>
+      )}
+      {outfits.length > 0 && (
+        <InfiniteScrollFooter
+          hasNextPage={outfitsQuery.hasNextPage}
+          isFetching={outfitsQuery.isFetching}
+          isError={outfitsQuery.isFetchNextPageError}
+          onLoadMore={outfitsQuery.fetchNextPage}
+        />
       )}
       {selectedOutfit && (
         <OutfitDetailModal

@@ -85,6 +85,11 @@ export function NativeWebViewScreen({
         javaScriptEnabled
         domStorageEnabled
         sharedCookiesEnabled
+        bounces={false}
+        overScrollMode="never"
+        setBuiltInZoomControls={false}
+        setDisplayZoomControls={false}
+        scalesPageToFit={false}
         setSupportMultipleWindows={false}
         injectedJavaScriptBeforeContentLoaded={injectedScript}
         onLoadStart={() => {
@@ -102,6 +107,7 @@ export function NativeWebViewScreen({
         }}
         onMessage={(event) => {
           void handleNativeBridgeMessage(event, webViewRef, {
+            accessToken,
             onReady: flushPendingNavigation,
             onAuthSessionChange,
           })

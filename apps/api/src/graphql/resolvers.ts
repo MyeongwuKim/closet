@@ -1,4 +1,5 @@
 import { authResolvers } from '../features/auth/auth.resolvers.js'
+import { catalogResolvers } from '../features/catalog/catalog.resolvers.js'
 import { classificationResolvers } from '../features/classification/classification.resolvers.js'
 import { getOpenAiClassificationModel } from '../features/classification/openAiWardrobeClassifier.js'
 import { imageResolvers } from '../features/image/image.resolvers.js'
@@ -18,6 +19,7 @@ export const resolvers = {
     ...wardrobeResolvers.Query,
     ...outfitResolvers.Query,
     ...plannerResolvers.Query,
+    ...catalogResolvers.Query,
   },
   Mutation: {
     ...authResolvers.Mutation,

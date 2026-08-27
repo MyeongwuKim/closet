@@ -1,4 +1,5 @@
 import type { WardrobeItem } from '@closet/types'
+import { Plus } from 'lucide-react'
 import { ClosetItemVisual } from '../../closet/components/ClosetItemVisual'
 import type { OutfitLayer } from '../types'
 import { outfitSlots, type OutfitSlot } from './outfitSlots'
@@ -14,21 +15,6 @@ interface OutfitCanvasProps {
 interface SelectedItem {
   item: WardrobeItem
   order: number
-}
-
-function OutfitMannequin() {
-  return (
-    <svg
-      viewBox="0 0 391 782"
-      className="absolute top-[5%] left-1/2 h-[90%] w-[82%] -translate-x-1/2 text-[#436990]"
-      aria-hidden="true"
-    >
-      <g fill="currentColor">
-        <circle cx="195.5" cy="88" r="60" />
-        <path d="M128 162h135c41.4 0 75 33.6 75 75v186.5c0 14.6-11.8 26.5-26.5 26.5S285 438.2 285 423.5V257h-12v461c0 19.9-15.9 36-35.5 36S202 737.9 202 718V451h-14v267c0 19.9-15.9 36-35.5 36S117 737.9 117 718V257h-11v166.5c0 14.6-11.8 26.5-26.5 26.5S53 438.2 53 423.5V237c0-41.4 33.6-75 75-75Z" />
-      </g>
-    </svg>
-  )
 }
 
 function OutfitItemTile({
@@ -47,32 +33,44 @@ function OutfitItemTile({
     .sort((left, right) => left.order - right.order)
     .slice(0, slot.limit ?? 1)
   const hasMultipleItems = slotItem.length > 1
+  const isEmpty = slotItem.length === 0
   const visibleItems =
     slot.id === 'accessory' && hasMultipleItems ? slotItem.slice(0, 1) : slotItem
 
   return (
     <div
-      className={`group absolute aspect-[4/5] w-[28%] overflow-hidden rounded-2xl border ${
-        slot.onBody
-          ? 'border-dashed border-line bg-white/72 shadow-sm backdrop-blur-sm'
-          : 'border-line bg-white/88 shadow-sm backdrop-blur-sm'
+      className={`group relative row-span-2 aspect-[4/5] min-w-0 overflow-hidden rounded-2xl border transition-[border-color,box-shadow] ${
+        isEmpty
+          ? 'border-dashed border-[#cdc7ba] bg-white/35'
+          : 'border-white bg-surface shadow-[0_4px_16px_-7px_rgba(57,48,32,0.24)]'
+      } ${
+        onSlotClick || onItemClick
+          ? 'hover:border-accent/40 focus-within:border-accent/60'
+          : ''
       } ${slot.position}`}
     >
       {onSlotClick && (
         <button
           type="button"
           onClick={() => onSlotClick(slot)}
-          className="absolute inset-0 z-30 rounded-2xl transition hover:bg-accent/5 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-[-2px]"
+          className="absolute inset-0 z-30 rounded-2xl transition-colors hover:bg-accent/5 active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-[-2px]"
           aria-label={`${slot.label} ${slotItem.length > 0 ? '교체하기' : '고르기'}`}
         />
       )}
-      {slotItem.length === 0 ? (
-        <span className="pointer-events-none absolute inset-0 flex items-center justify-center pb-7 text-lg font-light text-muted/25 transition group-hover:text-accent/60 sm:text-2xl">
-          +
+      {isEmpty ? (
+        <span className="pointer-events-none absolute inset-x-0 top-0 bottom-8 flex flex-col items-center justify-center gap-1.5 text-muted/70" aria-hidden="true">
+          {onSlotClick ? (
+            <>
+              <span className="flex size-7 items-center justify-center rounded-full border border-line bg-surface/80 transition-colors group-hover:border-accent/30 group-hover:text-accent sm:size-8">
+                <Plus size={15} strokeWidth={1.5} />
+              </span>
+              <span className="text-[10px] font-medium sm:text-xs">추가하기</span>
+            </>
+          ) : <span className="text-[10px] sm:text-xs">선택한 옷 없음</span>}
         </span>
       ) : (
         <span
-          className={`absolute inset-x-1 top-1 bottom-7 flex items-center justify-center ${
+          className={`absolute inset-x-1 top-1 bottom-8 flex items-center justify-center overflow-hidden rounded-t-xl ${
             hasMultipleItems ? 'gap-0.5' : ''
           }`}
         >
@@ -83,7 +81,7 @@ function OutfitItemTile({
             const itemVisual = (
               <span
                 className={`flex size-full items-center justify-center ${
-                  item.imageUrl ? 'scale-[1.4]' : 'scale-[1.12]'
+                  item.imageUrl ? 'scale-[1.25] [&_img]:p-1' : 'scale-[1.12]'
                 }`}
               >
                 <ClosetItemVisual
@@ -112,7 +110,9 @@ function OutfitItemTile({
         </span>
       )}
 
-      <span className="pointer-events-none absolute right-1 bottom-1 left-1 z-20 truncate rounded-lg bg-white/94 px-1.5 py-1 text-center text-[11px] leading-none font-extrabold text-ink shadow-sm backdrop-blur sm:text-xs">
+      <span className={`pointer-events-none absolute inset-x-0 bottom-0 z-20 flex h-8 items-center justify-center border-t px-1 text-center text-[11px] font-bold sm:text-xs ${
+        isEmpty ? 'border-line/60 text-muted' : 'border-line/40 bg-white/75 text-ink'
+      }`}>
         {slotItem[0]?.item.category === 'dress' ? '원피스' : slot.label}
         {hasMultipleItems ? ` · ${slotItem.length}` : ''}
       </span>
@@ -136,21 +136,29 @@ export function OutfitCanvas({
 
   return (
     <div
-      className={`flex items-center justify-center overflow-hidden rounded-[1.5rem] bg-[#fbfaf6] p-3 shadow-[inset_0_0_0_1px_#dedad1] sm:p-5 ${className}`}
+      className={`flex flex-col items-center overflow-y-auto [container-type:size] ${className}`}
       aria-label="코디 미리보기"
     >
-      <div className="relative h-full max-h-[42rem] w-full max-w-2xl">
-        <OutfitMannequin />
+      {/* 3열·7행이 높이 안에 들어오도록 폭도 줄이되, 짧은 화면에서는 스크롤한다. */}
+      <div className="my-auto w-[min(100cqw,calc((100cqh-2rem)*0.68))] min-w-[min(100%,16rem)] max-w-xl shrink-0 rounded-[1.5rem] bg-[#efede6] p-3 shadow-[inset_0_0_0_1px_#dedad1]">
+        <div className="pointer-events-none mb-5 flex h-7 items-center justify-between gap-2 px-1">
+          <span className="text-xs font-bold tracking-tight text-ink/75">코디 구성</span>
+          <span className="rounded-full border border-line/70 bg-white/60 px-2.5 py-1 text-[10px] font-medium tabular-nums text-muted">
+            {selectedItems.length}개 아이템
+          </span>
+        </div>
 
-        {outfitSlots.map((slot) => (
-          <OutfitItemTile
-            slot={slot}
-            selectedItems={selectedItems}
-            onItemClick={onItemClick}
-            onSlotClick={onSlotClick}
-            key={slot.id}
-          />
-        ))}
+        <div className="grid grid-cols-3 grid-rows-7 gap-x-3 gap-y-2">
+          {outfitSlots.map((slot) => (
+            <OutfitItemTile
+              slot={slot}
+              selectedItems={selectedItems}
+              onItemClick={onItemClick}
+              onSlotClick={onSlotClick}
+              key={slot.id}
+            />
+          ))}
+        </div>
       </div>
     </div>
   )
