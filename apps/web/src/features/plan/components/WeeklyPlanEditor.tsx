@@ -26,6 +26,7 @@ import {
   useClearPlannerEntryMutation,
   useSetPlannerEntryMutation,
 } from '../api/plannerQueries'
+import { useRecentWearReminder } from '../hooks/useRecentWearReminder'
 import { usePlanStore } from '../stores/usePlanStore'
 
 interface WeeklyPlanEditorProps {
@@ -42,6 +43,8 @@ export function WeeklyPlanEditor({ onClose }: WeeklyPlanEditorProps) {
   const pushToast = useUiStore((state) => state.pushToast)
   const setPlannerEntry = useSetPlannerEntryMutation()
   const clearPlannerEntry = useClearPlannerEntryMutation()
+  const { confirmRecentWear, isCheckingRecentWear } =
+    useRecentWearReminder()
   const [activeDate, setActiveDate] = useState(entries[0]?.date ?? '')
   const [activeStyle, setActiveStyle] = useState('all')
   const [activeSeason, setActiveSeason] = useState<Season | null>(null)
@@ -65,7 +68,12 @@ export function WeeklyPlanEditor({ onClose }: WeeklyPlanEditorProps) {
     document.body.style.overflow = 'hidden'
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (
+        event.key === 'Escape' &&
+        !useUiStore.getState().recentWearConfirmation
+      ) {
+        onClose()
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
@@ -76,6 +84,14 @@ export function WeeklyPlanEditor({ onClose }: WeeklyPlanEditorProps) {
   }, [onClose])
 
   const chooseOutfit = async (outfit: (typeof outfits)[number]) => {
+    const confirmed = await confirmRecentWear({
+      itemIds: outfit.layers.map((layer) => layer.wardrobeItemId),
+      targetDate: activeDate,
+      confirmLabel: '그래도 추가',
+      cancelLabel: '다른 코디 고르기',
+    })
+    if (!confirmed) return
+
     if (/^[a-f\d]{24}$/i.test(outfit.id)) {
       try {
         await setPlannerEntry.mutateAsync({
@@ -264,11 +280,14 @@ export function WeeklyPlanEditor({ onClose }: WeeklyPlanEditorProps) {
                       <button
                         type="button"
                         onClick={() => void chooseOutfit(outfit)}
+                        disabled={
+                          isCheckingRecentWear || setPlannerEntry.isPending
+                        }
                         className={`relative overflow-hidden rounded-3xl border bg-surface p-2 text-left transition ${
                           isAssigned
                             ? 'border-accent ring-2 ring-accent/20'
                             : 'border-line hover:border-ink'
-                        }`}
+                        } disabled:cursor-wait disabled:opacity-60`}
                         aria-pressed={isAssigned}
                         key={outfit.id}
                       >

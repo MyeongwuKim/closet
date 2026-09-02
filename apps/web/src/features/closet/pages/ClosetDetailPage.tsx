@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowRight, CalendarDays, Palette, Sparkles, Tag } from 'lucide-react'
+import { CalendarDays, Palette, Sparkles, Tag } from 'lucide-react'
 import {
   Navigate,
   useNavigate,
@@ -13,6 +13,7 @@ import { formatRecentWearLabel } from '../../../utils/wearDate'
 import { ClosetDetailHeader } from '../components/ClosetDetailHeader'
 import { ClosetItemEditModal } from '../components/ClosetItemEditModal'
 import { ClosetItemVisual } from '../components/ClosetItemVisual'
+import { ClosetItemOutfitActions } from '../components/ClosetItemOutfitActions'
 import { MatchedOutfitsRail } from '../components/MatchedOutfitsRail'
 import { closetCategoryLabels } from '../constants'
 import { useClosetStore } from '../stores/useClosetStore'
@@ -40,6 +41,7 @@ export function ClosetDetailPage() {
   const selectedItem = itemQuery.data
   const [isEditing, setIsEditing] = useState(false)
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
+  const [isRecommendationOpen, setIsRecommendationOpen] = useState(false)
   const [selectedOutfitId, setSelectedOutfitId] = useState<string | null>(null)
   const requestedBackPath = searchParams.get('from')
   const backPath =
@@ -62,7 +64,7 @@ export function ClosetDetailPage() {
         return
       }
 
-      if (isEditing || isDeleteConfirmOpen) return
+      if (isEditing || isDeleteConfirmOpen || isRecommendationOpen) return
 
       navigate(backPath)
     }
@@ -77,6 +79,7 @@ export function ClosetDetailPage() {
     backPath,
     isDeleteConfirmOpen,
     isEditing,
+    isRecommendationOpen,
     navigate,
     selectedOutfitId,
   ])
@@ -136,10 +139,12 @@ export function ClosetDetailPage() {
         onDelete={() => setIsDeleteConfirmOpen(true)}
       />
 
-      <div className="mx-auto max-w-6xl px-5 py-6 sm:px-8 sm:py-10">
+      <div className="mx-auto max-w-6xl px-5 pt-6 pb-[calc(7rem+env(safe-area-inset-bottom))] sm:px-8 sm:pt-10 sm:pb-[calc(8rem+env(safe-area-inset-bottom))]">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)] lg:items-start">
-          <div className="detail-image-enter flex aspect-square max-h-145 items-center justify-center overflow-hidden rounded-[2rem] bg-surface shadow-[inset_0_0_0_1px_#dedad1]">
-            <ClosetItemVisual item={selectedItem} />
+          <div>
+            <div className="detail-image-enter flex aspect-square max-h-145 items-center justify-center overflow-hidden rounded-[2rem] bg-surface shadow-[inset_0_0_0_1px_#dedad1]">
+              <ClosetItemVisual item={selectedItem} />
+            </div>
           </div>
 
           <div className="lg:pt-5">
@@ -293,26 +298,6 @@ export function ClosetDetailPage() {
               </div>
             )}
 
-            <div className="mt-7">
-              <button
-                type="button"
-                onClick={() =>
-                  navigate(
-                    `/lookbook/new?items=${selectedItem.id}&from=${encodeURIComponent(backPath)}`,
-                  )
-                }
-                disabled={selectedItem.classificationStatus !== 'classified'}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3.5 text-sm font-bold text-white transition hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <Sparkles size={17} /> 이 옷으로 코디 맞추기
-                <ArrowRight size={16} />
-              </button>
-            </div>
-
-            <p className="mt-4 text-sm leading-6 text-muted">
-              이 옷을 먼저 펼쳐두고, 내 옷장에서 잘 어울리는 색과 아이템을
-              하나씩 골라볼 수 있어요.
-            </p>
           </div>
         </div>
 
@@ -323,6 +308,12 @@ export function ClosetDetailPage() {
           onViewAll={() => navigate(`/lookbook?items=${selectedItem.id}`)}
         />
       </div>
+
+      <ClosetItemOutfitActions
+        item={selectedItem}
+        isRecommendationOpen={isRecommendationOpen}
+        onRecommendationOpenChange={setIsRecommendationOpen}
+      />
 
       {selectedOutfit && (
         <OutfitDetailModal

@@ -5,6 +5,7 @@ import type {
   ColorMode,
   FashionItemAttributes,
 } from '@closet/types'
+import type { RecentWearReminderRequest } from '../features/plan/utils/recentWearReminder'
 
 export interface ClassificationCandidate {
   itemId: string
@@ -38,17 +39,29 @@ const TOAST_EXIT_DURATION_MS = 260
 interface UiState {
   classificationQueue: ClassificationCandidate[]
   toasts: Toast[]
+  recentWearConfirmation: RecentWearReminderRequest | null
+  recentWearConfirmationOwnerId: string | null
+  recentWearConfirmationResolver: ((confirmed: boolean) => void) | null
   enqueueClassification: (candidate: ClassificationCandidate) => void
   completeClassification: () => void
   cancelClassification: () => void
   disposeClassificationImages: () => void
   pushToast: (message: string, variant?: Toast['variant']) => void
   dismissToast: (id: string) => void
+  requestRecentWearConfirmation: (
+    reminder: RecentWearReminderRequest,
+    ownerId: string,
+  ) => Promise<boolean>
+  cancelRecentWearConfirmation: (ownerId: string) => void
+  resolveRecentWearConfirmation: (confirmed: boolean) => void
 }
 
 export const useUiStore = create<UiState>((set, get) => ({
   classificationQueue: [],
   toasts: [],
+  recentWearConfirmation: null,
+  recentWearConfirmationOwnerId: null,
+  recentWearConfirmationResolver: null,
   enqueueClassification: (candidate) =>
     set((state) => ({
       classificationQueue: [...state.classificationQueue, candidate],
@@ -103,5 +116,40 @@ export const useUiStore = create<UiState>((set, get) => ({
         toasts: state.toasts.filter((item) => item.id !== id),
       }))
     }, TOAST_EXIT_DURATION_MS)
+  },
+  requestRecentWearConfirmation: (reminder, ownerId) => {
+    if (get().recentWearConfirmationResolver) {
+      return Promise.resolve(false)
+    }
+
+    return new Promise<boolean>((resolve) => {
+      set({
+        recentWearConfirmation: reminder,
+        recentWearConfirmationOwnerId: ownerId,
+        recentWearConfirmationResolver: resolve,
+      })
+    })
+  },
+  cancelRecentWearConfirmation: (ownerId) => {
+    const state = get()
+    if (state.recentWearConfirmationOwnerId !== ownerId) return
+
+    set({
+      recentWearConfirmation: null,
+      recentWearConfirmationOwnerId: null,
+      recentWearConfirmationResolver: null,
+    })
+    state.recentWearConfirmationResolver?.(false)
+  },
+  resolveRecentWearConfirmation: (confirmed) => {
+    const resolve = get().recentWearConfirmationResolver
+    if (!resolve) return
+
+    set({
+      recentWearConfirmation: null,
+      recentWearConfirmationOwnerId: null,
+      recentWearConfirmationResolver: null,
+    })
+    resolve(confirmed)
   },
 }))

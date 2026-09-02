@@ -58,12 +58,17 @@ export type FashionTexture =
 
 export type FashionWarmth = 'light' | 'medium' | 'heavy' | 'unknown'
 
+export type FashionTrimPresence = 'present' | 'absent' | 'unknown'
+
 export interface FashionItemAttributes {
   layerRole: FashionLayerRole
   silhouette: FashionSilhouette
   pattern: FashionPattern
   material: FashionMaterial
   texture?: FashionTexture
+  ribbedCuffs?: FashionTrimPresence | null
+  ribbedHem?: FashionTrimPresence | null
+  ribbedNeckline?: FashionTrimPresence | null
   warmth: FashionWarmth
   formality: number
   confidence: number
@@ -179,6 +184,22 @@ export interface TodayOutfitRecommendation {
   profileSummary: string[]
   model: string
   source: 'ai' | 'fallback'
+  weather?: WeatherSnapshot | null
+}
+
+export interface WeatherSnapshot {
+  date: string
+  temperatureC: number
+  minTemperatureC: number
+  maxTemperatureC: number
+  apparentTemperatureC: number
+  precipitationProbability: number | null
+  weatherCode: number
+  summary: string
+  recommendedSeason: Season
+  source: 'open-meteo'
+  attribution: string
+  attributionUrl: string
 }
 
 export interface OutfitPreview {

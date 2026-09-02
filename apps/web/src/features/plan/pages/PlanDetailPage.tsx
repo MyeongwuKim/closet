@@ -7,8 +7,10 @@ import {
   ImagePlus,
   LoaderCircle,
   Sparkles,
+  Trash2,
 } from 'lucide-react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { useUiStore } from '../../../stores/useUiStore'
 import { useClosetStore } from '../../closet/stores/useClosetStore'
 import { useGenerateOutfitPreviewMutation } from '../../lookbook/api/lookbookQueries'
@@ -17,6 +19,7 @@ import { SavedOutfitPreviewDialog } from '../../lookbook/components/SavedOutfitP
 import { getOutfitCompletionMessage } from '../../lookbook/utils/outfitComposition'
 import {
   usePlannerWeekQuery,
+  useClearPlannerEntryMutation,
   useSavePlannerOutfitToLookbookMutation,
   useSetDirectPlannerEntryMutation,
 } from '../api/plannerQueries'
@@ -24,6 +27,7 @@ import {
   createEmptyWeeklyPlan,
   getCurrentWeekStart,
 } from '../data/weeklyPlan'
+import { useRecentWearReminder } from '../hooks/useRecentWearReminder'
 import { usePlanStore } from '../stores/usePlanStore'
 
 export function PlanDetailPage() {
@@ -35,14 +39,19 @@ export function PlanDetailPage() {
   const setWeek = usePlanStore((state) => state.setWeek)
   const hydrateEntries = usePlanStore((state) => state.hydrateEntries)
   const setEntryItems = usePlanStore((state) => state.setEntryItems)
+  const clearOutfit = usePlanStore((state) => state.clearOutfit)
   const pushToast = useUiStore((state) => state.pushToast)
   const [isLookbookOpen, setIsLookbookOpen] = useState(false)
+  const [isRemoveConfirmOpen, setIsRemoveConfirmOpen] = useState(false)
   const [generatedPreview, setGeneratedPreview] = useState<OutfitPreview | null>(
     null,
   )
   const [isPromoted, setIsPromoted] = useState(false)
   const generatePreview = useGenerateOutfitPreviewMutation()
   const setDirectPlannerEntry = useSetDirectPlannerEntryMutation()
+  const { confirmRecentWear, isCheckingRecentWear } =
+    useRecentWearReminder()
+  const clearPlannerEntry = useClearPlannerEntryMutation()
   const saveToLookbook = useSavePlannerOutfitToLookbookMutation()
   const parsedDate = date ? new Date(`${date}T00:00:00`) : null
   const weekStartsOn =
@@ -75,6 +84,11 @@ export function PlanDetailPage() {
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
+      if (useUiStore.getState().recentWearConfirmation) return
+      if (isRemoveConfirmOpen) {
+        setIsRemoveConfirmOpen(false)
+        return
+      }
       if (isLookbookOpen) {
         setIsLookbookOpen(false)
         return
@@ -88,7 +102,7 @@ export function PlanDetailPage() {
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [backPath, isLookbookOpen, navigate])
+  }, [backPath, isLookbookOpen, isRemoveConfirmOpen, navigate])
 
   if (!entry) return null
 
@@ -107,6 +121,7 @@ export function PlanDetailPage() {
   const isSavedToLookbook = Boolean(
     entry.outfitId && (!entry.plannerOnly || isPromoted),
   )
+  const hasPlannerOutfit = Boolean(entry.outfitId || entry.itemIds.length > 0)
   const entryDate = new Date(`${entry.date}T00:00:00`)
   const formattedDate = new Intl.DateTimeFormat('ko-KR', {
     month: 'long',
@@ -144,6 +159,14 @@ export function PlanDetailPage() {
       pushToast(outfitCompletionMessage, 'error')
       return
     }
+
+    const confirmed = await confirmRecentWear({
+      itemIds: outfitItems.map((item) => item.id),
+      targetDate: entry.date,
+      confirmLabel: '그래도 저장',
+      cancelLabel: '코디 다시 고르기',
+    })
+    if (!confirmed) return
 
     try {
       const nextEntries = await setDirectPlannerEntry.mutateAsync({
@@ -200,6 +223,31 @@ export function PlanDetailPage() {
     }
   }
 
+  const removeFromPlanner = async () => {
+    if (clearPlannerEntry.isPending) return
+
+    try {
+      if (entry.outfitId && /^[a-f\d]{24}$/i.test(entry.outfitId)) {
+        await clearPlannerEntry.mutateAsync({
+          weekStartsOn,
+          date: entry.date,
+        })
+      }
+      clearOutfit(entry.date)
+      setGeneratedPreview(null)
+      setIsLookbookOpen(false)
+      pushToast(`${formattedDate} 코디를 플래너에서 뺐어요.`, 'success')
+      navigate(backPath)
+    } catch (error) {
+      pushToast(
+        error instanceof Error
+          ? error.message
+          : '플래너에서 코디를 빼지 못했습니다.',
+        'error',
+      )
+    }
+  }
+
   return (
     <section
       className="classification-page-enter fixed inset-0 z-[80] flex h-dvh flex-col overflow-hidden bg-canvas"
@@ -218,7 +266,7 @@ export function PlanDetailPage() {
           >
             <ChevronLeft size={25} strokeWidth={2.2} />
           </button>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h1 className="truncate text-lg font-black tracking-[-0.03em]">
               {entryTitle}
             </h1>
@@ -227,6 +275,21 @@ export function PlanDetailPage() {
               {entry.occasion ? ` · ${entry.occasion}` : ''}
             </p>
           </div>
+          {hasPlannerOutfit && (
+            <button
+              type="button"
+              onClick={() => setIsRemoveConfirmOpen(true)}
+              disabled={clearPlannerEntry.isPending}
+              className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-[#fff0ec] hover:text-accent disabled:cursor-wait disabled:opacity-40"
+              aria-label="이 날짜에서 코디 빼기"
+            >
+              {clearPlannerEntry.isPending ? (
+                <LoaderCircle className="animate-spin" size={18} />
+              ) : (
+                <Trash2 size={18} />
+              )}
+            </button>
+          )}
         </div>
       </header>
 
@@ -287,6 +350,7 @@ export function PlanDetailPage() {
               isEmpty ||
               Boolean(outfitCompletionMessage) ||
               isSavedToLookbook ||
+              isCheckingRecentWear ||
               setDirectPlannerEntry.isPending ||
               saveToLookbook.isPending
             }
@@ -297,16 +361,30 @@ export function PlanDetailPage() {
             ) : isPlannerOnly ? (
               <BookHeart size={17} />
             ) : null}
-            {setDirectPlannerEntry.isPending || saveToLookbook.isPending
+            {isCheckingRecentWear ||
+            setDirectPlannerEntry.isPending ||
+            saveToLookbook.isPending
               ? '저장 중...'
               : isSavedToLookbook
                 ? '코디북 저장됨'
-                : isPlannerOnly
+              : isPlannerOnly
                   ? '코디북에 추가'
                   : '변경사항 저장'}
           </button>
         </div>
       </footer>
+
+      {isRemoveConfirmOpen && (
+        <ConfirmDialog
+          title="이 날짜에서 코디를 뺄까요?"
+          description={`코디북에 저장된 코디는 삭제되지 않고, ${formattedDate} 플래너에서만 빠져요.`}
+          confirmLabel="플래너에서 빼기"
+          pendingLabel="플래너에서 빼는 중..."
+          isPending={clearPlannerEntry.isPending}
+          onCancel={() => setIsRemoveConfirmOpen(false)}
+          onConfirm={() => void removeFromPlanner()}
+        />
+      )}
 
       {isLookbookOpen && previewImageUrl && (
         <SavedOutfitPreviewDialog

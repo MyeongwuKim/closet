@@ -1,9 +1,16 @@
+/**
+ * 용도:
+ * 옷장 이미지의 형식과 크기를 확인하고 옷 분류·배경 제거·사이즈표 분석을 연결한다.
+ *
+ * 요청 흐름:
+ * 이미지를 검증한 뒤 옷 분류 AI가 상품 사진과 사람 착용 사진을 구분하고,
+ * 등록 가능한 상품 사진에는 분류 결과와 배경 제거 이미지를 함께 반환한다.
+ */
 import type { ClothingCategory } from '@closet/types'
 import { ServiceError } from '../../graphql/errors.js'
 import { removeImageBackground } from './backgroundRemover.js'
 import { analyzeGarmentSizeChartWithOpenAi } from './openAiGarmentSizeAnalyzer.js'
 import { classifyWardrobeImageWithOpenAi } from './openAiWardrobeClassifier.js'
-import { containsPerson } from './personDetector.js'
 
 const SUPPORTED_IMAGE_TYPES = new Set([
   'image/jpeg',
@@ -49,13 +56,6 @@ function decodeImage(input: ClassifyWardrobeImageInput) {
 export const classificationService = {
   async classify(input: ClassifyWardrobeImageInput) {
     const image = decodeImage(input)
-
-    if (await containsPerson(image, input.mimeType)) {
-      throw new ServiceError(
-        '사람이 포함된 이미지예요. 옷만 나온 사진을 올려주세요.',
-        'PERSON_DETECTED',
-      )
-    }
 
     const [classification, cutout] = await Promise.all([
       classifyWardrobeImageWithOpenAi(image, input.mimeType),

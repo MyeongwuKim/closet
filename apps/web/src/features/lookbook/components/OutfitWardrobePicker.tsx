@@ -1,5 +1,6 @@
 import type { WardrobeItem } from '@closet/types'
-import { CalendarDays, Check, ChevronLeft, Shirt } from 'lucide-react'
+import { CalendarDays, Check, ChevronLeft } from 'lucide-react'
+import { ClothingCategoryIcon } from '../../../components/ClothingCategoryIcon'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { formatRecentWearLabel } from '../../../utils/wearDate'
 import { ClosetItemVisual } from '../../closet/components/ClosetItemVisual'
@@ -219,7 +220,10 @@ export function OutfitWardrobePicker({
           ) : (
             <div className="rounded-3xl border border-dashed border-line bg-surface px-6 py-14 text-center">
               <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-sage">
-                <Shirt size={24} />
+                <ClothingCategoryIcon
+                  category={slot.iconCategory}
+                  size={26}
+                />
               </span>
               <h2 className="mt-5 text-lg font-black">
                 고를 수 있는 {slot.label}가 없어요

@@ -15,9 +15,10 @@ import { PlanDayRowDragLayer } from '../components/PlanDayRowDragLayer'
 import { PlanMonthCalendar } from '../components/PlanMonthCalendar'
 import { PlanPageHeader } from '../components/PlanPageHeader'
 import { PlanPeriodHeader } from '../components/PlanPeriodHeader'
+import { PlanPeriodSkeleton } from '../components/PlanPeriodSkeleton'
 import { PlanViewToggle } from '../components/PlanViewToggle'
 import { WeeklyPlanEditor } from '../components/WeeklyPlanEditor'
-import { TodayOutfitRecommendationCard } from '../components/TodayOutfitRecommendationCard'
+import { OutfitRecommendationActions } from '../components/OutfitRecommendationActions'
 import {
   usePlannerEntriesQuery,
   usePlannerWeekQuery,
@@ -45,11 +46,13 @@ const weeklyPlanDndOptions = {
 
 interface DisplayPlanRow {
   key: string
+  weekStartsOn: string
   entry: PlanEntry
 }
 
 function createDisplayRows(entries: PlanEntry[]): DisplayPlanRow[] {
   const identityCounts = new Map<string, number>()
+  const weekStartsOn = entries[0]?.date ?? ''
 
   return entries.map((entry) => {
     const identity = entry.outfitId ? `outfit-${entry.outfitId}` : 'empty'
@@ -58,6 +61,7 @@ function createDisplayRows(entries: PlanEntry[]): DisplayPlanRow[] {
 
     return {
       key: `${identity}-${occurrence}`,
+      weekStartsOn,
       entry,
     }
   })
@@ -79,6 +83,7 @@ export function PlanPage() {
   const isDraggingRowRef = useRef(false)
   const rowListRef = useRef<HTMLDivElement>(null)
   const previousRowRectsRef = useRef<Map<string, DOMRect>>(new Map())
+  const shouldAnimateRowReorderRef = useRef(false)
   const displayWeekStartRef = useRef(entries[0]?.date ?? '')
   const [isEditingWeek, setIsEditingWeek] = useState(false)
   const [transitionDirection, setTransitionDirection] = useState<
@@ -87,8 +92,6 @@ export function PlanPage() {
   const today = formatDateOnly(new Date())
   const viewMode = searchParams.get('view') === 'month' ? 'month' : 'week'
   const weekStartsOn = entries[0]?.date ?? ''
-  const currentWeekStartsOn = getCurrentWeekStart()
-  const isCurrentWeek = weekStartsOn === currentWeekStartsOn
   const requestedMonth = searchParams.get('month')
   const monthKey = /^\d{4}-\d{2}$/.test(requestedMonth ?? '')
     ? (requestedMonth as string)
@@ -100,20 +103,11 @@ export function PlanPage() {
     weekStartsOn,
     viewMode === 'week',
   )
-  const todayPlannerWeekQuery = usePlannerWeekQuery(
-    currentWeekStartsOn,
-    viewMode !== 'week' || !isCurrentWeek,
-  )
   const plannerEntriesQuery = usePlannerEntriesQuery(
     monthRangeStart,
     monthRangeEnd,
     viewMode === 'month',
   )
-  const todayEntry = (
-    viewMode === 'week' && isCurrentWeek
-      ? entries
-      : (todayPlannerWeekQuery.data ?? [])
-  ).find((entry) => entry.date === today)
 
   useEffect(() => {
     if (plannerWeekQuery.data?.length) {
@@ -131,6 +125,8 @@ export function PlanPage() {
     const nextWeekStart = entries[0]?.date ?? ''
     if (displayWeekStartRef.current !== nextWeekStart) {
       displayWeekStartRef.current = nextWeekStart
+      shouldAnimateRowReorderRef.current = false
+      previousRowRectsRef.current.clear()
       setDisplayRows(createDisplayRows(entries))
       return
     }
@@ -150,7 +146,13 @@ export function PlanPage() {
       if (rowKey) nextRects.set(rowKey, element.getBoundingClientRect())
     })
 
-    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const shouldAnimateRowReorder = shouldAnimateRowReorderRef.current
+    shouldAnimateRowReorderRef.current = false
+
+    if (
+      shouldAnimateRowReorder &&
+      !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
       rowElements.forEach((element) => {
         const rowKey = element.dataset.planRowKey
         if (!rowKey) return
@@ -183,7 +185,17 @@ export function PlanPage() {
   }, [])
 
   const moveRowPreview = useCallback((fromIndex: number, toIndex: number) => {
+    shouldAnimateRowReorderRef.current = true
     setDisplayRows((current) => moveArrayItem(current, fromIndex, toIndex))
+  }, [])
+
+  const restoreDisplayRows = useCallback((nextRows: DisplayPlanRow[]) => {
+    setDisplayRows((currentRows) => {
+      shouldAnimateRowReorderRef.current = currentRows.some(
+        (row, index) => row.key !== nextRows[index]?.key,
+      )
+      return nextRows
+    })
   }, [])
 
   const finishRowDrag = useCallback(
@@ -199,7 +211,7 @@ export function PlanPage() {
         sourceIndex === targetIndex ||
         movePlannerEntry.isPending
       ) {
-        setDisplayRows(dragStartRowsRef.current)
+        restoreDisplayRows(dragStartRowsRef.current)
         return
       }
 
@@ -208,7 +220,7 @@ export function PlanPage() {
         source.date,
         target.date,
       )
-      setDisplayRows(createDisplayRows(movedEntries))
+      restoreDisplayRows(createDisplayRows(movedEntries))
 
       void movePlannerEntry
         .mutateAsync({
@@ -223,11 +235,11 @@ export function PlanPage() {
           )
         })
         .catch(() => {
-          setDisplayRows(dragStartRowsRef.current)
+          restoreDisplayRows(dragStartRowsRef.current)
           pushToast('코디 위치를 바꾸지 못했어요. 다시 시도해주세요.', 'error')
         })
     },
-    [entries, movePlannerEntry, pushToast, weekStartsOn],
+    [entries, movePlannerEntry, pushToast, restoreDisplayRows, weekStartsOn],
   )
 
   const moveWeek = (dayOffset: number) => {
@@ -280,44 +292,46 @@ export function PlanPage() {
         : 'plan-view-switch-enter'
   const periodTransitionKey =
     viewMode === 'week' ? `week-${weekStartsOn}` : `month-${monthKey}`
+  const currentWeekRows =
+    displayRows[0]?.weekStartsOn === weekStartsOn
+      ? displayRows
+      : createDisplayRows(entries)
 
   return (
     <section
-      className={`mx-auto max-w-3xl ${
+      className={`mx-auto max-w-3xl pb-16 ${
         viewMode === 'week'
           ? 'flex h-[calc(100dvh-6.625rem-env(safe-area-inset-bottom))] flex-col sm:block sm:h-auto'
           : ''
       }`}
     >
       <PlanPageHeader viewMode={viewMode} onEditWeek={openWeekEditor} />
-      <TodayOutfitRecommendationCard
-        date={today}
-        hasTodayOutfit={Boolean(todayEntry?.itemIds.length)}
-      />
+      {!isEditingWeek && <OutfitRecommendationActions />}
       <PlanViewToggle value={viewMode} onChange={changeViewMode} />
+      <PlanPeriodHeader
+        viewMode={viewMode}
+        anchorDate={viewMode === 'week' ? weekStartsOn : `${monthKey}-01`}
+        onPrevious={() =>
+          viewMode === 'week' ? moveWeek(-7) : moveMonth(-1)
+        }
+        onNext={() => (viewMode === 'week' ? moveWeek(7) : moveMonth(1))}
+      />
       <div
         key={periodTransitionKey}
         className={`${periodTransitionClass} ${
           viewMode === 'week' ? 'flex min-h-0 flex-1 flex-col' : ''
         }`}
       >
-        <PlanPeriodHeader
-          viewMode={viewMode}
-          anchorDate={viewMode === 'week' ? weekStartsOn : `${monthKey}-01`}
-          onPrevious={() =>
-            viewMode === 'week' ? moveWeek(-7) : moveMonth(-1)
-          }
-          onNext={() => (viewMode === 'week' ? moveWeek(7) : moveMonth(1))}
-        />
-
-        {viewMode === 'week' ? (
+        {viewMode === 'week' && plannerWeekQuery.isPending ? (
+          <PlanPeriodSkeleton viewMode="week" />
+        ) : viewMode === 'week' ? (
           <DndProvider backend={TouchBackend} options={weeklyPlanDndOptions}>
             <PlanDayRowDragLayer />
             <div
               ref={rowListRef}
               className="mt-2 grid min-h-0 flex-1 grid-rows-7 gap-2 pb-2 sm:mt-4 sm:flex-none sm:grid-rows-none sm:gap-3 sm:pb-0"
             >
-              {displayRows.map((row, index) => {
+              {currentWeekRows.map((row, index) => {
                 const dateEntry = entries[index] ?? row.entry
                 const displayEntry = placePlanOutfitInDate(
                   dateEntry,
@@ -363,10 +377,8 @@ export function PlanPage() {
               다시 불러오기
             </button>
           </div>
-        ) : plannerEntriesQuery.isLoading ? (
-          <div className="mt-4 flex min-h-80 items-center justify-center rounded-3xl border border-line bg-surface text-sm font-bold text-muted">
-            월간 플래너를 불러오는 중...
-          </div>
+        ) : plannerEntriesQuery.isPending ? (
+          <PlanPeriodSkeleton viewMode="month" />
         ) : (
           <PlanMonthCalendar
             days={monthDays}

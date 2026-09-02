@@ -8,6 +8,7 @@ export interface TodayRecommendationHistoryEntry {
   season: Season
   style: OutfitStyle
   variation: number
+  baseItemId?: string
   recommendation: TodayOutfitRecommendation
 }
 
@@ -20,8 +21,23 @@ function getStorageKey(
   date: string,
   season: Season,
   style: OutfitStyle,
+  baseItemId?: string,
 ) {
-  return `${TODAY_RECOMMENDATION_STORAGE_PREFIX}:${viewerId}:${date}:${season}:${style}`
+  const scope = baseItemId !== undefined
+    ? `:base:${encodeURIComponent(baseItemId)}`
+    : ''
+  return `${TODAY_RECOMMENDATION_STORAGE_PREFIX}:${viewerId}:${date}:${season}:${style}${scope}`
+}
+
+export function matchesTodayRecommendationBaseItem(
+  recommendation: TodayOutfitRecommendation,
+  baseItemId?: string,
+) {
+  return (
+    baseItemId === undefined ||
+    (Array.isArray(recommendation.items) &&
+      recommendation.items.some((item) => item?.id === baseItemId))
+  )
 }
 
 export function getTodayRecommendationItemKey(
@@ -38,6 +54,7 @@ function isHistoryEntry(
   date: string,
   season: Season,
   style: OutfitStyle,
+  baseItemId?: string,
 ): value is TodayRecommendationHistoryEntry {
   if (!value || typeof value !== 'object') return false
 
@@ -48,11 +65,25 @@ function isHistoryEntry(
     entry.date === date &&
     entry.season === season &&
     entry.style === style &&
+    entry.baseItemId === baseItemId &&
     Number.isInteger(entry.variation) &&
     Boolean(entry.recommendation) &&
     entry.recommendation?.date === date &&
     entry.recommendation.season === season &&
-    Array.isArray(entry.recommendation.items)
+    entry.recommendation.style === style &&
+    entry.recommendation.ready === true &&
+    typeof entry.recommendation.headline === 'string' &&
+    typeof entry.recommendation.summary === 'string' &&
+    Array.isArray(entry.recommendation.reasons) &&
+    entry.recommendation.reasons.every(
+      (reason) => typeof reason === 'string',
+    ) &&
+    Array.isArray(entry.recommendation.items) &&
+    entry.recommendation.items.length > 0 &&
+    entry.recommendation.items.every(
+      (item) => item && typeof item.id === 'string',
+    ) &&
+    matchesTodayRecommendationBaseItem(entry.recommendation, baseItemId)
   )
 }
 
@@ -61,10 +92,11 @@ export function readTodayRecommendationHistory(
   date: string,
   season: Season,
   style: OutfitStyle,
+  baseItemId?: string,
 ): TodayRecommendationHistoryEntry[] {
   try {
     const rawValue = window.localStorage.getItem(
-      getStorageKey(viewerId, date, season, style),
+      getStorageKey(viewerId, date, season, style, baseItemId),
     )
     if (!rawValue) return []
 
@@ -72,16 +104,19 @@ export function readTodayRecommendationHistory(
     if (!Array.isArray(stored)) return []
 
     return stored
-      .filter((entry) => isHistoryEntry(entry, date, season, style))
+      .filter((entry) =>
+        isHistoryEntry(entry, date, season, style, baseItemId),
+      )
       .slice(0, MAX_TODAY_RECOMMENDATION_HISTORY)
   } catch {
     return []
   }
 }
 
-export function readRecentTodayRecommendationHistory(
+function readRecentRecommendationHistory(
   viewerId: string,
   date: string,
+  scope?: { baseItemId?: string },
 ): TodayRecommendationHistoryEntry[] {
   const storageKeyPrefix = `${TODAY_RECOMMENDATION_STORAGE_PREFIX}:${viewerId}:${date}:`
   const entries: TodayRecommendationHistoryEntry[] = []
@@ -91,7 +126,12 @@ export function readRecentTodayRecommendationHistory(
       const key = window.localStorage.key(index)
       if (!key?.startsWith(storageKeyPrefix)) continue
 
-      const stored: unknown = JSON.parse(window.localStorage.getItem(key) ?? '')
+      let stored: unknown
+      try {
+        stored = JSON.parse(window.localStorage.getItem(key) ?? '')
+      } catch {
+        continue
+      }
       if (!Array.isArray(stored)) continue
 
       stored.forEach((value) => {
@@ -101,13 +141,29 @@ export function readRecentTodayRecommendationHistory(
         if (
           typeof entry.season !== 'string' ||
           typeof entry.style !== 'string' ||
+          (entry.baseItemId !== undefined && typeof entry.baseItemId !== 'string') ||
+          (scope !== undefined && entry.baseItemId !== scope.baseItemId) ||
           !isHistoryEntry(
             value,
             date,
             entry.season as Season,
             entry.style as OutfitStyle,
+            entry.baseItemId,
           )
         ) {
+          return
+        }
+
+        try {
+          const expectedKey = getStorageKey(
+            viewerId,
+            date,
+            value.season,
+            value.style,
+            value.baseItemId,
+          )
+          if (key !== expectedKey) return
+        } catch {
           return
         }
 
@@ -127,6 +183,21 @@ export function readRecentTodayRecommendationHistory(
     .slice(0, MAX_TODAY_RECOMMENDATION_HISTORY)
 }
 
+export function readRecentTodayRecommendationHistory(
+  viewerId: string,
+  date: string,
+  baseItemId?: string,
+): TodayRecommendationHistoryEntry[] {
+  return readRecentRecommendationHistory(viewerId, date, { baseItemId })
+}
+
+export function readAllRecentTodayRecommendationHistory(
+  viewerId: string,
+  date: string,
+): TodayRecommendationHistoryEntry[] {
+  return readRecentRecommendationHistory(viewerId, date)
+}
+
 export function storeTodayRecommendation(
   viewerId: string,
   date: string,
@@ -134,13 +205,26 @@ export function storeTodayRecommendation(
   style: OutfitStyle,
   variation: number,
   recommendation: TodayOutfitRecommendation,
+  baseItemId?: string,
 ) {
   const history = readTodayRecommendationHistory(
     viewerId,
     date,
     season,
     style,
+    baseItemId,
   )
+  if (
+    !recommendation.ready ||
+    !Array.isArray(recommendation.items) ||
+    recommendation.items.length === 0 ||
+    !recommendation.items.every(
+      (item) => item && typeof item.id === 'string',
+    ) ||
+    !matchesTodayRecommendationBaseItem(recommendation, baseItemId)
+  ) {
+    return history
+  }
   const itemKey = getTodayRecommendationItemKey(recommendation)
   const existingEntry = history.find(
     (entry) => getTodayRecommendationItemKey(entry.recommendation) === itemKey,
@@ -154,6 +238,7 @@ export function storeTodayRecommendation(
     season,
     style,
     variation,
+    ...(baseItemId !== undefined ? { baseItemId } : {}),
     recommendation,
   }
   const nextHistory = [
@@ -166,7 +251,7 @@ export function storeTodayRecommendation(
 
   try {
     window.localStorage.setItem(
-      getStorageKey(viewerId, date, season, style),
+      getStorageKey(viewerId, date, season, style, baseItemId),
       JSON.stringify(nextHistory),
     )
     return nextHistory

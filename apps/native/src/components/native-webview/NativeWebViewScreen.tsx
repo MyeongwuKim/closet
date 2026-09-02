@@ -1,3 +1,12 @@
+/**
+ * 사용 위치: 로그인 완료 → 네이티브 앱 메인 화면
+ *
+ * 용도:
+ * 웹 앱을 WebView로 표시하고 네이티브 브리지와 딥 링크를 연결한다.
+ *
+ * 구조:
+ * WebView와 로딩·오류 화면으로 구성되어 있다.
+ */
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 import WebView from 'react-native-webview'

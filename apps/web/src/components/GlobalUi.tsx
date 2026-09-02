@@ -10,6 +10,7 @@ import { useOutfitsQuery } from '../features/lookbook/api/lookbookQueries'
 import { useLookbookStore } from '../features/lookbook/stores/useLookbookStore'
 import { useUiStore } from '../stores/useUiStore'
 import type { GarmentSizeInput } from '../features/closet/utils/garmentSize'
+import { RecentWearReminderDialog } from '../features/plan/components/RecentWearReminderDialog'
 
 export function GlobalUi() {
   const { pathname } = useLocation()
@@ -76,6 +77,7 @@ export function GlobalUi() {
           onConfirm={handleConfirm}
         />
       )}
+      <RecentWearReminderDialog />
       <ToastViewport />
     </>
   )

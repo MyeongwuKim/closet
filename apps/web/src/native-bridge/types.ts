@@ -19,6 +19,33 @@ export interface NativeAppInfo {
   capabilities: string[]
 }
 
+export interface NativeWardrobePhotoAsset {
+  base64: string
+  fileName: string
+  mimeType: 'image/jpeg'
+  width: number
+  height: number
+  fileSize?: number
+}
+
+export type NativeCaptureWardrobePhotoResult =
+  | { status: 'captured'; asset: NativeWardrobePhotoAsset }
+  | { status: 'cancelled' }
+  | { status: 'permission-denied'; canAskAgain: boolean }
+  | { status: 'error'; code?: string; message: string }
+
+export type CurrentLocationResult =
+  | {
+      status: 'available'
+      latitude: number
+      longitude: number
+      accuracy: number | null
+      timestamp: number
+    }
+  | { status: 'permission-denied'; canAskAgain: boolean }
+  | { status: 'services-disabled' }
+  | { status: 'error'; code?: string; message: string }
+
 export interface ClosetNativeBridge {
   requestGraphql: (
     query: string,
@@ -30,8 +57,10 @@ export interface ClosetNativeBridge {
   requestPermission: (
     permission: 'notifications' | 'location',
   ) => Promise<NativePermissionStatus>
+  getCurrentLocation: () => Promise<CurrentLocationResult>
   openExternalUrl: (url: string) => Promise<void>
   setAuthSession: (accessToken: string | null) => Promise<void>
+  captureWardrobePhoto: () => Promise<NativeCaptureWardrobePhotoResult>
 }
 
 export interface ClosetRuntimeConfig {

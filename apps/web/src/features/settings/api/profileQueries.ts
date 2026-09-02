@@ -1,3 +1,10 @@
+/**
+ * 용도:
+ * 로그인 사용자의 스타일 프로필과 최근 착용 리마인드 설정을 조회하고 저장한다.
+ *
+ * 동작 방식:
+ * Viewer 데이터를 React Query에 보관하고 설정 저장 성공 시 같은 캐시를 갱신한다.
+ */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { OutfitStyle } from '../../../constants/styleOptions'
 import { graphqlRequest } from '../../../lib/graphql'
@@ -7,6 +14,13 @@ import type {
   Gender,
   PreferredFit,
 } from '../stores/useStyleProfileStore'
+
+export interface WearReminderPreferences {
+  enabled: boolean
+  intervalDays: number
+  combinationReminderEnabled: boolean
+  itemReminderEnabled: boolean
+}
 
 export interface ViewerProfile {
   id: string
@@ -26,6 +40,7 @@ export interface ViewerProfile {
     preferredFit: PreferredFit
     preferredStyles: OutfitStyle[]
   }
+  wearReminderPreferences: WearReminderPreferences
 }
 
 export interface UpdateStyleProfileVariables {
@@ -41,6 +56,8 @@ export interface UpdateStyleProfileVariables {
   preferredFit: PreferredFit
   preferredStyles: OutfitStyle[]
 }
+
+export type UpdateWearReminderPreferencesVariables = WearReminderPreferences
 
 const viewerFields = `
   id
@@ -59,6 +76,12 @@ const viewerFields = `
     inseamCm
     preferredFit
     preferredStyles
+  }
+  wearReminderPreferences {
+    enabled
+    intervalDays
+    combinationReminderEnabled
+    itemReminderEnabled
   }
 `
 
@@ -94,6 +117,32 @@ export function useUpdateStyleProfileMutation() {
         { input },
       )
       return data.updateMyStyleProfile
+    },
+    onSuccess: (viewer) => {
+      queryClient.setQueryData(queryKeys.me, viewer)
+    },
+  })
+}
+
+export function useUpdateWearReminderPreferencesMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (input: UpdateWearReminderPreferencesVariables) => {
+      const data = await graphqlRequest<
+        { updateWearReminderPreferences: ViewerProfile },
+        { input: UpdateWearReminderPreferencesVariables }
+      >(
+        `
+          mutation UpdateWearReminderPreferences(
+            $input: UpdateWearReminderPreferencesInput!
+          ) {
+            updateWearReminderPreferences(input: $input) { ${viewerFields} }
+          }
+        `,
+        { input },
+      )
+      return data.updateWearReminderPreferences
     },
     onSuccess: (viewer) => {
       queryClient.setQueryData(queryKeys.me, viewer)

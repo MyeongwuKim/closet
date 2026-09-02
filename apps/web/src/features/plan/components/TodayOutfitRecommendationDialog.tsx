@@ -14,16 +14,19 @@ import { OutfitPreviewDialogView } from '../../lookbook/components/OutfitPreview
 import { useGenerateOutfitPreviewMutation } from '../../lookbook/api/lookbookQueries'
 import type { OutfitPreviewState } from '../../lookbook/contexts/OutfitComposerContext'
 import { getOutfitCompletionMessage } from '../../lookbook/utils/outfitComposition'
+import { useUiStore } from '../../../stores/useUiStore'
 
 interface TodayOutfitRecommendationDialogProps {
   date: string
   title?: string
+  backLabel?: string
   items: WardrobeItem[]
   initialItems: WardrobeItem[]
   style: OutfitStyle
   hasTodayOutfit: boolean
   isSaving: boolean
   onClose: () => void
+  onApplied?: () => void
   onApply: (
     items: WardrobeItem[],
     previewImage?: OutfitPreview,
@@ -45,12 +48,14 @@ function createPreviewState(): OutfitPreviewState {
 export function TodayOutfitRecommendationDialog({
   date,
   title = '오늘의 추천 코디',
+  backLabel = '추천 코디로 돌아가기',
   items,
   initialItems,
   style,
   hasTodayOutfit,
   isSaving,
   onClose,
+  onApplied,
   onApply,
 }: TodayOutfitRecommendationDialogProps) {
   const [selectedItems, setSelectedItems] = useState(initialItems)
@@ -79,6 +84,7 @@ export function TodayOutfitRecommendationDialog({
           model: preview.model,
         }
       : undefined
+  const handleApplied = onApplied ?? onClose
 
   const generatePreview = () => {
     if (completionMessage || generateOutfitPreview.isPending) return
@@ -138,7 +144,12 @@ export function TodayOutfitRecommendationDialog({
     document.body.style.overflow = 'hidden'
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (
+        event.key === 'Escape' &&
+        !useUiStore.getState().recentWearConfirmation
+      ) {
+        onClose()
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
@@ -162,7 +173,7 @@ export function TodayOutfitRecommendationDialog({
             type="button"
             onClick={onClose}
             className="flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-surface"
-            aria-label="추천 코디로 돌아가기"
+            aria-label={backLabel}
             autoFocus
           >
             <ChevronLeft size={25} strokeWidth={2.2} />
@@ -223,7 +234,7 @@ export function TodayOutfitRecommendationDialog({
               onClick={async () => {
                 if (completionMessage) return
                 const didApply = await onApply(selectedItems, generatedPreview)
-                if (didApply) onClose()
+                if (didApply) handleApplied()
               }}
               disabled={Boolean(completionMessage) || isSaving}
               className="flex items-center justify-center gap-1.5 rounded-xl bg-accent px-3 py-3.5 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
@@ -254,7 +265,7 @@ export function TodayOutfitRecommendationDialog({
           void onApply(selectedItems, generatedPreview).then((didApply) => {
             if (!didApply) return
             setPreview((current) => ({ ...current, isOpen: false }))
-            onClose()
+            handleApplied()
           })
         }}
         primaryLabel={hasTodayOutfit ? '오늘 코디 바꾸기' : '오늘 일정에 추가'}

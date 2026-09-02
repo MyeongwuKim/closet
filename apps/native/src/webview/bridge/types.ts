@@ -24,6 +24,31 @@ export interface NativeRequestPermissionRequest {
   permission: 'notifications' | 'location'
 }
 
+export interface NativeCurrentLocationRequest {
+  type: 'closet:native-current-location'
+  id: string
+}
+
+export interface NativeCaptureWardrobePhotoRequest {
+  type: 'closet:native-capture-wardrobe-photo'
+  id: string
+}
+
+export interface NativeWardrobePhotoAsset {
+  base64: string
+  mimeType: 'image/jpeg'
+  fileName: string
+  width: number
+  height: number
+  fileSize?: number
+}
+
+export type NativeCaptureWardrobePhotoResult =
+  | { status: 'captured'; asset: NativeWardrobePhotoAsset }
+  | { status: 'cancelled' }
+  | { status: 'permission-denied'; canAskAgain: boolean }
+  | { status: 'error'; code?: string; message: string }
+
 export interface NativeOpenExternalUrlRequest {
   type: 'closet:native-open-external-url'
   id: string
@@ -53,6 +78,8 @@ export type NativeBridgeRequest =
   | NativeAppInfoRequest
   | NativeOpenAppSettingsRequest
   | NativeRequestPermissionRequest
+  | NativeCurrentLocationRequest
+  | NativeCaptureWardrobePhotoRequest
   | NativeOpenExternalUrlRequest
   | NativeAuthSessionRequest
   | NativeGraphqlRequest

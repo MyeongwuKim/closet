@@ -3,7 +3,11 @@ import { ChevronRight, GripVertical } from 'lucide-react'
 import { useCallback, useRef } from 'react'
 import { useDrag, useDrop } from 'react-dnd'
 import { Link } from 'react-router-dom'
-import { shouldMovePlanRow, type PlanEntry } from '../data/weeklyPlan'
+import {
+  placePlanOutfitInDate,
+  shouldMovePlanRow,
+  type PlanEntry,
+} from '../data/weeklyPlan'
 import { PlanOutfitThumbnails } from './PlanOutfitThumbnails'
 
 const WEEKLY_PLAN_OUTFIT = 'weekly-plan-outfit'
@@ -165,6 +169,9 @@ export function PlanDayRow({
         }
 
         onMovePreview(dragged.index, index)
+        dragged.date = entry.date
+        dragged.entry = placePlanOutfitInDate(entry, dragged.entry)
+        dragged.isToday = isToday
         dragged.index = index
       },
       drop: () => ({ index }),
@@ -172,7 +179,7 @@ export function PlanDayRow({
         isOver: monitor.isOver({ shallow: true }),
       }),
     }),
-    [disabled, index, onMovePreview],
+    [disabled, entry, index, isToday, onMovePreview],
   )
 
   const connectRow = useCallback(

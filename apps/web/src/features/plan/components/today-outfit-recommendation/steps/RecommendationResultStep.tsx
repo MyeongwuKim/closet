@@ -1,4 +1,4 @@
-import type { Season } from '@closet/types'
+import type { Season, WeatherSnapshot } from '@closet/types'
 import { ChevronLeft } from 'lucide-react'
 import type { OutfitStyle } from '../../../../../constants/styleOptions'
 import { RecommendationQuickReply } from '../RecommendationChatUi'
@@ -10,8 +10,10 @@ interface RecommendationResultStepProps {
   season: Season
   style: OutfitStyle
   hasTodayOutfit: boolean
-  onHistoryChange?: () => void
+  baseItemId?: string
+  weather?: WeatherSnapshot | null
   onBack: () => void
+  onOpenCloset: () => void
 }
 
 export function RecommendationResultStep({
@@ -20,20 +22,24 @@ export function RecommendationResultStep({
   season,
   style,
   hasTodayOutfit,
-  onHistoryChange,
+  baseItemId,
+  weather,
   onBack,
+  onOpenCloset,
 }: RecommendationResultStepProps) {
   return (
     <section className="flex h-full min-h-0 flex-col gap-2 py-1">
       <div className="min-h-0 flex-1">
         <TodayOutfitRecommendationResult
-          key={`${viewerId}:${date}:${season}:${style}`}
+          key={`${viewerId}:${date}:${season}:${style}:${baseItemId ?? 'all'}`}
           viewerId={viewerId}
           date={date}
           season={season}
           style={style}
           hasTodayOutfit={hasTodayOutfit}
-          onHistoryChange={onHistoryChange}
+          baseItemId={baseItemId}
+          weather={weather}
+          onOpenCloset={onOpenCloset}
         />
       </div>
       <div className="flex shrink-0 justify-end">

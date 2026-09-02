@@ -8,11 +8,11 @@ import { useNavigate } from 'react-router-dom'
 import {
   Check,
   LoaderCircle,
-  Plus,
   RefreshCw,
   Sparkles,
   X,
 } from 'lucide-react'
+import { ClothingCategoryIcon } from '../../../components/ClothingCategoryIcon'
 import { ClosetItemVisual } from '../../closet/components/ClosetItemVisual'
 import {
   closetCategoryLabels,
@@ -112,7 +112,7 @@ function SelectedItemCard({
       </span>
       {isBase && (
         <span className="mt-0.5 block text-center text-[9px] font-black text-accent">
-          시작한 옷
+          기준 아이템
         </span>
       )}
     </div>
@@ -252,7 +252,6 @@ export function OutfitMatchPanel() {
     mode: 'items' | 'colors'
   } | null>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-  const baseItem = selectedItems[0]
   const lastSelectedItem = selectedItems[selectedItems.length - 1]
   const classifiedItems = items.filter(
     (item) => item.classificationStatus === 'classified' && item.category,
@@ -368,9 +367,11 @@ export function OutfitMatchPanel() {
       <section className="mx-auto flex h-full min-h-0 w-full max-w-2xl flex-col bg-canvas">
         <div className="shrink-0 px-5 pt-6">
           <span className="text-[11px] font-black tracking-[0.12em] text-accent">
-            첫 번째
+            첫 아이템
           </span>
-          <h2 className="mt-1 text-xl font-black">시작할 옷을 골라주세요</h2>
+          <h2 className="mt-1 text-xl font-black">
+            기준이 될 옷을 골라주세요
+          </h2>
           <p className="mt-1 text-sm text-muted">
             무엇을 먼저 골라도 다음 옷을 이어서 추천해드릴게요.
           </p>
@@ -430,7 +431,7 @@ export function OutfitMatchPanel() {
   const description = step === 'category'
     ? '정해진 순서 없이 원하는 종류를 직접 골라보세요.'
     : targetLabel
-      ? `${baseItem.name}에서 시작한 조합이에요.`
+      ? '고른 옷과 어울리는 아이템을 골라보세요.'
       : '이대로 코디북에 저장할 수 있어요.'
   const stepAnimationKey = `${selectedIds.join('-')}-${step}-${targetCategory}`
 
@@ -477,7 +478,6 @@ export function OutfitMatchPanel() {
                         !selectedIds.includes(item.id),
                     ).length
                     const isRecommended = category === recommendedCategory
-
                     return (
                       <button
                         type="button"
@@ -495,7 +495,11 @@ export function OutfitMatchPanel() {
                           </span>
                         )}
                         <span className="flex size-8 items-center justify-center rounded-xl bg-sage">
-                          <Plus size={16} />
+                          <ClothingCategoryIcon
+                            category={category}
+                            size={18}
+                            strokeWidth={1.8}
+                          />
                         </span>
                         <strong className="mt-3 block text-sm font-black">
                           {closetCategoryLabels[category]}
@@ -554,7 +558,10 @@ export function OutfitMatchPanel() {
                   ) : (
                     <div className="mt-3 flex min-h-44 flex-col items-center justify-center rounded-3xl border border-dashed border-line px-6 text-center">
                       <span className="flex size-11 items-center justify-center rounded-2xl bg-sage">
-                        <Plus size={19} />
+                        <ClothingCategoryIcon
+                          category={targetCategory}
+                          size={22}
+                        />
                       </span>
                       <strong className="mt-3 text-sm font-black">
                         옷장에 {closetCategoryLabels[targetCategory]}가 없어요

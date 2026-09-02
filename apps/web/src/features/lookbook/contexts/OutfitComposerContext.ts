@@ -26,6 +26,7 @@ export interface OutfitPreviewState {
 
 export interface OutfitComposerState {
   layers: OutfitLayer[]
+  originItemIds: string[]
   targetCategory: ClothingCategory | null
   step: OutfitComposerStep
   returnStep: Extract<OutfitComposerStep, 'category' | 'items'>
@@ -33,13 +34,14 @@ export interface OutfitComposerState {
 }
 
 export type OutfitComposerAction =
-  | { type: 'HYDRATE'; layers: OutfitLayer[] }
+  | { type: 'HYDRATE'; layers: OutfitLayer[]; originItemIds: string[] }
   | { type: 'ADD_ITEM'; layer: OutfitLayer }
   | { type: 'REMOVE_ITEM'; itemId: string }
   | { type: 'SELECT_CATEGORY'; category: ClothingCategory }
   | { type: 'OPEN_CATEGORY_PICKER' }
   | { type: 'OPEN_SAVE' }
   | { type: 'OPEN_PREVIEW' }
+  | { type: 'REOPEN_PREVIEW' }
   | {
       type: 'PREVIEW_SUCCESS'
       imageUrl: string
@@ -49,6 +51,7 @@ export type OutfitComposerAction =
     }
   | { type: 'PREVIEW_ERROR'; message: string }
   | { type: 'CLOSE_PREVIEW' }
+  | { type: 'INVALIDATE_PREVIEW' }
   | { type: 'GO_BACK' }
   | { type: 'RESET' }
 
@@ -66,9 +69,11 @@ function createPreviewState(): OutfitPreviewState {
 
 export function createOutfitComposerState(
   layers: OutfitLayer[],
+  originItemIds: readonly string[] = [],
 ): OutfitComposerState {
   return {
     layers,
+    originItemIds: [...originItemIds],
     targetCategory: null,
     step: layers.length > 0 ? 'category' : 'start',
     returnStep: 'category',
@@ -82,7 +87,7 @@ export function outfitComposerReducer(
 ): OutfitComposerState {
   switch (action.type) {
     case 'HYDRATE':
-      return createOutfitComposerState(action.layers)
+      return createOutfitComposerState(action.layers, action.originItemIds)
     case 'ADD_ITEM':
       return {
         ...state,
@@ -95,9 +100,11 @@ export function outfitComposerReducer(
       const layers = state.layers.filter(
         (layer) => layer.wardrobeItemId !== action.itemId,
       )
+      const removedOriginItem = state.originItemIds.includes(action.itemId)
       return {
         ...state,
         layers,
+        originItemIds: removedOriginItem ? [] : state.originItemIds,
         targetCategory: null,
         step: layers.length > 0 ? 'category' : 'start',
         preview: createPreviewState(),
@@ -134,6 +141,14 @@ export function outfitComposerReducer(
           errorMessage: null,
         },
       }
+    case 'REOPEN_PREVIEW':
+      if (state.preview.status !== 'success' || !state.preview.imageUrl) {
+        return state
+      }
+      return {
+        ...state,
+        preview: { ...state.preview, isOpen: true },
+      }
     case 'PREVIEW_SUCCESS':
       return {
         ...state,
@@ -165,6 +180,8 @@ export function outfitComposerReducer(
         ...state,
         preview: { ...state.preview, isOpen: false },
       }
+    case 'INVALIDATE_PREVIEW':
+      return { ...state, preview: createPreviewState() }
     case 'GO_BACK':
       if (state.preview.isOpen) {
         return {

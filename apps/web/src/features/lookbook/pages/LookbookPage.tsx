@@ -1,18 +1,16 @@
 import { useState } from 'react'
 import type { Season } from '@closet/types'
-import { Images, Plus, Search, Sparkles, X } from 'lucide-react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Layers3, Plus, Search, X } from 'lucide-react'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { PageTitle } from '../../../components/PageTitle'
-import {
-  formatSeasonLabels,
-  seasonLabels,
-} from '../../../constants/seasons'
+import { CatalogCardSkeletonGrid } from '../../../components/CatalogCardSkeletonGrid'
+import { seasonLabels } from '../../../constants/seasons'
 import { getOutfitStyleLabel } from '../../../constants/styleOptions'
 import { useClosetStore } from '../../closet/stores/useClosetStore'
-import { OutfitCardVisual } from '../components/OutfitCardVisual'
+import { OutfitRecommendationActions } from '../../plan/components/OutfitRecommendationActions'
+import { LookbookOutfitCard } from '../components/LookbookOutfitCard'
 import { OutfitDetailModal } from '../components/OutfitDetailModal'
 import { OutfitFilterControls } from '../components/OutfitFilterControls'
-import { OutfitWearStatus } from '../components/OutfitWearStatus'
 import { useOutfitWearSummaries } from '../hooks/useOutfitWearSummaries'
 import { useInfiniteOutfitsQuery, useOutfitFilterOptions } from '../../../lib/catalogQueries'
 import { InfiniteScrollFooter } from '../../../components/InfiniteScrollFooter'
@@ -20,9 +18,11 @@ import { outfitStyleOptions } from '../../../constants/styleOptions'
 import {
   createOutfitSearchTokens,
 } from '../utils/outfitFilters'
+import { createOutfitComposerPath } from '../utils/outfitComposerNavigation'
 
 export function LookbookPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const items = useClosetStore((state) => state.items)
   const [activeStyle, setActiveStyle] = useState('all')
@@ -45,7 +45,10 @@ export function LookbookPage() {
   const outfits = outfitsQuery.data?.pages.flatMap((page) => page.items) ?? []
   const filterOptions = useOutfitFilterOptions()
   const totalCount = filterOptions.data?.totalCount ?? outfitsQuery.data?.pages[0]?.totalCount ?? 0
-  const wearSummaries = useOutfitWearSummaries(outfits.map((outfit) => outfit.id))
+  const wearSummaries = useOutfitWearSummaries(
+    outfits.map((outfit) => outfit.id),
+    { includeUnworn: true },
+  )
   const visibleStyleOptions = [
     ...outfitStyleOptions,
     ...(filterOptions.data?.styles ?? [])
@@ -77,8 +80,17 @@ export function LookbookPage() {
     setSearchParams(nextSearchParams, { replace: true })
   }
 
+  const openSelectedItemsComposer = () => {
+    navigate(
+      createOutfitComposerPath(
+        selectedItemIds,
+        `${location.pathname}${location.search}${location.hash}`,
+      ),
+    )
+  }
+
   return (
-    <section>
+    <section className="pb-16">
       <div className="flex items-center justify-between gap-3 sm:items-end">
         <div className="min-w-0 [&_p]:hidden sm:[&_p]:block">
           <PageTitle
@@ -154,8 +166,9 @@ export function LookbookPage() {
         </div>
       )}
 
-      {outfitsQuery.isPending ? (
-        <p role="status" className="py-12 text-center text-sm text-muted">코디북을 불러오는 중...</p>
+      {outfitsQuery.isPending ||
+      (outfitsQuery.isFetching && outfits.length === 0) ? (
+        <CatalogCardSkeletonGrid variant="outfit" />
       ) : outfitsQuery.isError && outfits.length === 0 ? (
         <div role="alert" className="mt-6 rounded-3xl border border-line bg-surface p-6 text-center">
           <p>코디북을 불러오지 못했어요.</p>
@@ -165,7 +178,7 @@ export function LookbookPage() {
       ) : totalCount === 0 ? (
         <div className="mt-6 rounded-3xl border border-line bg-surface p-6 text-center sm:p-8">
           <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-sage">
-            <Images size={24} />
+            <Layers3 size={24} />
           </span>
           <h2 className="mt-5 text-xl font-black">
             {selectedItemIds.length > 0
@@ -180,9 +193,7 @@ export function LookbookPage() {
           {selectedItemIds.length > 0 && (
             <button
               type="button"
-              onClick={() =>
-                navigate(`/lookbook/new?items=${selectedItemIds.join(',')}`)
-              }
+              onClick={openSelectedItemsComposer}
               className="mt-5 rounded-full bg-accent px-5 py-2.5 text-sm font-bold text-white"
             >
               이 옷으로 코디 만들기
@@ -192,52 +203,21 @@ export function LookbookPage() {
       ) : visibleOutfits.length > 0 ? (
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {visibleOutfits.map((outfit) => (
-            <button
-              type="button"
-              onClick={() => setSelectedOutfitId(outfit.id)}
-              className="overflow-hidden rounded-3xl border border-line bg-surface p-2 text-left transition hover:-translate-y-0.5 hover:shadow-sm"
-              aria-label={`${outfit.name} 코디 상세 보기`}
+            <LookbookOutfitCard
               key={outfit.id}
-            >
-              <div className="relative">
-                <OutfitCardVisual
-                  outfit={outfit}
-                  items={items}
-                  className="aspect-[4/5] w-full"
-                />
-                {outfit.previewImageUrl && (
-                  <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-black/65 px-2.5 py-1 text-[9px] font-bold text-white backdrop-blur">
-                    <Sparkles size={10} /> AI 룩
-                  </span>
-                )}
-              </div>
-              <div className="px-2 pt-3 pb-2">
-                <div className="flex min-w-0 gap-1 overflow-hidden">
-                  <span className="inline-flex shrink-0 rounded-full bg-sage px-2 py-1 text-[10px] font-bold">
-                    {getOutfitStyleLabel(outfit.style)}
-                  </span>
-                  {outfit.seasons.length > 0 && (
-                    <span className="truncate rounded-full border border-line px-2 py-1 text-[10px] font-bold text-muted">
-                      {formatSeasonLabels(outfit.seasons)}
-                    </span>
-                  )}
-                </div>
-                <h2 className="truncate text-sm font-black">{outfit.name}</h2>
-                <OutfitWearStatus summary={wearSummaries.get(outfit.id)} />
-                <p className="mt-1 text-xs text-muted">
-                  {outfit.layers.length}개 아이템 ·{' '}
-                  {new Intl.DateTimeFormat('ko-KR', {
-                    month: 'long',
-                    day: 'numeric',
-                  }).format(new Date(outfit.createdAt))}
-                </p>
-              </div>
-            </button>
+              outfit={outfit}
+              items={items}
+              wearSummary={wearSummaries.get(outfit.id)}
+              onSelect={setSelectedOutfitId}
+            />
           ))}
         </div>
       ) : (
         <div className="mt-6 rounded-3xl border border-dashed border-line px-6 py-12 text-center">
-          <h2 className="text-lg font-black">
+          <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-sage">
+            <Layers3 size={24} />
+          </span>
+          <h2 className="mt-5 text-lg font-black">
             {searchTokens.length > 0
               ? '검색 결과가 없어요'
               : selectedItemIds.length > 0
@@ -260,9 +240,7 @@ export function LookbookPage() {
           {selectedItemIds.length > 0 && (
             <button
               type="button"
-              onClick={() =>
-                navigate(`/lookbook/new?items=${selectedItemIds.join(',')}`)
-              }
+              onClick={openSelectedItemsComposer}
               className="mt-5 rounded-full bg-accent px-5 py-2.5 text-sm font-bold text-white"
             >
               이 옷으로 코디 만들기
@@ -278,6 +256,7 @@ export function LookbookPage() {
           onLoadMore={outfitsQuery.fetchNextPage}
         />
       )}
+      {!selectedOutfit && <OutfitRecommendationActions />}
       {selectedOutfit && (
         <OutfitDetailModal
           outfit={selectedOutfit}

@@ -2,8 +2,10 @@ import type { WebViewMessageEvent } from 'react-native-webview'
 import { handleNativeAppInfoRequest } from './appInfoBridge'
 import { handleNativeOpenAppSettingsRequest } from './appSettingsBridge'
 import { handleNativeAuthSessionRequest } from './authSessionBridge'
+import { handleNativeCaptureWardrobePhoto } from './cameraBridge'
 import { cancelNativeGraphqlRequest, handleNativeGraphqlRequest } from './graphqlBridge'
 import { handleNativeOpenExternalUrlRequest } from './externalLinkBridge'
+import { handleNativeCurrentLocationRequest } from './locationBridge'
 import { handleNativeRequestPermission } from './permissionBridge'
 import { CLOSET_WEBVIEW_BRIDGE_SCRIPT } from './injectedScript'
 import {
@@ -11,6 +13,8 @@ import {
   isNativeAuthSessionRequest,
   isNativeBridgeReadyMessage,
   isNativeCancelGraphqlRequest,
+  isNativeCaptureWardrobePhotoRequest,
+  isNativeCurrentLocationRequest,
   isNativeGraphqlRequest,
   isNativeOpenAppSettingsRequest,
   isNativeOpenExternalUrlRequest,
@@ -64,6 +68,16 @@ export async function handleNativeBridgeMessage(
 
   if (isNativeRequestPermissionRequest(request)) {
     await handleNativeRequestPermission(request, webViewRef)
+    return
+  }
+
+  if (isNativeCurrentLocationRequest(request)) {
+    await handleNativeCurrentLocationRequest(request, webViewRef)
+    return
+  }
+
+  if (isNativeCaptureWardrobePhotoRequest(request)) {
+    await handleNativeCaptureWardrobePhoto(request, webViewRef)
     return
   }
 

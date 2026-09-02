@@ -4,6 +4,8 @@ import type {
   NativeBridgeReadyMessage,
   NativeBridgeRequest,
   NativeCancelGraphqlRequest,
+  NativeCaptureWardrobePhotoRequest,
+  NativeCurrentLocationRequest,
   NativeGraphqlRequest,
   NativeOpenAppSettingsRequest,
   NativeOpenExternalUrlRequest,
@@ -67,6 +69,26 @@ export function isNativeRequestPermissionRequest(
   )
 }
 
+export function isNativeCurrentLocationRequest(
+  value: unknown,
+): value is NativeCurrentLocationRequest {
+  return (
+    isRecord(value) &&
+    value.type === 'closet:native-current-location' &&
+    hasRequestId(value)
+  )
+}
+
+export function isNativeCaptureWardrobePhotoRequest(
+  value: unknown,
+): value is NativeCaptureWardrobePhotoRequest {
+  return (
+    isRecord(value) &&
+    value.type === 'closet:native-capture-wardrobe-photo' &&
+    hasRequestId(value)
+  )
+}
+
 export function isNativeAuthSessionRequest(
   value: unknown,
 ): value is NativeAuthSessionRequest {
@@ -88,6 +110,8 @@ export function parseNativeBridgeRequest(
     if (isNativeAppInfoRequest(value)) return value
     if (isNativeOpenAppSettingsRequest(value)) return value
     if (isNativeRequestPermissionRequest(value)) return value
+    if (isNativeCurrentLocationRequest(value)) return value
+    if (isNativeCaptureWardrobePhotoRequest(value)) return value
     if (isNativeOpenExternalUrlRequest(value)) return value
     if (isNativeAuthSessionRequest(value)) return value
     if (isNativeGraphqlRequest(value)) return value

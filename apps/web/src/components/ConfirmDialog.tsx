@@ -4,6 +4,7 @@ interface ConfirmDialogProps {
   title: string
   description: string
   confirmLabel: string
+  pendingLabel?: string
   isPending?: boolean
   onCancel: () => void
   onConfirm: () => void
@@ -13,6 +14,7 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel,
+  pendingLabel = '삭제하는 중...',
   isPending = false,
   onCancel,
   onConfirm,
@@ -74,7 +76,7 @@ export function ConfirmDialog({
             disabled={isPending}
             className="rounded-xl bg-accent px-4 py-3 text-sm font-bold text-white disabled:cursor-wait disabled:opacity-60"
           >
-            {isPending ? '삭제하는 중...' : confirmLabel}
+            {isPending ? pendingLabel : confirmLabel}
           </button>
         </div>
       </section>

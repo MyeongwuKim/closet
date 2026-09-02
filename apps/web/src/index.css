@@ -178,6 +178,55 @@ button {
   }
 }
 
+@keyframes empty-wardrobe-sigh {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+
+  45% {
+    transform: translateY(3px) rotate(-0.7deg);
+  }
+
+  70% {
+    transform: translateY(1px) rotate(0.5deg);
+  }
+}
+
+@keyframes empty-wardrobe-tear-drop {
+  0%,
+  18% {
+    opacity: 0;
+    transform: translateY(-3px) scale(0.75);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  78% {
+    opacity: 1;
+    transform: translateY(10px) scale(0.9);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(17px) scale(0.72);
+  }
+}
+
+@keyframes empty-wardrobe-door-sway {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+
+  50% {
+    transform: rotate(1.5deg);
+  }
+}
+
 @keyframes ai-outfit-item-place {
   0%,
   12% {
@@ -341,25 +390,25 @@ button {
 
 @keyframes plan-period-forward-enter {
   from {
-    opacity: 0;
-    transform: translateX(1rem);
+    opacity: 0.55;
+    transform: translate3d(0.65rem, 0, 0);
   }
 
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translate3d(0, 0, 0);
   }
 }
 
 @keyframes plan-period-backward-enter {
   from {
-    opacity: 0;
-    transform: translateX(-1rem);
+    opacity: 0.55;
+    transform: translate3d(-0.65rem, 0, 0);
   }
 
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translate3d(0, 0, 0);
   }
 }
 
@@ -428,6 +477,33 @@ button {
   animation: wardrobe-sparkle-twinkle 1.8s ease-in-out infinite;
   transform-box: fill-box;
   transform-origin: center;
+}
+
+.empty-wardrobe-character {
+  animation: empty-wardrobe-sigh 2.8s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center bottom;
+}
+
+.empty-wardrobe-tear {
+  animation: empty-wardrobe-tear-drop 2.2s ease-in infinite;
+  transform-box: fill-box;
+  transform-origin: center top;
+}
+
+.empty-wardrobe-door-left,
+.empty-wardrobe-door-right {
+  animation: empty-wardrobe-door-sway 3.2s ease-in-out infinite;
+  transform-box: fill-box;
+}
+
+.empty-wardrobe-door-left {
+  transform-origin: right center;
+}
+
+.empty-wardrobe-door-right {
+  animation-direction: reverse;
+  transform-origin: left center;
 }
 
 .ai-outfit-loading-closet {
@@ -513,13 +589,13 @@ button {
 }
 
 .plan-period-forward-enter {
-  animation: plan-period-forward-enter 260ms cubic-bezier(0.22, 1, 0.36, 1)
+  animation: plan-period-forward-enter 320ms cubic-bezier(0.16, 1, 0.3, 1)
     both;
   will-change: opacity, transform;
 }
 
 .plan-period-backward-enter {
-  animation: plan-period-backward-enter 260ms cubic-bezier(0.22, 1, 0.36, 1)
+  animation: plan-period-backward-enter 320ms cubic-bezier(0.16, 1, 0.3, 1)
     both;
   will-change: opacity, transform;
 }
@@ -559,6 +635,10 @@ button {
   .wardrobe-saving-shirt,
   .wardrobe-saving-closet,
   .wardrobe-saving-sparkle,
+  .empty-wardrobe-character,
+  .empty-wardrobe-tear,
+  .empty-wardrobe-door-left,
+  .empty-wardrobe-door-right,
   .ai-outfit-loading-closet,
   .ai-outfit-loading-board,
   .ai-outfit-loading-path,

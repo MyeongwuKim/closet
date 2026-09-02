@@ -38,6 +38,9 @@ export function useTestLoginMutation() {
                   chestCircumferenceCm waistCircumferenceCm hipCircumferenceCm
                   shoulderWidthCm inseamCm preferredFit preferredStyles
                 }
+                wearReminderPreferences {
+                  enabled intervalDays combinationReminderEnabled itemReminderEnabled
+                }
               }
             }
           }

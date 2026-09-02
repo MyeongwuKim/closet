@@ -89,6 +89,7 @@ export function useWardrobeItemsQuery(enabled = true) {
               colorHex colorMode seasons tags
               fashionAttributes {
                 layerRole silhouette pattern material texture warmth formality confidence
+                ribbedCuffs ribbedHem ribbedNeckline
               }
               sizeLabel shoulderWidthCm chestWidthCm sleeveLengthCm
               totalLengthCm waistWidthCm hipWidthCm inseamCm
@@ -139,6 +140,7 @@ export const wardrobeItemFields = `
   colorHex colorMode seasons tags
   fashionAttributes {
     layerRole silhouette pattern material texture warmth formality confidence
+    ribbedCuffs ribbedHem ribbedNeckline
   }
   sizeLabel shoulderWidthCm chestWidthCm sleeveLengthCm
   totalLengthCm waistWidthCm hipWidthCm inseamCm

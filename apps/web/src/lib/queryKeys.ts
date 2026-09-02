@@ -34,6 +34,8 @@ export const queryKeys = {
       style: OutfitStyle,
       variation: number,
       excludedOuterItemIds: string[],
+      baseItemId?: string,
+      weatherKey?: string,
     ) =>
       [
         'planner',
@@ -45,6 +47,8 @@ export const queryKeys = {
         style,
         variation,
         excludedOuterItemIds,
+        baseItemId ?? null,
+        weatherKey ?? null,
       ] as const,
     week: (weekStartsOn: string) =>
       ['planner', 'week', weekStartsOn] as const,
@@ -52,5 +56,17 @@ export const queryKeys = {
       ['planner', 'entries', from, to] as const,
     outfitWearHistory: (outfitIds: string[]) =>
       ['planner', 'outfit-wear-history', outfitIds] as const,
+  },
+  weather: {
+    forecast: (
+      date: string,
+      coordinates: { latitude: number; longitude: number } | null,
+    ) => [
+      'weather',
+      'forecast',
+      date,
+      coordinates?.latitude.toFixed(3) ?? null,
+      coordinates?.longitude.toFixed(3) ?? null,
+    ] as const,
   },
 }

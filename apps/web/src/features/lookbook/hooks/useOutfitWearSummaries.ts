@@ -11,6 +11,10 @@ export interface OutfitWearSummary {
   title: string
 }
 
+interface OutfitWearSummaryOptions {
+  includeUnworn?: boolean
+}
+
 function createWearSummary(
   dates: string[],
   today: string,
@@ -42,14 +46,17 @@ function createWearSummary(
   }
 }
 
-export function useOutfitWearSummaries(outfitIds: string[]) {
+export function useOutfitWearSummaries(
+  outfitIds: string[],
+  { includeUnworn = false }: OutfitWearSummaryOptions = {},
+) {
   const persistedOutfitIds = [...new Set(outfitIds)]
     .filter((id) => /^[a-f\d]{24}$/i.test(id))
     .sort()
   const outfitWearHistoryQuery = useOutfitWearHistoryQuery(persistedOutfitIds)
   const today = formatDateOnly(new Date())
 
-  return useMemo(() => {
+  const summaries = useMemo(() => {
     const datesByOutfitId = new Map<string, string[]>()
 
     for (const record of outfitWearHistoryQuery.data ?? []) {
@@ -66,4 +73,24 @@ export function useOutfitWearSummaries(outfitIds: string[]) {
 
     return summaries
   }, [outfitWearHistoryQuery.data, today])
+
+  if (
+    !includeUnworn ||
+    !outfitWearHistoryQuery.isSuccess ||
+    outfitWearHistoryQuery.isFetching
+  ) {
+    return summaries
+  }
+
+  const summariesWithUnworn = new Map(summaries)
+  for (const outfitId of persistedOutfitIds) {
+    if (!summariesWithUnworn.has(outfitId)) {
+      summariesWithUnworn.set(outfitId, {
+        label: '착용 0회',
+        title: '아직 착용 기록이 없어요.',
+      })
+    }
+  }
+
+  return summariesWithUnworn
 }

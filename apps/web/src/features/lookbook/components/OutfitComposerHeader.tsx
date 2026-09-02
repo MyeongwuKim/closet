@@ -29,8 +29,8 @@ export function OutfitComposerHeader() {
             title="코디 맞춰보기"
             description={
               baseItemName
-                ? `${baseItemName}에서 시작한 조합 · ${selectedCount}개`
-                : '입고 싶은 옷 하나부터 시작해보세요.'
+                ? `${baseItemName} 중심 · ${selectedCount}개 아이템`
+                : '기준 아이템부터 골라보세요.'
             }
             compact
           />

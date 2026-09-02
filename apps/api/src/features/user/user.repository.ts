@@ -1,3 +1,10 @@
+/**
+ * 용도:
+ * 로그인 사용자의 프로필과 계정 설정을 조회하고 저장한다.
+ *
+ * 요청 흐름:
+ * 사용자 단위 설정을 각각 저장한 뒤 최신 Viewer 데이터를 다시 조회해 반환한다.
+ */
 import type {
   BodyBuild,
   Gender,
@@ -9,6 +16,7 @@ import { prisma } from '../../lib/prisma.js'
 
 export const viewerInclude = {
   styleProfile: true,
+  settings: true,
   preferredStyles: true,
 } satisfies Prisma.UserInclude
 
@@ -28,6 +36,13 @@ export interface UpdateStyleProfileData {
   inseamCm?: number | null
   preferredFit: PreferredFit
   preferredStyles: OutfitStyle[]
+}
+
+export interface UpdateWearReminderPreferencesData {
+  enabled: boolean
+  intervalDays: number
+  combinationReminderEnabled: boolean
+  itemReminderEnabled: boolean
 }
 
 export const userRepository = {
@@ -75,6 +90,19 @@ export const userRepository = {
         data: input.preferredStyles.map((style) => ({ userId, style })),
       })
     }
+
+    return this.findViewerById(userId)
+  },
+
+  async updateWearReminderPreferences(
+    userId: string,
+    input: UpdateWearReminderPreferencesData,
+  ) {
+    await prisma.userSettings.upsert({
+      where: { userId },
+      update: input,
+      create: { userId, ...input },
+    })
 
     return this.findViewerById(userId)
   },

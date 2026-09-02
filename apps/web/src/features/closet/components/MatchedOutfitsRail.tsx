@@ -1,5 +1,5 @@
 import type { WardrobeItem } from '@closet/types'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Layers3 } from 'lucide-react'
 import { getOutfitStyleLabel } from '../../../constants/styleOptions'
 import { OutfitItemsPreview } from '../../lookbook/components/OutfitItemsPreview'
 import type { SavedOutfit } from '../../lookbook/types'
@@ -75,7 +75,10 @@ export function MatchedOutfitsRail({
         </div>
       ) : (
         <div className="mt-5 rounded-3xl border border-dashed border-line bg-surface px-6 py-9 text-center">
-          <h3 className="font-black">아직 이 옷으로 저장한 코디가 없어요</h3>
+          <span className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-sage">
+            <Layers3 size={22} />
+          </span>
+          <h3 className="mt-4 font-black">아직 이 옷으로 저장한 코디가 없어요</h3>
           <p className="mt-2 text-sm leading-6 text-muted">
             코디 맞추기 버튼으로 첫 조합을 만들어보세요.
           </p>

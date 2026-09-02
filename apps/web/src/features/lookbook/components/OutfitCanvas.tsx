@@ -1,5 +1,5 @@
 import type { WardrobeItem } from '@closet/types'
-import { Plus } from 'lucide-react'
+import { ClothingCategoryIcon } from '../../../components/ClothingCategoryIcon'
 import { ClosetItemVisual } from '../../closet/components/ClosetItemVisual'
 import type { OutfitLayer } from '../types'
 import { outfitSlots, type OutfitSlot } from './outfitSlots'
@@ -62,7 +62,11 @@ function OutfitItemTile({
           {onSlotClick ? (
             <>
               <span className="flex size-7 items-center justify-center rounded-full border border-line bg-surface/80 transition-colors group-hover:border-accent/30 group-hover:text-accent sm:size-8">
-                <Plus size={15} strokeWidth={1.5} />
+                <ClothingCategoryIcon
+                  category={slot.iconCategory}
+                  size={17}
+                  strokeWidth={1.6}
+                />
               </span>
               <span className="text-[10px] font-medium sm:text-xs">추가하기</span>
             </>

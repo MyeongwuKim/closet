@@ -1,4 +1,5 @@
 import { LoaderCircle, Plus, Search } from 'lucide-react'
+import type { Ref } from 'react'
 import { PageTitle } from '../../../components/PageTitle'
 
 interface ClosetPageHeaderProps {
@@ -7,6 +8,7 @@ interface ClosetPageHeaderProps {
   isSearchOpen: boolean
   onToggleSearch: () => void
   onAddItem: () => void
+  addButtonRef?: Ref<HTMLButtonElement>
 }
 
 export function ClosetPageHeader({
@@ -15,6 +17,7 @@ export function ClosetPageHeader({
   isSearchOpen,
   onToggleSearch,
   onAddItem,
+  addButtonRef,
 }: ClosetPageHeaderProps) {
   return (
     <div className="flex items-center justify-between gap-3 sm:items-end">
@@ -42,10 +45,17 @@ export function ClosetPageHeader({
           </button>
         )}
         <button
+          ref={addButtonRef}
           type="button"
-          onClick={onAddItem}
-          disabled={analyzingCount > 0}
-          className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent text-white transition hover:bg-accent/90 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:cursor-wait disabled:opacity-70 sm:size-11"
+          onClick={() => {
+            if (analyzingCount === 0) onAddItem()
+          }}
+          aria-disabled={analyzingCount > 0}
+          className={`flex size-10 shrink-0 items-center justify-center rounded-full bg-accent text-white transition focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 sm:size-11 ${
+            analyzingCount > 0
+              ? 'cursor-wait opacity-70'
+              : 'hover:bg-accent/90'
+          }`}
           aria-label={
             analyzingCount > 0 ? 'AI가 옷을 분석하는 중' : '옷장에 옷 추가'
           }

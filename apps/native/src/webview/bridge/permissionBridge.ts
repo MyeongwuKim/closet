@@ -1,7 +1,17 @@
+/**
+ * 호출 위치: 최초 권한 안내 팝업 또는 WebView 권한 요청
+ *
+ * 용도:
+ * 알림·위치·사진·카메라 권한 상태를 확인하고 알림과 위치 시스템 권한 요청을 실행한다.
+ *
+ * 동작 방식:
+ * Expo 권한 결과를 공통 상태로 변환하고 WebView 요청에는 브리지 응답을 반환한다.
+ */
 import * as ImagePicker from 'expo-image-picker'
 import * as Location from 'expo-location'
 import * as Notifications from 'expo-notifications'
 import { Platform } from 'react-native'
+import type { InitialPermission } from '../../permissions/initialPermissionSequence'
 import { postNativeBridgeResponse } from './responses'
 import type { NativeRequestPermissionRequest, WebViewRef } from './types'
 
@@ -79,15 +89,18 @@ async function requestLocationPermission() {
   return normalizePermissionStatus(result.status)
 }
 
+export function requestNativePermission(permission: InitialPermission) {
+  return permission === 'notifications'
+    ? requestNotificationPermission()
+    : requestLocationPermission()
+}
+
 export async function handleNativeRequestPermission(
   request: NativeRequestPermissionRequest,
   webViewRef: WebViewRef,
 ) {
   try {
-    const status =
-      request.permission === 'notifications'
-        ? await requestNotificationPermission()
-        : await requestLocationPermission()
+    const status = await requestNativePermission(request.permission)
 
     postNativeBridgeResponse(webViewRef, request.id, {
       ok: true,

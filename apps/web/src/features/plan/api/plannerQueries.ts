@@ -53,6 +53,8 @@ export interface SetDirectPlannerEntryVariables {
   previewImage?: OutfitPreview
   recommendationName?: string
   recommendationStyle?: string
+  weatherSummary?: string
+  temperatureC?: number
 }
 
 export interface MovePlannerEntryVariables {

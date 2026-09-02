@@ -1,9 +1,19 @@
+/**
+ * 진입 경로: 하단 설정 탭 → 설정 또는 스타일 프로필
+ *
+ * 용도:
+ * 계정에서 관리할 수 있는 설정 메뉴를 보여주고 스타일 프로필을 편집한다.
+ *
+ * 구조:
+ * 설정 메뉴 목록과 계정 영역, 스타일 프로필 입력 화면으로 구성되어 있다.
+ */
 import { useState } from 'react'
 import {
   BarChart3,
   ChevronLeft,
   ChevronRight,
   CloudSun,
+  History,
   Info,
   LogOut,
   Ruler,
@@ -464,6 +474,23 @@ export function SettingsPage() {
             <strong className="block text-sm font-black">스타일 프로필</strong>
             <span className="mt-1 block text-xs leading-5 text-muted">
               성별·체형과 신체 치수, 선호 착용감 관리
+            </span>
+          </span>
+          <ChevronRight className="shrink-0 text-muted" size={20} />
+        </Link>
+        <Link
+          to="/settings/wear-reminder"
+          className="flex items-center gap-4 border-t border-line p-5 transition hover:bg-canvas sm:p-6"
+        >
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-sage">
+            <History size={22} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <strong className="block text-sm font-black">
+              최근 착용 리마인드
+            </strong>
+            <span className="mt-1 block text-xs leading-5 text-muted">
+              같은 코디와 옷의 반복 착용 기준 관리
             </span>
           </span>
           <ChevronRight className="shrink-0 text-muted" size={20} />

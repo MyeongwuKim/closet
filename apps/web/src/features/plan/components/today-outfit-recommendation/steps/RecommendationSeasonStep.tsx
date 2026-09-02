@@ -8,14 +8,20 @@ import {
 import type { SeasonChoice } from '../recommendationFlow'
 
 interface RecommendationSeasonStepProps {
+  availableSeasons?: Season[]
   onBack: () => void
   onSelect: (choice: SeasonChoice) => void
 }
 
 export function RecommendationSeasonStep({
+  availableSeasons,
   onBack,
   onSelect,
 }: RecommendationSeasonStepProps) {
+  const options = availableSeasons
+    ? seasonOptions.filter((option) => availableSeasons.includes(option.value as Season))
+    : seasonOptions
+
   return (
     <section
       className="flex h-full flex-col gap-2 py-1"
@@ -26,18 +32,22 @@ export function RecommendationSeasonStep({
           <RecommendationAssistantMessage>
             <p className="font-black">어떤 계절의 코디를 찾을까요?</p>
             <p className="mt-0.5 text-muted">
-              현재 날씨를 선택하거나 계절을 직접 골라주세요.
+              {availableSeasons
+                ? '기준 옷에 등록된 계절 중에서 골라주세요.'
+                : '현재 날씨를 선택하거나 계절을 직접 골라주세요.'}
             </p>
           </RecommendationAssistantMessage>
 
           <div className="ml-10 flex flex-wrap justify-end gap-2">
-            <RecommendationQuickReply
-              delayMs={80}
-              onClick={() => onSelect('current-weather')}
-            >
-              현재 날씨로 받기
-            </RecommendationQuickReply>
-            {seasonOptions.map((option, index) => (
+            {!availableSeasons && (
+              <RecommendationQuickReply
+                delayMs={80}
+                onClick={() => onSelect('current-weather')}
+              >
+                현재 날씨로 받기
+              </RecommendationQuickReply>
+            )}
+            {options.map((option, index) => (
               <RecommendationQuickReply
                 key={option.value}
                 delayMs={130 + index * 45}

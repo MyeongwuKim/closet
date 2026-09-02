@@ -35,6 +35,8 @@ import { OutfitStyleSelector } from './OutfitStyleSelector'
 import { SavedOutfitPreviewDialog } from './SavedOutfitPreviewDialog'
 import { useWardrobeItemsQuery } from '../../closet/api/wardrobeQueries'
 import { useClosetStore } from '../../closet/stores/useClosetStore'
+import { formatDateOnly } from '../../plan/data/weeklyPlan'
+import { useRecentWearReminder } from '../../plan/hooks/useRecentWearReminder'
 
 interface OutfitDetailModalProps {
   outfit: SavedOutfit
@@ -82,6 +84,8 @@ export function OutfitDetailModal({
   const removeOutfit = useLookbookStore((state) => state.removeOutfit)
   const pushToast = useUiStore((state) => state.pushToast)
   const updateOutfit = useUpdateOutfitMutation()
+  const { confirmRecentWear, isCheckingRecentWear } =
+    useRecentWearReminder()
   const deleteOutfit = useDeleteOutfitMutation()
   const generateOutfitPreview = useGenerateOutfitPreviewMutation()
   const [draftItems, setDraftItems] = useState(() =>
@@ -118,6 +122,10 @@ export function OutfitDetailModal({
   const itemsChanged =
     originalItemIds.length !== draftItemIds.length ||
     originalItemIds.some((itemId, index) => itemId !== draftItemIds[index])
+  const originalItemIdSet = new Set(originalItemIds)
+  const itemSetChanged =
+    originalItemIds.length !== draftItemIds.length ||
+    draftItemIds.some((itemId) => !originalItemIdSet.has(itemId))
   const infoChanged =
     draftName.trim() !== outfit.name ||
     draftStyle !== outfit.style ||
@@ -136,6 +144,17 @@ export function OutfitDetailModal({
         'error',
       )
       return
+    }
+
+    if (itemSetChanged) {
+      const confirmed = await confirmRecentWear({
+        itemIds: draftItems.map((item) => item.id),
+        targetDate: formatDateOnly(new Date()),
+        includeTargetDate: true,
+        confirmLabel: '그래도 저장',
+        cancelLabel: '계속 편집',
+      })
+      if (!confirmed) return
     }
 
     try {
@@ -347,6 +366,7 @@ export function OutfitDetailModal({
             onClick={() => void saveChanges()}
             disabled={
               !isDirty ||
+              isCheckingRecentWear ||
               updateOutfit.isPending ||
               Boolean(outfitCompletionMessage) ||
               Boolean(duplicateOutfit)
@@ -359,7 +379,7 @@ export function OutfitDetailModal({
             className="flex items-center justify-center gap-1.5 rounded-xl bg-accent px-3 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Save size={16} />
-            {updateOutfit.isPending
+            {isCheckingRecentWear || updateOutfit.isPending
               ? '저장 중...'
               : '변경사항 저장'}
           </button>
@@ -467,7 +487,7 @@ export function OutfitDetailModal({
         primaryLabel={
           itemsChanged ? '수정한 코디에 저장' : '새 룩북으로 저장'
         }
-        isPrimaryPending={updateOutfit.isPending}
+        isPrimaryPending={isCheckingRecentWear || updateOutfit.isPending}
       />
       {isDeleteConfirmOpen && (
         <ConfirmDialog

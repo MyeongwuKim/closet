@@ -23,6 +23,8 @@ export async function handleNativeAppInfoRequest(
         'app-permissions',
         'notification-permission',
         'location-permission',
+        'current-location',
+        'camera-capture',
         'app-settings',
         'external-url',
         'deep-link',

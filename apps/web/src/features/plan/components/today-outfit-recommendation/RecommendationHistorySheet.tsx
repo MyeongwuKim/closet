@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { History, X } from 'lucide-react'
+import { History, LoaderCircle, RefreshCw, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import {
   getOutfitStyleLabel,
@@ -8,9 +8,14 @@ import {
 import { seasonLabels } from '../../../../constants/seasons'
 import { ClosetItemVisual } from '../../../closet/components/ClosetItemVisual'
 import type { TodayRecommendationHistoryEntry } from '../../api/todayOutfitQueries'
+import { formatRecommendationHeadline } from '../../utils/todayOutfitRecommendation'
 
 interface RecommendationHistorySheetProps {
   entries: TodayRecommendationHistoryEntry[]
+  isLoading: boolean
+  errorMessage: string | null
+  isRetrying: boolean
+  onRetry: () => void
   onSelect: (entry: TodayRecommendationHistoryEntry) => void
   onClose: () => void
 }
@@ -25,8 +30,66 @@ function formatStoredAt(value: string) {
   }).format(date)
 }
 
+function RecommendationHistoryCard({
+  entry,
+  onSelect,
+}: {
+  entry: TodayRecommendationHistoryEntry
+  onSelect: (entry: TodayRecommendationHistoryEntry) => void
+}) {
+  const recommendation = entry.recommendation
+  const baseItem = recommendation.items.find(
+    (item) => item.id === entry.baseItemId,
+  )
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(entry)}
+      className="flex w-full items-start gap-3 rounded-2xl border border-line bg-white p-2.5 text-left transition hover:border-ink"
+      aria-label={`${formatRecommendationHeadline(recommendation.headline)} 추천 설명 열기`}
+    >
+      <span className="grid size-20 shrink-0 grid-cols-2 gap-1 rounded-xl bg-canvas p-1.5">
+        {recommendation.items.slice(0, 4).map((item) => (
+          <span
+            className="flex min-h-0 items-center justify-center overflow-hidden rounded-lg bg-surface"
+            key={item.id}
+          >
+            <ClosetItemVisual item={item} compact />
+          </span>
+        ))}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex flex-wrap items-center gap-x-1.5 text-[10px] font-bold text-muted">
+          <span>
+            {seasonLabels[recommendation.season]} ·{' '}
+            {getOutfitStyleLabel(recommendation.style as OutfitStyle)}
+          </span>
+          <span aria-hidden="true">·</span>
+          <span>{formatStoredAt(entry.createdAt)}</span>
+        </span>
+        <span className="mt-1 line-clamp-2 block text-sm leading-5 font-black">
+          {formatRecommendationHeadline(recommendation.headline)}
+        </span>
+        {baseItem && (
+          <span className="mt-1 block truncate text-[10px] font-bold text-accent">
+            기준 아이템 · {baseItem.name}
+          </span>
+        )}
+        <span className="mt-1 line-clamp-2 block text-[11px] leading-4 text-muted">
+          {recommendation.summary}
+        </span>
+      </span>
+    </button>
+  )
+}
+
 export function RecommendationHistorySheet({
   entries,
+  isLoading,
+  errorMessage,
+  isRetrying,
+  onRetry,
   onSelect,
   onClose,
 }: RecommendationHistorySheetProps) {
@@ -71,8 +134,8 @@ export function RecommendationHistorySheet({
               추천 기록
             </h2>
             <p className="mt-1 text-xs leading-5 text-muted">
-              최근 추천 10개를 보관해요. 카드를 누르면 코디를 편집하고
-              일정에 추가할 수 있어요.
+              최근 추천 10개를 보관해요. 카드를 누르면 추천 이유를 보고
+              코디를 편집할 수 있어요.
             </p>
           </div>
           <button
@@ -87,7 +150,38 @@ export function RecommendationHistorySheet({
         </header>
 
         <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-          {entries.length === 0 ? (
+          {errorMessage ? (
+            <div className="rounded-2xl border border-line bg-canvas px-5 py-8 text-center">
+              <p className="text-sm font-black">추천 기록을 불러오지 못했어요</p>
+              <p className="mt-2 text-xs leading-5 text-muted" role="alert">
+                {errorMessage}
+              </p>
+              <button
+                type="button"
+                onClick={onRetry}
+                disabled={isRetrying}
+                className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-2 text-xs font-bold disabled:opacity-50"
+              >
+                <RefreshCw
+                  className={isRetrying ? 'animate-spin' : ''}
+                  size={14}
+                />
+                다시 시도
+              </button>
+            </div>
+          ) : isLoading ? (
+            <div
+              className="flex flex-col items-center rounded-2xl border border-line bg-canvas px-5 py-10 text-center"
+              role="status"
+              aria-live="polite"
+            >
+              <LoaderCircle className="animate-spin text-accent" size={23} />
+              <p className="mt-3 text-sm font-black">추천 기록을 확인하고 있어요</p>
+              <p className="mt-1 text-xs leading-5 text-muted">
+                현재 옷장에 있는 아이템과 추천 기록을 확인해요.
+              </p>
+            </div>
+          ) : entries.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-line bg-canvas px-5 py-10 text-center">
               <span className="mx-auto flex size-11 items-center justify-center rounded-2xl bg-sage">
                 <History size={19} />
@@ -98,48 +192,13 @@ export function RecommendationHistorySheet({
               </p>
             </div>
           ) : (
-            entries.map((entry) => {
-              const recommendation = entry.recommendation
-
-              return (
-                <button
-                  type="button"
-                  key={`${entry.season}:${entry.style}:${entry.id}`}
-                  onClick={() => onSelect(entry)}
-                  className="flex w-full items-center gap-3 rounded-2xl border border-line bg-white p-2.5 text-left transition hover:border-ink"
-                  aria-label={`${recommendation.headline} 코디 상세 열기`}
-                >
-                  <span className="grid size-20 shrink-0 grid-cols-2 gap-1 rounded-xl bg-canvas p-1.5">
-                    {recommendation.items.slice(0, 4).map((item) => (
-                      <span
-                        className="flex min-h-0 items-center justify-center overflow-hidden rounded-lg bg-surface"
-                        key={item.id}
-                      >
-                        <ClosetItemVisual item={item} compact />
-                      </span>
-                    ))}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-1.5 text-[10px] font-bold text-muted">
-                      <span>
-                        {seasonLabels[recommendation.season]} ·{' '}
-                        {getOutfitStyleLabel(
-                          recommendation.style as OutfitStyle,
-                        )}
-                      </span>
-                      <span aria-hidden="true">·</span>
-                      <span>{formatStoredAt(entry.createdAt)}</span>
-                    </span>
-                    <span className="mt-1 line-clamp-2 block text-sm leading-5 font-black">
-                      {recommendation.headline}
-                    </span>
-                    <span className="mt-1 line-clamp-1 block text-[11px] text-muted">
-                      {recommendation.items.map((item) => item.name).join(', ')}
-                    </span>
-                  </span>
-                </button>
-              )
-            })
+            entries.map((entry) => (
+              <RecommendationHistoryCard
+                key={`${entry.baseItemId ?? 'all'}:${entry.season}:${entry.style}:${entry.id}`}
+                entry={entry}
+                onSelect={onSelect}
+              />
+            ))
           )}
         </div>
       </section>

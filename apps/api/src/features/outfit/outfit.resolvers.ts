@@ -9,6 +9,7 @@ import {
 import { outfitRecommendationService } from './outfit-recommendation.service.js'
 import { outfitPreviewService } from './outfit-preview.service.js'
 import { todayOutfitRecommendationService } from './today-outfit-recommendation.service.js'
+import type { WeatherSnapshot } from '../weather/weather.service.js'
 
 export const outfitResolvers = {
   Outfit: {
@@ -32,16 +33,18 @@ export const outfitResolvers = {
         input: {
           date: string
           season: Season
+          baseItemId?: string | null
           style?: OutfitStyle | null
           variation?: number | null
           excludedOuterItemIds?: string[] | null
+          weather?: WeatherSnapshot | null
         }
       },
       context: GraphQLContext,
     ) => {
       try {
         const viewer = await context.getViewer()
-        return todayOutfitRecommendationService.recommend(viewer.id, input)
+        return await todayOutfitRecommendationService.recommend(viewer.id, input)
       } catch (error) {
         throw toGraphQLError(
           error,

@@ -28,6 +28,7 @@ export const authRepository = {
           },
         },
         styleProfile: { create: { preferredFit: 'regular' } },
+        settings: { create: {} },
       },
       include: viewerInclude,
     })

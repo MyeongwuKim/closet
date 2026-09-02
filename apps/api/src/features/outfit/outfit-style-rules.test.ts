@@ -244,3 +244,125 @@ test('상위 후보를 이너·하의·아우터·신발에 걸쳐 다양하게 
   assert.equal(usedIds('outer').size, outers.length)
   assert.ok(usedIds('shoes').size >= 2)
 })
+
+test('기준 아이템은 모든 카테고리의 후보 제한과 조합 제한 전에 고정한다', async (t) => {
+  const categories = ['top', 'bottom', 'outer', 'midlayer', 'dress', 'shoes', 'accessory'] as const
+
+  for (const category of categories) {
+    await t.test(category, () => {
+      const baseItem = createItem('base-item', category, '선택한 아이템', {
+        fashionAttributes: {
+          layerRole: category === 'top' ? 'base' : 'single',
+          silhouette: 'oversized',
+          pattern: 'floral',
+          material: 'synthetic',
+          warmth: 'medium',
+          formality: 1,
+          confidence: 0.9,
+        },
+        wearCount: 100,
+        lastWornAt: new Date(),
+      })
+      const higherRankedItems = Array.from({ length: 9 }, (_, index) =>
+        createItem(`candidate-${index}`, category, '기본 아이템', {
+          fashionAttributes: {
+            layerRole: category === 'top' ? 'base' : 'single',
+            silhouette: 'regular',
+            pattern: 'solid',
+            material: 'cotton',
+            warmth: 'medium',
+            formality: 0.2,
+            confidence: 0.9,
+          },
+        }),
+      )
+      const items = [
+        createItem('top', 'top', '긴팔'),
+        createItem('bottom', 'bottom', '데님'),
+        createItem('dress', 'dress', '원피스'),
+        createItem('shoes', 'shoes', '스니커즈'),
+        ...higherRankedItems,
+        baseItem,
+      ]
+
+      const unanchored = buildOutfitCombinations(items, 'casual', 'regular', 'autumn')
+      assert.ok(unanchored.every(({ items: selected }) =>
+        selected.every((item) => item.id !== baseItem.id),
+      ))
+
+      const anchored = buildOutfitCombinations(items, 'casual', 'regular', 'autumn', baseItem.id)
+      assert.ok(anchored.length > 0)
+      assert.ok(anchored.every(({ items: selected }) =>
+        selected.filter((item) => item.id === baseItem.id).length === 1 && selected.length <= 5,
+      ))
+    })
+  }
+})
+
+test('다른 추천의 아우터 제외 목록에 있어도 기준 아우터는 유지한다', () => {
+  const baseOuter = createItem('base-outer', 'outer', '재킷')
+  const previousOuter = createItem('previous-outer', 'outer', '코트')
+  const top = createItem('top', 'top', '긴팔')
+
+  assert.deepEqual(
+    excludeOuterItems([baseOuter, previousOuter, top], [baseOuter.id, previousOuter.id], baseOuter.id),
+    [baseOuter, top],
+  )
+})
+
+test('기준 아우터는 원피스 또는 이너와 하의에 조합하고 단독 상의로 쓰지 않는다', () => {
+  const baseOuter = createItem('base-outer', 'outer', '집업', {
+    additionalCategories: ['top'],
+  })
+  const combinations = buildOutfitCombinations([
+    baseOuter,
+    createItem('top', 'top', '긴팔'),
+    createItem('bottom', 'bottom', '데님'),
+    createItem('dress', 'dress', '원피스'),
+  ], 'casual', 'regular', 'autumn', baseOuter.id)
+
+  assert.ok(combinations.some(({ items }) => items.some((item) => item.id === 'dress')))
+  assert.ok(combinations.every(({ items }) => {
+    const ids = items.map((item) => item.id)
+    return ids.includes(baseOuter.id) &&
+      (ids.includes('dress') || (ids.includes('top') && ids.includes('bottom')))
+  }))
+})
+
+test('중간 레이어 역할인 기준 상의에는 별도의 이너 상의를 함께 고른다', () => {
+  const baseMidlayer = createItem('base-midlayer', 'top', '니트 베스트', {
+    fashionAttributes: {
+      layerRole: 'mid',
+      silhouette: 'regular',
+      pattern: 'solid',
+      material: 'knit',
+      warmth: 'medium',
+      formality: 0.4,
+      confidence: 0.9,
+    },
+  })
+  const combinations = buildOutfitCombinations([
+    baseMidlayer,
+    createItem('top', 'top', '긴팔'),
+    createItem('bottom', 'bottom', '데님'),
+  ], 'casual', 'regular', 'autumn', baseMidlayer.id)
+
+  assert.ok(combinations.length > 0)
+  assert.ok(combinations.every(({ items }) =>
+    items.some((item) => item.id === baseMidlayer.id) &&
+    items.some((item) => item.id === 'top'),
+  ))
+})
+
+test('기준 아이템이 없거나 함께 입을 이너가 없으면 다른 완성 코디로 대체하지 않는다', () => {
+  const dress = createItem('dress', 'dress', '원피스')
+  const baseMidlayer = createItem('base-midlayer', 'midlayer', '가디건')
+  assert.deepEqual(
+    buildOutfitCombinations([dress], 'casual', 'regular', 'autumn', 'missing-item'),
+    [],
+  )
+  assert.deepEqual(
+    buildOutfitCombinations([dress, baseMidlayer], 'casual', 'regular', 'autumn', baseMidlayer.id),
+    [],
+  )
+})

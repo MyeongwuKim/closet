@@ -1,47 +1,34 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ChangeEvent } from 'react'
 import type {
   ClothingCategory,
   Season,
   WardrobeItem,
 } from '@closet/types'
-import { useIsMutating } from '@tanstack/react-query'
-import { Shirt } from 'lucide-react'
-import { Outlet, useNavigate, useSearchParams } from 'react-router-dom'
+import { Outlet, useLocation, useMatch, useNavigate, useSearchParams } from 'react-router-dom'
 import { ColorFilter } from '../../../components/ColorFilter'
+import { CatalogCardSkeletonGrid } from '../../../components/CatalogCardSkeletonGrid'
 import { DateSortButton } from '../../../components/DateSortButton'
 import { SeasonFilter } from '../../../components/SeasonFilter'
 import { seasonLabels } from '../../../constants/seasons'
 import { useUiStore } from '../../../stores/useUiStore'
-import {
-  ClothingAnalysisError,
-  clothingAnalysisMutationKey,
-  useClassifyClothingMutation,
-} from '../api/classifyClothing'
-import {
-  MAX_CLOTHING_IMAGE_SIZE,
-  SUPPORTED_CLOTHING_IMAGE_TYPES,
-  closetCategoryLabels,
-} from '../constants'
+import { closetCategoryLabels } from '../constants'
 import { useClosetStore } from '../stores/useClosetStore'
 import { useInfiniteWardrobeQuery, useWardrobeFilterOptions } from '../../../lib/catalogQueries'
 import { InfiniteScrollFooter } from '../../../components/InfiniteScrollFooter'
 import { ClosetCategoryFilter } from '../components/ClosetCategoryFilter'
+import { EmptyWardrobeAnimation } from '../components/EmptyWardrobeAnimation'
 import { ClosetItemCard } from '../components/ClosetItemCard'
 import { ClosetMultiSelectBar } from '../components/ClosetMultiSelectBar'
 import { ClosetPageHeader } from '../components/ClosetPageHeader'
 import { ClosetSearchFilter } from '../components/ClosetSearchFilter'
-
-function createImageObjectUrl(base64: string, mimeType: string) {
-  const binary = window.atob(base64)
-  const bytes = new Uint8Array(binary.length)
-
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index)
-  }
-
-  return URL.createObjectURL(new Blob([bytes], { type: mimeType }))
-}
+import {
+  WardrobeImageSourceDialog,
+  WardrobePhotoReviewDialog,
+} from '../components/WardrobeImagePickerDialogs'
+import { useWardrobeImageAnalysis } from '../hooks/useWardrobeImageAnalysis'
+import { useWardrobeImagePicker } from '../hooks/useWardrobeImagePicker'
+import { OutfitRecommendationActions } from '../../plan/components/OutfitRecommendationActions'
+import { createOutfitComposerPath } from '../../lookbook/utils/outfitComposerNavigation'
 
 const FILTER_EXIT_DURATION = 170
 const FILTER_ENTER_DURATION = 280
@@ -50,16 +37,29 @@ type FilterTransitionPhase = 'idle' | 'leaving' | 'entering'
 
 export function ClosetPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const isClosetList = useMatch('/closet') !== null
   const [searchParams, setSearchParams] = useSearchParams()
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const items = useClosetStore((state) => state.items)
-  const enqueueClassification = useUiStore(
-    (state) => state.enqueueClassification,
-  )
   const pushToast = useUiStore((state) => state.pushToast)
-  const classifyClothing = useClassifyClothingMutation()
-  const analyzingCount = useIsMutating({
-    mutationKey: clothingAnalysisMutationKey,
+  const { analyzeImages, analyzingCount } = useWardrobeImageAnalysis()
+  const {
+    addButtonRef,
+    albumInputRef,
+    cameraInputRef,
+    capturedPhoto,
+    pickerStep,
+    openPicker,
+    closePicker,
+    chooseAlbum,
+    startCameraCapture,
+    handleAlbumChange,
+    handleCameraChange,
+    retakePhoto,
+    useCapturedPhoto,
+  } = useWardrobeImagePicker({
+    onImagesSelected: analyzeImages,
+    onError: (message) => pushToast(message, 'error'),
   })
   const [filterTransitionPhase, setFilterTransitionPhase] =
     useState<FilterTransitionPhase>('idle')
@@ -206,130 +206,6 @@ export function ClosetPage() {
         ? 'closet-filter-enter'
         : ''
 
-  const openFilePicker = () => fileInputRef.current?.click()
-
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? [])
-    event.target.value = ''
-
-    if (files.length === 0) return
-
-    const validFiles = files.filter(
-      (file) =>
-        SUPPORTED_CLOTHING_IMAGE_TYPES.some((type) => type === file.type) &&
-        file.size <= MAX_CLOTHING_IMAGE_SIZE,
-    )
-
-    if (validFiles.length === 0) {
-      pushToast('10MB 이하의 JPEG, PNG, WEBP만 추가할 수 있습니다.', 'error')
-      return
-    }
-
-    const createdAt = Date.now()
-    const pendingUploads = validFiles.map((file, index) => ({
-      id: `upload-${createdAt}-${index}`,
-      name: '새 옷',
-      imageUrl: URL.createObjectURL(file),
-    }))
-
-    pushToast('AI가 옷 사진을 살펴보고 있어요 👀', 'info')
-
-    if (validFiles.length !== files.length) {
-      pushToast('일부 파일은 형식 또는 10MB 제한 때문에 제외했습니다.', 'error')
-    }
-
-    validFiles.forEach((file, index) => {
-      const item = pendingUploads[index]
-
-      void classifyClothing.mutateAsync(file)
-        .then((classification) => {
-          const cutoutImageUrl =
-            classification.cutoutImageBase64 && classification.cutoutMimeType
-              ? createImageObjectUrl(
-                  classification.cutoutImageBase64,
-                  classification.cutoutMimeType,
-                )
-              : null
-
-          if (!cutoutImageUrl) {
-            pushToast(
-              `${item.name}의 배경을 제거하지 못해 원본으로 표시합니다.`,
-              'error',
-            )
-          }
-
-          enqueueClassification({
-            itemId: item.id,
-            imageUrl: cutoutImageUrl ?? item.imageUrl,
-            originalImageUrl: cutoutImageUrl ? item.imageUrl : undefined,
-            originalFilename: file.name,
-            itemName:
-              classification.suggestedName.trim() ||
-              [classification.colorName, classification.subcategoryLabel]
-                .map((value) => value.trim())
-                .filter(Boolean)
-                .join(' ') ||
-              '새 옷',
-            category: classification.category,
-            subcategory: classification.subcategoryLabel,
-            colorName: classification.colorName,
-            colorDetailName: classification.colorDetailName,
-            colorHex: classification.colorHex,
-            colorRgb: classification.colorRgb,
-            colorMode: classification.colorMode,
-            fashionAttributes: classification.fashionAttributes ?? null,
-            confidence: classification.confidence,
-            model: classification.model,
-            candidates: classification.candidates,
-            analysisFailed: false,
-          })
-        })
-        .catch((error: unknown) => {
-          const rejectedImageCodes = new Set([
-            'PERSON_DETECTED',
-            'FASHION_ITEM_NOT_DETECTED',
-            'MULTIPLE_FASHION_ITEMS_DETECTED',
-            'UNCLEAR_FASHION_IMAGE',
-          ])
-
-          if (
-            error instanceof ClothingAnalysisError &&
-            error.code &&
-            rejectedImageCodes.has(error.code)
-          ) {
-            URL.revokeObjectURL(item.imageUrl)
-            pushToast(error.message, 'error')
-            return
-          }
-
-          const message =
-            error instanceof Error
-              ? error.message
-              : 'AI 이미지 분석에 실패했습니다.'
-
-          pushToast(message, 'error')
-          enqueueClassification({
-            itemId: item.id,
-            imageUrl: item.imageUrl!,
-            originalFilename: file.name,
-            itemName: item.name,
-            category: null,
-            subcategory: '',
-            colorName: '',
-            colorDetailName: '',
-            colorHex: '#d9d5cc',
-            colorRgb: [217, 213, 204],
-            colorMode: null,
-            fashionAttributes: null,
-            confidence: null,
-            model: null,
-            candidates: [],
-            analysisFailed: true,
-          })
-        })
-    })
-  }
-
   const handleItemClick = (itemId: string) => {
     const query = searchParams.toString()
     navigate(`/closet/${itemId}${query ? `?${query}` : ''}`)
@@ -375,7 +251,12 @@ export function ClosetPage() {
 
   const sendToLookbook = () => {
     if (selectedIds.length < 2) return
-    navigate(`/lookbook/new?items=${selectedIds.join(',')}`)
+    navigate(
+      createOutfitComposerPath(
+        selectedIds,
+        `${location.pathname}${location.search}${location.hash}`,
+      ),
+    )
   }
 
   const viewInLookbook = () => {
@@ -384,23 +265,33 @@ export function ClosetPage() {
   }
 
   return (
-    <section>
+    <section className={selectedIds.length > 0 ? 'pb-36' : 'pb-16'}>
       <input
-        ref={fileInputRef}
+        ref={albumInputRef}
         type="file"
         accept="image/jpeg,image/png,image/webp"
         multiple
         className="sr-only"
-        onChange={handleFileChange}
-        aria-label="옷 이미지 선택"
+        onChange={handleAlbumChange}
+        aria-label="앨범에서 옷 이미지 선택"
+      />
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        capture="environment"
+        className="sr-only"
+        onChange={handleCameraChange}
+        aria-label="카메라로 옷 사진 촬영"
       />
 
       <ClosetPageHeader
+        addButtonRef={addButtonRef}
         itemCount={totalCount}
         analyzingCount={analyzingCount}
         isSearchOpen={isSearchOpen}
         onToggleSearch={toggleSearch}
-        onAddItem={openFilePicker}
+        onAddItem={openPicker}
       />
       {totalCount > 0 && (
         <ClosetSearchFilter
@@ -457,10 +348,9 @@ export function ClosetPage() {
           </div>
         )}
 
-        {wardrobeItemsQuery.isPending ? (
-          <p role="status" className="mt-6 py-12 text-center text-sm text-muted">
-            옷장을 불러오고 있어요.
-          </p>
+        {wardrobeItemsQuery.isPending ||
+        (wardrobeItemsQuery.isFetching && filteredItems.length === 0) ? (
+          <CatalogCardSkeletonGrid variant="wardrobe" />
         ) : filteredItems.length === 0 && wardrobeItemsQuery.isError ? (
           <div role="alert" className="mt-6 rounded-3xl border border-line bg-surface p-6 text-center">
             <h2 className="text-lg font-black">옷장을 불러오지 못했어요</h2>
@@ -505,9 +395,7 @@ export function ClosetPage() {
                 : 'mt-6 rounded-3xl border border-dashed border-line bg-surface px-6 py-12 text-center'
             }
           >
-            <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-sage">
-              <Shirt size={24} />
-            </span>
+            <EmptyWardrobeAnimation className="mx-auto size-28" />
             <h2
               className={`mt-5 font-black ${
                 totalCount === 0 ? 'text-xl' : 'text-lg'
@@ -522,7 +410,7 @@ export function ClosetPage() {
                 : selectedColor
                   ? `${selectedColor} 색상 옷이 없어요`
                 : activeSeason
-                  ? `${seasonLabels[activeSeason]}에 입을 옷이 없어요`
+                  ? `옷장이 ${seasonLabels[activeSeason]}옷을 기다리고 있어요`
                   : '이 카테고리에 저장된 옷이 없어요'}
             </h2>
             <p
@@ -564,6 +452,26 @@ export function ClosetPage() {
         />
       )}
 
+      {isClosetList && selectedIds.length === 0 && (
+        <OutfitRecommendationActions />
+      )}
+
+      {(pickerStep === 'source' || pickerStep === 'capturing') && (
+        <WardrobeImageSourceDialog
+          isCapturing={pickerStep === 'capturing'}
+          onCapture={startCameraCapture}
+          onChooseAlbum={chooseAlbum}
+          onCancel={closePicker}
+        />
+      )}
+      {pickerStep === 'review' && capturedPhoto && (
+        <WardrobePhotoReviewDialog
+          previewUrl={capturedPhoto.previewUrl}
+          onRetake={retakePhoto}
+          onUse={useCapturedPhoto}
+          onCancel={closePicker}
+        />
+      )}
       <Outlet />
     </section>
   )

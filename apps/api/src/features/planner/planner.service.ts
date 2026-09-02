@@ -1,12 +1,23 @@
+/**
+ * 용도:
+ * 플래너 조회와 편집 규칙을 검증하고 최근 착용 알림에 필요한 충돌을 계산한다.
+ *
+ * 동작 방식:
+ * 날짜와 사용자 소유 코디를 확인한 뒤 저장소 작업을 조합하며,
+ * 최근 착용 검사는 설정된 기간 안의 기록만 조회해 우선순위가 가장 높은 결과를 반환한다.
+ */
+
 import type { OutfitStyle } from '@prisma/client'
 import { ServiceError } from '../../graphql/errors.js'
-import { parseDateOnly } from '../../lib/date.js'
+import { parseDateOnly, toDateOnly } from '../../lib/date.js'
 import { outfitRepository } from '../outfit/outfit.repository.js'
 import {
   outfitService,
   type CreateOutfitInput,
 } from '../outfit/outfit.service.js'
 import { plannerRepository } from './planner.repository.js'
+import { getKoreaTodayUtc } from '../wardrobe/wardrobe.service.js'
+import { findRecentWearConflict } from './recent-wear-conflict.js'
 
 export interface SetPlannerEntryInput {
   weekStartsOn: string
@@ -25,12 +36,63 @@ export interface SetDirectPlannerEntryInput {
   previewImage?: CreateOutfitInput['previewImage']
   recommendationName?: string | null
   recommendationStyle?: OutfitStyle | null
+  weatherSummary?: string | null
+  temperatureC?: number | null
 }
 
 export interface MovePlannerEntryInput {
   weekStartsOn: string
   sourceDate: string
   targetDate: string
+}
+
+export interface RecentWearConflictInput {
+  itemIds: string[]
+  targetDate: string
+  intervalDays: number
+  combinationReminderEnabled: boolean
+  itemReminderEnabled: boolean
+  includeTargetDate?: boolean
+}
+
+const objectIdPattern = /^[a-f\d]{24}$/i
+const dayInMilliseconds = 24 * 60 * 60 * 1000
+
+function validateRecentWearConflictInput(input: RecentWearConflictInput) {
+  if (
+    !Number.isInteger(input.intervalDays) ||
+    input.intervalDays < 1 ||
+    input.intervalDays > 30
+  ) {
+    throw new ServiceError(
+      '최근 착용 알림 간격은 1일에서 30일 사이여야 합니다.',
+      'INVALID_WEAR_REMINDER_INTERVAL',
+    )
+  }
+  if (input.itemIds.length === 0) {
+    throw new ServiceError(
+      '최근 착용을 확인할 옷을 하나 이상 선택해주세요.',
+      'INVALID_WEAR_REMINDER_ITEMS',
+    )
+  }
+  if (input.itemIds.length > 20) {
+    throw new ServiceError(
+      '최근 착용은 옷을 최대 20개까지 확인할 수 있습니다.',
+      'WEAR_REMINDER_ITEM_LIMIT_EXCEEDED',
+    )
+  }
+  if (input.itemIds.some((itemId) => !objectIdPattern.test(itemId))) {
+    throw new ServiceError(
+      '올바르지 않은 옷장 아이템이 포함되어 있습니다.',
+      'INVALID_WARDROBE_ITEM_ID',
+    )
+  }
+  if (new Set(input.itemIds).size !== input.itemIds.length) {
+    throw new ServiceError(
+      '같은 옷을 중복해서 확인할 수 없습니다.',
+      'DUPLICATE_WEAR_REMINDER_ITEM',
+    )
+  }
 }
 
 function moveArrayItem<T>(items: T[], fromIndex: number, toIndex: number) {
@@ -100,6 +162,41 @@ export const plannerService = {
 
     if (uniqueOutfitIds.length === 0) return []
     return plannerRepository.findOutfitWearHistory(userId, uniqueOutfitIds)
+  },
+
+  async getRecentWearConflict(
+    userId: string,
+    input: RecentWearConflictInput,
+  ) {
+    validateRecentWearConflictInput(input)
+    const targetDate = parseDateOnly(input.targetDate, '착용 예정일')
+    if (!input.combinationReminderEnabled && !input.itemReminderEnabled) {
+      return null
+    }
+
+    const rangeStart = new Date(
+      targetDate.getTime() - input.intervalDays * dayInMilliseconds,
+    )
+    const rangeEndExclusive = input.includeTargetDate
+      ? new Date(targetDate.getTime() + dayInMilliseconds)
+      : targetDate
+    const throughDate = getKoreaTodayUtc()
+    if (rangeStart.getTime() > throughDate.getTime()) return null
+
+    const records = await plannerRepository.findRecentWearHistory(
+      userId,
+      input.itemIds,
+      rangeStart,
+      rangeEndExclusive,
+      throughDate,
+    )
+    const conflict = findRecentWearConflict(records, input.itemIds, input)
+    if (!conflict) return null
+
+    return {
+      ...conflict,
+      wornDate: toDateOnly(conflict.wornDate),
+    }
   },
 
   async setEntry(userId: string, input: SetPlannerEntryInput) {
@@ -182,6 +279,8 @@ export const plannerService = {
         date,
         outfitId: outfit.id,
         title: outfit.name,
+        weatherSummary: input.weatherSummary?.trim() || null,
+        temperatureC: input.temperatureC,
       })
     } catch (error) {
       if (createdPlannerOnly) {

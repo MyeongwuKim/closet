@@ -1,3 +1,12 @@
+/**
+ * 용도:
+ * 플래너 주간 일정과 코디 착용 이력을 Prisma로 조회하고 저장한다.
+ *
+ * 동작 방식:
+ * 사용자와 날짜 범위를 기준으로 일정을 찾고, 최근 착용 검사는
+ * 이미지 없이 코디명과 아이템 구성만 가볍게 조회한다.
+ */
+
 import type { Prisma } from '@prisma/client'
 import { prisma } from '../../lib/prisma.js'
 import { outfitInclude } from '../outfit/outfit.repository.js'
@@ -62,6 +71,48 @@ export const plannerRepository = {
       select: {
         outfitId: true,
         date: true,
+      },
+      orderBy: { date: 'desc' },
+    })
+  },
+
+  findRecentWearHistory(
+    userId: string,
+    itemIds: string[],
+    rangeStart: Date,
+    rangeEndExclusive: Date,
+    throughDate: Date,
+  ) {
+    return prisma.plannerEntry.findMany({
+      where: {
+        date: {
+          gte: rangeStart,
+          lt: rangeEndExclusive,
+          lte: throughDate,
+        },
+        outfitId: { not: null },
+        plannerWeek: { is: { userId } },
+        outfit: {
+          is: {
+            items: {
+              some: { wardrobeItemId: { in: itemIds } },
+            },
+          },
+        },
+      },
+      select: {
+        date: true,
+        outfit: {
+          select: {
+            name: true,
+            items: {
+              select: {
+                wardrobeItemId: true,
+                slot: true,
+              },
+            },
+          },
+        },
       },
       orderBy: { date: 'desc' },
     })

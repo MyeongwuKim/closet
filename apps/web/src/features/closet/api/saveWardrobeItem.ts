@@ -186,6 +186,7 @@ export async function saveWardrobeItem(
           colorHex colorMode seasons tags
           fashionAttributes {
             layerRole silhouette pattern material texture warmth formality confidence
+            ribbedCuffs ribbedHem ribbedNeckline
           }
           sizeLabel shoulderWidthCm chestWidthCm sleeveLengthCm
           totalLengthCm waistWidthCm hipWidthCm inseamCm

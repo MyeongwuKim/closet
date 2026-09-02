@@ -11,17 +11,20 @@ import type {
   Season,
   WardrobeItem,
 } from '@closet/types'
-import { Sparkles } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { outfitStyleOptions } from '../../../constants/styleOptions'
 import { allSeasons } from '../../../constants/seasons'
 import { useUiStore } from '../../../stores/useUiStore'
 import { useClosetStore } from '../../closet/stores/useClosetStore'
+import { formatDateOnly } from '../../plan/data/weeklyPlan'
+import { useRecentWearReminder } from '../../plan/hooks/useRecentWearReminder'
 import { useStyleProfileStore } from '../../settings/stores/useStyleProfileStore'
 import { OutfitComposerHeader } from '../components/OutfitComposerHeader'
+import { OutfitCompletionActions } from '../components/OutfitCompletionActions'
 import { OutfitMatchPanel } from '../components/OutfitMatchPanel'
 import { OutfitPreviewDialog } from '../components/OutfitPreviewDialog'
 import { OutfitSaveDialog } from '../components/OutfitSaveDialog'
+import { SavedOutfitPreviewDialog } from '../components/SavedOutfitPreviewDialog'
 import {
   useCreateOutfitMutation,
   useGenerateOutfitPreviewMutation,
@@ -40,6 +43,10 @@ import {
   findDuplicateOutfit,
   getOutfitCompletionMessage,
 } from '../utils/outfitComposition'
+import {
+  getOutfitComposerBackPath,
+  shouldExitOutfitComposer,
+} from '../utils/outfitComposerNavigation'
 
 const targetCategoryOrder: ClothingCategory[] = [
   'top',
@@ -127,36 +134,38 @@ export function OutfitComposerPage() {
   const addOutfit = useLookbookStore((state) => state.addOutfit)
   const createOutfit = useCreateOutfitMutation()
   const previewMutation = useGenerateOutfitPreviewMutation()
+  const { confirmRecentWear, isCheckingRecentWear } =
+    useRecentWearReminder()
   const pushToast = useUiStore((state) => state.pushToast)
   const preferredStyles = useStyleProfileStore(
     (state) => state.profile.preferredStyles,
   )
 
-  const requestedItemIds = useMemo(
+  // 편집 중 URL의 items가 바뀌어도 최초 아이템과 복귀 경로는 유지한다.
+  const [initialItemIds] = useState(
     () => (searchParams.get('items') ?? '').split(',').filter(Boolean),
-    [searchParams],
   )
   const initialItems = useMemo(
     () =>
-      requestedItemIds.flatMap((itemId) => {
+      initialItemIds.flatMap((itemId) => {
         const item = items.find((candidate) => candidate.id === itemId)
         return item ? [item] : []
       }),
-    [items, requestedItemIds],
+    [items, initialItemIds],
   )
-  const fromPath = searchParams.get('from')
-  const backPath =
-    fromPath?.startsWith('/') && !fromPath.startsWith('//')
-      ? fromPath
-      : '/lookbook'
+  const backPath = getOutfitComposerBackPath(searchParams.get('from'))
   const initializedFromQueryRef = useRef(
-    requestedItemIds.length === 0 || initialItems.length > 0,
+    initialItemIds.length === 0 || initialItems.length > 0,
   )
 
   const [composerState, dispatch] = useReducer(
     outfitComposerReducer,
-    createOutfitLayers(initialItems),
-    createOutfitComposerState,
+    {
+      layers: createOutfitLayers(initialItems),
+      originItemIds: initialItemIds,
+    },
+    ({ layers, originItemIds }) =>
+      createOutfitComposerState(layers, originItemIds),
   )
   const [style, setStyle] = useState<string>(() => preferredStyles[0] ?? '')
   const [outfitSeasons, setOutfitSeasons] = useState<Season[]>(() =>
@@ -165,6 +174,7 @@ export function OutfitComposerPage() {
   const [outfitName, setOutfitName] = useState(() =>
     getDefaultOutfitName(initialItems, outfits.length),
   )
+  const [isSavedLookbookOpen, setIsSavedLookbookOpen] = useState(false)
   const { layers, targetCategory, step } = composerState
   const availableStyleOptions = useMemo(() => {
     const defaultValues = new Set<string>(
@@ -184,31 +194,45 @@ export function OutfitComposerPage() {
     )
   const isStepDecisionOpen = step === 'category'
   const isSaveStepOpen = step === 'save'
+  const shouldReturnToOrigin = shouldExitOutfitComposer(composerState)
 
   const goBackStep = useCallback(() => {
-    if (step === 'start') {
-      navigate(backPath)
+    if (isSavedLookbookOpen) {
+      setIsSavedLookbookOpen(false)
+      return
+    }
+    if (shouldReturnToOrigin) {
+      navigate(backPath, { replace: true })
       return
     }
     dispatch({ type: 'GO_BACK' })
-  }, [backPath, navigate, step])
+  }, [backPath, isSavedLookbookOpen, navigate, shouldReturnToOrigin])
 
   useEffect(() => {
     if (initializedFromQueryRef.current || items.length === 0) return
-    const resolvedItems = requestedItemIds.flatMap((itemId) => {
+    const resolvedItems = initialItemIds.flatMap((itemId) => {
       const item = items.find((candidate) => candidate.id === itemId)
       return item ? [item] : []
     })
-    dispatch({ type: 'HYDRATE', layers: createOutfitLayers(resolvedItems) })
+    dispatch({
+      type: 'HYDRATE',
+      layers: createOutfitLayers(resolvedItems),
+      originItemIds: resolvedItems.map((item) => item.id),
+    })
     initializedFromQueryRef.current = true
-  }, [items, requestedItemIds])
+  }, [items, initialItemIds])
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') goBackStep()
+      if (
+        event.key === 'Escape' &&
+        !useUiStore.getState().recentWearConfirmation
+      ) {
+        goBackStep()
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
@@ -229,8 +253,7 @@ export function OutfitComposerPage() {
   const duplicateMessage = duplicateOutfit
     ? `같은 옷 조합이 이미 '${duplicateOutfit.name}' 코디로 저장되어 있어요.`
     : null
-  const outfitBlockingMessage = outfitCompletionMessage ?? duplicateMessage
-  const canCompleteOutfit = outfitBlockingMessage === null
+  const savedLookbookImageUrl = duplicateOutfit?.previewImageUrl
   const selectedSlotCounts = selectedItems.reduce<Record<string, number>>(
     (counts, item) => {
       const slotId = getSlotId(item)
@@ -394,6 +417,15 @@ export function OutfitComposerPage() {
       return
     }
 
+    const confirmed = await confirmRecentWear({
+      itemIds: layers.map((layer) => layer.wardrobeItemId),
+      targetDate: formatDateOnly(new Date()),
+      includeTargetDate: true,
+      confirmLabel: '그래도 저장',
+      cancelLabel: '계속 편집',
+    })
+    if (!confirmed) return
+
     try {
       const savedOutfit = await createOutfit.mutateAsync({
         name,
@@ -428,10 +460,6 @@ export function OutfitComposerPage() {
       pushToast(outfitCompletionMessage, 'error')
       return
     }
-    if (duplicateOutfit) {
-      pushToast(duplicateMessage!, 'error')
-      return
-    }
     dispatch({ type: 'OPEN_PREVIEW' })
     if (previewMutation.isPending) return
 
@@ -457,6 +485,27 @@ export function OutfitComposerPage() {
       })
   }
 
+  const openAiLookbook = () => {
+    if (savedLookbookImageUrl) {
+      setIsSavedLookbookOpen(true)
+      return
+    }
+    if (
+      composerState.preview.status === 'success' &&
+      composerState.preview.imageUrl
+    ) {
+      dispatch({ type: 'REOPEN_PREVIEW' })
+      return
+    }
+    generatePreview()
+  }
+
+  const updateOutfitStyle = (nextStyle: string) => {
+    if (nextStyle === style) return
+    setStyle(nextStyle)
+    dispatch({ type: 'INVALIDATE_PREVIEW' })
+  }
+
   const composerSession = {
     items,
     selectedIds,
@@ -466,7 +515,7 @@ export function OutfitComposerPage() {
     recommendedCategory: recommendedTargetCategory,
     step: step === 'save' ? composerState.returnStep : step,
     isSaveOpen: isSaveStepOpen,
-    hasPreviousStep: step !== 'start',
+    hasPreviousStep: !shouldReturnToOrigin,
     preview: composerState.preview,
     toggleItem,
     selectTargetCategory,
@@ -480,9 +529,9 @@ export function OutfitComposerPage() {
     outfitSeasons,
     styleOptions: availableStyleOptions,
     includesPreview: hasGeneratedPreview,
-    isSaving: createOutfit.isPending,
+    isSaving: isCheckingRecentWear || createOutfit.isPending,
     setOutfitName,
-    setOutfitStyle: setStyle,
+    setOutfitStyle: updateOutfitStyle,
     setOutfitSeasons,
     saveOutfit: () => void saveOutfit(),
     closeSave: () => dispatch({ type: 'GO_BACK' }),
@@ -499,68 +548,59 @@ export function OutfitComposerPage() {
 
         {!isSaveStepOpen && layers.length > 0 && (
           <footer className="shrink-0 border-t border-line bg-surface px-5 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(27,27,24,0.06)]">
-          <div className="mx-auto max-w-2xl">
-            {isStepDecisionOpen ? (
-              canCompleteOutfit ? (
-                <div className="grid grid-cols-[0.95fr_1.05fr] gap-2">
-                  <button
-                    type="button"
-                    onClick={generatePreview}
-                    className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-canvas px-3 py-3 text-xs font-bold text-ink"
-                  >
-                    <Sparkles size={15} /> AI 룩 미리보기
-                  </button>
-                  <button
-                    type="button"
-                    onClick={openSaveStep}
-                    className="rounded-xl bg-accent px-5 py-3 text-sm font-bold text-white"
-                  >
-                    이대로 완성
-                  </button>
-                </div>
-              ) : (
-                <p className="rounded-xl bg-canvas px-4 py-3 text-center text-xs font-bold text-muted">
-                  {outfitBlockingMessage}
-                </p>
-              )
-            ) : activeTargetCategory ? (
-              <div className="grid gap-2">
-                <button
-                  type="button"
-                  onClick={openCategoryPicker}
-                  className="rounded-xl border border-line bg-canvas px-3 py-3 text-xs font-bold text-ink"
-                >
-                  다른 종류 고르기
-                </button>
-                {canCompleteOutfit ? (
-                  <div className="grid grid-cols-[0.95fr_1.05fr] gap-2">
-                    <button
-                      type="button"
-                      onClick={generatePreview}
-                      className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-canvas px-3 py-3 text-xs font-bold text-ink"
-                    >
-                      <Sparkles size={14} /> AI 룩 미리보기
-                    </button>
-                    <button
-                      type="button"
-                      onClick={openSaveStep}
-                      className="rounded-xl bg-accent px-3 py-3 text-xs font-bold text-white"
-                    >
-                      이대로 완성
-                    </button>
-                  </div>
-                ) : (
-                  <p className="text-center text-[11px] font-bold text-muted">
-                    {outfitBlockingMessage}
+            <div className="mx-auto max-w-2xl">
+              {isStepDecisionOpen ? (
+                outfitCompletionMessage ? (
+                  <p className="rounded-xl bg-canvas px-4 py-3 text-center text-xs font-bold text-muted">
+                    {outfitCompletionMessage}
                   </p>
-                )}
-              </div>
-            ) : null}
-          </div>
+                ) : (
+                  <OutfitCompletionActions
+                    duplicateMessage={duplicateMessage}
+                    hasAvailableLookbook={Boolean(
+                      savedLookbookImageUrl || hasGeneratedPreview
+                    )}
+                    onOpenLookbook={openAiLookbook}
+                    onComplete={openSaveStep}
+                  />
+                )
+              ) : activeTargetCategory ? (
+                <div className="grid gap-2">
+                  <button
+                    type="button"
+                    onClick={openCategoryPicker}
+                    className="rounded-xl border border-line bg-canvas px-3 py-3 text-xs font-bold text-ink"
+                  >
+                    다른 종류 고르기
+                  </button>
+                  {outfitCompletionMessage ? (
+                    <p className="text-center text-[11px] font-bold text-muted">
+                      {outfitCompletionMessage}
+                    </p>
+                  ) : (
+                    <OutfitCompletionActions
+                      duplicateMessage={duplicateMessage}
+                      hasAvailableLookbook={Boolean(
+                        savedLookbookImageUrl || hasGeneratedPreview
+                      )}
+                      onOpenLookbook={openAiLookbook}
+                      onComplete={openSaveStep}
+                    />
+                  )}
+                </div>
+              ) : null}
+            </div>
           </footer>
         )}
-        <OutfitPreviewDialog />
+        <OutfitPreviewDialog isReadOnly={Boolean(duplicateOutfit)} />
         <OutfitSaveDialog />
+        {isSavedLookbookOpen && savedLookbookImageUrl && duplicateOutfit && (
+          <SavedOutfitPreviewDialog
+            imageUrl={savedLookbookImageUrl}
+            outfitName={duplicateOutfit.name}
+            onClose={() => setIsSavedLookbookOpen(false)}
+          />
+        )}
       </section>
     </OutfitComposerContext.Provider>
   )

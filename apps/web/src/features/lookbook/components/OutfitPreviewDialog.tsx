@@ -21,6 +21,7 @@ interface OutfitPreviewDialogViewProps {
   closePreview: () => void
   onPrimary: () => void
   primaryLabel?: string
+  primaryAction?: 'save' | 'close'
   isPrimaryPending?: boolean
 }
 
@@ -31,6 +32,7 @@ export function OutfitPreviewDialogView({
   closePreview,
   onPrimary,
   primaryLabel = '코디북에 추가',
+  primaryAction = 'save',
   isPrimaryPending = false,
 }: OutfitPreviewDialogViewProps) {
   const [loadingStage, setLoadingStage] = useState(0)
@@ -184,8 +186,14 @@ export function OutfitPreviewDialogView({
             >
               {isSuccess ? (
                 <>
-                  <BookPlus size={15} />
-                  {isPrimaryPending ? '저장 중...' : primaryLabel}
+                  {primaryAction === 'close' ? (
+                    <X size={15} />
+                  ) : (
+                    <BookPlus size={15} />
+                  )}
+                  {primaryAction === 'save' && isPrimaryPending
+                    ? '저장 중...'
+                    : primaryLabel}
                 </>
               ) : (
                 '닫기'
@@ -198,7 +206,13 @@ export function OutfitPreviewDialogView({
   )
 }
 
-export function OutfitPreviewDialog() {
+interface OutfitPreviewDialogProps {
+  isReadOnly?: boolean
+}
+
+export function OutfitPreviewDialog({
+  isReadOnly = false,
+}: OutfitPreviewDialogProps) {
   const {
     selectedItems,
     preview,
@@ -213,7 +227,9 @@ export function OutfitPreviewDialog() {
       preview={preview}
       generatePreview={generatePreview}
       closePreview={closePreview}
-      onPrimary={addPreviewToLookbook}
+      onPrimary={isReadOnly ? closePreview : addPreviewToLookbook}
+      primaryLabel={isReadOnly ? '닫기' : undefined}
+      primaryAction={isReadOnly ? 'close' : 'save'}
     />
   )
 }

@@ -7,6 +7,7 @@ import { outfitResolvers } from '../features/outfit/outfit.resolvers.js'
 import { plannerResolvers } from '../features/planner/planner.resolvers.js'
 import { userResolvers } from '../features/user/user.resolvers.js'
 import { wardrobeResolvers } from '../features/wardrobe/wardrobe.resolvers.js'
+import { weatherResolvers } from '../features/weather/weather.resolvers.js'
 
 export const resolvers = {
   Query: {
@@ -20,6 +21,7 @@ export const resolvers = {
     ...outfitResolvers.Query,
     ...plannerResolvers.Query,
     ...catalogResolvers.Query,
+    ...weatherResolvers.Query,
   },
   Mutation: {
     ...authResolvers.Mutation,

@@ -50,6 +50,7 @@ const fashionAttributeValues = {
   pattern: ['solid', 'stripe', 'check', 'graphic', 'floral', 'other', 'unknown'],
   material: ['cotton', 'denim', 'knit', 'wool', 'leather', 'linen', 'synthetic', 'other', 'unknown'],
   texture: ['smooth', 'twill', 'corduroy', 'ribbed', 'cableKnit', 'fuzzy', 'boucle', 'quilted', 'suede', 'glossy', 'distressed', 'other', 'unknown'],
+  trimPresence: ['present', 'absent', 'unknown'],
   warmth: ['light', 'medium', 'heavy', 'unknown'],
 } as const
 
@@ -66,6 +67,12 @@ function normalizeFashionAttributes(
     fashionAttributeValues.material.includes(value.material) &&
     (value.texture === undefined ||
       fashionAttributeValues.texture.includes(value.texture)) &&
+    (value.ribbedCuffs == null ||
+      fashionAttributeValues.trimPresence.includes(value.ribbedCuffs)) &&
+    (value.ribbedHem == null ||
+      fashionAttributeValues.trimPresence.includes(value.ribbedHem)) &&
+    (value.ribbedNeckline == null ||
+      fashionAttributeValues.trimPresence.includes(value.ribbedNeckline)) &&
     fashionAttributeValues.warmth.includes(value.warmth) &&
     Number.isFinite(value.formality) &&
     value.formality >= 0 &&
@@ -97,6 +104,9 @@ function normalizeFashionAttributes(
   return {
     ...value,
     texture: value.texture ?? 'unknown',
+    ribbedCuffs: value.ribbedCuffs ?? 'unknown',
+    ribbedHem: value.ribbedHem ?? 'unknown',
+    ribbedNeckline: value.ribbedNeckline ?? 'unknown',
     layerRole: fixedLayerRole,
     formality: Math.round(value.formality * 100) / 100,
     confidence: Math.round(value.confidence * 100) / 100,

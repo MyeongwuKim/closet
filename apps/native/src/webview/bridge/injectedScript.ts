@@ -93,6 +93,12 @@ export const CLOSET_WEBVIEW_BRIDGE_SCRIPT = `
           permission: permission
         }, 120000);
       },
+      getCurrentLocation: function () {
+        return request('closet:native-current-location', null, 30000);
+      },
+      captureWardrobePhoto: function () {
+        return request('closet:native-capture-wardrobe-photo', null, 180000);
+      },
       openExternalUrl: function (url) {
         return request('closet:native-open-external-url', { url: url });
       },

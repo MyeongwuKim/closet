@@ -279,10 +279,12 @@ function includesCategory(item: StyleRuleItem, category: ClothingCategory) {
 export function excludeOuterItems<T extends StyleRuleItem>(
   items: T[],
   excludedItemIds: Iterable<string>,
+  baseItemId?: string,
 ) {
   const excludedIdSet = new Set(excludedItemIds)
   return items.filter(
     (item) =>
+      item.id === baseItemId ||
       !(excludedIdSet.has(item.id) && includesCategory(item, 'outer')),
   )
 }
@@ -574,10 +576,13 @@ function sortPool<T extends StyleRuleItem>(
   items: T[],
   style: OutfitStyle,
   fit: PreferredFit,
+  baseItemId?: string,
 ) {
+  // Keep the requested item ahead of both the pool limit and per-role limits.
   return [...items]
     .sort(
       (left, right) =>
+        Number(right.id === baseItemId) - Number(left.id === baseItemId) ||
         getItemStyleScore(right, style, fit) + getRotationScore(right) -
         (getItemStyleScore(left, style, fit) + getRotationScore(left)),
     )
@@ -665,7 +670,11 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
   style: OutfitStyle,
   fit: PreferredFit,
   season: Season,
+  baseItemId?: string,
 ) {
+  if (baseItemId !== undefined && !items.some((item) => item.id === baseItemId)) {
+    return []
+  }
   const tops = sortPool(
     items.filter((item) => {
       const role = getFashionAttributes(item).layerRole
@@ -673,9 +682,10 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
     }),
     style,
     fit,
+    baseItemId,
   )
-  const bottoms = sortPool(items.filter((item) => includesCategory(item, 'bottom')), style, fit)
-  const dresses = sortPool(items.filter((item) => includesCategory(item, 'dress')), style, fit)
+  const bottoms = sortPool(items.filter((item) => includesCategory(item, 'bottom')), style, fit, baseItemId)
+  const dresses = sortPool(items.filter((item) => includesCategory(item, 'dress')), style, fit, baseItemId)
   const midlayers = sortPool(
     items.filter(
       (item) =>
@@ -683,6 +693,7 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
     ),
     style,
     fit,
+    baseItemId,
   )
   const outers = sortPool(
     items.filter(
@@ -691,16 +702,19 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
     ),
     style,
     fit,
+    baseItemId,
   )
-  const shoes = sortPool(items.filter((item) => includesCategory(item, 'shoes')), style, fit)
+  const shoes = sortPool(items.filter((item) => includesCategory(item, 'shoes')), style, fit, baseItemId)
   const accessories = sortPool(
     items.filter((item) => includesCategory(item, 'accessory')),
     style,
     fit,
+    baseItemId,
   )
   const combinations = new Map<string, T[]>()
 
   const push = (selectedItems: T[]) => {
+    if (baseItemId !== undefined && !selectedItems.some((item) => item.id === baseItemId)) return
     const uniqueItems = [...new Map(selectedItems.map((item) => [item.id, item])).values()]
     if (uniqueItems.length !== selectedItems.length || uniqueItems.length > 5) return
     const key = uniqueItems.map((item) => item.id).sort().join(':')

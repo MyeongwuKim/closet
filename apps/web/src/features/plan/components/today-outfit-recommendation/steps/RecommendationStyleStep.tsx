@@ -1,4 +1,4 @@
-import type { Season } from '@closet/types'
+import type { Season, WeatherSnapshot } from '@closet/types'
 import { ChevronLeft, LoaderCircle, RefreshCw } from 'lucide-react'
 import type { OutfitStyle } from '../../../../../constants/styleOptions'
 import { seasonLabels } from '../../../../../constants/seasons'
@@ -7,6 +7,7 @@ import {
   RecommendationQuickReply,
 } from '../RecommendationChatUi'
 import type { SeasonChoice } from '../recommendationFlow'
+import { WeatherSnapshotSummary } from '../../../../weather/components/WeatherSnapshotSummary'
 
 interface StyleOption {
   value: OutfitStyle
@@ -20,8 +21,12 @@ interface RecommendationStyleStepProps {
   hasPreferredStyles: boolean
   isLoading: boolean
   isError: boolean
+  weather: WeatherSnapshot | null
+  isWeatherLoading: boolean
+  weatherError: string | null
   onBack: () => void
   onRetry: () => void
+  onWeatherRetry: () => void
   onSelect: (style: OutfitStyle) => void
 }
 
@@ -32,8 +37,12 @@ export function RecommendationStyleStep({
   hasPreferredStyles,
   isLoading,
   isError,
+  weather,
+  isWeatherLoading,
+  weatherError,
   onBack,
   onRetry,
+  onWeatherRetry,
   onSelect,
 }: RecommendationStyleStepProps) {
   return (
@@ -50,9 +59,7 @@ export function RecommendationStyleStep({
                 : `${seasonLabels[season]} 기준`}
             </span>
             {seasonChoice === 'current-weather' && (
-              <p className="mb-1.5 text-[11px] leading-4 text-muted">
-                날씨 데이터 연결 전이라 지금은 선택한 날짜의 계절을 사용해요.
-              </p>
+              weather ? <WeatherSnapshotSummary weather={weather} compact /> : null
             )}
             <p className="font-black">어떤 스타일로 추천할까요?</p>
             <p className="mt-0.5 text-muted">
@@ -61,7 +68,24 @@ export function RecommendationStyleStep({
           </RecommendationAssistantMessage>
 
           <div className="ml-10 flex flex-wrap justify-end gap-2">
-            {isLoading ? (
+            {isWeatherLoading ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-canvas px-3.5 py-2 text-xs font-bold text-muted">
+                <LoaderCircle className="animate-spin" size={14} /> 현재 날씨 확인 중
+              </span>
+            ) : weatherError ? (
+              <div className="flex max-w-[17rem] flex-col items-end gap-2">
+                <p className="text-right text-[11px] leading-4 text-muted" role="alert">
+                  {weatherError}
+                </p>
+                <button
+                  type="button"
+                  onClick={onWeatherRetry}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 py-2 text-xs font-bold"
+                >
+                  <RefreshCw size={14} /> 위치·날씨 다시 확인
+                </button>
+              </div>
+            ) : isLoading ? (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-canvas px-3.5 py-2 text-xs font-bold text-muted">
                 <LoaderCircle className="animate-spin" size={14} /> 스타일 불러오는 중
               </span>

@@ -19,6 +19,7 @@ import {
 import { AppInfoPage } from '../features/settings/pages/AppInfoPage'
 import { WardrobeStatisticsPage } from '../features/settings/pages/WardrobeStatisticsPage'
 import { NotificationWeatherPage } from '../features/settings/pages/NotificationWeatherPage'
+import { WearReminderSettingsPage } from '../features/settings/pages/WearReminderSettingsPage'
 import { isNativeWebViewRuntime } from '../native-bridge'
 
 const createRouter = isNativeWebViewRuntime()
@@ -51,6 +52,10 @@ export const router = createRouter([
           { path: 'settings', element: <SettingsPage /> },
           { path: 'settings/statistics', element: <WardrobeStatisticsPage /> },
           { path: 'settings/style-profile', element: <StyleProfilePage /> },
+          {
+            path: 'settings/wear-reminder',
+            element: <WearReminderSettingsPage />,
+          },
           {
             path: 'settings/notifications-weather',
             element: <NotificationWeatherPage />,

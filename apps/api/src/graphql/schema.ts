@@ -83,12 +83,21 @@ export const typeDefs = `#graphql
     unknown
   }
 
+  enum FashionTrimPresence {
+    present
+    absent
+    unknown
+  }
+
   type FashionItemAttributes {
     layerRole: FashionLayerRole!
     silhouette: FashionSilhouette!
     pattern: FashionPattern!
     material: FashionMaterial!
     texture: FashionTexture
+    ribbedCuffs: FashionTrimPresence
+    ribbedHem: FashionTrimPresence
+    ribbedNeckline: FashionTrimPresence
     warmth: FashionWarmth!
     formality: Float!
     confidence: Float!
@@ -100,6 +109,9 @@ export const typeDefs = `#graphql
     pattern: FashionPattern!
     material: FashionMaterial!
     texture: FashionTexture
+    ribbedCuffs: FashionTrimPresence
+    ribbedHem: FashionTrimPresence
+    ribbedNeckline: FashionTrimPresence
     warmth: FashionWarmth!
     formality: Float!
     confidence: Float!
@@ -183,12 +195,20 @@ export const typeDefs = `#graphql
     preferredStyles: [OutfitStyle!]!
   }
 
+  type WearReminderPreferences {
+    enabled: Boolean!
+    intervalDays: Int!
+    combinationReminderEnabled: Boolean!
+    itemReminderEnabled: Boolean!
+  }
+
   type Viewer {
     id: ID!
     displayName: String
     email: String
     isTemporary: Boolean!
     styleProfile: ViewerStyleProfile!
+    wearReminderPreferences: WearReminderPreferences!
   }
 
   input TestLoginInput {
@@ -214,6 +234,13 @@ export const typeDefs = `#graphql
     inseamCm: Float
     preferredFit: PreferredFit!
     preferredStyles: [OutfitStyle!]!
+  }
+
+  input UpdateWearReminderPreferencesInput {
+    enabled: Boolean!
+    intervalDays: Int!
+    combinationReminderEnabled: Boolean!
+    itemReminderEnabled: Boolean!
   }
 
   type ImageAsset {
@@ -385,6 +412,7 @@ export const typeDefs = `#graphql
     profileSummary: [String!]!
     model: String!
     source: String!
+    weather: WeatherSnapshot
   }
 
   type OutfitPreview {
@@ -444,9 +472,47 @@ export const typeDefs = `#graphql
   input TodayOutfitRecommendationInput {
     date: String!
     season: Season!
+    baseItemId: ID
     style: OutfitStyle
     variation: Int
     excludedOuterItemIds: [ID!]
+    weather: WeatherSnapshotInput
+  }
+
+  input WeatherForecastInput {
+    latitude: Float!
+    longitude: Float!
+    date: String!
+  }
+
+  input WeatherSnapshotInput {
+    date: String!
+    temperatureC: Float!
+    minTemperatureC: Float!
+    maxTemperatureC: Float!
+    apparentTemperatureC: Float!
+    precipitationProbability: Float
+    weatherCode: Int!
+    summary: String!
+    recommendedSeason: Season!
+    source: String!
+    attribution: String!
+    attributionUrl: String!
+  }
+
+  type WeatherSnapshot {
+    date: String!
+    temperatureC: Float!
+    minTemperatureC: Float!
+    maxTemperatureC: Float!
+    apparentTemperatureC: Float!
+    precipitationProbability: Float
+    weatherCode: Int!
+    summary: String!
+    recommendedSeason: Season!
+    source: String!
+    attribution: String!
+    attributionUrl: String!
   }
 
   input OutfitPreviewInput {
@@ -477,6 +543,28 @@ export const typeDefs = `#graphql
     date: String!
   }
 
+  enum RecentWearConflictKind {
+    exact
+    combination
+    item
+  }
+
+  type RecentWearConflict {
+    kind: RecentWearConflictKind!
+    wornDate: String!
+    itemIds: [ID!]!
+    outfitName: String
+  }
+
+  input RecentWearConflictInput {
+    itemIds: [ID!]!
+    targetDate: String!
+    intervalDays: Int!
+    combinationReminderEnabled: Boolean!
+    itemReminderEnabled: Boolean!
+    includeTargetDate: Boolean = false
+  }
+
   input SetPlannerEntryInput {
     weekStartsOn: String!
     date: String!
@@ -494,6 +582,8 @@ export const typeDefs = `#graphql
     previewImage: OutfitPreviewImageInput
     recommendationName: String
     recommendationStyle: OutfitStyle
+    weatherSummary: String
+    temperatureC: Float
   }
 
   input MovePlannerEntryInput {
@@ -628,12 +718,15 @@ export const typeDefs = `#graphql
     plannerWeek(weekStartsOn: String!): PlannerWeek
     plannerEntries(from: String!, to: String!): [PlannerEntry!]!
     outfitWearHistory(outfitIds: [ID!]!): [OutfitWearRecord!]!
+    recentWearConflict(input: RecentWearConflictInput!): RecentWearConflict
+    weatherForecast(input: WeatherForecastInput!): WeatherSnapshot!
   }
 
   type Mutation {
     testLogin(input: TestLoginInput!): AuthPayload!
     logout: Boolean!
     updateMyStyleProfile(input: UpdateMyStyleProfileInput!): Viewer!
+    updateWearReminderPreferences(input: UpdateWearReminderPreferencesInput!): Viewer!
     prepareImageUpload(input: PrepareImageUploadInput!): PreparedImageUpload!
     confirmImageUpload(assetId: ID!): ImageAsset!
     createWardrobeItem(input: CreateWardrobeItemInput!): WardrobeItem!

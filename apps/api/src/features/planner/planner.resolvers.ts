@@ -1,9 +1,19 @@
+/**
+ * 용도:
+ * 플래너와 착용 이력 GraphQL 요청을 서비스 계층으로 연결한다.
+ *
+ * 동작 방식:
+ * 로그인 사용자를 확인한 뒤 날짜 기반 조회와 편집 요청을 전달하고,
+ * 서비스 오류를 클라이언트가 구분할 수 있는 GraphQL 오류로 변환한다.
+ */
+
 import type { GraphQLContext } from '../../graphql/context.js'
 import { toGraphQLError } from '../../graphql/errors.js'
 import { toDateOnly } from '../../lib/date.js'
 import {
   plannerService,
   type MovePlannerEntryInput,
+  type RecentWearConflictInput,
   type SetDirectPlannerEntryInput,
   type SetPlannerEntryInput,
 } from './planner.service.js'
@@ -64,6 +74,22 @@ export const plannerResolvers = {
           error,
           '코디 착용 기록을 불러오지 못했습니다.',
           'OUTFIT_HISTORY_LOAD_FAILED',
+        )
+      }
+    },
+    recentWearConflict: async (
+      _parent: unknown,
+      { input }: { input: RecentWearConflictInput },
+      context: GraphQLContext,
+    ) => {
+      try {
+        const viewer = await context.getViewer()
+        return plannerService.getRecentWearConflict(viewer.id, input)
+      } catch (error) {
+        throw toGraphQLError(
+          error,
+          '최근 착용 기록을 확인하지 못했습니다.',
+          'RECENT_WEAR_CONFLICT_LOAD_FAILED',
         )
       }
     },

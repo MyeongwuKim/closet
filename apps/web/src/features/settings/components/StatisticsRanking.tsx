@@ -1,5 +1,6 @@
 import { ChevronRight, Crown, Footprints, Images, Shirt, Sparkles } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { ClothingCategoryIcon } from '../../../components/ClothingCategoryIcon'
 
 export interface StatisticRankEntry {
   key: string
@@ -41,47 +42,22 @@ function RankVisual({ entry, kind }: Pick<StatisticsRankingProps, 'kind'> & { en
   if (kind === 'color') {
     return <span className="size-3/4 rounded-full border border-black/10 shadow-sm" style={{ backgroundColor: entry.color ?? '#d9d5cc' }} />
   }
-  if (kind === 'category' && (entry.key === 'outer' || entry.key === 'midlayer')) {
+  if (kind === 'category') {
     return (
-      <svg
-        width={30}
-        height={30}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
+      <ClothingCategoryIcon
+        category={entry.key}
+        size={30}
         strokeWidth={1.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
         className="text-ink/70"
-        aria-hidden="true"
-      >
-        <path d="m8 3-4 2-2 8 4 2 1-4v10h10V11l1 4 4-2-2-8-4-2" />
-        <path d="m8 3 4 4 4-4M8 3v6l4-2 4 2V3M12 7v14M8.5 15h2M13.5 15h2" />
-      </svg>
+      />
     )
   }
-  const Icon = kind === 'style' ? Sparkles
-    : entry.key === 'shoes' ? Footprints
-    : Shirt
-  if (kind === 'category' && entry.key === 'bottom') {
-    return (
-      <svg
-        width={30}
-        height={30}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={1.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="text-ink/70"
-        aria-hidden="true"
-      >
-        <path d="M6 3h12l1 18h-6l-1-10-1 10H5L6 3Z" />
-        <path d="M6 6h12M12 3v5M6 6l3 3M18 6l-3 3" />
-      </svg>
-    )
-  }
+  const Icon =
+    kind === 'style'
+      ? Sparkles
+      : entry.key === 'shoes'
+        ? Footprints
+        : Shirt
   return <Icon size={30} strokeWidth={1.5} className="text-ink/70" aria-hidden="true" />
 }
 
