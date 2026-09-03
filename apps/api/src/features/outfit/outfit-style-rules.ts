@@ -40,6 +40,7 @@ interface StyleDefinition {
   silhouettes: FashionSilhouette[]
   patterns: FashionPattern[]
   materials: FashionMaterial[]
+  textures: FashionTexture[]
   formality: [number, number]
   neutralColorBonus: boolean
 }
@@ -53,6 +54,7 @@ export const styleDefinitions: Record<OutfitStyle, StyleDefinition> = {
     silhouettes: ['slim', 'regular', 'relaxed'],
     patterns: ['solid', 'stripe'],
     materials: ['cotton', 'knit', 'wool'],
+    textures: ['smooth', 'twill', 'ribbed'],
     formality: [0.4, 0.82],
     neutralColorBonus: true,
   },
@@ -64,6 +66,7 @@ export const styleDefinitions: Record<OutfitStyle, StyleDefinition> = {
     silhouettes: ['regular', 'relaxed'],
     patterns: ['solid', 'stripe', 'check', 'graphic'],
     materials: ['cotton', 'denim', 'knit'],
+    textures: ['smooth', 'twill', 'corduroy', 'ribbed', 'quilted', 'distressed'],
     formality: [0.08, 0.62],
     neutralColorBonus: false,
   },
@@ -75,6 +78,7 @@ export const styleDefinitions: Record<OutfitStyle, StyleDefinition> = {
     silhouettes: ['relaxed', 'oversized'],
     patterns: ['solid', 'graphic', 'other'],
     materials: ['cotton', 'denim', 'synthetic', 'leather'],
+    textures: ['smooth', 'twill', 'quilted', 'distressed'],
     formality: [0, 0.42],
     neutralColorBonus: false,
   },
@@ -86,6 +90,7 @@ export const styleDefinitions: Record<OutfitStyle, StyleDefinition> = {
     silhouettes: ['slim', 'regular'],
     patterns: ['solid', 'stripe', 'check'],
     materials: ['cotton', 'knit', 'wool', 'leather'],
+    textures: ['smooth', 'twill', 'ribbed'],
     formality: [0.58, 1],
     neutralColorBonus: true,
   },
@@ -97,6 +102,7 @@ export const styleDefinitions: Record<OutfitStyle, StyleDefinition> = {
     silhouettes: ['regular', 'relaxed', 'oversized'],
     patterns: ['solid', 'stripe', 'check', 'floral', 'other'],
     materials: ['denim', 'leather', 'wool', 'cotton'],
+    textures: ['twill', 'corduroy', 'suede', 'distressed'],
     formality: [0.18, 0.72],
     neutralColorBonus: false,
   },
@@ -108,6 +114,7 @@ export const styleDefinitions: Record<OutfitStyle, StyleDefinition> = {
     silhouettes: ['slim', 'regular', 'relaxed'],
     patterns: ['solid', 'graphic', 'other'],
     materials: ['synthetic', 'cotton', 'knit'],
+    textures: ['smooth', 'quilted', 'glossy'],
     formality: [0, 0.3],
     neutralColorBonus: false,
   },
@@ -440,18 +447,23 @@ export function getItemStyleScore(
   const definition = styleDefinitions[style]
   const attributes = getFashionAttributes(item)
   const text = `${item.name} ${item.subcategory ?? ''}`.toLocaleLowerCase()
-  const keywordScore = Math.min(
-    definition.keywords.filter((keyword) => text.includes(keyword.toLocaleLowerCase())).length * 2.5,
-    7.5,
-  )
+  const keywordMatchCount = definition.keywords.filter((keyword) =>
+    text.includes(keyword.toLocaleLowerCase()),
+  ).length
+  const keywordScore = style === 'casual'
+    ? Math.min(keywordMatchCount, 1) * 1.25
+    : Math.min(keywordMatchCount * 2.5, 7.5)
   const subcategoryScore = definition.subcategories.some(
     (subcategory) => item.subcategory === subcategory || text.includes(subcategory.toLocaleLowerCase()),
   )
-    ? 4
+    ? style === 'casual' ? 2.5 : 4
     : 0
   const silhouetteScore = definition.silhouettes.includes(attributes.silhouette) ? 2.5 : 0
   const patternScore = definition.patterns.includes(attributes.pattern) ? 1.5 : 0
   const materialScore = definition.materials.includes(attributes.material) ? 2 : 0
+  const textureScore = definition.textures.includes(attributes.texture ?? 'unknown')
+    ? 1.5
+    : 0
   const [minFormality, maxFormality] = definition.formality
   const formalityScore =
     attributes.formality >= minFormality && attributes.formality <= maxFormality
@@ -474,6 +486,7 @@ export function getItemStyleScore(
     silhouetteScore +
     patternScore +
     materialScore +
+    textureScore +
     formalityScore +
     colorScore +
     getFitScore(attributes, fit)
@@ -662,7 +675,7 @@ function selectDiverseCombinations<T extends StyleRuleItem>(
     if (!added) break
   }
 
-  return selected.sort((left, right) => right.score - left.score)
+  return selected
 }
 
 export function buildOutfitCombinations<T extends StyleRuleItem>(

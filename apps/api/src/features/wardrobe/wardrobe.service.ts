@@ -51,6 +51,11 @@ const fashionAttributeValues = {
   material: ['cotton', 'denim', 'knit', 'wool', 'leather', 'linen', 'synthetic', 'other', 'unknown'],
   texture: ['smooth', 'twill', 'corduroy', 'ribbed', 'cableKnit', 'fuzzy', 'boucle', 'quilted', 'suede', 'glossy', 'distressed', 'other', 'unknown'],
   trimPresence: ['present', 'absent', 'unknown'],
+  necklineStyle: ['crew', 'vNeck', 'mock', 'turtleneck', 'collar', 'hood', 'scoop', 'boat', 'square', 'other', 'unknown'],
+  frontOpeningStyle: ['none', 'buttons', 'halfButtons', 'zipper', 'halfZip', 'wrap', 'other', 'unknown'],
+  pocketStyle: ['none', 'slant', 'welt', 'patch', 'cargo', 'kangaroo', 'zippered', 'mixed', 'unknown'],
+  bottomLegShape: ['skinny', 'straight', 'wide', 'tapered', 'flared', 'unknown'],
+  bottomWaistStyle: ['structured', 'elastic', 'drawstring', 'mixed', 'unknown'],
   warmth: ['light', 'medium', 'heavy', 'unknown'],
 } as const
 
@@ -73,6 +78,18 @@ function normalizeFashionAttributes(
       fashionAttributeValues.trimPresence.includes(value.ribbedHem)) &&
     (value.ribbedNeckline == null ||
       fashionAttributeValues.trimPresence.includes(value.ribbedNeckline)) &&
+    (value.necklineStyle == null ||
+      fashionAttributeValues.necklineStyle.includes(value.necklineStyle)) &&
+    (value.frontOpeningStyle == null ||
+      fashionAttributeValues.frontOpeningStyle.includes(value.frontOpeningStyle)) &&
+    (value.pocketStyle == null ||
+      fashionAttributeValues.pocketStyle.includes(value.pocketStyle)) &&
+    (value.bottomLegShape == null ||
+      fashionAttributeValues.bottomLegShape.includes(value.bottomLegShape)) &&
+    (value.bottomWaistStyle == null ||
+      fashionAttributeValues.bottomWaistStyle.includes(value.bottomWaistStyle)) &&
+    (value.bottomFrontPleats == null ||
+      fashionAttributeValues.trimPresence.includes(value.bottomFrontPleats)) &&
     fashionAttributeValues.warmth.includes(value.warmth) &&
     Number.isFinite(value.formality) &&
     value.formality >= 0 &&
@@ -101,12 +118,24 @@ function normalizeFashionAttributes(
             ? 'single'
             : value.layerRole
 
+  const bottomStructure = category === 'bottom'
+    ? {
+        bottomLegShape: value.bottomLegShape ?? 'unknown',
+        bottomWaistStyle: value.bottomWaistStyle ?? 'unknown',
+        bottomFrontPleats: value.bottomFrontPleats ?? 'unknown',
+      } as const
+    : {}
+
   return {
     ...value,
     texture: value.texture ?? 'unknown',
     ribbedCuffs: value.ribbedCuffs ?? 'unknown',
     ribbedHem: value.ribbedHem ?? 'unknown',
     ribbedNeckline: value.ribbedNeckline ?? 'unknown',
+    necklineStyle: value.necklineStyle ?? 'unknown',
+    frontOpeningStyle: value.frontOpeningStyle ?? 'unknown',
+    pocketStyle: value.pocketStyle ?? 'unknown',
+    ...bottomStructure,
     layerRole: fixedLayerRole,
     formality: Math.round(value.formality * 100) / 100,
     confidence: Math.round(value.confidence * 100) / 100,

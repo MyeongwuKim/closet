@@ -301,6 +301,7 @@ export function TodayOutfitRecommendationResult({
 
       {isDetailOpen && (
         <TodayOutfitRecommendationDialog
+          viewerId={viewerId}
           date={date}
           title={formatRecommendationHeadline(recommendation.headline)}
           backLabel={

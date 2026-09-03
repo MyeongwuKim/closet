@@ -60,6 +60,55 @@ export type FashionWarmth = 'light' | 'medium' | 'heavy' | 'unknown'
 
 export type FashionTrimPresence = 'present' | 'absent' | 'unknown'
 
+export type FashionBottomLegShape =
+  | 'skinny'
+  | 'straight'
+  | 'wide'
+  | 'tapered'
+  | 'flared'
+  | 'unknown'
+
+export type FashionPocketStyle =
+  | 'none'
+  | 'slant'
+  | 'welt'
+  | 'patch'
+  | 'cargo'
+  | 'kangaroo'
+  | 'zippered'
+  | 'mixed'
+  | 'unknown'
+
+export type FashionNecklineStyle =
+  | 'crew'
+  | 'vNeck'
+  | 'mock'
+  | 'turtleneck'
+  | 'collar'
+  | 'hood'
+  | 'scoop'
+  | 'boat'
+  | 'square'
+  | 'other'
+  | 'unknown'
+
+export type FashionFrontOpeningStyle =
+  | 'none'
+  | 'buttons'
+  | 'halfButtons'
+  | 'zipper'
+  | 'halfZip'
+  | 'wrap'
+  | 'other'
+  | 'unknown'
+
+export type FashionBottomWaistStyle =
+  | 'structured'
+  | 'elastic'
+  | 'drawstring'
+  | 'mixed'
+  | 'unknown'
+
 export interface FashionItemAttributes {
   layerRole: FashionLayerRole
   silhouette: FashionSilhouette
@@ -69,6 +118,12 @@ export interface FashionItemAttributes {
   ribbedCuffs?: FashionTrimPresence | null
   ribbedHem?: FashionTrimPresence | null
   ribbedNeckline?: FashionTrimPresence | null
+  necklineStyle?: FashionNecklineStyle | null
+  frontOpeningStyle?: FashionFrontOpeningStyle | null
+  pocketStyle?: FashionPocketStyle | null
+  bottomLegShape?: FashionBottomLegShape | null
+  bottomWaistStyle?: FashionBottomWaistStyle | null
+  bottomFrontPleats?: FashionTrimPresence | null
   warmth: FashionWarmth
   formality: number
   confidence: number

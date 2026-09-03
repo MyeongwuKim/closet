@@ -1,4 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+/**
+ * 사용 위치: 오늘의 AI 코디 추천 → 추천 코디 구성
+ *
+ * 용도:
+ * 추천받은 아이템 구성을 확인·수정하고 AI 룩북을 만들거나 일정에 적용한다.
+ *
+ * 구조:
+ * 아이템 슬롯 편집 영역, AI 룩북·일정 적용 액션, 룩북 미리보기로 구성되어 있다.
+ */
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { OutfitPreview, WardrobeItem } from '@closet/types'
 import type { OutfitStyle } from '../../../constants/styleOptions'
 import {
@@ -15,8 +24,14 @@ import { useGenerateOutfitPreviewMutation } from '../../lookbook/api/lookbookQue
 import type { OutfitPreviewState } from '../../lookbook/contexts/OutfitComposerContext'
 import { getOutfitCompletionMessage } from '../../lookbook/utils/outfitComposition'
 import { useUiStore } from '../../../stores/useUiStore'
+import {
+  cacheRecommendationPreview,
+  getRecommendationPreviewKey,
+  readRecommendationPreview,
+} from '../utils/recommendationPreviewCache'
 
 interface TodayOutfitRecommendationDialogProps {
+  viewerId: string
   date: string
   title?: string
   backLabel?: string
@@ -33,7 +48,21 @@ interface TodayOutfitRecommendationDialogProps {
   ) => Promise<boolean>
 }
 
-function createPreviewState(): OutfitPreviewState {
+function createPreviewState(
+  cachedPreview?: OutfitPreview,
+): OutfitPreviewState {
+  if (cachedPreview) {
+    return {
+      isOpen: false,
+      status: 'success',
+      imageUrl: `data:${cachedPreview.mimeType};base64,${cachedPreview.imageBase64}`,
+      imageBase64: cachedPreview.imageBase64,
+      mimeType: cachedPreview.mimeType,
+      model: cachedPreview.model,
+      errorMessage: null,
+    }
+  }
+
   return {
     isOpen: false,
     status: 'idle',
@@ -46,6 +75,7 @@ function createPreviewState(): OutfitPreviewState {
 }
 
 export function TodayOutfitRecommendationDialog({
+  viewerId,
   date,
   title = '오늘의 추천 코디',
   backLabel = '추천 코디로 돌아가기',
@@ -59,7 +89,14 @@ export function TodayOutfitRecommendationDialog({
   onApply,
 }: TodayOutfitRecommendationDialogProps) {
   const [selectedItems, setSelectedItems] = useState(initialItems)
-  const [preview, setPreview] = useState(createPreviewState)
+  const initialPreviewKey = getRecommendationPreviewKey(
+    viewerId,
+    style,
+    initialItems.map((item) => item.id),
+  )
+  const [preview, setPreview] = useState(() =>
+    createPreviewState(readRecommendationPreview(initialPreviewKey)),
+  )
   const generateOutfitPreview = useGenerateOutfitPreviewMutation()
   const availableItems = useMemo(() => {
     const itemById = new Map(items.map((item) => [item.id, item]))
@@ -67,6 +104,12 @@ export function TodayOutfitRecommendationDialog({
     return [...itemById.values()]
   }, [initialItems, items])
   const completionMessage = getOutfitCompletionMessage(selectedItems)
+  const previewKey = getRecommendationPreviewKey(
+    viewerId,
+    style,
+    selectedItems.map((item) => item.id),
+  )
+  const previewKeyRef = useRef(previewKey)
   const dateValue = new Date(`${date}T00:00:00`)
   const formattedDate = new Intl.DateTimeFormat('ko-KR', {
     month: 'long',
@@ -86,8 +129,14 @@ export function TodayOutfitRecommendationDialog({
       : undefined
   const handleApplied = onApplied ?? onClose
 
+  useEffect(() => {
+    previewKeyRef.current = previewKey
+  }, [previewKey])
+
   const generatePreview = () => {
     if (completionMessage || generateOutfitPreview.isPending) return
+
+    const requestedPreviewKey = previewKey
 
     setPreview({
       isOpen: true,
@@ -105,6 +154,9 @@ export function TodayOutfitRecommendationDialog({
         style,
       })
       .then((result) => {
+        cacheRecommendationPreview(requestedPreviewKey, result)
+        if (previewKeyRef.current !== requestedPreviewKey) return
+
         setPreview({
           isOpen: true,
           status: 'success',
@@ -136,6 +188,16 @@ export function TodayOutfitRecommendationDialog({
       setPreview((current) => ({ ...current, isOpen: true }))
       return
     }
+
+    const cachedPreview = readRecommendationPreview(previewKey)
+    if (cachedPreview) {
+      setPreview({
+        ...createPreviewState(cachedPreview),
+        isOpen: true,
+      })
+      return
+    }
+
     generatePreview()
   }
 
@@ -199,7 +261,16 @@ export function TodayOutfitRecommendationDialog({
             selectedItems={selectedItems}
             onChange={(nextItems) => {
               setSelectedItems(nextItems)
-              setPreview(createPreviewState())
+              const nextPreviewKey = getRecommendationPreviewKey(
+                viewerId,
+                style,
+                nextItems.map((item) => item.id),
+              )
+              setPreview(
+                createPreviewState(
+                  readRecommendationPreview(nextPreviewKey),
+                ),
+              )
             }}
             className="h-full w-full"
           />

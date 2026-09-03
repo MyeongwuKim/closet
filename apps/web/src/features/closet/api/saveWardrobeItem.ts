@@ -187,6 +187,8 @@ export async function saveWardrobeItem(
           fashionAttributes {
             layerRole silhouette pattern material texture warmth formality confidence
             ribbedCuffs ribbedHem ribbedNeckline
+            necklineStyle frontOpeningStyle pocketStyle
+            bottomLegShape bottomWaistStyle bottomFrontPleats
           }
           sizeLabel shoulderWidthCm chestWidthCm sleeveLengthCm
           totalLengthCm waistWidthCm hipWidthCm inseamCm

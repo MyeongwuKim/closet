@@ -125,6 +125,7 @@ export function useRecommendationHistory({
   }
 
   return {
+    viewerId: meQuery.data?.id ?? null,
     entries,
     selectedEntry,
     closetItems,

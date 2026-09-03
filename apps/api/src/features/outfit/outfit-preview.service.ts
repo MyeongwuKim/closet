@@ -1,3 +1,11 @@
+/**
+ * 용도:
+ * 옷장 아이템과 사용자 체형 정보를 바탕으로 착장형 룩북 이미지를 생성한다.
+ *
+ * 요청 흐름:
+ * 아이템 참조 이미지와 분석 속성을 프롬프트로 정리해 이미지 편집 API에 전달한 뒤,
+ * 저장 가능한 생성 이미지와 사용 모델 정보를 반환한다.
+ */
 import type {
   BodyBuild,
   ClothingCategory,
@@ -10,6 +18,10 @@ import { ServiceError } from '../../graphql/errors.js'
 import { userRepository } from '../user/user.repository.js'
 import { wardrobeRepository } from '../wardrobe/wardrobe.repository.js'
 import { hasCompleteOutfitBase } from './outfit-composition.js'
+import {
+  describeLookbookFabric,
+  lookbookFabricPreservationGuide,
+} from './lookbook-fabric-guide.js'
 
 const categoryLabels: Record<ClothingCategory, string> = {
   top: '상의',
@@ -170,7 +182,8 @@ function describeGarment(
     categoryLabels[item.category!],
     item.subcategory,
     item.name,
-    item.colorName,
+    item.colorDetailName ?? item.colorName,
+    describeLookbookFabric(item),
     describeRibbedTrims(item.fashionAttributes),
     getLookbookHemTarget(
       item.category,
@@ -302,10 +315,12 @@ function buildPrompt(
 
   return `Create a photorealistic fashion lookbook image using every garment from the reference images exactly once.
 
-Reference garment order, observed ribbed trim signals and optional silhouette measurements:
+Reference garment order, observed fabric attributes, ribbed trim signals and optional silhouette measurements:
 ${garments}
 
 Garment construction preservation: ${ribbedTrimPreservationGuide}
+
+Fabric surface preservation: ${lookbookFabricPreservationGuide}
 
 Model gender constraint: ${getLookbookGenderConstraint(profile?.styleProfile?.gender)}
 
@@ -410,9 +425,8 @@ export const outfitPreviewService = {
     form.set('model', model)
     form.set('prompt', prompt)
     form.set('size', '1024x1536')
-    form.set('quality', 'low')
-    form.set('output_format', 'jpeg')
-    form.set('output_compression', '88')
+    form.set('quality', 'medium')
+    form.set('output_format', 'png')
     references.forEach((reference, index) => {
       form.append(
         'image[]',
@@ -444,7 +458,7 @@ export const outfitPreviewService = {
 
     return {
       imageBase64,
-      mimeType: 'image/jpeg' as const,
+      mimeType: 'image/png' as const,
       model,
     }
   },

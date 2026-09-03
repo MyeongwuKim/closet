@@ -89,6 +89,60 @@ export const typeDefs = `#graphql
     unknown
   }
 
+  enum FashionBottomLegShape {
+    skinny
+    straight
+    wide
+    tapered
+    flared
+    unknown
+  }
+
+  enum FashionPocketStyle {
+    none
+    slant
+    welt
+    patch
+    cargo
+    kangaroo
+    zippered
+    mixed
+    unknown
+  }
+
+  enum FashionNecklineStyle {
+    crew
+    vNeck
+    mock
+    turtleneck
+    collar
+    hood
+    scoop
+    boat
+    square
+    other
+    unknown
+  }
+
+  enum FashionFrontOpeningStyle {
+    none
+    buttons
+    halfButtons
+    zipper
+    halfZip
+    wrap
+    other
+    unknown
+  }
+
+  enum FashionBottomWaistStyle {
+    structured
+    elastic
+    drawstring
+    mixed
+    unknown
+  }
+
   type FashionItemAttributes {
     layerRole: FashionLayerRole!
     silhouette: FashionSilhouette!
@@ -98,6 +152,12 @@ export const typeDefs = `#graphql
     ribbedCuffs: FashionTrimPresence
     ribbedHem: FashionTrimPresence
     ribbedNeckline: FashionTrimPresence
+    necklineStyle: FashionNecklineStyle
+    frontOpeningStyle: FashionFrontOpeningStyle
+    pocketStyle: FashionPocketStyle
+    bottomLegShape: FashionBottomLegShape
+    bottomWaistStyle: FashionBottomWaistStyle
+    bottomFrontPleats: FashionTrimPresence
     warmth: FashionWarmth!
     formality: Float!
     confidence: Float!
@@ -112,6 +172,12 @@ export const typeDefs = `#graphql
     ribbedCuffs: FashionTrimPresence
     ribbedHem: FashionTrimPresence
     ribbedNeckline: FashionTrimPresence
+    necklineStyle: FashionNecklineStyle
+    frontOpeningStyle: FashionFrontOpeningStyle
+    pocketStyle: FashionPocketStyle
+    bottomLegShape: FashionBottomLegShape
+    bottomWaistStyle: FashionBottomWaistStyle
+    bottomFrontPleats: FashionTrimPresence
     warmth: FashionWarmth!
     formality: Float!
     confidence: Float!

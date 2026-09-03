@@ -13,11 +13,25 @@ const fashionAttributes: FashionItemAttributes = {
   ribbedCuffs: 'present',
   ribbedHem: 'absent',
   ribbedNeckline: 'unknown',
+  necklineStyle: 'crew',
+  frontOpeningStyle: 'none',
+  pocketStyle: 'none',
+  bottomLegShape: 'unknown',
+  bottomWaistStyle: 'unknown',
+  bottomFrontPleats: 'unknown',
   warmth: 'medium',
   formality: 0.4,
   confidence: 0.9,
 }
 const trimFields = ['ribbedCuffs', 'ribbedHem', 'ribbedNeckline'] as const
+const shapeFields = [
+  'necklineStyle',
+  'frontOpeningStyle',
+  'pocketStyle',
+  'bottomLegShape',
+  'bottomWaistStyle',
+  'bottomFrontPleats',
+] as const
 
 function mockOpenAiResponse(t: TestContext, output: unknown) {
   const previousKey = process.env.OPENAI_API_KEY
@@ -125,6 +139,25 @@ test('전체 골지여도 별도 시보리 없음과 확인불가 판정을 바�
   }
 })
 
+test('분석 요청은 옷 이름 대신 관찰 가능한 형태 속성을 요구한다', async (t) => {
+  const request = mockClassification(t, fashionAttributes)
+
+  await classifyWardrobeImageWithOpenAi(Buffer.from('test-image'), 'image/png')
+
+  const options = request.mock.calls[0]?.arguments[1]
+  const body = JSON.parse(String(options?.body))
+  const attributeSchema = body.text.format.schema.properties.fashionAttributes
+  const systemPrompt = body.input[0].content as string
+
+  for (const field of shapeFields) {
+    assert.ok(attributeSchema.required.includes(field))
+    assert.equal(attributeSchema.properties[field].type, 'string')
+  }
+  assert.match(systemPrompt, /necklineStyle, frontOpeningStyle, pocketStyle/)
+  assert.match(systemPrompt, /허벅지 옆에 돌출된 덮개형 수납 포켓은 cargo/)
+  assert.match(systemPrompt, /세부 종류 이름을 그대로 복사하지 말고/)
+})
+
 test('새 분석 응답은 시보리 필드의 누락·null·잘못된 값을 허용하지 않는다', async (t) => {
   for (const field of trimFields) {
     for (const invalid of [undefined, null, 'ribbed', true]) {
@@ -136,5 +169,17 @@ test('새 분석 응답은 시보리 필드의 누락·null·잘못된 값을 �
         )
       })
     }
+  }
+})
+
+test('새 분석 응답은 형태 필드 누락을 허용하지 않는다', async (t) => {
+  for (const field of shapeFields) {
+    await t.test(field, async (t) => {
+      mockClassification(t, { ...fashionAttributes, [field]: undefined })
+      await assert.rejects(
+        classifyWardrobeImageWithOpenAi(Buffer.from('test-image'), 'image/png'),
+        /classification output is invalid/,
+      )
+    })
   }
 })

@@ -27,12 +27,14 @@ export function RecommendationHistoryDialog({
 
   if (
     history.selectedEntry &&
+    history.viewerId &&
     isEditorOpen &&
     !history.isLoading &&
     !history.errorMessage
   ) {
     return (
       <TodayOutfitRecommendationDialog
+        viewerId={history.viewerId}
         date={date}
         title={formatRecommendationHeadline(
           history.selectedEntry.recommendation.headline,

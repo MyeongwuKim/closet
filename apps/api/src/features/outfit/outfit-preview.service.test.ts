@@ -10,6 +10,10 @@ import {
   lookbookGarmentLengthGuide,
   outfitPreviewService,
 } from './outfit-preview.service.js'
+import {
+  describeLookbookFabric,
+  lookbookFabricPreservationGuide,
+} from './lookbook-fabric-guide.js'
 
 test('여성 근육형은 근육과 넓은 어깨를 남성 모델로 재해석하지 않는다', () => {
   const guide = getLookbookGenderConstraint('female')
@@ -102,6 +106,39 @@ test('브이넥 니트와 다른 상의를 함께 선택했으면 추가 이너�
   assert.equal(guide, null)
 })
 
+test('코듀로이는 세로 골과 입체 음영을 생성 지침으로 전달한다', () => {
+  const description = describeLookbookFabric({
+    name: '브라운 코듀로이 팬츠',
+    subcategory: '일반 긴바지',
+    fashionAttributes: {
+      material: 'cotton',
+      texture: 'corduroy',
+      pattern: 'solid',
+    },
+  })
+
+  assert.match(description, /material=cotton/)
+  assert.match(description, /texture=corduroy/)
+  assert.match(description, /continuous raised vertical corduroy wales/)
+  assert.match(description, /never turn it into plain cotton, denim, or a flat matte surface/)
+  assert.match(lookbookFabricPreservationGuide, /hard garment-identity constraints/)
+  assert.match(lookbookFabricPreservationGuide, /clearly visible at normal lookbook viewing size/)
+})
+
+test('구버전 아이템은 이름에서 코듀로이 질감을 보완한다', () => {
+  const description = describeLookbookFabric({
+    name: '올리브 골덴 팬츠',
+    subcategory: '팬츠',
+    fashionAttributes: {
+      material: 'unknown',
+      texture: 'unknown',
+      pattern: 'solid',
+    },
+  })
+
+  assert.match(description, /texture=corduroy/)
+})
+
 function createPreviewItem(id: string, category: 'top' | 'bottom', fashionAttributes?: unknown) {
   return {
     id,
@@ -170,6 +207,9 @@ test('실제 이미지 편집 요청에 참조 이미지별 시보리 판정과 
   assert.match(prompt, /do not invent ribbed bands in hidden, cropped or unclear regions/)
   assert.match(prompt, /Whole-garment ribbed texture is independent/)
   assert.match(prompt, /Keep the reference neckline shape, sleeve length and hem proportions unchanged/)
+  assert.match(prompt, /material=knit, texture=ribbed/)
+  assert.match(prompt, /Fabric surface preservation:.*hard garment-identity constraints/)
+  assert.match(prompt, /do not homogenize different garments into generic smooth matte fabric/)
   assert.match(prompt, /Garment length and natural hem rule:.*mandatory garment proportion/)
   assert.match(prompt, /Keep every top fully untucked/)
   assert.match(
@@ -177,6 +217,9 @@ test('실제 이미지 편집 요청에 참조 이미지별 시보리 판정과 
     /viewer's perspective \(image-left\).*same image-left orientation in every generation/,
   )
   assert.match(prompt, /Never turn or mirror the pose toward image-right/)
+  assert.equal(form.get('quality'), 'medium')
+  assert.equal(form.get('output_format'), 'png')
+  assert.equal(form.get('output_compression'), null)
 })
 
 test('기존 아이템의 누락·null·잘못된 판정은 골지 원단이어도 unknown으로 생성에 전달한다', async (t) => {

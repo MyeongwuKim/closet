@@ -1,3 +1,11 @@
+/**
+ * 용도:
+ * 새로 등록할 옷과 옷장 아이템의 색상 및 관찰 가능한 형태 속성을 비교한다.
+ *
+ * 동작 방식:
+ * 같은 세부 카테고리 안에서 색차와 형태 속성을 따로 계산하고,
+ * 넥라인·여밈·포켓처럼 구분력이 높은 정보가 부족하면 점수를 보수적으로 낮춘다.
+ */
 import type {
   ClothingCategory,
   ColorMode,
@@ -208,8 +216,8 @@ function getColorSimilarity(
   }
 }
 
-function isKnownAttribute(value: string) {
-  return value !== 'unknown'
+function isKnownAttribute(value: unknown): value is string {
+  return typeof value === 'string' && value !== 'unknown'
 }
 
 function inferTextureFromName(value: string): FashionTexture {
@@ -270,22 +278,47 @@ function getOrderedAttributeSimilarity(
   return distance === 0 ? 1 : distance === 1 ? 0.55 : 0
 }
 
-function getDesignSimilarity(
-  target: FashionItemAttributes | null,
-  item: FashionItemAttributes | undefined,
-  targetName: string,
-  itemName: string,
-) {
-  if (!target || !item) return null
+function getBottomLegShapeSimilarity(first: string, second: string) {
+  if (first === second) return 1
 
-  const targetTexture = resolveTexture(target, targetName)
-  const itemTexture = resolveTexture(item, itemName)
+  const relatedShapes = new Map([
+    ['skinny:straight', 0.4],
+    ['straight:tapered', 0.55],
+    ['straight:wide', 0.45],
+    ['wide:flared', 0.4],
+  ])
+  return (
+    relatedShapes.get(`${first}:${second}`) ??
+    relatedShapes.get(`${second}:${first}`) ??
+    0
+  )
+}
 
-  const comparisons: Array<{
-    comparable: boolean
-    similarity: number
-    weight: number
-  }> = [
+function getWaistStyleSimilarity(first: string, second: string) {
+  if (first === second) return 1
+  if (
+    (first === 'elastic' && second === 'drawstring') ||
+    (first === 'drawstring' && second === 'elastic')
+  ) {
+    return 0.5
+  }
+  return first === 'mixed' || second === 'mixed' ? 0.35 : 0
+}
+
+interface DesignComparison {
+  comparable: boolean
+  similarity: number
+  weight: number
+}
+
+function createCommonDesignComparisons(
+  target: FashionItemAttributes,
+  item: FashionItemAttributes,
+  targetTexture: FashionTexture,
+  itemTexture: FashionTexture,
+  weightScale: number,
+): DesignComparison[] {
+  return [
     {
       comparable:
         isKnownAttribute(target.silhouette) &&
@@ -295,25 +328,25 @@ function getDesignSimilarity(
         item.silhouette,
         ['slim', 'regular', 'relaxed', 'oversized'],
       ),
-      weight: 0.2,
+      weight: 0.2 * weightScale,
     },
     {
       comparable:
         isKnownAttribute(target.material) && isKnownAttribute(item.material),
       similarity: target.material === item.material ? 1 : 0.2,
-      weight: 0.15,
+      weight: 0.15 * weightScale,
     },
     {
       comparable:
         isKnownAttribute(targetTexture) && isKnownAttribute(itemTexture),
       similarity: getTextureSimilarity(targetTexture, itemTexture),
-      weight: 0.35,
+      weight: 0.35 * weightScale,
     },
     {
       comparable:
         isKnownAttribute(target.pattern) && isKnownAttribute(item.pattern),
       similarity: target.pattern === item.pattern ? 1 : 0,
-      weight: 0.15,
+      weight: 0.15 * weightScale,
     },
     {
       comparable:
@@ -323,7 +356,7 @@ function getDesignSimilarity(
         item.warmth,
         ['light', 'medium', 'heavy'],
       ),
-      weight: 0.08,
+      weight: 0.08 * weightScale,
     },
     {
       comparable:
@@ -332,9 +365,88 @@ function getDesignSimilarity(
         0,
         1 - Math.abs(target.formality - item.formality) / 0.5,
       ),
-      weight: 0.07,
+      weight: 0.07 * weightScale,
     },
   ]
+}
+
+function createExactComparison(
+  first: unknown,
+  second: unknown,
+  weight: number,
+): DesignComparison {
+  return {
+    comparable: isKnownAttribute(first) && isKnownAttribute(second),
+    similarity: first === second ? 1 : 0,
+    weight,
+  }
+}
+
+function getDesignSimilarity(
+  target: FashionItemAttributes | null,
+  item: FashionItemAttributes | undefined,
+  targetName: string,
+  itemName: string,
+  category: ClothingCategory,
+) {
+  if (!target || !item) return null
+
+  const targetTexture = resolveTexture(target, targetName)
+  const itemTexture = resolveTexture(item, itemName)
+  const isBottom = category === 'bottom'
+  const hasUpperStructure = ['top', 'outer', 'midlayer', 'dress'].includes(
+    category,
+  )
+  const commonWeightScale = isBottom ? 0.43 : hasUpperStructure ? 0.45 : 1
+  const comparisons = createCommonDesignComparisons(
+    target,
+    item,
+    targetTexture,
+    itemTexture,
+    commonWeightScale,
+  )
+
+  if (isBottom) {
+    comparisons.push(
+      {
+        comparable:
+          isKnownAttribute(target.bottomLegShape) &&
+          isKnownAttribute(item.bottomLegShape),
+        similarity: getBottomLegShapeSimilarity(
+          target.bottomLegShape ?? 'unknown',
+          item.bottomLegShape ?? 'unknown',
+        ),
+        weight: 0.15,
+      },
+      createExactComparison(target.pocketStyle, item.pocketStyle, 0.32),
+      {
+        comparable:
+          isKnownAttribute(target.bottomWaistStyle) &&
+          isKnownAttribute(item.bottomWaistStyle),
+        similarity: getWaistStyleSimilarity(
+          target.bottomWaistStyle ?? 'unknown',
+          item.bottomWaistStyle ?? 'unknown',
+        ),
+        weight: 0.06,
+      },
+      createExactComparison(
+        target.bottomFrontPleats,
+        item.bottomFrontPleats,
+        0.04,
+      ),
+    )
+  } else if (hasUpperStructure) {
+    comparisons.push(
+      createExactComparison(target.necklineStyle, item.necklineStyle, 0.2),
+      createExactComparison(
+        target.frontOpeningStyle,
+        item.frontOpeningStyle,
+        0.2,
+      ),
+      createExactComparison(target.pocketStyle, item.pocketStyle, 0.15),
+    )
+  }
+
   const comparable = comparisons.filter((comparison) => comparison.comparable)
   if (comparable.length < 2) return null
 
@@ -347,8 +459,18 @@ function getDesignSimilarity(
       sum + comparison.similarity * comparison.weight,
     0,
   )
+  const allWeight = comparisons.reduce(
+    (sum, comparison) => sum + comparison.weight,
+    0,
+  )
+  const evidenceCoverage = totalWeight / allWeight
+  const evidenceMultiplier = isBottom || hasUpperStructure
+    ? 0.35 + evidenceCoverage * 0.65
+    : 1
 
-  return Math.round((weightedSimilarity / totalWeight) * 100)
+  return Math.round(
+    (weightedSimilarity / totalWeight) * evidenceMultiplier * 100,
+  )
 }
 
 const silhouetteLabels: Record<string, string> = {
@@ -394,6 +516,57 @@ const textureLabels: Record<FashionTexture, string> = {
   unknown: '확인되지 않은',
 }
 
+const necklineLabels: Record<string, string> = {
+  crew: '크루넥',
+  vNeck: '브이넥',
+  mock: '모크넥',
+  turtleneck: '터틀넥',
+  collar: '칼라',
+  hood: '후드',
+  scoop: '스쿱넥',
+  boat: '보트넥',
+  square: '스퀘어넥',
+  other: '기타 넥라인',
+}
+
+const openingLabels: Record<string, string> = {
+  none: '앞여밈 없음',
+  buttons: '전체 단추',
+  halfButtons: '부분 단추',
+  zipper: '전체 지퍼',
+  halfZip: '부분 지퍼',
+  wrap: '랩 여밈',
+  other: '기타 여밈',
+}
+
+const pocketLabels: Record<string, string> = {
+  none: '포켓 없음',
+  slant: '사선 포켓',
+  welt: '웰트 포켓',
+  patch: '패치 포켓',
+  cargo: '카고 포켓',
+  kangaroo: '캥거루 포켓',
+  zippered: '지퍼 포켓',
+  mixed: '혼합 포켓',
+}
+
+function addStructuralReason(
+  reasons: string[],
+  first: unknown,
+  second: unknown,
+  labels: Record<string, string>,
+  suffix: string,
+) {
+  if (!isKnownAttribute(first) || !isKnownAttribute(second)) return
+  const firstLabel = labels[first] ?? first
+  const secondLabel = labels[second] ?? second
+  reasons.push(
+    first === second
+      ? `같은 ${firstLabel}`
+      : `${firstLabel}·${secondLabel} ${suffix}`,
+  )
+}
+
 function getSimilarityReasons(
   input: SimilarWardrobeItemInput,
   item: WardrobeItem,
@@ -425,6 +598,37 @@ function getSimilarityReasons(
     isKnownAttribute(target.silhouette)
   ) {
     reasons.push(`${silhouetteLabels[target.silhouette] ?? '같은'} 실루엣`)
+  }
+  if (input.category === 'bottom') {
+    addStructuralReason(
+      reasons,
+      target.pocketStyle,
+      current.pocketStyle,
+      pocketLabels,
+      '차이',
+    )
+  } else if (['top', 'outer', 'midlayer', 'dress'].includes(input.category)) {
+    addStructuralReason(
+      reasons,
+      target.necklineStyle,
+      current.necklineStyle,
+      necklineLabels,
+      '차이',
+    )
+    addStructuralReason(
+      reasons,
+      target.frontOpeningStyle,
+      current.frontOpeningStyle,
+      openingLabels,
+      '차이',
+    )
+    addStructuralReason(
+      reasons,
+      target.pocketStyle,
+      current.pocketStyle,
+      pocketLabels,
+      '차이',
+    )
   }
   if (
     target.material === current.material &&
@@ -479,6 +683,7 @@ export function findSimilarWardrobeItems(
         item.fashionAttributes,
         input.itemName ?? '',
         item.name,
+        input.category,
       )
       const hasSimilarColor =
         color.colorSimilarityPercent >= SIMILAR_COLOR_PERCENT
@@ -527,10 +732,23 @@ export function findSimilarWardrobeItems(
         'similar-design': 2,
         'similar-color': 1,
       }
-      return (
-        kindPriority[second.kind] - kindPriority[first.kind] ||
-        second.similarityPercent - first.similarityPercent
-      )
+      const kindDifference =
+        kindPriority[second.kind] - kindPriority[first.kind]
+      if (kindDifference !== 0) return kindDifference
+
+      const firstRelevantScore =
+        first.kind === 'similar-color'
+          ? first.colorSimilarityPercent
+          : first.kind === 'similar-design'
+            ? first.designSimilarityPercent ?? 0
+            : first.similarityPercent
+      const secondRelevantScore =
+        second.kind === 'similar-color'
+          ? second.colorSimilarityPercent
+          : second.kind === 'similar-design'
+            ? second.designSimilarityPercent ?? 0
+            : second.similarityPercent
+      return secondRelevantScore - firstRelevantScore
     })
     .slice(0, limit)
 }

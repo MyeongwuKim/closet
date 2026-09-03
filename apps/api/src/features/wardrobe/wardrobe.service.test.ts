@@ -58,6 +58,12 @@ const legacyFashionAttributes: FashionItemAttributes = {
   confidence: 0.9,
 }
 
+const unknownShapeAttributes = {
+  necklineStyle: 'unknown',
+  frontOpeningStyle: 'unknown',
+  pocketStyle: 'unknown',
+} as const
+
 function mockWardrobeCreate(t: TestContext) {
   t.mock.method(imageRepository, 'findOwnedByIds', async () => [
     { id: 'display-image', uploadStatus: 'ready' },
@@ -79,6 +85,7 @@ test('전체 골지와 독립적으로 세 부위의 시보리 판정을 저장�
   const create = mockWardrobeCreate(t)
   const fashionAttributes: FashionItemAttributes = {
     ...legacyFashionAttributes,
+    ...unknownShapeAttributes,
     ribbedCuffs: 'present',
     ribbedHem: 'absent',
     ribbedNeckline: 'unknown',
@@ -113,6 +120,7 @@ test('구버전 입력의 시보리 누락과 null은 unknown으로 저장한다
 
       assert.deepEqual(create.mock.calls[0]?.arguments[0].fashionAttributes, {
         ...legacyFashionAttributes,
+        ...unknownShapeAttributes,
         ribbedCuffs: 'unknown',
         ribbedHem: 'unknown',
         ribbedNeckline: 'unknown',
@@ -144,4 +152,28 @@ test('잘못된 시보리 값은 unknown으로 덮어 저장하지 않고 거절
       assert.equal(create.mock.callCount(), 0)
     })
   }
+})
+
+test('하의의 형태 정보가 없으면 임의 추측 대신 unknown으로 저장한다', async (t) => {
+  const create = mockWardrobeCreate(t)
+  await wardrobeService.create('viewer', {
+    ...createInput,
+    category: 'bottom',
+    fashionAttributes: {
+      ...legacyFashionAttributes,
+      layerRole: 'single',
+    },
+  })
+
+  assert.deepEqual(create.mock.calls[0]?.arguments[0].fashionAttributes, {
+    ...legacyFashionAttributes,
+    ...unknownShapeAttributes,
+    layerRole: 'single',
+    ribbedCuffs: 'unknown',
+    ribbedHem: 'unknown',
+    ribbedNeckline: 'unknown',
+    bottomLegShape: 'unknown',
+    bottomWaistStyle: 'unknown',
+    bottomFrontPleats: 'unknown',
+  })
 })

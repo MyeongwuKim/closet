@@ -136,6 +136,89 @@ test('선택한 목표 스타일 하나만 아이템 점수에 반영한다', ()
   )
 })
 
+test('캐주얼 점수는 특정 바지 이름보다 관찰 속성을 중심으로 계산한다', () => {
+  const denim = createItem('denim', 'bottom', '데님', {
+    fashionAttributes: {
+      layerRole: 'single',
+      silhouette: 'relaxed',
+      pattern: 'solid',
+      material: 'denim',
+      texture: 'distressed',
+      warmth: 'medium',
+      formality: 0.2,
+      confidence: 0.9,
+    },
+  })
+  const cottonTwillPants = createItem('cotton-twill', 'bottom', '일반 긴바지', {
+    name: '올리브 유틸리티 팬츠',
+    fashionAttributes: {
+      layerRole: 'single',
+      silhouette: 'relaxed',
+      pattern: 'solid',
+      material: 'cotton',
+      texture: 'twill',
+      warmth: 'medium',
+      formality: 0.2,
+      confidence: 0.9,
+    },
+  })
+
+  const scoreDifference =
+    getItemStyleScore(denim, 'casual', 'regular') -
+    getItemStyleScore(cottonTwillPants, 'casual', 'regular')
+
+  assert.ok(scoreDifference >= 0)
+  assert.ok(scoreDifference <= 1.5)
+})
+
+test('연속 캐주얼 추천은 같은 고득점 하의에 몰리지 않는다', () => {
+  const attributes = {
+    layerRole: 'single' as const,
+    silhouette: 'relaxed' as const,
+    pattern: 'solid' as const,
+    material: 'cotton' as const,
+    texture: 'twill' as const,
+    warmth: 'medium' as const,
+    formality: 0.2,
+    confidence: 0.9,
+  }
+  const bottoms = [
+    createItem('denim-blue', 'bottom', '데님', {
+      colorHex: '#4F78A1',
+      fashionAttributes: { ...attributes, material: 'denim' },
+    }),
+    createItem('denim-black', 'bottom', '데님', {
+      colorHex: '#242424',
+      fashionAttributes: { ...attributes, material: 'denim' },
+    }),
+    createItem('cotton-olive', 'bottom', '일반 긴바지', {
+      colorHex: '#727158',
+      fashionAttributes: attributes,
+    }),
+    createItem('cotton-beige', 'bottom', '치노 팬츠', {
+      colorHex: '#C9B28F',
+      fashionAttributes: attributes,
+    }),
+  ]
+  const combinations = buildOutfitCombinations(
+    [
+      createItem('top', 'top', '긴팔', { colorHex: '#E7DDC9' }),
+      ...bottoms,
+      createItem('shoes', 'shoes', '스니커즈', { colorHex: '#F2F1EC' }),
+    ],
+    'casual',
+    'regular',
+    'autumn',
+  )
+  const firstBottomIds = combinations.slice(0, 4).flatMap((combination) =>
+    combination.items
+      .filter((item) => item.category === 'bottom')
+      .map((item) => item.id),
+  )
+
+  assert.ok(new Set(firstBottomIds).size >= 3)
+})
+
 test('코트도 캐주얼 조합 후보에서 제외하지 않는다', () => {
   const combinations = buildOutfitCombinations(
     [

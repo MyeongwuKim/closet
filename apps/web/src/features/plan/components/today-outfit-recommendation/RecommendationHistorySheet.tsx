@@ -1,3 +1,12 @@
+/**
+ * 사용 위치: 오늘의 코디 추천 → 추천 기록
+ *
+ * 용도:
+ * 이전에 추천받은 코디를 날짜별로 확인하고 다시 선택할 수 있는 시트다.
+ *
+ * 구조:
+ * 고정된 높이의 헤더와 내부 스크롤 목록으로 구성되어 있다.
+ */
 import { useEffect } from 'react'
 import { History, LoaderCircle, RefreshCw, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
@@ -120,7 +129,7 @@ export function RecommendationHistorySheet({
       }}
     >
       <section
-        className="option-picker-enter flex max-h-[84dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-surface shadow-2xl sm:rounded-3xl"
+        className="option-picker-enter flex h-[min(42rem,84dvh)] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-surface shadow-2xl sm:rounded-3xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="recommendation-history-title"
