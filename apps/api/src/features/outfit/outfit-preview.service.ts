@@ -105,6 +105,18 @@ interface OpenAiImageResponse {
   error?: { message?: string }
 }
 
+const OPENAI_IMAGE_ATTEMPTS = 2
+
+function describeOpenAiImageResponse(payload: OpenAiImageResponse | null) {
+  const firstImage = payload?.data?.[0]
+
+  return {
+    payloadKeys: payload ? Object.keys(payload) : [],
+    imageCount: Array.isArray(payload?.data) ? payload.data.length : null,
+    firstImageKeys: firstImage ? Object.keys(firstImage) : [],
+  }
+}
+
 function formatMeasurement(label: string, value?: number | null) {
   return value == null ? null : `${label} ${value}cm`
 }
@@ -421,35 +433,62 @@ export const outfitPreviewService = {
       )
     }
 
-    const form = new FormData()
-    form.set('model', model)
-    form.set('prompt', prompt)
-    form.set('size', '1024x1536')
-    form.set('quality', 'medium')
-    form.set('output_format', 'png')
-    references.forEach((reference, index) => {
-      form.append(
-        'image[]',
-        new Blob([reference.bytes], { type: reference.mimeType }),
-        `garment-${index + 1}.${reference.mimeType.split('/')[1]}`,
-      )
-    })
-
-    const response = await fetch('https://api.openai.com/v1/images/edits', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: form,
-    })
-    const payload = (await response.json().catch(() => null)) as
-      | OpenAiImageResponse
-      | null
-    const imageBase64 = payload?.data?.[0]?.b64_json
-
-    if (!response.ok || !imageBase64) {
-      console.error('[outfit-preview] OpenAI image generation failed', {
-        status: response.status,
-        message: payload?.error?.message,
+    const createForm = () => {
+      const form = new FormData()
+      form.set('model', model)
+      form.set('prompt', prompt)
+      form.set('size', '1024x1536')
+      form.set('quality', 'medium')
+      form.set('output_format', 'png')
+      references.forEach((reference, index) => {
+        form.append(
+          'image[]',
+          new Blob([reference.bytes], { type: reference.mimeType }),
+          `garment-${index + 1}.${reference.mimeType.split('/')[1]}`,
+        )
       })
+      return form
+    }
+
+    let imageBase64: string | undefined
+    for (let attempt = 1; attempt <= OPENAI_IMAGE_ATTEMPTS; attempt += 1) {
+      const response = await fetch('https://api.openai.com/v1/images/edits', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: createForm(),
+      })
+      let payload: OpenAiImageResponse | null = null
+      let parseError: string | undefined
+      try {
+        payload = await response.json() as OpenAiImageResponse
+      } catch (error) {
+        parseError = error instanceof Error ? error.message : String(error)
+      }
+      imageBase64 = payload?.data?.[0]?.b64_json
+      if (response.ok && imageBase64) break
+
+      const retryable = response.status === 429 || response.status >= 500 || response.ok
+      const retrying = retryable && attempt < OPENAI_IMAGE_ATTEMPTS
+      console.error('[outfit-preview] OpenAI image generation failed', {
+        attempt,
+        retrying,
+        status: response.status,
+        requestId: response.headers.get('x-request-id'),
+        contentType: response.headers.get('content-type'),
+        message: payload?.error?.message,
+        parseError,
+        ...describeOpenAiImageResponse(payload),
+      })
+
+      if (!retrying) {
+        throw new ServiceError(
+          'AI 룩 이미지를 만들지 못했습니다. 잠시 후 다시 시도해주세요.',
+          'OUTFIT_PREVIEW_GENERATION_FAILED',
+        )
+      }
+    }
+
+    if (!imageBase64) {
       throw new ServiceError(
         'AI 룩 이미지를 만들지 못했습니다. 잠시 후 다시 시도해주세요.',
         'OUTFIT_PREVIEW_GENERATION_FAILED',

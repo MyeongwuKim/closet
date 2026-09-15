@@ -534,11 +534,118 @@ function getStyleRelationshipScore<T extends StyleRuleItem>(
   return casualCoherenceScore + mixedFormalityScore
 }
 
+function isOuterLayer(item: StyleRuleItem) {
+  return (
+    includesCategory(item, 'outer') ||
+    getFashionAttributes(item).layerRole === 'outer'
+  )
+}
+
+function isMidLayer(item: StyleRuleItem) {
+  return (
+    includesCategory(item, 'midlayer') ||
+    getFashionAttributes(item).layerRole === 'mid'
+  )
+}
+
+function isInsulatingGarment(item: StyleRuleItem) {
+  const { material, warmth } = getFashionAttributes(item)
+  const text = `${item.name} ${item.subcategory ?? ''}`.toLocaleLowerCase()
+  const hasInsulatingDetail = [
+    '니트',
+    '스웨터',
+    '맨투맨',
+    '후드',
+    '기모',
+    '플리스',
+    '터틀넥',
+    '목폴라',
+  ].some((keyword) => text.includes(keyword))
+
+  return (
+    material === 'wool' ||
+    ((material === 'knit' || hasInsulatingDetail) && warmth !== 'light')
+  )
+}
+
+function isWeatherCompatibleCombination<T extends StyleRuleItem>(
+  items: T[],
+  apparentTemperatureC: number,
+  baseItemId?: string,
+) {
+  const optionalItems = items.filter((item) => item.id !== baseItemId)
+  const optionalLayers = optionalItems.filter(
+    (item) => isOuterLayer(item) || isMidLayer(item),
+  )
+
+  if (apparentTemperatureC >= 23) {
+    return (
+      optionalLayers.length === 0 &&
+      optionalItems.every((item) => {
+        const { material, warmth } = getFashionAttributes(item)
+        return (
+          warmth !== 'heavy' &&
+          material !== 'wool' &&
+          !isInsulatingGarment(item)
+        )
+      })
+    )
+  }
+  if (apparentTemperatureC >= 20) {
+    return (
+      optionalLayers.length === 0 &&
+      optionalItems.every((item) => {
+        const { material, warmth } = getFashionAttributes(item)
+        return (
+          warmth !== 'heavy' &&
+          material !== 'wool' &&
+          !isInsulatingGarment(item)
+        )
+      })
+    )
+  }
+  if (apparentTemperatureC >= 12) {
+    return optionalItems.every(
+      (item) => getFashionAttributes(item).warmth !== 'heavy',
+    )
+  }
+  return true
+}
+
+function getWeatherCompatibilityScore<T extends StyleRuleItem>(
+  items: T[],
+  apparentTemperatureC: number,
+) {
+  const attributes = items.map(getFashionAttributes)
+  const outerCount = items.filter(isOuterLayer).length
+  const midLayerCount = items.filter(isMidLayer).length
+  const heavyCount = attributes.filter(({ warmth }) => warmth === 'heavy').length
+  const lightCount = attributes.filter(({ warmth }) => warmth === 'light').length
+
+  if (apparentTemperatureC >= 28) return lightCount - heavyCount * 6
+  if (apparentTemperatureC >= 23) return lightCount * 0.5 - heavyCount * 4
+  if (apparentTemperatureC >= 20) return lightCount * 0.25 - heavyCount * 3
+  if (apparentTemperatureC >= 17) {
+    return (outerCount + midLayerCount) * 1.25 - heavyCount * 3
+  }
+  if (apparentTemperatureC >= 12) {
+    return outerCount * 2.5 + midLayerCount * 1.5 - heavyCount * 2
+  }
+  if (apparentTemperatureC >= 9) {
+    return outerCount * 4 + midLayerCount + heavyCount * 0.75 - (outerCount === 0 ? 2 : 0)
+  }
+  if (apparentTemperatureC >= 5) {
+    return outerCount * 5 + midLayerCount + heavyCount * 1.5 - (outerCount === 0 ? 4 : 0)
+  }
+  return outerCount * 6 + midLayerCount + heavyCount * 2.5 - (outerCount === 0 ? 6 : 0)
+}
+
 function scoreCombination<T extends StyleRuleItem>(
   items: T[],
   style: OutfitStyle,
   fit: PreferredFit,
   season: Season,
+  apparentTemperatureC?: number,
 ) {
   const averageStyle =
     items.reduce((sum, item) => sum + getItemStyleScore(item, style, fit), 0) /
@@ -558,20 +665,22 @@ function scoreCombination<T extends StyleRuleItem>(
   const averageRotation =
     items.reduce((sum, item) => sum + getRotationScore(item), 0) / items.length
   const hasShoes = items.some((item) => includesCategory(item, 'shoes'))
-  const hasOuter = items.some(
-    (item) => includesCategory(item, 'outer') || getFashionAttributes(item).layerRole === 'outer',
-  )
+  const hasOuter = items.some(isOuterLayer)
   const patternedCount = items.filter((item) => {
     const pattern = getFashionAttributes(item).pattern
     return pattern !== 'solid' && pattern !== 'unknown'
   }).length
   const patternPenalty = patternedCount > 1 ? (patternedCount - 1) * 1.5 : 0
   const summerWarmthPenalty =
-    season === 'summer'
+    apparentTemperatureC === undefined && season === 'summer'
       ? items.filter((item) => getFashionAttributes(item).warmth === 'heavy').length * 4
       : 0
-  const layerBonus =
-    hasOuter && (season === 'autumn' || season === 'winter') ? 1.5 : 0
+  const layerScore =
+    apparentTemperatureC === undefined
+      ? hasOuter && (season === 'autumn' || season === 'winter')
+        ? 1.5
+        : 0
+      : getWeatherCompatibilityScore(items, apparentTemperatureC)
 
   return (
     averageStyle * 2.4 +
@@ -579,7 +688,7 @@ function scoreCombination<T extends StyleRuleItem>(
     averageRotation +
     getStyleRelationshipScore(items, style) +
     (hasShoes ? 2 : 0) +
-    layerBonus -
+    layerScore -
     patternPenalty -
     summerWarmthPenalty
   )
@@ -684,6 +793,7 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
   fit: PreferredFit,
   season: Season,
   baseItemId?: string,
+  apparentTemperatureC?: number,
 ) {
   if (baseItemId !== undefined && !items.some((item) => item.id === baseItemId)) {
     return []
@@ -730,6 +840,16 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
     if (baseItemId !== undefined && !selectedItems.some((item) => item.id === baseItemId)) return
     const uniqueItems = [...new Map(selectedItems.map((item) => [item.id, item])).values()]
     if (uniqueItems.length !== selectedItems.length || uniqueItems.length > 5) return
+    if (
+      apparentTemperatureC !== undefined &&
+      !isWeatherCompatibleCombination(
+        uniqueItems,
+        apparentTemperatureC,
+        baseItemId,
+      )
+    ) {
+      return
+    }
     const key = uniqueItems.map((item) => item.id).sort().join(':')
     combinations.set(key, uniqueItems)
   }
@@ -768,7 +888,13 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
     .map((selectedItems) => ({
       id: '',
       items: selectedItems,
-      score: scoreCombination(selectedItems, style, fit, season),
+      score: scoreCombination(
+        selectedItems,
+        style,
+        fit,
+        season,
+        apparentTemperatureC,
+      ),
     }))
     .sort((left, right) => right.score - left.score)
 

@@ -20,6 +20,7 @@ import {
 import { ClosetCategoryFilter } from '../../closet/components/ClosetCategoryFilter'
 import { useOutfitRecommendationQuery } from '../api/lookbookQueries'
 import { useOutfitComposer } from '../contexts/OutfitComposerContext'
+import { OutfitItemBrowser } from './OutfitItemBrowser'
 
 const FILTER_EXIT_DURATION = 170
 const FILTER_ENTER_DURATION = 280
@@ -530,52 +531,12 @@ export function OutfitMatchPanel() {
               </div>
             ) : (
               <div>
-                <section aria-labelledby="target-closet-title">
-                  <div className="flex items-end justify-between gap-3">
-                    <div>
-                      <span className="text-[10px] font-black tracking-[0.08em] text-accent">
-                        내 옷장
-                      </span>
-                      <h3 id="target-closet-title" className="text-sm font-black">
-                        {closetCategoryLabels[targetCategory]} 목록
-                      </h3>
-                    </div>
-                    <span className="text-xs font-bold text-muted">
-                      {targetClosetItems.length}개
-                    </span>
-                  </div>
-
-                  {targetClosetItems.length > 0 ? (
-                    <div className="scrollbar-hidden -mx-5 mt-3 grid auto-cols-[8rem] grid-flow-col gap-3 overflow-x-auto px-5 pb-3">
-                      {targetClosetItems.map((item) => (
-                        <ClosetChoiceCard
-                          item={item}
-                          onClick={() => toggleItem(item)}
-                          key={item.id}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="mt-3 flex min-h-44 flex-col items-center justify-center rounded-3xl border border-dashed border-line px-6 text-center">
-                      <span className="flex size-11 items-center justify-center rounded-2xl bg-sage">
-                        <ClothingCategoryIcon
-                          category={targetCategory}
-                          size={22}
-                        />
-                      </span>
-                      <strong className="mt-3 text-sm font-black">
-                        옷장에 {closetCategoryLabels[targetCategory]}가 없어요
-                      </strong>
-                      <button
-                        type="button"
-                        onClick={() => navigate('/closet')}
-                        className="mt-4 rounded-full bg-accent px-4 py-2 text-xs font-bold text-white"
-                      >
-                        옷장에 추가하기
-                      </button>
-                    </div>
-                  )}
-                </section>
+                <OutfitItemBrowser
+                  category={targetCategory}
+                  items={targetClosetItems}
+                  onSelect={toggleItem}
+                  onOpenCloset={() => navigate('/closet')}
+                />
 
                 {targetClosetItems.length > 0 && (
                   <section className="mt-5 border-t border-line pt-5">

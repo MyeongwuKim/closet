@@ -305,7 +305,7 @@ export function PlanPage() {
           : ''
       }`}
     >
-      <PlanPageHeader viewMode={viewMode} onEditWeek={openWeekEditor} />
+      <PlanPageHeader viewMode={viewMode} today={today} onEditWeek={openWeekEditor} />
       {!isEditingWeek && <OutfitRecommendationActions />}
       <PlanViewToggle value={viewMode} onChange={changeViewMode} />
       <PlanPeriodHeader

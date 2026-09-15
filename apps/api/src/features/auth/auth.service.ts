@@ -1,11 +1,12 @@
 import {
-  createHash,
   randomBytes,
   scryptSync,
   timingSafeEqual,
 } from 'node:crypto'
 import { ServiceError } from '../../graphql/errors.js'
+import { pushDeviceRepository } from '../push/push.repository.js'
 import { authRepository } from './auth.repository.js'
+import { hashSessionToken } from './sessionToken.js'
 
 const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000
 
@@ -17,10 +18,6 @@ export interface TestLoginInput {
 
 function hashPassword(password: string, salt: string) {
   return scryptSync(password, salt, 64).toString('hex')
-}
-
-function hashToken(token: string) {
-  return createHash('sha256').update(token).digest('hex')
 }
 
 function normalizeLoginInput(input: TestLoginInput) {
@@ -84,7 +81,7 @@ export const authService = {
     const accessToken = randomBytes(32).toString('base64url')
     await authRepository.createSession(
       viewer.id,
-      hashToken(accessToken),
+      hashSessionToken(accessToken),
       new Date(Date.now() + SESSION_DURATION_MS),
     )
 
@@ -96,7 +93,7 @@ export const authService = {
       throw new ServiceError('로그인이 필요합니다.', 'UNAUTHENTICATED')
     }
 
-    const session = await authRepository.findSession(hashToken(accessToken))
+    const session = await authRepository.findSession(hashSessionToken(accessToken))
     if (!session || session.expiresAt.getTime() <= Date.now()) {
       if (session) await authRepository.deleteSession(session.tokenHash)
       throw new ServiceError('로그인 세션이 만료되었습니다.', 'UNAUTHENTICATED')
@@ -108,6 +105,8 @@ export const authService = {
 
   async logout(accessToken?: string) {
     if (!accessToken) return
-    await authRepository.deleteSession(hashToken(accessToken))
+    const tokenHash = hashSessionToken(accessToken)
+    await authRepository.deleteSession(tokenHash)
+    await pushDeviceRepository.deleteForSession(tokenHash)
   },
 }

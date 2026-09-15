@@ -19,6 +19,7 @@ import { useClosetStore } from '../../closet/stores/useClosetStore'
 import { formatDateOnly } from '../../plan/data/weeklyPlan'
 import { useRecentWearReminder } from '../../plan/hooks/useRecentWearReminder'
 import { useStyleProfileStore } from '../../settings/stores/useStyleProfileStore'
+import { useMeQuery } from '../../settings/api/profileQueries'
 import { OutfitComposerHeader } from '../components/OutfitComposerHeader'
 import { OutfitCompletionActions } from '../components/OutfitCompletionActions'
 import { OutfitMatchPanel } from '../components/OutfitMatchPanel'
@@ -28,6 +29,7 @@ import { SavedOutfitPreviewDialog } from '../components/SavedOutfitPreviewDialog
 import {
   useCreateOutfitMutation,
   useGenerateOutfitPreviewMutation,
+  useOutfitPreviewAssetQuery,
 } from '../api/lookbookQueries'
 import {
   createOutfitComposerState,
@@ -47,6 +49,11 @@ import {
   getOutfitComposerBackPath,
   shouldExitOutfitComposer,
 } from '../utils/outfitComposerNavigation'
+import {
+  cacheOutfitPreview,
+  getOutfitPreviewCompositionKey,
+  readCachedOutfitPreview,
+} from '../utils/outfitPreviewCache'
 
 const targetCategoryOrder: ClothingCategory[] = [
   'top',
@@ -134,8 +141,14 @@ export function OutfitComposerPage() {
   const addOutfit = useLookbookStore((state) => state.addOutfit)
   const createOutfit = useCreateOutfitMutation()
   const previewMutation = useGenerateOutfitPreviewMutation()
+  const previewAssetId = searchParams.get('previewAssetId')
+  const previewRouteState = searchParams.get('preview')
+  const shouldRestorePreview = previewRouteState === 'open'
+  const shouldRestorePreviewFailure = previewRouteState === 'failed'
+  const restoredPreview = useOutfitPreviewAssetQuery(previewAssetId)
   const { confirmRecentWear, isCheckingRecentWear } =
     useRecentWearReminder()
+  const meQuery = useMeQuery()
   const pushToast = useUiStore((state) => state.pushToast)
   const preferredStyles = useStyleProfileStore(
     (state) => state.profile.preferredStyles,
@@ -144,6 +157,11 @@ export function OutfitComposerPage() {
   // 편집 중 URL의 items가 바뀌어도 최초 아이템과 복귀 경로는 유지한다.
   const [initialItemIds] = useState(
     () => (searchParams.get('items') ?? '').split(',').filter(Boolean),
+  )
+  const routeItemIdsValue = searchParams.get('items') ?? ''
+  const routeItemIds = useMemo(
+    () => routeItemIdsValue.split(',').filter(Boolean),
+    [routeItemIdsValue],
   )
   const initialItems = useMemo(
     () =>
@@ -157,6 +175,8 @@ export function OutfitComposerPage() {
   const initializedFromQueryRef = useRef(
     initialItemIds.length === 0 || initialItems.length > 0,
   )
+  const hydratedNotificationRouteRef = useRef<string | null>(null)
+  const previewRequestVersionRef = useRef(0)
 
   const [composerState, dispatch] = useReducer(
     outfitComposerReducer,
@@ -167,7 +187,9 @@ export function OutfitComposerPage() {
     ({ layers, originItemIds }) =>
       createOutfitComposerState(layers, originItemIds),
   )
-  const [style, setStyle] = useState<string>(() => preferredStyles[0] ?? '')
+  const [style, setStyle] = useState<string>(
+    () => searchParams.get('style') ?? preferredStyles[0] ?? '',
+  )
   const [outfitSeasons, setOutfitSeasons] = useState<Season[]>(() =>
     getCommonSeasons(initialItems),
   )
@@ -185,10 +207,19 @@ export function OutfitComposerPage() {
       .map((outfitStyle) => ({ label: outfitStyle, value: outfitStyle }))
     return [...outfitStyleOptions, ...customStyles]
   }, [outfits])
+  const selectedIds = layers.map((layer) => layer.wardrobeItemId)
+  const currentPreviewCompositionKey = getOutfitPreviewCompositionKey(
+    selectedIds,
+    style,
+  )
+  const cachedCurrentPreview = meQuery.data?.id
+    ? readCachedOutfitPreview(meQuery.data.id, currentPreviewCompositionKey)
+    : undefined
   const hasGeneratedPreview =
     composerState.preview.status === 'success' &&
+    composerState.preview.compositionKey === currentPreviewCompositionKey &&
     Boolean(
-      composerState.preview.imageBase64 &&
+      (composerState.preview.assetId || composerState.preview.imageBase64) &&
         composerState.preview.mimeType &&
         composerState.preview.model,
     )
@@ -214,6 +245,7 @@ export function OutfitComposerPage() {
       const item = items.find((candidate) => candidate.id === itemId)
       return item ? [item] : []
     })
+    previewRequestVersionRef.current += 1
     dispatch({
       type: 'HYDRATE',
       layers: createOutfitLayers(resolvedItems),
@@ -221,6 +253,106 @@ export function OutfitComposerPage() {
     })
     initializedFromQueryRef.current = true
   }, [items, initialItemIds])
+
+  useEffect(() => {
+    if (
+      (previewRouteState !== 'open' && previewRouteState !== 'failed') ||
+      routeItemIds.length === 0 ||
+      items.length === 0
+    ) return
+
+    const routeKey = `${previewRouteState}:${previewAssetId ?? ''}:${routeItemIdsValue}`
+    if (hydratedNotificationRouteRef.current === routeKey) return
+
+    const resolvedItems = routeItemIds.flatMap((itemId) => {
+      const item = items.find((candidate) => candidate.id === itemId)
+      return item ? [item] : []
+    })
+    if (resolvedItems.length !== routeItemIds.length) return
+
+    previewRequestVersionRef.current += 1
+    dispatch({
+      type: 'HYDRATE',
+      layers: createOutfitLayers(resolvedItems),
+      originItemIds: routeItemIds,
+    })
+    const routeStyle = searchParams.get('style')
+    initializedFromQueryRef.current = true
+    hydratedNotificationRouteRef.current = routeKey
+
+    const syncDetailsTimer = window.setTimeout(() => {
+      if (routeStyle) setStyle(routeStyle)
+      setOutfitSeasons(getCommonSeasons(resolvedItems))
+      setOutfitName(getDefaultOutfitName(resolvedItems, outfits.length))
+    }, 0)
+    return () => window.clearTimeout(syncDetailsTimer)
+  }, [
+    items,
+    outfits.length,
+    previewAssetId,
+    previewRouteState,
+    routeItemIds,
+    routeItemIdsValue,
+    searchParams,
+  ])
+
+  useEffect(() => {
+    if (!shouldRestorePreview || !restoredPreview.data) return
+    dispatch({
+      type: 'PREVIEW_SUCCESS',
+      imageUrl: restoredPreview.data.imageUrl,
+      assetId: restoredPreview.data.assetId,
+      compositionKey: getOutfitPreviewCompositionKey(
+        routeItemIds,
+        searchParams.get('style') ?? style,
+      ),
+      mimeType: restoredPreview.data.mimeType,
+      model: restoredPreview.data.model,
+      open: true,
+    })
+  }, [restoredPreview.data, routeItemIds, searchParams, shouldRestorePreview, style])
+
+  useEffect(() => {
+    if (!meQuery.data?.id || !restoredPreview.data || !shouldRestorePreview) {
+      return
+    }
+    cacheOutfitPreview(
+      meQuery.data.id,
+      getOutfitPreviewCompositionKey(
+        routeItemIds,
+        searchParams.get('style') ?? style,
+      ),
+      restoredPreview.data,
+    )
+  }, [
+    meQuery.data?.id,
+    restoredPreview.data,
+    routeItemIds,
+    searchParams,
+    shouldRestorePreview,
+    style,
+  ])
+
+  useEffect(() => {
+    if (!shouldRestorePreview || !restoredPreview.error) return
+    dispatch({
+      type: 'PREVIEW_ERROR',
+      message:
+        restoredPreview.error instanceof Error
+          ? restoredPreview.error.message
+          : '완성된 AI 코디 이미지를 불러오지 못했어요.',
+      open: true,
+    })
+  }, [restoredPreview.error, shouldRestorePreview])
+
+  useEffect(() => {
+    if (!shouldRestorePreviewFailure) return
+    dispatch({
+      type: 'PREVIEW_ERROR',
+      message: 'AI 룩 이미지를 완성하지 못했어요. 다시 만들기를 눌러주세요.',
+      open: true,
+    })
+  }, [routeItemIdsValue, shouldRestorePreviewFailure])
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
@@ -243,7 +375,6 @@ export function OutfitComposerPage() {
     }
   }, [goBackStep])
 
-  const selectedIds = layers.map((layer) => layer.wardrobeItemId)
   const selectedItems = selectedIds.flatMap((itemId) => {
     const item = items.find((candidate) => candidate.id === itemId)
     return item ? [item] : []
@@ -254,6 +385,9 @@ export function OutfitComposerPage() {
     ? `같은 옷 조합이 이미 '${duplicateOutfit.name}' 코디로 저장되어 있어요.`
     : null
   const savedLookbookImageUrl = duplicateOutfit?.previewImageUrl
+  const canUseSavedLookbookPreview = Boolean(
+    savedLookbookImageUrl && composerState.compositionRevision === 0,
+  )
   const selectedSlotCounts = selectedItems.reduce<Record<string, number>>(
     (counts, item) => {
       const slotId = getSlotId(item)
@@ -284,6 +418,10 @@ export function OutfitComposerPage() {
 
   useEffect(() => {
     if (!initializedFromQueryRef.current) return
+    if (
+      (previewRouteState === 'open' || previewRouteState === 'failed') &&
+      selectedIds.join(',') !== routeItemIdsValue
+    ) return
     const nextSearchParams = new URLSearchParams(searchParams)
     if (selectedIds.length > 0) {
       nextSearchParams.set('items', selectedIds.join(','))
@@ -293,7 +431,23 @@ export function OutfitComposerPage() {
     if (nextSearchParams.toString() !== searchParams.toString()) {
       setSearchParams(nextSearchParams, { replace: true })
     }
-  }, [searchParams, selectedIds, setSearchParams])
+  }, [
+    previewRouteState,
+    routeItemIdsValue,
+    searchParams,
+    selectedIds,
+    setSearchParams,
+  ])
+
+  const invalidateStoredPreview = () => {
+    previewRequestVersionRef.current += 1
+    if (!previewAssetId && !searchParams.has('preview')) return
+
+    const nextSearchParams = new URLSearchParams(searchParams)
+    nextSearchParams.delete('previewAssetId')
+    nextSearchParams.delete('preview')
+    setSearchParams(nextSearchParams, { replace: true })
+  }
 
   const toggleItem = (item: (typeof items)[number]) => {
     const isSelected = layers.some(
@@ -301,6 +455,7 @@ export function OutfitComposerPage() {
     )
 
     if (isSelected) {
+      invalidateStoredPreview()
       dispatch({ type: 'REMOVE_ITEM', itemId: item.id })
       return
     }
@@ -341,6 +496,7 @@ export function OutfitComposerPage() {
       return
     }
 
+    invalidateStoredPreview()
     dispatch({
       type: 'ADD_ITEM',
       layer: createOutfitLayer(item, layers),
@@ -348,6 +504,7 @@ export function OutfitComposerPage() {
   }
 
   const resetLayout = () => {
+    invalidateStoredPreview()
     dispatch({ type: 'RESET' })
     setOutfitSeasons([])
     pushToast('선택한 옷을 모두 해제했습니다.')
@@ -435,7 +592,9 @@ export function OutfitComposerPage() {
           wardrobeItemId: layer.wardrobeItemId,
           layerOrder: layer.order,
         })),
-        previewImage: hasGeneratedPreview
+        previewImageAssetId:
+          composerState.preview.assetId ?? undefined,
+        previewImage: hasGeneratedPreview && !composerState.preview.assetId
           ? {
               imageBase64: composerState.preview.imageBase64!,
               mimeType: composerState.preview.mimeType!,
@@ -455,26 +614,86 @@ export function OutfitComposerPage() {
     navigate('/lookbook', { replace: true })
   }
 
-  const generatePreview = () => {
+  const generatePreview = (forceNew = false) => {
     if (outfitCompletionMessage) {
       pushToast(outfitCompletionMessage, 'error')
       return
     }
+    if (!forceNew && previewAssetId) {
+      if (restoredPreview.data) {
+        dispatch({
+          type: 'PREVIEW_SUCCESS',
+          imageUrl: restoredPreview.data.imageUrl,
+          assetId: restoredPreview.data.assetId,
+          compositionKey: currentPreviewCompositionKey,
+          mimeType: restoredPreview.data.mimeType,
+          model: restoredPreview.data.model,
+          open: true,
+        })
+      }
+      return
+    }
+    const requestedPreviewVersion = previewRequestVersionRef.current
+    const requestedItemIds = [...selectedIds]
+    const requestedStyle = style
+    const requestedCompositionKey = getOutfitPreviewCompositionKey(
+      requestedItemIds,
+      requestedStyle,
+    )
+
+    if (!forceNew && cachedCurrentPreview) {
+      dispatch({
+        type: 'PREVIEW_SUCCESS',
+        imageUrl: cachedCurrentPreview.imageUrl,
+        assetId: cachedCurrentPreview.assetId,
+        compositionKey: requestedCompositionKey,
+        mimeType: cachedCurrentPreview.mimeType,
+        model: cachedCurrentPreview.model,
+        open: true,
+      })
+      return
+    }
+
     dispatch({ type: 'OPEN_PREVIEW' })
     if (previewMutation.isPending) return
 
     void previewMutation
-      .mutateAsync({ selectedItemIds: selectedIds, style })
+      .mutateAsync({ selectedItemIds: requestedItemIds, style: requestedStyle })
       .then((result) => {
+        if (
+          meQuery.data?.id &&
+          result.assetId &&
+          result.imageUrl
+        ) {
+          cacheOutfitPreview(meQuery.data.id, requestedCompositionKey, {
+            assetId: result.assetId,
+            imageUrl: result.imageUrl,
+            mimeType: result.mimeType,
+            model: result.model,
+          })
+        }
+        if (previewRequestVersionRef.current !== requestedPreviewVersion) return
         dispatch({
           type: 'PREVIEW_SUCCESS',
-          imageUrl: `data:${result.mimeType};base64,${result.imageBase64}`,
+          imageUrl:
+            result.imageUrl ??
+            `data:${result.mimeType};base64,${result.imageBase64}`,
           imageBase64: result.imageBase64,
+          assetId: result.assetId,
+          compositionKey: requestedCompositionKey,
           mimeType: result.mimeType,
           model: result.model,
+          open: true,
         })
+        if (result.assetId) {
+          const nextSearchParams = new URLSearchParams(searchParams)
+          nextSearchParams.set('previewAssetId', result.assetId)
+          if (requestedStyle) nextSearchParams.set('style', requestedStyle)
+          setSearchParams(nextSearchParams, { replace: true })
+        }
       })
       .catch((error: unknown) => {
+        if (previewRequestVersionRef.current !== requestedPreviewVersion) return
         dispatch({
           type: 'PREVIEW_ERROR',
           message:
@@ -486,15 +705,12 @@ export function OutfitComposerPage() {
   }
 
   const openAiLookbook = () => {
-    if (savedLookbookImageUrl) {
-      setIsSavedLookbookOpen(true)
+    if (hasGeneratedPreview && composerState.preview.imageUrl) {
+      dispatch({ type: 'REOPEN_PREVIEW' })
       return
     }
-    if (
-      composerState.preview.status === 'success' &&
-      composerState.preview.imageUrl
-    ) {
-      dispatch({ type: 'REOPEN_PREVIEW' })
+    if (canUseSavedLookbookPreview) {
+      setIsSavedLookbookOpen(true)
       return
     }
     generatePreview()
@@ -502,8 +718,18 @@ export function OutfitComposerPage() {
 
   const updateOutfitStyle = (nextStyle: string) => {
     if (nextStyle === style) return
+    invalidateStoredPreview()
     setStyle(nextStyle)
     dispatch({ type: 'INVALIDATE_PREVIEW' })
+  }
+
+  const closePreview = () => {
+    dispatch({ type: 'CLOSE_PREVIEW' })
+    if (!searchParams.has('preview')) return
+
+    const nextSearchParams = new URLSearchParams(searchParams)
+    nextSearchParams.delete('preview')
+    setSearchParams(nextSearchParams, { replace: true })
   }
 
   const composerSession = {
@@ -523,7 +749,7 @@ export function OutfitComposerPage() {
     reset: resetLayout,
     generatePreview,
     addPreviewToLookbook,
-    closePreview: () => dispatch({ type: 'CLOSE_PREVIEW' }),
+    closePreview,
     outfitName,
     outfitStyle: style,
     outfitSeasons,
@@ -558,7 +784,9 @@ export function OutfitComposerPage() {
                   <OutfitCompletionActions
                     duplicateMessage={duplicateMessage}
                     hasAvailableLookbook={Boolean(
-                      savedLookbookImageUrl || hasGeneratedPreview
+                      canUseSavedLookbookPreview ||
+                        hasGeneratedPreview ||
+                        Boolean(cachedCurrentPreview),
                     )}
                     onOpenLookbook={openAiLookbook}
                     onComplete={openSaveStep}
@@ -581,7 +809,9 @@ export function OutfitComposerPage() {
                     <OutfitCompletionActions
                       duplicateMessage={duplicateMessage}
                       hasAvailableLookbook={Boolean(
-                        savedLookbookImageUrl || hasGeneratedPreview
+                        canUseSavedLookbookPreview ||
+                          hasGeneratedPreview ||
+                          Boolean(cachedCurrentPreview),
                       )}
                       onOpenLookbook={openAiLookbook}
                       onComplete={openSaveStep}
@@ -594,13 +824,16 @@ export function OutfitComposerPage() {
         )}
         <OutfitPreviewDialog isReadOnly={Boolean(duplicateOutfit)} />
         <OutfitSaveDialog />
-        {isSavedLookbookOpen && savedLookbookImageUrl && duplicateOutfit && (
+        {isSavedLookbookOpen &&
+          canUseSavedLookbookPreview &&
+          savedLookbookImageUrl &&
+          duplicateOutfit && (
           <SavedOutfitPreviewDialog
             imageUrl={savedLookbookImageUrl}
             outfitName={duplicateOutfit.name}
             onClose={() => setIsSavedLookbookOpen(false)}
           />
-        )}
+          )}
       </section>
     </OutfitComposerContext.Provider>
   )

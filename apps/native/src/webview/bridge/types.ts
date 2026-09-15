@@ -8,6 +8,10 @@ export interface NativeBridgeReadyMessage {
   type: 'closet:native-bridge-ready'
 }
 
+export interface NativeWebAppReadyMessage {
+  type: 'closet:web-app-ready'
+}
+
 export interface NativeAppInfoRequest {
   type: 'closet:native-app-info'
   id: string
@@ -75,6 +79,7 @@ export interface NativeCancelGraphqlRequest {
 
 export type NativeBridgeRequest =
   | NativeBridgeReadyMessage
+  | NativeWebAppReadyMessage
   | NativeAppInfoRequest
   | NativeOpenAppSettingsRequest
   | NativeRequestPermissionRequest

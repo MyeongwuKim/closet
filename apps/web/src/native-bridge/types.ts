@@ -73,5 +73,8 @@ declare global {
   interface Window {
     ClosetNative?: ClosetNativeBridge
     ClosetRuntimeConfig?: ClosetRuntimeConfig
+    ReactNativeWebView?: {
+      postMessage: (message: string) => void
+    }
   }
 }

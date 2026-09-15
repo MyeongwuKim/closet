@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "pnpm --parallel --filter @closet/web --filter @closet/api dev",
     "api:dev": "pnpm --filter @closet/api dev",
+    "api:cleanup:outfit-previews": "pnpm --filter @closet/api cleanup:outfit-previews",
     "web:dev": "pnpm --filter @closet/web dev",
     "native:dev": "pnpm --filter @closet/native start",
     "native:bundle": "pnpm --filter @closet/native bundle:web",

@@ -9,6 +9,7 @@ import { ColorFilter } from '../../../components/ColorFilter'
 import { CatalogCardSkeletonGrid } from '../../../components/CatalogCardSkeletonGrid'
 import { DateSortButton } from '../../../components/DateSortButton'
 import { SeasonFilter } from '../../../components/SeasonFilter'
+import { WardrobeEmptyStateIllustration } from '../../../components/WardrobeEmptyStateIllustration'
 import { seasonLabels } from '../../../constants/seasons'
 import { useUiStore } from '../../../stores/useUiStore'
 import { closetCategoryLabels } from '../constants'
@@ -16,7 +17,6 @@ import { useClosetStore } from '../stores/useClosetStore'
 import { useInfiniteWardrobeQuery, useWardrobeFilterOptions } from '../../../lib/catalogQueries'
 import { InfiniteScrollFooter } from '../../../components/InfiniteScrollFooter'
 import { ClosetCategoryFilter } from '../components/ClosetCategoryFilter'
-import { EmptyWardrobeAnimation } from '../components/EmptyWardrobeAnimation'
 import { ClosetItemCard } from '../components/ClosetItemCard'
 import { ClosetMultiSelectBar } from '../components/ClosetMultiSelectBar'
 import { ClosetPageHeader } from '../components/ClosetPageHeader'
@@ -395,7 +395,7 @@ export function ClosetPage() {
                 : 'mt-6 rounded-3xl border border-dashed border-line bg-surface px-6 py-12 text-center'
             }
           >
-            <EmptyWardrobeAnimation className="mx-auto size-28" />
+            <WardrobeEmptyStateIllustration className="mx-auto size-28" />
             <h2
               className={`mt-5 font-black ${
                 totalCount === 0 ? 'text-xl' : 'text-lg'
@@ -416,7 +416,7 @@ export function ClosetPage() {
             <p
               className={
                 totalCount === 0
-                  ? 'mx-auto mt-2 max-w-md text-sm leading-7 text-muted'
+                  ? 'mx-auto mt-2 min-h-14 max-w-md text-sm leading-7 text-muted'
                   : 'mt-2 text-sm text-muted'
               }
             >

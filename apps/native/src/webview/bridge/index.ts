@@ -19,6 +19,7 @@ import {
   isNativeOpenAppSettingsRequest,
   isNativeOpenExternalUrlRequest,
   isNativeRequestPermissionRequest,
+  isNativeWebAppReadyMessage,
   parseNativeBridgeRequest,
 } from './messageGuards'
 import type { WebViewRef } from './types'
@@ -28,6 +29,7 @@ export { CLOSET_WEBVIEW_BRIDGE_SCRIPT }
 interface NativeBridgeHandlers {
   accessToken?: string
   onReady?: () => void
+  onWebAppReady?: () => void
   onAuthSessionChange?: (
     accessToken: string | null,
   ) => Promise<void> | void
@@ -43,6 +45,11 @@ export async function handleNativeBridgeMessage(
 
   if (isNativeBridgeReadyMessage(request)) {
     handlers.onReady?.()
+    return
+  }
+
+  if (isNativeWebAppReadyMessage(request)) {
+    handlers.onWebAppReady?.()
     return
   }
 
@@ -67,7 +74,7 @@ export async function handleNativeBridgeMessage(
   }
 
   if (isNativeRequestPermissionRequest(request)) {
-    await handleNativeRequestPermission(request, webViewRef)
+    await handleNativeRequestPermission(request, webViewRef, handlers.accessToken)
     return
   }
 

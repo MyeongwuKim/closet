@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { WardrobeItem } from '@closet/types'
 import { AlertCircle, BookPlus, RefreshCw, Sparkles, X } from 'lucide-react'
 import { ClosetItemVisual } from '../../closet/components/ClosetItemVisual'
+import { isNativeWebViewRuntime } from '../../../native-bridge'
 import {
   type OutfitPreviewState,
   useOutfitComposer,
@@ -17,7 +18,7 @@ const loadingMessages = [
 interface OutfitPreviewDialogViewProps {
   selectedItems: WardrobeItem[]
   preview: OutfitPreviewState
-  generatePreview: () => void
+  generatePreview: (forceNew?: boolean) => void
   closePreview: () => void
   onPrimary: () => void
   primaryLabel?: string
@@ -119,8 +120,9 @@ export function OutfitPreviewDialogView({
                 {loadingMessages[loadingStage]}
               </strong>
               <p className="mt-2 max-w-64 text-xs leading-5 text-muted">
-                옷 사진과 입력한 실루엣 수치를 참고하고 있어요. 생성에는
-                시간이 조금 걸릴 수 있어요.
+                {isNativeWebViewRuntime()
+                  ? '앱을 닫아도 생성은 계속돼요. 완료되면 푸시 알림으로 알려드릴게요.'
+                  : '옷 사진과 입력한 실루엣 수치를 참고하고 있어요. 생성에는 시간이 조금 걸릴 수 있어요.'}
               </p>
 
               <div className="mt-6 flex gap-1.5" aria-hidden="true">
@@ -173,7 +175,7 @@ export function OutfitPreviewDialogView({
           <footer className="grid shrink-0 grid-cols-2 gap-2 border-t border-line px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
             <button
               type="button"
-              onClick={generatePreview}
+              onClick={() => generatePreview(true)}
               className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-canvas px-3 py-3 text-xs font-bold"
             >
               <RefreshCw size={14} /> 다시 만들기

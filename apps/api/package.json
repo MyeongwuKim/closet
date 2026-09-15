@@ -11,6 +11,7 @@
     "start": "node dist/index.js",
     "test:classifier": "node scripts/test-classification.mjs",
     "test:background": "pnpm build && node scripts/test-background-removal.mjs",
+    "cleanup:outfit-previews": "tsx src/cli/cleanup-outfit-previews.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",

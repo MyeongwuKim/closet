@@ -5,6 +5,7 @@ import { getOpenAiClassificationModel } from '../features/classification/openAiW
 import { imageResolvers } from '../features/image/image.resolvers.js'
 import { outfitResolvers } from '../features/outfit/outfit.resolvers.js'
 import { plannerResolvers } from '../features/planner/planner.resolvers.js'
+import { pushResolvers } from '../features/push/push.resolvers.js'
 import { userResolvers } from '../features/user/user.resolvers.js'
 import { wardrobeResolvers } from '../features/wardrobe/wardrobe.resolvers.js'
 import { weatherResolvers } from '../features/weather/weather.resolvers.js'
@@ -25,6 +26,7 @@ export const resolvers = {
   },
   Mutation: {
     ...authResolvers.Mutation,
+    ...pushResolvers.Mutation,
     ...userResolvers.Mutation,
     ...imageResolvers.Mutation,
     ...wardrobeResolvers.Mutation,

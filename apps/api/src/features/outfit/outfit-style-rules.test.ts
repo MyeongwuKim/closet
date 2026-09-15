@@ -30,6 +30,22 @@ function createItem(
   }
 }
 
+function createLayerAttributes(
+  layerRole: 'mid' | 'outer',
+  warmth: 'light' | 'medium' | 'heavy',
+) {
+  return {
+    layerRole,
+    silhouette: 'regular' as const,
+    pattern: 'solid' as const,
+    material: 'cotton' as const,
+    texture: 'smooth' as const,
+    warmth,
+    formality: 0.4,
+    confidence: 0.9,
+  }
+}
+
 test('colorHex가 있으면 상세 색상명보다 실제 색을 우선한다', () => {
   const blue = createItem('blue', 'bottom', '데님', {
     colorName: '블루',
@@ -120,6 +136,174 @@ test('아우터가 들어간 모든 후보에 이너 상의가 포함된다', ()
       combination.items.some((item) => item.id === 'top'),
     ),
   )
+})
+
+test('체감 23도에는 선택하지 않은 아우터와 중간 레이어를 추천하지 않는다', () => {
+  const combinations = buildOutfitCombinations(
+    [
+      createItem('top', 'top', '반팔'),
+      createItem('bottom', 'bottom', '데님'),
+      createItem('shoes', 'shoes', '스니커즈'),
+      createItem('outer', 'outer', '재킷'),
+      createItem('midlayer', 'midlayer', '가디건'),
+    ],
+    'casual',
+    'regular',
+    'autumn',
+    undefined,
+    23,
+  )
+
+  assert.ok(combinations.length > 0)
+  assert.ok(
+    combinations.every(({ items }) =>
+      items.every((item) => !['outer', 'midlayer'].includes(item.id)),
+    ),
+  )
+})
+
+test('체감 23도에는 울 니트와 보온성 있는 상의를 추천하지 않는다', () => {
+  const combinations = buildOutfitCombinations(
+    [
+      createItem('t-shirt', 'top', '반팔', {
+        fashionAttributes: {
+          layerRole: 'base',
+          silhouette: 'regular',
+          pattern: 'solid',
+          material: 'cotton',
+          texture: 'smooth',
+          warmth: 'light',
+          formality: 0.2,
+          confidence: 0.9,
+        },
+      }),
+      createItem('wool-knit', 'top', '울 니트', {
+        fashionAttributes: {
+          layerRole: 'base',
+          silhouette: 'regular',
+          pattern: 'solid',
+          material: 'wool',
+          texture: 'ribbed',
+          warmth: 'medium',
+          formality: 0.4,
+          confidence: 0.9,
+        },
+      }),
+      createItem('hoodie', 'top', '후드', {
+        fashionAttributes: {
+          layerRole: 'base',
+          silhouette: 'regular',
+          pattern: 'solid',
+          material: 'cotton',
+          texture: 'smooth',
+          warmth: 'medium',
+          formality: 0.2,
+          confidence: 0.9,
+        },
+      }),
+      createItem('bottom', 'bottom', '데님'),
+    ],
+    'casual',
+    'regular',
+    'autumn',
+    undefined,
+    23,
+  )
+
+  assert.ok(combinations.length > 0)
+  assert.ok(
+    combinations.every(({ items }) =>
+      items.every((item) => !['wool-knit', 'hoodie'].includes(item.id)),
+    ),
+  )
+})
+
+test('더운 날씨에도 사용자가 기준으로 고른 아우터는 유지한다', () => {
+  const baseOuter = createItem('base-outer', 'outer', '재킷')
+  const combinations = buildOutfitCombinations(
+    [
+      baseOuter,
+      createItem('top', 'top', '반팔'),
+      createItem('bottom', 'bottom', '데님'),
+      createItem('shoes', 'shoes', '스니커즈'),
+      createItem('other-outer', 'outer', '코트'),
+    ],
+    'casual',
+    'regular',
+    'autumn',
+    baseOuter.id,
+    23,
+  )
+
+  assert.ok(combinations.length > 0)
+  assert.ok(
+    combinations.every(({ items }) =>
+      items.some((item) => item.id === baseOuter.id),
+    ),
+  )
+  assert.ok(
+    combinations.every(({ items }) =>
+      items.every((item) => item.id !== 'other-outer'),
+    ),
+  )
+})
+
+test('체감 18도에는 가벼운 아우터만 추천 후보로 사용한다', () => {
+  const combinations = buildOutfitCombinations(
+    [
+      createItem('top', 'top', '긴팔'),
+      createItem('bottom', 'bottom', '긴바지'),
+      createItem('light-outer', 'outer', '얇은 재킷', {
+        fashionAttributes: createLayerAttributes('outer', 'light'),
+      }),
+      createItem('heavy-outer', 'outer', '패딩', {
+        fashionAttributes: createLayerAttributes('outer', 'heavy'),
+      }),
+    ],
+    'casual',
+    'regular',
+    'autumn',
+    undefined,
+    18,
+  )
+
+  assert.ok(
+    combinations.some(({ items }) =>
+      items.some((item) => item.id === 'light-outer'),
+    ),
+  )
+  assert.ok(
+    combinations.every(({ items }) =>
+      items.every((item) => item.id !== 'heavy-outer'),
+    ),
+  )
+})
+
+test('체감 7도에는 아우터 조합을 아우터 없는 조합보다 높게 평가한다', () => {
+  const combinations = buildOutfitCombinations(
+    [
+      createItem('top', 'top', '니트'),
+      createItem('bottom', 'bottom', '긴바지'),
+      createItem('outer', 'outer', '코트', {
+        fashionAttributes: createLayerAttributes('outer', 'heavy'),
+      }),
+    ],
+    'casual',
+    'regular',
+    'winter',
+    undefined,
+    7,
+  )
+  const layered = combinations.find(({ items }) =>
+    items.some((item) => item.id === 'outer'),
+  )
+  const unlayered = combinations.find(({ items }) =>
+    items.every((item) => item.id !== 'outer'),
+  )
+
+  assert.ok(layered)
+  assert.ok(unlayered)
+  assert.ok(layered.score > unlayered.score)
 })
 
 test('선택한 목표 스타일 하나만 아이템 점수에 반영한다', () => {

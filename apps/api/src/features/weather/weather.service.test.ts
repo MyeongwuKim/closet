@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { ServiceError } from '../../graphql/errors.js'
-import { weatherService } from './weather.service.js'
+import { getRecommendedSeason, weatherService } from './weather.service.js'
 
 function createProviderResponse(currentDate = '2026-09-02') {
   return {
@@ -60,6 +60,11 @@ test('다른 날짜에는 일별 예보의 평균 기온과 날씨를 사용한�
   assert.equal(weather.summary, '비')
   assert.equal(weather.precipitationProbability, 80)
   assert.equal(weather.recommendedSeason, 'autumn')
+})
+
+test('체감 23도부터는 달력상 가을이어도 여름 옷을 추천한다', () => {
+  assert.equal(getRecommendedSeason('2026-09-15', 23), 'summer')
+  assert.equal(getRecommendedSeason('2026-09-15', 22), 'autumn')
 })
 
 test('같은 지역과 날짜의 예보는 캐시해 중복 호출하지 않는다', async (t) => {

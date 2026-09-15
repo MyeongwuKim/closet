@@ -12,6 +12,8 @@ export const queryKeys = {
   },
   outfits: {
     all: ['outfits'] as const,
+    previewAsset: (assetId: string) =>
+      ['outfits', 'preview-asset', assetId] as const,
     list: (filter?: { style?: string; wardrobeItemIds?: string[] }) =>
       ['outfits', 'list', filter ?? {}] as const,
     recommendation: (

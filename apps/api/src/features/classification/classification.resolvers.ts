@@ -1,4 +1,14 @@
+/**
+ * 용도:
+ * 옷 이미지·사이즈표 분석 요청을 GraphQL에 연결한다.
+ *
+ * 요청 흐름:
+ * 로그인 사용자의 옷 분석이 완료되면 푸시 알림을 보내고,
+ * 알림 실패와 관계없이 분석 결과를 반환한다.
+ */
+import type { GraphQLContext } from '../../graphql/context.js'
 import { toGraphQLError } from '../../graphql/errors.js'
+import { notifyCompletion } from '../push/push.service.js'
 import {
   classificationService,
   type AnalyzeGarmentSizeChartInput,
@@ -10,9 +20,13 @@ export const classificationResolvers = {
     classifyWardrobeImage: async (
       _parent: unknown,
       { input }: { input: ClassifyWardrobeImageInput },
+      context: GraphQLContext,
     ) => {
       try {
-        return await classificationService.classify(input)
+        const viewer = context.accessToken ? await context.getViewer() : null
+        const classification = await classificationService.classify(input)
+        if (viewer) notifyCompletion(viewer.id, 'wardrobe-classification')
+        return classification
       } catch (error) {
         throw toGraphQLError(
           error,

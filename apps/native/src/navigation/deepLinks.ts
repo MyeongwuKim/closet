@@ -14,7 +14,7 @@ const ALLOWED_WEB_ROUTES = new Set([
   'profile',
 ])
 
-function normalizeWebPath(pathValue: string) {
+export function normalizeWebPath(pathValue: string) {
   try {
     const url = new URL(pathValue, 'https://closet.native')
     if (url.origin !== 'https://closet.native') return null

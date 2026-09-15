@@ -1,3 +1,12 @@
+/**
+ * 진입 경로: 설정 탭 → 알림 및 날씨
+ *
+ * 용도:
+ * 알림·위치 권한을 확인하고 위치 기반 날씨 사용 여부를 관리한다.
+ *
+ * 구조:
+ * 완료 알림·날씨 권한 상태와 기기 설정, 테스트 푸시 영역으로 구성되어 있다.
+ */
 import { useCallback, useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
@@ -10,6 +19,12 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { PageTitle } from '../../../components/PageTitle'
+import { useSendTestPushNotificationMutation } from '../api/pushQueries'
+import {
+  readNotificationWeatherPreferences,
+  saveNotificationWeatherPreferences,
+  type NotificationWeatherPreferences,
+} from '../utils/notificationWeatherPreferences'
 import {
   getNativeAppInfo,
   isNativeWebViewRuntime,
@@ -18,20 +33,9 @@ import {
   type NativePermissionStatus,
 } from '../../../native-bridge'
 
-interface NotificationWeatherPreferences {
-  completionNotifications: boolean
-  locationWeather: boolean
-}
-
 interface PermissionStatuses {
   notifications: NativePermissionStatus
   location: NativePermissionStatus
-}
-
-const STORAGE_KEY = 'closet:notification-weather-preferences:v1'
-const defaultPreferences: NotificationWeatherPreferences = {
-  completionNotifications: false,
-  locationWeather: false,
 }
 
 const permissionLabels: Record<NativePermissionStatus, string> = {
@@ -48,20 +52,6 @@ const permissionStyles: Record<NativePermissionStatus, string> = {
   denied: 'bg-[#fff0ec] text-accent',
   undetermined: 'bg-canvas text-muted',
   unavailable: 'bg-canvas text-muted',
-}
-
-function readPreferences() {
-  try {
-    const value = window.localStorage.getItem(STORAGE_KEY)
-    if (!value) return defaultPreferences
-    const parsed = JSON.parse(value) as Partial<NotificationWeatherPreferences>
-    return {
-      completionNotifications: parsed.completionNotifications === true,
-      locationWeather: parsed.locationWeather === true,
-    }
-  } catch {
-    return defaultPreferences
-  }
 }
 
 function mapBrowserPermissionStatus(
@@ -105,12 +95,6 @@ async function readPermissionStatuses(isNative: boolean) {
   }
 }
 
-async function requestWebNotificationPermission() {
-  if (!('Notification' in window)) return 'unavailable'
-  const status = await window.Notification.requestPermission()
-  return status === 'default' ? 'undetermined' : status
-}
-
 function requestWebLocationPermission(): Promise<NativePermissionStatus> {
   if (!('geolocation' in navigator)) return Promise.resolve('unavailable')
 
@@ -128,25 +112,28 @@ function isPermissionGranted(status: NativePermissionStatus) {
   return status === 'granted' || status === 'limited'
 }
 
-interface PreferenceRowProps {
+interface SettingRowProps {
   icon: LucideIcon
   title: string
   description: string
-  checked: boolean
-  disabled: boolean
   permissionStatus: NativePermissionStatus
-  onChange: (checked: boolean) => void
+  statusLabel?: string
+  toggle?: {
+    checked: boolean
+    disabled: boolean
+    ariaLabel?: string
+    onChange: (checked: boolean) => void
+  }
 }
 
-function PreferenceRow({
+function SettingRow({
   icon: Icon,
   title,
   description,
-  checked,
-  disabled,
   permissionStatus,
-  onChange,
-}: PreferenceRowProps) {
+  statusLabel,
+  toggle,
+}: SettingRowProps) {
   return (
     <div className="px-4 py-4 sm:px-5">
       <div className="flex items-start gap-3">
@@ -157,23 +144,29 @@ function PreferenceRow({
           <p className="text-sm font-black">{title}</p>
           <p className="mt-1 text-xs leading-5 text-muted">{description}</p>
         </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={checked}
-          aria-label={`${title} ${checked ? '끄기' : '켜기'}`}
-          onClick={() => onChange(!checked)}
-          disabled={disabled}
-          className={`relative mt-1 h-7 w-12 shrink-0 rounded-full transition disabled:cursor-wait disabled:opacity-50 ${
-            checked ? 'bg-ink' : 'bg-line'
-          }`}
-        >
-          <span
-            className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition-transform ${
-              checked ? 'translate-x-6' : 'translate-x-1'
+        {toggle ? (
+          <button
+            type="button"
+            role="switch"
+            aria-checked={toggle.checked}
+            aria-label={toggle.ariaLabel ?? `${title} ${toggle.checked ? '끄기' : '켜기'}`}
+            onClick={() => toggle.onChange(!toggle.checked)}
+            disabled={toggle.disabled}
+            className={`relative mt-1 h-7 w-12 shrink-0 rounded-full transition disabled:cursor-wait disabled:opacity-50 ${
+              toggle.checked ? 'bg-ink' : 'bg-line'
             }`}
-          />
-        </button>
+          >
+            <span
+              className={`absolute top-1 left-1 size-5 rounded-full bg-white shadow-sm transition-transform ${
+                toggle.checked ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        ) : (
+          <span className="mt-1 shrink-0 rounded-full bg-canvas px-2.5 py-1 text-[11px] font-bold text-muted">
+            {statusLabel}
+          </span>
+        )}
       </div>
       <div className="mt-3 flex justify-end">
         <span
@@ -188,33 +181,50 @@ function PreferenceRow({
 
 export function NotificationWeatherPage() {
   const isNative = isNativeWebViewRuntime()
+  const sendTestPush = useSendTestPushNotificationMutation()
   const [preferences, setPreferences] =
-    useState<NotificationWeatherPreferences>(readPreferences)
+    useState<NotificationWeatherPreferences>(readNotificationWeatherPreferences)
   const [permissions, setPermissions] = useState<PermissionStatuses>({
     notifications: 'unavailable',
     location: 'unavailable',
   })
-  const [pendingPermission, setPendingPermission] = useState<
-    'notifications' | 'location' | null
-  >(null)
+  const [isRequestingLocation, setIsRequestingLocation] = useState(false)
+  const [isRequestingNotifications, setIsRequestingNotifications] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [testMessage, setTestMessage] = useState<string | null>(null)
 
-  const updatePreferences = (
+  const updatePreferences = useCallback((
     updates: Partial<NotificationWeatherPreferences>,
   ) => {
     setPreferences((current) => {
       const next = { ...current, ...updates }
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+      if (
+        next.locationWeather === current.locationWeather &&
+        next.locationWeatherDisabled === current.locationWeatherDisabled
+      ) return current
+      saveNotificationWeatherPreferences(next)
       return next
     })
-  }
+  }, [])
 
   const loadPermissions = useCallback(async () => {
     setIsLoading(true)
     setError(null)
     try {
-      setPermissions(await readPermissionStatuses(isNative))
+      const nextPermissions = await readPermissionStatuses(isNative)
+      setPermissions(nextPermissions)
+      if (
+        isNative &&
+        (isPermissionGranted(nextPermissions.location) ||
+          nextPermissions.location === 'denied')
+      ) {
+        const locationEnabled = isPermissionGranted(nextPermissions.location)
+        updatePreferences({
+          locationWeather: locationEnabled,
+          locationWeatherDisabled: !locationEnabled,
+        })
+      }
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -224,60 +234,51 @@ export function NotificationWeatherPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [isNative])
+  }, [isNative, updatePreferences])
 
   useEffect(() => {
-    let isActive = true
-    void readPermissionStatuses(isNative)
-      .then((nextPermissions) => {
-        if (isActive) setPermissions(nextPermissions)
-      })
-      .catch((loadError: unknown) => {
-        if (!isActive) return
-        setError(
-          loadError instanceof Error
-            ? loadError.message
-            : '기기 권한을 확인할 수 없어요.',
-        )
-      })
-      .finally(() => {
-        if (isActive) setIsLoading(false)
-      })
-
-    return () => {
-      isActive = false
+    const initialLoad = window.setTimeout(() => void loadPermissions(), 0)
+    const refreshOnReturn = () => {
+      void loadPermissions()
     }
-  }, [isNative])
-
-  const requestPermission = async (
-    permission: 'notifications' | 'location',
-  ) => {
     if (isNative) {
-      return requestNativePermission(permission)
+      window.addEventListener('closet:native-app-active', refreshOnReturn)
+    } else {
+      window.addEventListener('focus', refreshOnReturn)
     }
-    return permission === 'notifications'
-      ? requestWebNotificationPermission()
-      : requestWebLocationPermission()
+    return () => {
+      window.clearTimeout(initialLoad)
+      window.removeEventListener('closet:native-app-active', refreshOnReturn)
+      window.removeEventListener('focus', refreshOnReturn)
+    }
+  }, [isNative, loadPermissions])
+
+  const openSettings = async () => {
+    try {
+      await openNativeAppSettings()
+    } catch (settingsError) {
+      setError(
+        settingsError instanceof Error
+          ? settingsError.message
+          : '기기 설정을 열지 못했어요.',
+      )
+    }
   }
 
-  const toggleCompletionNotifications = async (checked: boolean) => {
-    if (!checked) {
-      updatePreferences({ completionNotifications: false })
+  const toggleCompletionNotifications = async () => {
+    setError(null)
+    if (permissions.notifications !== 'undetermined') {
+      await openSettings()
       return
     }
 
-    setPendingPermission('notifications')
-    setError(null)
+    setIsRequestingNotifications(true)
     try {
-      const status = await requestPermission('notifications')
+      const status = await requestNativePermission('notifications')
       if (!status) throw new Error('알림 권한을 요청할 수 없어요.')
       setPermissions((current) => ({ ...current, notifications: status }))
-      if (isPermissionGranted(status)) {
-        updatePreferences({ completionNotifications: true })
-      } else {
-        updatePreferences({ completionNotifications: false })
-        setError('작업 완료 알림을 받으려면 기기에서 알림을 허용해주세요.')
-      }
+      if (status === 'denied') await openSettings()
+      else await loadPermissions()
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -285,26 +286,61 @@ export function NotificationWeatherPage() {
           : '알림 권한을 요청하지 못했어요.',
       )
     } finally {
-      setPendingPermission(null)
+      setIsRequestingNotifications(false)
     }
   }
 
   const toggleLocationWeather = async (checked: boolean) => {
-    if (!checked) {
-      updatePreferences({ locationWeather: false })
+    if (isNative) {
+      setError(null)
+      if (permissions.location !== 'undetermined') {
+        await openSettings()
+        return
+      }
+
+      setIsRequestingLocation(true)
+      try {
+        const status = await requestNativePermission('location')
+        if (!status) throw new Error('위치 권한을 요청할 수 없어요.')
+        setPermissions((current) => ({ ...current, location: status }))
+        if (status === 'denied') await openSettings()
+        else await loadPermissions()
+      } catch (requestError) {
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : '위치 권한을 요청하지 못했어요.',
+        )
+      } finally {
+        setIsRequestingLocation(false)
+      }
       return
     }
 
-    setPendingPermission('location')
+    if (!checked) {
+      updatePreferences({
+        locationWeather: false,
+        locationWeatherDisabled: true,
+      })
+      return
+    }
+
+    setIsRequestingLocation(true)
     setError(null)
     try {
-      const status = await requestPermission('location')
+      const status = await requestWebLocationPermission()
       if (!status) throw new Error('위치 권한을 요청할 수 없어요.')
       setPermissions((current) => ({ ...current, location: status }))
       if (isPermissionGranted(status)) {
-        updatePreferences({ locationWeather: true })
+        updatePreferences({
+          locationWeather: true,
+          locationWeatherDisabled: false,
+        })
       } else {
-        updatePreferences({ locationWeather: false })
+        updatePreferences({
+          locationWeather: false,
+          locationWeatherDisabled: false,
+        })
         setError('현재 위치의 날씨를 받으려면 위치 권한을 허용해주세요.')
       }
     } catch (requestError) {
@@ -314,7 +350,22 @@ export function NotificationWeatherPage() {
           : '위치 권한을 요청하지 못했어요.',
       )
     } finally {
-      setPendingPermission(null)
+      setIsRequestingLocation(false)
+    }
+  }
+
+  const sendTestNotification = async () => {
+    setError(null)
+    setTestMessage(null)
+    try {
+      await sendTestPush.mutateAsync()
+      setTestMessage('테스트 알림을 전송했어요. 기기에서 수신 여부를 확인해주세요.')
+    } catch (sendError) {
+      setError(
+        sendError instanceof Error
+          ? sendError.message
+          : '테스트 알림을 보내지 못했어요.',
+      )
     }
   }
 
@@ -337,7 +388,7 @@ export function NotificationWeatherPage() {
           </Link>
           <PageTitle
             title="알림 및 날씨"
-            description="완료 알림과 위치 기반 날씨 사용을 관리해보세요."
+            description="알림 권한과 위치 기반 날씨 설정을 확인해보세요."
             compact
           />
         </div>
@@ -350,7 +401,9 @@ export function NotificationWeatherPage() {
               <div>
                 <h2 className="text-sm font-black">기능 설정</h2>
                 <p className="mt-1 text-xs text-muted">
-                  기능을 켤 때 필요한 기기 권한을 요청해요.
+                  {isNative
+                    ? '기기 권한은 휴대폰 설정에서 변경할 수 있어요.'
+                    : '기능을 켤 때 필요한 기기 권한을 요청해요.'}
                 </p>
               </div>
               <button
@@ -368,25 +421,33 @@ export function NotificationWeatherPage() {
             </div>
 
             <div className="mt-3 divide-y divide-line overflow-hidden rounded-3xl border border-line bg-surface">
-              <PreferenceRow
+              <SettingRow
                 icon={BellRing}
                 title="작업 완료 알림"
-                description="AI 옷 분석과 AI 룩북 생성이 끝나면 알려드려요."
-                checked={preferences.completionNotifications}
-                disabled={pendingPermission !== null || isLoading}
+                description="AI 옷 분석·코디 추천·코디 이미지 생성이 끝나면 기기에 알려드려요."
+                statusLabel={isNative ? undefined : '모바일 앱 전용'}
                 permissionStatus={permissions.notifications}
-                onChange={(checked) =>
-                  void toggleCompletionNotifications(checked)
-                }
+                toggle={isNative ? {
+                  checked: isPermissionGranted(permissions.notifications),
+                  disabled: isRequestingNotifications || isLoading,
+                  ariaLabel: '알림 권한 기기 설정 열기',
+                  onChange: () => void toggleCompletionNotifications(),
+                } : undefined}
               />
-              <PreferenceRow
+              <SettingRow
                 icon={CloudSun}
                 title="위치 기반 날씨"
                 description="현재 위치의 날씨를 플래너와 코디 추천에 사용해요."
-                checked={preferences.locationWeather}
-                disabled={pendingPermission !== null || isLoading}
                 permissionStatus={permissions.location}
-                onChange={(checked) => void toggleLocationWeather(checked)}
+                toggle={{
+                  checked: isNative
+                    ? isPermissionGranted(permissions.location)
+                    : !preferences.locationWeatherDisabled &&
+                      isPermissionGranted(permissions.location),
+                  disabled: isRequestingLocation || isLoading,
+                  ariaLabel: isNative ? '위치 권한 기기 설정 열기' : undefined,
+                  onChange: (checked) => void toggleLocationWeather(checked),
+                }}
               />
             </div>
           </section>
@@ -405,10 +466,32 @@ export function NotificationWeatherPage() {
             </p>
           )}
 
+          {testMessage && (
+            <p className="rounded-xl bg-sage/70 px-4 py-3 text-xs leading-5 font-bold text-ink">
+              {testMessage}
+            </p>
+          )}
+
           {isNative && (
             <button
               type="button"
-              onClick={() => void openNativeAppSettings()}
+              onClick={() => void sendTestNotification()}
+              disabled={
+                !isPermissionGranted(permissions.notifications) ||
+                isLoading ||
+                sendTestPush.isPending
+              }
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-ink px-4 py-3 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <BellRing size={16} />
+              {sendTestPush.isPending ? '테스트 알림 전송 중...' : '테스트 알림 보내기'}
+            </button>
+          )}
+
+          {isNative && (
+            <button
+              type="button"
+              onClick={() => void openSettings()}
               className="flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 py-3 text-sm font-bold transition hover:border-ink"
             >
               <ExternalLink size={16} /> 기기 설정 열기

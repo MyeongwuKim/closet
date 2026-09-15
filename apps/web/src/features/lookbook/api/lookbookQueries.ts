@@ -5,6 +5,7 @@ import type {
   OutfitPreview,
   OutfitRecommendation,
   Season,
+  StoredOutfitPreview,
 } from '@closet/types'
 import { graphqlRequest } from '../../../lib/graphql'
 import { queryKeys } from '../../../lib/queryKeys'
@@ -65,6 +66,7 @@ export interface CreateOutfitVariables {
     mimeType: OutfitPreview['mimeType']
     model: string
   }
+  previewImageAssetId?: string
 }
 
 export type UpdateOutfitVariables = Pick<
@@ -291,13 +293,38 @@ export function useGenerateOutfitPreviewMutation() {
         `
           mutation GenerateOutfitPreview($input: OutfitPreviewInput!) {
             generateOutfitPreview(input: $input) {
-              imageBase64 mimeType model
+              imageBase64 mimeType model assetId imageUrl
             }
           }
         `,
         { input: { selectedItemIds, style } },
       )
       return data.generateOutfitPreview
+    },
+  })
+}
+
+export function useOutfitPreviewAssetQuery(assetId?: string | null) {
+  return useQuery({
+    queryKey: queryKeys.outfits.previewAsset(assetId ?? ''),
+    enabled: Boolean(assetId),
+    staleTime: Infinity,
+    retry: 1,
+    queryFn: async () => {
+      const data = await graphqlRequest<
+        { outfitPreviewAsset: StoredOutfitPreview },
+        { id: string }
+      >(
+        `
+          query OutfitPreviewAsset($id: ID!) {
+            outfitPreviewAsset(id: $id) {
+              assetId imageUrl mimeType model
+            }
+          }
+        `,
+        { id: assetId! },
+      )
+      return data.outfitPreviewAsset
     },
   })
 }

@@ -179,6 +179,38 @@ async function requestMockPreview(t: TestContext, attributes?: unknown) {
   return requests[0]!
 }
 
+test('이미지 API가 성공 상태로 빈 결과를 주면 한 번 다시 요청한다', async (t) => {
+  const items = [createPreviewItem('top', 'top'), createPreviewItem('bottom', 'bottom')]
+  t.mock.method(userRepository, 'findViewerById', async () => null)
+  t.mock.method(wardrobeRepository, 'findManyOwnedWithImagesByIds', async () => [...items].reverse())
+  t.mock.method(console, 'error', () => {})
+  const previousKey = process.env.OPENAI_API_KEY
+  process.env.OPENAI_API_KEY = 'test-key'
+  t.after(() => {
+    if (previousKey === undefined) delete process.env.OPENAI_API_KEY
+    else process.env.OPENAI_API_KEY = previousKey
+  })
+
+  let openAiRequestCount = 0
+  t.mock.method(globalThis, 'fetch', async (url: unknown) => {
+    const item = items.find((item) => item.displayImageAsset.deliveryUrl === url)
+    if (item) {
+      return new Response(`mock-reference-${item.id}`, { headers: { 'content-type': 'image/png' } })
+    }
+
+    openAiRequestCount += 1
+    if (openAiRequestCount === 1) return Response.json({ data: [] })
+    return Response.json({
+      data: [{ b64_json: Buffer.from('mock-preview').toString('base64') }],
+    })
+  })
+
+  const preview = await outfitPreviewService.generate('viewer', ['top', 'bottom'])
+
+  assert.equal(openAiRequestCount, 2)
+  assert.equal(preview.imageBase64, Buffer.from('mock-preview').toString('base64'))
+})
+
 test('실제 이미지 편집 요청에 참조 이미지별 시보리 판정과 원형 보존 규칙을 전달한다', async (t) => {
   const form = await requestMockPreview(t, {
     material: 'knit',

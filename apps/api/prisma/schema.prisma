@@ -82,6 +82,12 @@ enum ImageUploadStatus {
   failed
 }
 
+enum ImageAssetRetention {
+  temporary
+  permanent
+  deleting
+}
+
 enum OutfitSource {
   manual
   ai
@@ -92,6 +98,11 @@ enum GenerationStatus {
   processing
   completed
   failed
+}
+
+enum PushPlatform {
+  ios
+  android
 }
 
 model User {
@@ -113,6 +124,21 @@ model User {
   outfits         Outfit[]
   plannerWeeks    PlannerWeek[]
   generations     OutfitGeneration[]
+  pushDevices     PushDevice[]
+}
+
+model PushDevice {
+  id               String       @id @default(auto()) @map("_id") @db.ObjectId
+  userId           String       @db.ObjectId
+  sessionTokenHash String
+  expoPushToken    String       @unique
+  platform         PushPlatform
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  user             User         @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([sessionTokenHash])
 }
 
 model TestAccount {
@@ -197,11 +223,13 @@ model UserStylePreference {
 
 // 실제 이미지는 Cloudflare Images에 저장하고 cloudflareImageId만 DB에 보관한다.
 model ImageAsset {
-  id                    String             @id @default(auto()) @map("_id") @db.ObjectId
-  userId                String             @db.ObjectId
-  cloudflareImageId     String             @unique
+  id                    String              @id @default(auto()) @map("_id") @db.ObjectId
+  userId                String              @db.ObjectId
+  cloudflareImageId     String              @unique
   kind                  ImageAssetKind
-  uploadStatus          ImageUploadStatus  @default(pending)
+  uploadStatus          ImageUploadStatus   @default(pending)
+  retention             ImageAssetRetention @default(permanent)
+  expiresAt             DateTime?
   deliveryVariant       String?
   deliveryUrl           String?
   originalFilename      String?
@@ -210,14 +238,15 @@ model ImageAsset {
   width                 Int?
   height                Int?
   metadata              Json?
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
-  user                  User               @relation(fields: [userId], references: [id])
-  wardrobeDisplayItems  WardrobeItem[]     @relation("WardrobeDisplayImage")
-  wardrobeOriginalItems WardrobeItem[]     @relation("WardrobeOriginalImage")
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  user                  User                @relation(fields: [userId], references: [id])
+  wardrobeDisplayItems  WardrobeItem[]      @relation("WardrobeDisplayImage")
+  wardrobeOriginalItems WardrobeItem[]      @relation("WardrobeOriginalImage")
   outfitGenerations     OutfitGeneration[]
 
   @@index([userId, kind])
+  @@index([kind, retention, expiresAt])
 }
 
 model WardrobeItem {
@@ -227,7 +256,7 @@ model WardrobeItem {
   displayImageAssetId      String?              @db.ObjectId
   originalImageAssetId     String?              @db.ObjectId
   category                 ClothingCategory?
-  additionalCategories     ClothingCategory[]     @default([])
+  additionalCategories     ClothingCategory[]   @default([])
   subcategory              String?
   colorName                String?
   colorDetailName          String?

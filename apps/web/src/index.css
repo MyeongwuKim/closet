@@ -24,6 +24,14 @@ body {
 
 button {
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus,
+button:focus-visible {
+  --tw-inset-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  outline: none !important;
 }
 
 .scrollbar-hidden {
@@ -178,52 +186,60 @@ button {
   }
 }
 
-@keyframes empty-wardrobe-sigh {
+@keyframes brand-empty-wardrobe-float {
   0%,
   100% {
-    transform: translateY(0) rotate(0deg);
+    transform: translateY(0);
   }
 
-  45% {
-    transform: translateY(3px) rotate(-0.7deg);
-  }
-
-  70% {
-    transform: translateY(1px) rotate(0.5deg);
+  50% {
+    transform: translateY(-2px);
   }
 }
 
-@keyframes empty-wardrobe-tear-drop {
+@keyframes brand-empty-hanger-sway {
   0%,
-  18% {
-    opacity: 0;
-    transform: translateY(-3px) scale(0.75);
-  }
-
-  30% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-
-  78% {
-    opacity: 1;
-    transform: translateY(10px) scale(0.9);
-  }
-
   100% {
-    opacity: 0;
-    transform: translateY(17px) scale(0.72);
+    transform: rotate(-2.5deg);
+  }
+
+  50% {
+    transform: rotate(2.5deg);
   }
 }
 
-@keyframes empty-wardrobe-door-sway {
+@keyframes brand-empty-lookbook-card-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1deg);
+  }
+
+  50% {
+    transform: translateY(-3px) rotate(1deg);
+  }
+}
+
+@keyframes brand-empty-sparkle-twinkle {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.78);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes brand-empty-door-breathe {
   0%,
   100% {
     transform: rotate(0deg);
   }
 
   50% {
-    transform: rotate(1.5deg);
+    transform: rotate(1deg);
   }
 }
 
@@ -479,29 +495,41 @@ button {
   transform-origin: center;
 }
 
-.empty-wardrobe-character {
-  animation: empty-wardrobe-sigh 2.8s ease-in-out infinite;
+.brand-empty-wardrobe {
+  animation: brand-empty-wardrobe-float 3.2s ease-in-out infinite;
   transform-box: fill-box;
   transform-origin: center bottom;
 }
 
-.empty-wardrobe-tear {
-  animation: empty-wardrobe-tear-drop 2.2s ease-in infinite;
+.brand-empty-hanger {
+  animation: brand-empty-hanger-sway 2.2s ease-in-out infinite;
   transform-box: fill-box;
   transform-origin: center top;
 }
 
-.empty-wardrobe-door-left,
-.empty-wardrobe-door-right {
-  animation: empty-wardrobe-door-sway 3.2s ease-in-out infinite;
+.brand-empty-lookbook-card {
+  animation: brand-empty-lookbook-card-float 2.8s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.brand-empty-sparkle {
+  animation: brand-empty-sparkle-twinkle 2s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.brand-empty-door-left,
+.brand-empty-door-right {
+  animation: brand-empty-door-breathe 3.4s ease-in-out infinite;
   transform-box: fill-box;
 }
 
-.empty-wardrobe-door-left {
+.brand-empty-door-left {
   transform-origin: right center;
 }
 
-.empty-wardrobe-door-right {
+.brand-empty-door-right {
   animation-direction: reverse;
   transform-origin: left center;
 }
@@ -635,10 +663,12 @@ button {
   .wardrobe-saving-shirt,
   .wardrobe-saving-closet,
   .wardrobe-saving-sparkle,
-  .empty-wardrobe-character,
-  .empty-wardrobe-tear,
-  .empty-wardrobe-door-left,
-  .empty-wardrobe-door-right,
+  .brand-empty-wardrobe,
+  .brand-empty-hanger,
+  .brand-empty-lookbook-card,
+  .brand-empty-sparkle,
+  .brand-empty-door-left,
+  .brand-empty-door-right,
   .ai-outfit-loading-closet,
   .ai-outfit-loading-board,
   .ai-outfit-loading-path,

@@ -10,6 +10,7 @@ import type {
   NativeOpenAppSettingsRequest,
   NativeOpenExternalUrlRequest,
   NativeRequestPermissionRequest,
+  NativeWebAppReadyMessage,
 } from './types'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -24,6 +25,12 @@ export function isNativeBridgeReadyMessage(
   value: unknown,
 ): value is NativeBridgeReadyMessage {
   return isRecord(value) && value.type === 'closet:native-bridge-ready'
+}
+
+export function isNativeWebAppReadyMessage(
+  value: unknown,
+): value is NativeWebAppReadyMessage {
+  return isRecord(value) && value.type === 'closet:web-app-ready'
 }
 
 export function isNativeAppInfoRequest(
@@ -107,6 +114,7 @@ export function parseNativeBridgeRequest(
     const value: unknown = JSON.parse(rawMessage)
 
     if (isNativeBridgeReadyMessage(value)) return value
+    if (isNativeWebAppReadyMessage(value)) return value
     if (isNativeAppInfoRequest(value)) return value
     if (isNativeOpenAppSettingsRequest(value)) return value
     if (isNativeRequestPermissionRequest(value)) return value

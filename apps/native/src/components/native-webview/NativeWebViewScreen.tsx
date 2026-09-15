@@ -2,13 +2,13 @@
  * 사용 위치: 로그인 완료 → 네이티브 앱 메인 화면
  *
  * 용도:
- * 웹 앱을 WebView로 표시하고 네이티브 브리지와 딥 링크를 연결한다.
+ * 웹 앱을 WebView로 표시하고 네이티브 브리지·딥 링크·앱 복귀 알림을 연결한다.
  *
  * 구조:
  * WebView와 로딩·오류 화면으로 구성되어 있다.
  */
-import { useCallback, useMemo, useRef, useState } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AppState, StyleSheet, View } from 'react-native'
 import WebView from 'react-native-webview'
 import {
   WEB_BUNDLE_BASE_URL,
@@ -30,11 +30,15 @@ const WEB_ACCESS_TOKEN_KEY = 'closet-test-access-token'
 
 interface NativeWebViewScreenProps {
   accessToken: string
+  notificationPath?: string | null
+  onNotificationPathHandled?: () => void
   onAuthSessionChange: (accessToken: string | null) => Promise<void> | void
 }
 
 export function NativeWebViewScreen({
   accessToken,
+  notificationPath,
+  onNotificationPathHandled,
   onAuthSessionChange,
 }: NativeWebViewScreenProps) {
   const webViewRef = useRef<WebView>(null)
@@ -76,6 +80,22 @@ export function NativeWebViewScreen({
 
   useDeepLinkNavigation(navigateToWebPath)
 
+  useEffect(() => {
+    if (!notificationPath) return
+    navigateToWebPath(notificationPath)
+    onNotificationPathHandled?.()
+  }, [navigateToWebPath, notificationPath, onNotificationPathHandled])
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state !== 'active' || !webReadyRef.current) return
+      webViewRef.current?.injectJavaScript(
+        "window.dispatchEvent(new Event('closet:native-app-active')); true;",
+      )
+    })
+    return () => subscription.remove()
+  }, [])
+
   const retry = () => {
     webReadyRef.current = false
     setLoadError(null)
@@ -108,7 +128,6 @@ export function NativeWebViewScreen({
         }}
         onLoadEnd={() => {
           setIsLoading(false)
-          flushPendingNavigation()
         }}
         onError={({ nativeEvent }) => {
           setIsLoading(false)
@@ -117,7 +136,7 @@ export function NativeWebViewScreen({
         onMessage={(event) => {
           void handleNativeBridgeMessage(event, webViewRef, {
             accessToken,
-            onReady: flushPendingNavigation,
+            onWebAppReady: flushPendingNavigation,
             onAuthSessionChange,
           })
         }}

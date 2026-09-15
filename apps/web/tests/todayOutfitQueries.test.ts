@@ -109,15 +109,15 @@ test('계절과 스타일별 기록을 합쳐 최신 10개만 반환한다', () 
     )
 
     storage.setItem(
-      'closet:today-outfit-recommendation:v7:viewer-1:2026-08-26:autumn:casual',
+      'closet:today-outfit-recommendation:v8:viewer-1:2026-08-26:autumn:casual',
       JSON.stringify(entries.filter((entry) => entry.season === 'autumn')),
     )
     storage.setItem(
-      'closet:today-outfit-recommendation:v7:viewer-1:2026-08-26:winter:minimal',
+      'closet:today-outfit-recommendation:v8:viewer-1:2026-08-26:winter:minimal',
       JSON.stringify(entries.filter((entry) => entry.season === 'winter')),
     )
     storage.setItem(
-      'closet:today-outfit-recommendation:v7:other-viewer:2026-08-26:autumn:casual',
+      'closet:today-outfit-recommendation:v8:other-viewer:2026-08-26:autumn:casual',
       JSON.stringify([createEntry(99, 'autumn', 'casual')]),
     )
 
@@ -150,7 +150,7 @@ test('전체 기록은 같은 사용자와 날짜의 일반 추천과 기준별 
       const suffix = baseItemId === undefined ? '' : `:base:${baseItemId}`
       for (const [season, style] of [['autumn', 'casual'], ['winter', 'minimal']] as const) {
         storage.setItem(
-          `closet:today-outfit-recommendation:v7:viewer-1:2026-08-26:${season}:${style}${suffix}`,
+          `closet:today-outfit-recommendation:v8:viewer-1:2026-08-26:${season}:${style}${suffix}`,
           JSON.stringify(entries.filter((entry) =>
             entry.baseItemId === baseItemId && entry.season === season && entry.style === style,
           )),
@@ -159,14 +159,14 @@ test('전체 기록은 같은 사용자와 날짜의 일반 추천과 기준별 
     }
 
     storage.setItem(
-      'closet:today-outfit-recommendation:v7:other-viewer:2026-08-26:autumn:casual',
+      'closet:today-outfit-recommendation:v8:other-viewer:2026-08-26:autumn:casual',
       JSON.stringify([createEntry(99, 'autumn', 'casual')]),
     )
     const otherDate = createEntry(98, 'autumn', 'casual', 'base-a')
     otherDate.date = '2026-08-27'
     otherDate.recommendation.date = otherDate.date
     storage.setItem(
-      'closet:today-outfit-recommendation:v7:viewer-1:2026-08-27:autumn:casual:base:base-a',
+      'closet:today-outfit-recommendation:v8:viewer-1:2026-08-27:autumn:casual:base:base-a',
       JSON.stringify([otherDate]),
     )
 
@@ -189,15 +189,15 @@ test('전체 기록은 잘못된 기준 메타데이터와 저장 범위를 건�
     const misplacedEntry = createEntry(2, 'autumn', 'casual', 'base-a')
     const anchoredEntry = createEntry(3, 'autumn', 'casual', 'base:b/아이템')
     storage.setItem(
-      'closet:today-outfit-recommendation:v7:viewer-1:2026-08-26:autumn:casual',
+      'closet:today-outfit-recommendation:v8:viewer-1:2026-08-26:autumn:casual',
       JSON.stringify([genericEntry, misplacedEntry]),
     )
     storage.setItem(
-      'closet:today-outfit-recommendation:v7:viewer-1:2026-08-26:autumn:casual:base:base%3Ab%2F%EC%95%84%EC%9D%B4%ED%85%9C',
+      'closet:today-outfit-recommendation:v8:viewer-1:2026-08-26:autumn:casual:base:base%3Ab%2F%EC%95%84%EC%9D%B4%ED%85%9C',
       JSON.stringify([anchoredEntry]),
     )
     storage.setItem(
-      'closet:today-outfit-recommendation:v7:viewer-1:2026-08-26:autumn:casual:base:base-a',
+      'closet:today-outfit-recommendation:v8:viewer-1:2026-08-26:autumn:casual:base:base-a',
       JSON.stringify([
         { ...misplacedEntry, baseItemId: null },
         { ...misplacedEntry, baseItemId: 42 },
@@ -205,11 +205,11 @@ test('전체 기록은 잘못된 기준 메타데이터와 저장 범위를 건�
       ]),
     )
     storage.setItem(
-      'closet:today-outfit-recommendation:v7:viewer-1:2026-08-26:winter:minimal:base:base-a',
+      'closet:today-outfit-recommendation:v8:viewer-1:2026-08-26:winter:minimal:base:base-a',
       JSON.stringify([misplacedEntry]),
     )
     storage.setItem(
-      'closet:today-outfit-recommendation:v7:viewer-1:2026-08-26:autumn:casual:base:invalid-unicode',
+      'closet:today-outfit-recommendation:v8:viewer-1:2026-08-26:autumn:casual:base:invalid-unicode',
       JSON.stringify([createEntry(99, 'autumn', 'casual', String.fromCharCode(0xd800))]),
     )
 
@@ -252,7 +252,7 @@ test('같은 조합도 일반 추천과 기준 아이템별 기록을 따로 저
     assert.equal(storage.length, 3)
     assert.ok(
       storage.getItem(
-        'closet:today-outfit-recommendation:v7:viewer-1:2026-08-26:autumn:casual',
+        'closet:today-outfit-recommendation:v8:viewer-1:2026-08-26:autumn:casual',
       ),
     )
 
@@ -322,11 +322,11 @@ test('추천 설명과 조합 이유를 기록에 저장하고 같은 조합의 
   })
 })
 
-test('v7 일반 추천 기록을 유지하면서 기준 아이템 기록을 추가한다', () => {
+test('v8 일반 추천 기록을 유지하면서 기준 아이템 기록을 추가한다', () => {
   withStorage((storage) => {
     const legacyEntry = createEntry(1, 'autumn', 'casual')
     const legacyKey =
-      'closet:today-outfit-recommendation:v7:viewer-1:2026-08-26:autumn:casual'
+      'closet:today-outfit-recommendation:v8:viewer-1:2026-08-26:autumn:casual'
     const legacyValue = JSON.stringify([legacyEntry])
     storage.setItem(legacyKey, legacyValue)
 
@@ -480,11 +480,11 @@ test('손상된 다른 범위의 캐시가 있어도 유효한 추천 기록은 
   withStorage((storage) => {
     const entry = createEntry(1, 'autumn', 'casual')
     storage.setItem(
-      'closet:today-outfit-recommendation:v7:viewer-1:2026-08-26:winter:minimal',
+      'closet:today-outfit-recommendation:v8:viewer-1:2026-08-26:winter:minimal',
       '{invalid json',
     )
     storage.setItem(
-      'closet:today-outfit-recommendation:v7:viewer-1:2026-08-26:autumn:casual',
+      'closet:today-outfit-recommendation:v8:viewer-1:2026-08-26:autumn:casual',
       JSON.stringify([entry]),
     )
 

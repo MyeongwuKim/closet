@@ -538,6 +538,7 @@ export const todayOutfitRecommendationService = {
       preferredFit,
       season,
       baseItemId,
+      weather?.apparentTemperatureC,
     )
     if (combinations.length === 0) {
       return createEmptyRecommendation(

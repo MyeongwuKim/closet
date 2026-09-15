@@ -20,6 +20,7 @@ export interface CreateOutfitInput {
     mimeType: string
     model: string
   } | null
+  previewImageAssetId?: string | null
 }
 
 export type UpdateOutfitInput = Pick<
@@ -207,6 +208,13 @@ export const outfitService = {
     }
 
     const itemById = new Map(wardrobeItems.map((item) => [item.id, item]))
+    if (input.previewImage && input.previewImageAssetId) {
+      throw new ServiceError(
+        'AI 이미지는 한 가지 방식으로만 저장할 수 있습니다.',
+        'INVALID_GENERATED_IMAGE',
+      )
+    }
+
     const model = input.previewImage?.model.trim()
     if (input.previewImage && !model) {
       throw new ServiceError(
@@ -215,20 +223,49 @@ export const outfitService = {
       )
     }
 
-    const imageAsset = input.previewImage
+    const storedPreview = input.previewImageAssetId
+      ? await imageService.getGeneratedImage(userId, input.previewImageAssetId)
+      : null
+    const shouldRetainStoredPreview = storedPreview?.retention === 'temporary'
+    if (storedPreview) {
+      const previewItemIds = storedPreview.metadata?.selectedItemIds
+      const normalizedPreviewItemIds = Array.isArray(previewItemIds)
+        ? previewItemIds.filter(
+            (itemId): itemId is string => typeof itemId === 'string',
+          )
+        : []
+      if (
+        normalizedPreviewItemIds.length !== uniqueItemIds.length ||
+        normalizedPreviewItemIds.some(
+          (itemId) => !uniqueItemIds.includes(itemId),
+        )
+      ) {
+        throw new ServiceError(
+          '선택한 옷과 AI 이미지의 옷 구성이 일치하지 않습니다.',
+          'INVALID_GENERATED_IMAGE',
+        )
+      }
+    }
+
+    const uploadedImageAsset = input.previewImage
       ? await imageService.storeGeneratedImage(userId, {
           ...input.previewImage,
           model: model!,
         })
       : null
+    const imageAssetId = storedPreview?.assetId ?? uploadedImageAsset?.id
+    const generationModel = storedPreview?.model ?? model
 
     try {
-      return await outfitRepository.create({
+      if (storedPreview && shouldRetainStoredPreview) {
+        await imageService.retainGeneratedPreview(userId, storedPreview.assetId)
+      }
+      const savedOutfit = await outfitRepository.create({
         userId,
         name,
         style,
         seasons,
-        source: imageAsset ? 'ai' : (input.source ?? 'manual'),
+        source: imageAssetId ? 'ai' : (input.source ?? 'manual'),
         note: input.note?.trim() || null,
         items: input.items.map((item, index) => ({
           wardrobeItemId: item.wardrobeItemId,
@@ -237,17 +274,23 @@ export const outfitService = {
             ? item.layerOrder
             : index,
         })),
-        generation: imageAsset
+        generation: imageAssetId && generationModel
           ? {
               userId,
-              imageAssetId: imageAsset.id,
-              model: model!,
+              imageAssetId,
+              model: generationModel,
             }
           : undefined,
       })
+      return savedOutfit
     } catch (error) {
-      if (imageAsset) {
-        await imageService.removeGeneratedImage(userId, imageAsset)
+      if (storedPreview && shouldRetainStoredPreview) {
+        await imageService
+          .restoreGeneratedPreviewExpiration(storedPreview.assetId)
+          .catch(() => undefined)
+      }
+      if (uploadedImageAsset) {
+        await imageService.removeGeneratedImage(userId, uploadedImageAsset)
       }
       throw error
     }

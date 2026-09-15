@@ -227,6 +227,35 @@ test('현재 위치 날씨를 추천 결과에 유지한다', async (t) => {
   assert.equal(result.weather?.attributionUrl, 'https://open-meteo.com/')
 })
 
+test('체감 23도인 현재 날씨 추천에는 자동으로 아우터를 추가하지 않는다', async (t) => {
+  setupWardrobe(t, [
+    createItem('top', 'top'),
+    createItem('bottom', 'bottom'),
+    createItem('outer', 'outer'),
+  ])
+
+  const result = await todayOutfitRecommendationService.recommend(userId, {
+    ...input,
+    weather: {
+      date: input.date,
+      temperatureC: 24,
+      minTemperatureC: 19,
+      maxTemperatureC: 27,
+      apparentTemperatureC: 23,
+      precipitationProbability: 10,
+      weatherCode: 1,
+      summary: '대체로 맑음',
+      recommendedSeason: 'autumn',
+      source: 'open-meteo',
+      attribution: 'Weather data by Open-Meteo.com',
+      attributionUrl: 'https://open-meteo.com/',
+    },
+  })
+
+  assert.equal(result.ready, true)
+  assert.ok(result.items.every((item) => item.id !== 'outer'))
+})
+
 test('추천 날짜와 다른 날씨 정보는 거절한다', async () => {
   await assert.rejects(
     todayOutfitRecommendationService.recommend(userId, {

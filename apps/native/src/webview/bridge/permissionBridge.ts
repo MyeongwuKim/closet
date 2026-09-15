@@ -11,6 +11,7 @@ import * as ImagePicker from 'expo-image-picker'
 import * as Location from 'expo-location'
 import * as Notifications from 'expo-notifications'
 import { Platform } from 'react-native'
+import { registerPushToken } from '../../notifications/registerPushToken'
 import type { InitialPermission } from '../../permissions/initialPermissionSequence'
 import { postNativeBridgeResponse } from './responses'
 import type { NativeRequestPermissionRequest, WebViewRef } from './types'
@@ -98,6 +99,7 @@ export function requestNativePermission(permission: InitialPermission) {
 export async function handleNativeRequestPermission(
   request: NativeRequestPermissionRequest,
   webViewRef: WebViewRef,
+  accessToken?: string,
 ) {
   try {
     const status = await requestNativePermission(request.permission)
@@ -106,6 +108,15 @@ export async function handleNativeRequestPermission(
       ok: true,
       data: status,
     })
+    if (
+      request.permission === 'notifications' &&
+      (status === 'granted' || status === 'limited') &&
+      accessToken
+    ) {
+      void registerPushToken(accessToken).catch((error: unknown) => {
+        console.warn('[push] 권한 허용 후 기기 등록 실패', error)
+      })
+    }
   } catch (error) {
     postNativeBridgeResponse(webViewRef, request.id, {
       ok: false,

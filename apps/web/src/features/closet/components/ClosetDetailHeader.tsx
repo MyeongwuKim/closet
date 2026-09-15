@@ -26,7 +26,6 @@ export function ClosetDetailHeader({
           onClick={onBack}
           className="flex size-10 items-center justify-center rounded-full hover:bg-surface"
           aria-label={backLabel}
-          autoFocus
         >
           <ChevronLeft size={25} strokeWidth={2.2} />
         </button>

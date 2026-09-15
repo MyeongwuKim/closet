@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { OutfitPreview } from '@closet/types'
 import {
   BookHeart,
@@ -48,6 +48,7 @@ export function PlanDetailPage() {
   )
   const [isPromoted, setIsPromoted] = useState(false)
   const generatePreview = useGenerateOutfitPreviewMutation()
+  const previewRequestVersionRef = useRef(0)
   const setDirectPlannerEntry = useSetDirectPlannerEntryMutation()
   const { confirmRecentWear, isCheckingRecentWear } =
     useRecentWearReminder()
@@ -139,14 +140,18 @@ export function PlanDetailPage() {
       return
     }
 
+    const requestedPreviewVersion = previewRequestVersionRef.current
+
     try {
       const preview = await generatePreview.mutateAsync({
         selectedItemIds: outfitItems.map((item) => item.id),
         style: entry.outfitStyle,
       })
+      if (previewRequestVersionRef.current !== requestedPreviewVersion) return
       setGeneratedPreview(preview)
       setIsLookbookOpen(true)
     } catch (error) {
+      if (previewRequestVersionRef.current !== requestedPreviewVersion) return
       pushToast(
         error instanceof Error ? error.message : 'AI 룩북을 만들지 못했습니다.',
         'error',
@@ -307,6 +312,7 @@ export function PlanDetailPage() {
                 return
               }
               const hadSavedPreview = Boolean(entry.previewImageUrl)
+              previewRequestVersionRef.current += 1
               setGeneratedPreview(null)
               setEntryItems(entry.date, nextItemIds)
               if (hadSavedPreview) {

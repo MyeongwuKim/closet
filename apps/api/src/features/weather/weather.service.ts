@@ -112,7 +112,7 @@ export function getRecommendedSeason(
   apparentTemperatureC: number,
 ): Season {
   if (apparentTemperatureC <= 8) return 'winter'
-  if (apparentTemperatureC >= 24) return 'summer'
+  if (apparentTemperatureC >= 23) return 'summer'
 
   const month = Number(date.slice(5, 7))
   if (month >= 3 && month <= 5) return 'spring'

@@ -246,6 +246,7 @@ test('같은 코디에서 닫은 AI 미리보기는 생성 결과를 유지한 �
     type: 'PREVIEW_SUCCESS',
     imageUrl: 'data:image/jpeg;base64,preview',
     imageBase64: 'preview',
+    compositionKey: 'casual:base-bottom|base-outer',
     mimeType: 'image/jpeg',
     model: 'test-model',
   })
@@ -260,6 +261,111 @@ test('같은 코디에서 닫은 AI 미리보기는 생성 결과를 유지한 �
   assert.equal(state.preview.isOpen, true)
   assert.equal(state.preview.status, 'success')
   assert.equal(state.preview.imageBase64, 'preview')
+  assert.equal(state.preview.compositionKey, 'casual:base-bottom|base-outer')
+})
+
+test('AI 룩북을 만든 뒤 아이템을 추가하면 이전 조합의 이미지를 무효화한다', () => {
+  let state = createState(['base-top', 'base-bottom', 'base-shoes'])
+  state = outfitComposerReducer(state, {
+    type: 'PREVIEW_SUCCESS',
+    imageUrl: 'data:image/png;base64,three-items',
+    imageBase64: 'three-items',
+    compositionKey: 'casual:base-bottom|base-shoes|base-top',
+    mimeType: 'image/png',
+    model: 'test-model',
+  })
+
+  state = outfitComposerReducer(state, {
+    type: 'ADD_ITEM',
+    layer: { wardrobeItemId: 'added-outer', order: 3 },
+  })
+
+  assert.equal(state.layers.length, 4)
+  assert.equal(state.preview.status, 'idle')
+  assert.equal(state.preview.imageUrl, null)
+  assert.equal(state.preview.compositionKey, null)
+})
+
+test('AI 룩북을 만든 뒤 아이템을 제거하면 이전 조합의 이미지를 무효화한다', () => {
+  let state = createState([
+    'base-outer',
+    'base-top',
+    'base-bottom',
+    'base-shoes',
+  ])
+  state = outfitComposerReducer(state, {
+    type: 'PREVIEW_SUCCESS',
+    imageUrl: 'data:image/png;base64,four-items',
+    imageBase64: 'four-items',
+    compositionKey: 'casual:base-bottom|base-outer|base-shoes|base-top',
+    mimeType: 'image/png',
+    model: 'test-model',
+  })
+
+  state = outfitComposerReducer(state, {
+    type: 'REMOVE_ITEM',
+    itemId: 'base-outer',
+  })
+
+  assert.deepEqual(state.layers.map((layer) => layer.wardrobeItemId), [
+    'base-top',
+    'base-bottom',
+    'base-shoes',
+  ])
+  assert.equal(state.compositionRevision, 1)
+  assert.equal(state.preview.status, 'idle')
+  assert.equal(state.preview.imageUrl, null)
+  assert.equal(state.preview.compositionKey, null)
+})
+
+test('뒤로가기로 마지막 아이템을 제거해도 이전 AI 룩북을 무효화한다', () => {
+  let state = createState(['base-top', 'base-bottom', 'base-shoes'])
+  state = outfitComposerReducer(state, {
+    type: 'PREVIEW_SUCCESS',
+    imageUrl: 'data:image/png;base64,three-items',
+    imageBase64: 'three-items',
+    compositionKey: 'casual:base-bottom|base-shoes|base-top',
+    mimeType: 'image/png',
+    model: 'test-model',
+  })
+
+  state = outfitComposerReducer(state, { type: 'GO_BACK' })
+
+  assert.deepEqual(state.layers.map((layer) => layer.wardrobeItemId), [
+    'base-top',
+    'base-bottom',
+  ])
+  assert.equal(state.compositionRevision, 1)
+  assert.equal(state.preview.status, 'idle')
+  assert.equal(state.preview.imageUrl, null)
+})
+
+test('알림으로 복원한 AI 미리보기는 옷장 데이터가 늦게 들어와도 유지한다', () => {
+  let state = createState([])
+  state = outfitComposerReducer(state, {
+    type: 'PREVIEW_SUCCESS',
+    imageUrl: 'https://images.example.test/asset-1',
+    assetId: 'asset-1',
+    mimeType: 'image/png',
+    model: 'test-model',
+    open: true,
+  })
+  state = outfitComposerReducer(state, {
+    type: 'HYDRATE',
+    layers: [
+      { wardrobeItemId: 'base-top', order: 0 },
+      { wardrobeItemId: 'base-bottom', order: 1 },
+    ],
+    originItemIds: ['base-top', 'base-bottom'],
+  })
+
+  assert.deepEqual(state.layers.map((layer) => layer.wardrobeItemId), [
+    'base-top',
+    'base-bottom',
+  ])
+  assert.equal(state.preview.status, 'success')
+  assert.equal(state.preview.isOpen, true)
+  assert.equal(state.preview.assetId, 'asset-1')
 })
 
 test('전달받은 코디를 초기화한 뒤 새 옷에서 뒤로 가면 첫 단계로 돌아간다', () => {

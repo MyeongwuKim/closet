@@ -1,4 +1,5 @@
 import type {
+  ImageAssetRetention,
   ImageAssetKind,
   ImageUploadStatus,
   Prisma,
@@ -14,6 +15,8 @@ export interface CreateImageAssetData {
   storageFilename: string
   mimeType?: string
   uploadStatus?: ImageUploadStatus
+  retention?: ImageAssetRetention
+  expiresAt?: Date | null
   deliveryUrl?: string | null
   metadata?: Prisma.InputJsonValue
 }
@@ -30,6 +33,75 @@ export const imageRepository = {
   findOwnedByIds(userId: string, ids: string[]) {
     return prisma.imageAsset.findMany({
       where: { id: { in: ids }, userId },
+    })
+  },
+
+  findExpiredGeneratedPreviews(now: Date, limit: number) {
+    return prisma.imageAsset.findMany({
+      where: {
+        kind: 'outfitGenerated',
+        retention: 'temporary',
+        expiresAt: { lte: now },
+        outfitGenerations: { none: {} },
+      },
+      orderBy: { expiresAt: 'asc' },
+      take: limit,
+    })
+  },
+
+  claimExpiredGeneratedPreview(id: string, now: Date) {
+    return prisma.imageAsset.updateMany({
+      where: {
+        id,
+        kind: 'outfitGenerated',
+        retention: 'temporary',
+        expiresAt: { lte: now },
+        outfitGenerations: { none: {} },
+      },
+      data: { retention: 'deleting' },
+    })
+  },
+
+  markGeneratedPreviewPermanent(userId: string, id: string, now: Date) {
+    return prisma.imageAsset.updateMany({
+      where: {
+        id,
+        userId,
+        kind: 'outfitGenerated',
+        retention: 'temporary',
+        expiresAt: { gt: now },
+      },
+      data: { retention: 'permanent', expiresAt: null },
+    })
+  },
+
+  restoreGeneratedPreviewExpiration(id: string, expiresAt: Date) {
+    return prisma.imageAsset.updateMany({
+      where: {
+        id,
+        kind: 'outfitGenerated',
+        retention: 'permanent',
+        outfitGenerations: { none: {} },
+      },
+      data: { retention: 'temporary', expiresAt },
+    })
+  },
+
+  releaseGeneratedPreviewCleanup(id: string) {
+    return prisma.imageAsset.updateMany({
+      where: { id, retention: 'deleting' },
+      data: { retention: 'temporary' },
+    })
+  },
+
+  removeClaimedGeneratedPreview(id: string) {
+    return prisma.imageAsset.deleteMany({
+      where: {
+        id,
+        kind: 'outfitGenerated',
+        retention: 'deleting',
+        outfitGenerations: { none: {} },
+      },
     })
   },
 

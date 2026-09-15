@@ -1,4 +1,9 @@
 export const typeDefs = `#graphql
+  enum PushPlatform {
+    ios
+    android
+  }
+
   enum ClothingCategory {
     top
     bottom
@@ -485,6 +490,15 @@ export const typeDefs = `#graphql
     imageBase64: String!
     mimeType: String!
     model: String!
+    assetId: ID!
+    imageUrl: String!
+  }
+
+  type StoredOutfitPreview {
+    assetId: ID!
+    imageUrl: String!
+    mimeType: String!
+    model: String!
   }
 
   type Outfit {
@@ -520,6 +534,7 @@ export const typeDefs = `#graphql
     note: String
     items: [CreateOutfitItemInput!]!
     previewImage: OutfitPreviewImageInput
+    previewImageAssetId: ID
   }
 
   input UpdateOutfitInput {
@@ -779,6 +794,7 @@ export const typeDefs = `#graphql
     wardrobeItem(id: ID!): WardrobeItem!
     outfits(style: String, wardrobeItemIds: [ID!]): [Outfit!]!
     outfit(id: ID!): Outfit!
+    outfitPreviewAsset(id: ID!): StoredOutfitPreview!
     outfitRecommendation(input: OutfitRecommendationInput!): OutfitRecommendation!
     todayOutfitRecommendation(input: TodayOutfitRecommendationInput!): TodayOutfitRecommendation!
     plannerWeek(weekStartsOn: String!): PlannerWeek
@@ -791,6 +807,8 @@ export const typeDefs = `#graphql
   type Mutation {
     testLogin(input: TestLoginInput!): AuthPayload!
     logout: Boolean!
+    registerMyPushToken(token: String!, platform: PushPlatform!): Boolean!
+    sendTestPushNotification: Boolean!
     updateMyStyleProfile(input: UpdateMyStyleProfileInput!): Viewer!
     updateWearReminderPreferences(input: UpdateWearReminderPreferencesInput!): Viewer!
     prepareImageUpload(input: PrepareImageUploadInput!): PreparedImageUpload!

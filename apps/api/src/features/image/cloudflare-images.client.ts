@@ -152,6 +152,7 @@ export const cloudflareImagesClient = {
       },
     )
 
+    if (response.status === 404) return
     await assertCloudflareSuccess(response)
   },
 }

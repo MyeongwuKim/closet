@@ -19,6 +19,8 @@ export interface OutfitPreviewState {
   status: 'idle' | 'loading' | 'success' | 'error'
   imageUrl: string | null
   imageBase64: string | null
+  assetId: string | null
+  compositionKey: string | null
   mimeType: OutfitPreview['mimeType'] | null
   model: string | null
   errorMessage: string | null
@@ -27,6 +29,7 @@ export interface OutfitPreviewState {
 export interface OutfitComposerState {
   layers: OutfitLayer[]
   originItemIds: string[]
+  compositionRevision: number
   targetCategory: ClothingCategory | null
   step: OutfitComposerStep
   returnStep: Extract<OutfitComposerStep, 'category' | 'items'>
@@ -45,11 +48,14 @@ export type OutfitComposerAction =
   | {
       type: 'PREVIEW_SUCCESS'
       imageUrl: string
-      imageBase64: string
+      imageBase64?: string | null
+      assetId?: string | null
+      compositionKey?: string | null
       mimeType: OutfitPreview['mimeType']
       model: string
+      open?: boolean
     }
-  | { type: 'PREVIEW_ERROR'; message: string }
+  | { type: 'PREVIEW_ERROR'; message: string; open?: boolean }
   | { type: 'CLOSE_PREVIEW' }
   | { type: 'INVALIDATE_PREVIEW' }
   | { type: 'GO_BACK' }
@@ -61,6 +67,8 @@ function createPreviewState(): OutfitPreviewState {
     status: 'idle',
     imageUrl: null,
     imageBase64: null,
+    assetId: null,
+    compositionKey: null,
     mimeType: null,
     model: null,
     errorMessage: null,
@@ -74,6 +82,7 @@ export function createOutfitComposerState(
   return {
     layers,
     originItemIds: [...originItemIds],
+    compositionRevision: 0,
     targetCategory: null,
     step: layers.length > 0 ? 'category' : 'start',
     returnStep: 'category',
@@ -86,12 +95,18 @@ export function outfitComposerReducer(
   action: OutfitComposerAction,
 ): OutfitComposerState {
   switch (action.type) {
-    case 'HYDRATE':
-      return createOutfitComposerState(action.layers, action.originItemIds)
+    case 'HYDRATE': {
+      const hydratedState = createOutfitComposerState(
+        action.layers,
+        action.originItemIds,
+      )
+      return { ...hydratedState, preview: state.preview }
+    }
     case 'ADD_ITEM':
       return {
         ...state,
         layers: [...state.layers, action.layer],
+        compositionRevision: state.compositionRevision + 1,
         targetCategory: null,
         step: 'category',
         preview: createPreviewState(),
@@ -104,6 +119,7 @@ export function outfitComposerReducer(
       return {
         ...state,
         layers,
+        compositionRevision: state.compositionRevision + 1,
         originItemIds: removedOriginItem ? [] : state.originItemIds,
         targetCategory: null,
         step: layers.length > 0 ? 'category' : 'start',
@@ -136,6 +152,8 @@ export function outfitComposerReducer(
           status: 'loading',
           imageUrl: null,
           imageBase64: null,
+          assetId: null,
+          compositionKey: null,
           mimeType: null,
           model: null,
           errorMessage: null,
@@ -153,10 +171,12 @@ export function outfitComposerReducer(
       return {
         ...state,
         preview: {
-          isOpen: state.preview.isOpen,
+          isOpen: action.open ?? state.preview.isOpen,
           status: 'success',
           imageUrl: action.imageUrl,
-          imageBase64: action.imageBase64,
+          imageBase64: action.imageBase64 ?? null,
+          assetId: action.assetId ?? null,
+          compositionKey: action.compositionKey ?? null,
           mimeType: action.mimeType,
           model: action.model,
           errorMessage: null,
@@ -166,10 +186,12 @@ export function outfitComposerReducer(
       return {
         ...state,
         preview: {
-          isOpen: state.preview.isOpen,
+          isOpen: action.open ?? state.preview.isOpen,
           status: 'error',
           imageUrl: null,
           imageBase64: null,
+          assetId: null,
+          compositionKey: null,
           mimeType: null,
           model: null,
           errorMessage: action.message,
@@ -200,8 +222,10 @@ export function outfitComposerReducer(
         return {
           ...state,
           layers,
+          compositionRevision: state.compositionRevision + 1,
           targetCategory: null,
           step: layers.length > 0 ? 'category' : 'start',
+          preview: createPreviewState(),
         }
       }
       return state
@@ -225,7 +249,7 @@ export interface OutfitComposerSession {
   selectTargetCategory: (category: ClothingCategory) => void
   goBackStep: () => void
   reset: () => void
-  generatePreview: () => void
+  generatePreview: (forceNew?: boolean) => void
   addPreviewToLookbook: () => void
   closePreview: () => void
   outfitName: string

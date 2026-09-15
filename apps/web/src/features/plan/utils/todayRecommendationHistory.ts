@@ -14,7 +14,7 @@ export interface TodayRecommendationHistoryEntry {
 
 const MAX_TODAY_RECOMMENDATION_HISTORY = 10
 const TODAY_RECOMMENDATION_STORAGE_PREFIX =
-  'closet:today-outfit-recommendation:v7'
+  'closet:today-outfit-recommendation:v8'
 
 function getStorageKey(
   viewerId: string,

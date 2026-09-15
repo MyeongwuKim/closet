@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { ImageAssetKind } from '@prisma/client'
+import type { ImageAssetKind, Prisma } from '@prisma/client'
 import { ServiceError } from '../../graphql/errors.js'
 import { cloudflareImagesClient } from './cloudflare-images.client.js'
 import { imageRepository } from './image.repository.js'
@@ -11,6 +11,7 @@ const mimeTypeExtensions: Record<string, string> = {
 }
 
 const MAX_GENERATED_IMAGE_BYTES = 10 * 1024 * 1024
+export const OUTFIT_PREVIEW_RETENTION_MS = 60 * 60 * 1000
 
 export interface PrepareImageUploadInput {
   kind: ImageAssetKind
@@ -82,7 +83,13 @@ export function getImageDeliveryUrl(cloudflareImageId: string) {
 export const imageService = {
   async storeGeneratedImage(
     userId: string,
-    input: { imageBase64: string; mimeType: string; model: string },
+    input: {
+      imageBase64: string
+      mimeType: string
+      model: string
+      metadata?: Prisma.InputJsonObject
+      temporary?: boolean
+    },
   ) {
     const bytes = decodeGeneratedImage(input.imageBase64, input.mimeType)
     const storageFilename = createStorageFilename({
@@ -109,12 +116,16 @@ export const imageService = {
         cloudflareImageId: uploaded.id,
         kind: 'outfitGenerated',
         uploadStatus: 'ready',
+        retention: input.temporary ? 'temporary' : 'permanent',
+        expiresAt: input.temporary
+          ? new Date(Date.now() + OUTFIT_PREVIEW_RETENTION_MS)
+          : null,
         deliveryVariant: variant,
         deliveryUrl,
         storageFilename,
         originalFilename: storageFilename,
         mimeType: input.mimeType,
-        metadata: { model: input.model },
+        metadata: { ...input.metadata, model: input.model },
       })
     } catch (error) {
       await cloudflareImagesClient.deleteImage(uploaded.id).catch(() => undefined)
@@ -133,6 +144,122 @@ export const imageService = {
       .deleteImage(asset.cloudflareImageId)
       .catch(() => undefined)
     await imageRepository.remove(asset.id).catch(() => undefined)
+  },
+
+  async getGeneratedImage(userId: string, assetId: string) {
+    const asset = await imageRepository.findOwnedById(userId, assetId)
+    if (
+      !asset ||
+      asset.kind !== 'outfitGenerated' ||
+      asset.uploadStatus !== 'ready' ||
+      asset.retention === 'deleting' ||
+      (asset.retention === 'temporary' &&
+        (!asset.expiresAt || asset.expiresAt.getTime() <= Date.now())) ||
+      !asset.mimeType
+    ) {
+      throw new ServiceError(
+        '완성된 AI 코디 이미지를 찾을 수 없습니다.',
+        'OUTFIT_PREVIEW_NOT_FOUND',
+      )
+    }
+
+    const metadata =
+      asset.metadata &&
+      typeof asset.metadata === 'object' &&
+      !Array.isArray(asset.metadata)
+        ? asset.metadata
+        : null
+    const model = metadata?.model
+    const imageUrl =
+      asset.deliveryUrl ?? getImageDeliveryUrl(asset.cloudflareImageId)
+
+    if (typeof model !== 'string' || !model || !imageUrl) {
+      throw new ServiceError(
+        '완성된 AI 코디 이미지 정보를 불러오지 못했습니다.',
+        'OUTFIT_PREVIEW_NOT_FOUND',
+      )
+    }
+
+    return {
+      assetId: asset.id,
+      imageUrl,
+      mimeType: asset.mimeType,
+      model,
+      metadata,
+      retention: asset.retention,
+    }
+  },
+
+  async retainGeneratedPreview(userId: string, assetId: string) {
+    const result = await imageRepository.markGeneratedPreviewPermanent(
+      userId,
+      assetId,
+      new Date(),
+    )
+    if (result.count !== 1) {
+      throw new ServiceError(
+        'AI 코디 미리보기의 보관 시간이 만료되었습니다. 다시 만들어주세요.',
+        'OUTFIT_PREVIEW_EXPIRED',
+      )
+    }
+  },
+
+  async restoreGeneratedPreviewExpiration(assetId: string) {
+    await imageRepository.restoreGeneratedPreviewExpiration(
+      assetId,
+      new Date(Date.now() + OUTFIT_PREVIEW_RETENTION_MS),
+    )
+  },
+
+  async cleanupExpiredGeneratedPreviews({
+    execute,
+    limit,
+    now = new Date(),
+  }: {
+    execute: boolean
+    limit: number
+    now?: Date
+  }) {
+    const candidates = await imageRepository.findExpiredGeneratedPreviews(
+      now,
+      limit,
+    )
+    if (!execute) {
+      return {
+        candidateCount: candidates.length,
+        deletedCount: 0,
+        failedAssetIds: [] as string[],
+      }
+    }
+
+    let deletedCount = 0
+    const failedAssetIds: string[] = []
+    for (const candidate of candidates) {
+      const claim = await imageRepository.claimExpiredGeneratedPreview(
+        candidate.id,
+        now,
+      )
+      if (claim.count !== 1) continue
+
+      try {
+        await cloudflareImagesClient.deleteImage(candidate.cloudflareImageId)
+        const removed = await imageRepository.removeClaimedGeneratedPreview(
+          candidate.id,
+        )
+        if (removed.count === 1) deletedCount += 1
+      } catch {
+        failedAssetIds.push(candidate.id)
+        await imageRepository
+          .releaseGeneratedPreviewCleanup(candidate.id)
+          .catch(() => undefined)
+      }
+    }
+
+    return {
+      candidateCount: candidates.length,
+      deletedCount,
+      failedAssetIds,
+    }
   },
 
   async prepareUpload(userId: string, input: PrepareImageUploadInput) {

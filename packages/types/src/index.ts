@@ -261,6 +261,15 @@ export interface OutfitPreview {
   imageBase64: string
   mimeType: 'image/jpeg' | 'image/png' | 'image/webp'
   model: string
+  assetId?: string
+  imageUrl?: string
+}
+
+export interface StoredOutfitPreview {
+  assetId: string
+  imageUrl: string
+  mimeType: OutfitPreview['mimeType']
+  model: string
 }
 
 export interface PlannerEntry {

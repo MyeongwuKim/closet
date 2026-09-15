@@ -57,6 +57,8 @@ function createPreviewState(
       status: 'success',
       imageUrl: `data:${cachedPreview.mimeType};base64,${cachedPreview.imageBase64}`,
       imageBase64: cachedPreview.imageBase64,
+      assetId: cachedPreview.assetId ?? null,
+      compositionKey: null,
       mimeType: cachedPreview.mimeType,
       model: cachedPreview.model,
       errorMessage: null,
@@ -68,6 +70,8 @@ function createPreviewState(
     status: 'idle',
     imageUrl: null,
     imageBase64: null,
+    assetId: null,
+    compositionKey: null,
     mimeType: null,
     model: null,
     errorMessage: null,
@@ -143,6 +147,8 @@ export function TodayOutfitRecommendationDialog({
       status: 'loading',
       imageUrl: null,
       imageBase64: null,
+      assetId: null,
+      compositionKey: null,
       mimeType: null,
       model: null,
       errorMessage: null,
@@ -162,17 +168,23 @@ export function TodayOutfitRecommendationDialog({
           status: 'success',
           imageUrl: `data:${result.mimeType};base64,${result.imageBase64}`,
           imageBase64: result.imageBase64,
+          assetId: result.assetId ?? null,
+          compositionKey: null,
           mimeType: result.mimeType,
           model: result.model,
           errorMessage: null,
         })
       })
       .catch((error: unknown) => {
+        if (previewKeyRef.current !== requestedPreviewKey) return
+
         setPreview({
           isOpen: true,
           status: 'error',
           imageUrl: null,
           imageBase64: null,
+          assetId: null,
+          compositionKey: null,
           mimeType: null,
           model: null,
           errorMessage:
@@ -266,6 +278,7 @@ export function TodayOutfitRecommendationDialog({
                 style,
                 nextItems.map((item) => item.id),
               )
+              previewKeyRef.current = nextPreviewKey
               setPreview(
                 createPreviewState(
                   readRecommendationPreview(nextPreviewKey),
