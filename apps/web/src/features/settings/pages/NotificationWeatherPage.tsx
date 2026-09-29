@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { PageTitle } from '../../../components/PageTitle'
+import { ToggleSwitch } from '../../../components/ToggleSwitch'
 import { useSendTestPushNotificationMutation } from '../api/pushQueries'
 import {
   readNotificationWeatherPreferences,
@@ -145,23 +146,15 @@ function SettingRow({
           <p className="mt-1 text-xs leading-5 text-muted">{description}</p>
         </div>
         {toggle ? (
-          <button
-            type="button"
-            role="switch"
-            aria-checked={toggle.checked}
-            aria-label={toggle.ariaLabel ?? `${title} ${toggle.checked ? '끄기' : '켜기'}`}
-            onClick={() => toggle.onChange(!toggle.checked)}
+          <ToggleSwitch
+            checked={toggle.checked}
             disabled={toggle.disabled}
-            className={`relative mt-1 h-7 w-12 shrink-0 rounded-full transition disabled:cursor-wait disabled:opacity-50 ${
-              toggle.checked ? 'bg-ink' : 'bg-line'
-            }`}
-          >
-            <span
-              className={`absolute top-1 left-1 size-5 rounded-full bg-white shadow-sm transition-transform ${
-                toggle.checked ? 'translate-x-5' : 'translate-x-0'
-              }`}
-            />
-          </button>
+            ariaLabel={
+              toggle.ariaLabel ??
+              `${title} ${toggle.checked ? '끄기' : '켜기'}`
+            }
+            onChange={toggle.onChange}
+          />
         ) : (
           <span className="mt-1 shrink-0 rounded-full bg-canvas px-2.5 py-1 text-[11px] font-bold text-muted">
             {statusLabel}

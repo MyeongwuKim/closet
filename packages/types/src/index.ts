@@ -156,6 +156,7 @@ export interface ClothingClassificationResult {
 export interface WardrobeItem {
   id: string
   name: string
+  brandName?: string
   createdAt: string
   category: ClothingCategory | null
   additionalCategories: ClothingCategory[]

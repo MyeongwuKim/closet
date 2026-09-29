@@ -31,24 +31,30 @@ export function getCurrentWeekStart(date = new Date()) {
   return formatDateOnly(weekStart)
 }
 
+/** 지정한 날짜에 저장된 코디가 없을 때 화면에 표시할 빈 플래너 항목을 만든다. */
+export function createEmptyPlanEntry(dateValue: string): PlanEntry {
+  const date = new Date(`${dateValue}T00:00:00`)
+
+  return {
+    date: dateValue,
+    dayLabel: new Intl.DateTimeFormat('ko-KR', { weekday: 'short' })
+      .format(date)
+      .replace('요일', ''),
+    dayNumber: date.getDate(),
+    title: '',
+    occasion: '',
+    weather: '',
+    itemIds: [],
+  }
+}
+
 export function createEmptyWeeklyPlan(weekStartsOn = getCurrentWeekStart()) {
   const start = new Date(`${weekStartsOn}T00:00:00`)
 
   return Array.from({ length: 7 }, (_, index): PlanEntry => {
     const date = new Date(start)
     date.setDate(start.getDate() + index)
-
-    return {
-      date: formatDateOnly(date),
-      dayLabel: new Intl.DateTimeFormat('ko-KR', { weekday: 'short' })
-        .format(date)
-        .replace('요일', ''),
-      dayNumber: date.getDate(),
-      title: '',
-      occasion: '',
-      weather: '',
-      itemIds: [],
-    }
+    return createEmptyPlanEntry(formatDateOnly(date))
   })
 }
 

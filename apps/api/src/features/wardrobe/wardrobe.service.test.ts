@@ -3,7 +3,11 @@ import test, { type TestContext } from 'node:test'
 import type { FashionItemAttributes } from '@closet/types'
 import { ServiceError } from '../../graphql/errors.js'
 import { imageRepository } from '../image/image.repository.js'
-import { wardrobeRepository, type CreateWardrobeItemData } from './wardrobe.repository.js'
+import {
+  wardrobeRepository,
+  type CreateWardrobeItemData,
+  type UpdateWardrobeItemData,
+} from './wardrobe.repository.js'
 import { getWardrobeWearStats, wardrobeService } from './wardrobe.service.js'
 
 test('플래너 기록에서 아이템별 최근 착용일과 착용 횟수를 계산한다', () => {
@@ -135,6 +139,54 @@ test('패션 분석 자체가 없는 기존 입력에는 속성을 임의 생성
   assert.equal(create.mock.calls[0]?.arguments[0].fashionAttributes, undefined)
 })
 
+test('브랜드명의 앞뒤 공백과 연속 공백을 정리해 저장한다', async (t) => {
+  const create = mockWardrobeCreate(t)
+  await wardrobeService.create('viewer', {
+    ...createInput,
+    brandName: '  무신사   스탠다드  ',
+  })
+
+  assert.equal(
+    create.mock.calls[0]?.arguments[0].brandName,
+    '무신사 스탠다드',
+  )
+})
+
+test('저장된 브랜드명을 중복 없이 정리해 선택 목록으로 반환한다', async (t) => {
+  t.mock.method(wardrobeRepository, 'findBrandNames', async () => [
+    { brandName: 'COS' },
+    { brandName: 'cos' },
+    { brandName: '  무신사   스탠다드 ' },
+    { brandName: null },
+  ])
+
+  assert.deepEqual(await wardrobeService.listBrands('viewer'), [
+    '무신사 스탠다드',
+    'COS',
+  ])
+})
+
+test('옷 정보 수정 시 선택한 브랜드명을 정리해 DB 업데이트 값으로 전달한다', async (t) => {
+  t.mock.method(wardrobeRepository, 'findById', async () => ({
+    category: 'bottom',
+    additionalCategories: [],
+  }) as never)
+  const update = t.mock.method(
+    wardrobeRepository,
+    'update',
+    async (_itemId: string, data: UpdateWardrobeItemData) => data as never,
+  )
+
+  await wardrobeService.update('viewer', 'item-1', {
+    brandName: '  리파사이드  ',
+  })
+
+  assert.equal(
+    update.mock.calls[0]?.arguments[1].brandName,
+    '리파사이드',
+  )
+})
+
 test('잘못된 시보리 값은 unknown으로 덮어 저장하지 않고 거절한다', async (t) => {
   for (const field of ['ribbedCuffs', 'ribbedHem', 'ribbedNeckline'] as const) {
     await t.test(field, async (t) => {
@@ -175,5 +227,35 @@ test('하의의 형태 정보가 없으면 임의 추측 대신 unknown으로 �
     bottomLegShape: 'unknown',
     bottomWaistStyle: 'unknown',
     bottomFrontPleats: 'unknown',
+  })
+})
+
+test('수정한 소재와 보온감을 패션 속성에 저장한다', async (t) => {
+  t.mock.method(wardrobeRepository, 'findById', async () => ({
+    category: 'top',
+    additionalCategories: [],
+  }) as never)
+  const update = t.mock.method(
+    wardrobeRepository,
+    'update',
+    async (_itemId: string, data: UpdateWardrobeItemData) => data as never,
+  )
+
+  await wardrobeService.update('viewer', 'item-1', {
+    fashionAttributes: {
+      ...legacyFashionAttributes,
+      material: 'wool',
+      warmth: 'heavy',
+    },
+  })
+
+  assert.deepEqual(update.mock.calls[0]?.arguments[1].fashionAttributes, {
+    ...legacyFashionAttributes,
+    ...unknownShapeAttributes,
+    material: 'wool',
+    warmth: 'heavy',
+    ribbedCuffs: 'unknown',
+    ribbedHem: 'unknown',
+    ribbedNeckline: 'unknown',
   })
 })

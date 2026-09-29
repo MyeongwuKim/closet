@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import type {
   ClothingCategory,
+  FashionItemAttributes,
   Season,
   WardrobeItem,
 } from '@closet/types'
@@ -11,6 +12,8 @@ import { SeasonMultiSelect } from '../../../components/SeasonMultiSelect'
 import { CategoryMultiSelectField } from './CategoryMultiSelectField'
 import { ClosetItemVisual } from './ClosetItemVisual'
 import { WardrobeTagField } from './WardrobeTagField'
+import { FashionAttributeFields } from './FashionAttributeFields'
+import { WardrobeBrandField } from './WardrobeBrandField'
 import { closetSubcategoryOptions } from '../constants'
 import { useClosetStore } from '../stores/useClosetStore'
 import {
@@ -22,14 +25,20 @@ import {
   type GarmentSizeFormValue,
   type GarmentSizeInput,
 } from '../utils/garmentSize'
+import {
+  fashionAttributesFromItem,
+  mergeEditableFashionAttributes,
+} from '../utils/fashionAttributes'
 
 export interface ClosetItemUpdates {
   name: string
+  brandName: string | null
   category: ClothingCategory
   additionalCategories: ClothingCategory[]
   subcategory: string
   colorName: string
   colorHex: string
+  fashionAttributes: FashionItemAttributes
   seasons: Season[]
   tags: string[]
 }
@@ -48,6 +57,7 @@ export function ClosetItemEditModal({
   onSave,
 }: ClosetItemEditModalProps) {
   const [name, setName] = useState(item.name)
+  const [brandName, setBrandName] = useState(item.brandName ?? '')
   const [category, setCategory] = useState<ClothingCategory | ''>(
     item.category ?? '',
   )
@@ -57,6 +67,9 @@ export function ClosetItemEditModal({
   const [subcategory, setSubcategory] = useState(item.subcategory ?? '')
   const [colorName, setColorName] = useState(item.colorName)
   const [seasons, setSeasons] = useState<Season[]>(item.seasons)
+  const [fashionAttributes, setFashionAttributes] = useState(() =>
+    fashionAttributesFromItem(item.fashionAttributes),
+  )
   const [tags, setTags] = useState<string[]>(item.tags)
   const wardrobeItems = useClosetStore((state) => state.items)
   const tagSuggestions = wardrobeItems.flatMap(
@@ -92,11 +105,17 @@ export function ClosetItemEditModal({
     try {
       await onSave({
         name: name.trim(),
+        brandName: brandName.trim() || null,
         category,
         additionalCategories,
         subcategory: subcategory.trim(),
         colorName: colorName.trim(),
         colorHex: item.colorHex,
+        fashionAttributes: mergeEditableFashionAttributes(
+          item.fashionAttributes,
+          fashionAttributes,
+          category,
+        ),
         seasons,
         tags,
         ...toGarmentSizeInput(category, garmentSize),
@@ -166,6 +185,11 @@ export function ClosetItemEditModal({
                 />
               </label>
 
+              <WardrobeBrandField
+                value={brandName}
+                onChange={setBrandName}
+              />
+
               <CategoryMultiSelectField
                 value={category ? [category, ...additionalCategories] : []}
                 onChange={changeCategories}
@@ -214,6 +238,11 @@ export function ClosetItemEditModal({
                   <SeasonMultiSelect value={seasons} onChange={setSeasons} />
                 </div>
               </fieldset>
+
+              <FashionAttributeFields
+                value={fashionAttributes}
+                onChange={setFashionAttributes}
+              />
 
               <GarmentSizeFields
                 category={category}

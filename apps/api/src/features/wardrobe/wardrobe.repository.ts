@@ -20,6 +20,7 @@ export interface WardrobeFilter {
 export interface CreateWardrobeItemData {
   userId: string
   name: string
+  brandName?: string | null
   displayImageAssetId: string
   originalImageAssetId?: string | null
   category?: ClothingCategory | null
@@ -50,6 +51,7 @@ export interface CreateWardrobeItemData {
 
 export interface UpdateWardrobeItemData {
   name?: string
+  brandName?: string | null
   category?: ClothingCategory | null
   additionalCategories?: ClothingCategory[]
   subcategory?: string | null
@@ -57,6 +59,7 @@ export interface UpdateWardrobeItemData {
   colorDetailName?: string | null
   colorHex?: string | null
   colorMode?: ColorMode | null
+  fashionAttributes?: Prisma.InputJsonValue
   seasons?: Season[]
   tags?: string[]
   sizeLabel?: string | null
@@ -118,6 +121,14 @@ export const wardrobeRepository = {
           },
         },
       },
+    })
+  },
+
+  /** 보관 처리하지 않은 옷에서 사용자가 저장한 브랜드명만 조회한다. */
+  findBrandNames(userId: string) {
+    return prisma.wardrobeItem.findMany({
+      where: { userId, ...activeWardrobeItemFilter },
+      select: { brandName: true },
     })
   },
 

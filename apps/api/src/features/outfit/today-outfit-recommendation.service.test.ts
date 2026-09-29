@@ -20,6 +20,7 @@ function createItem(
     id,
     userId,
     name: id,
+    brandName: null,
     category,
     additionalCategories: [],
     subcategory: null,

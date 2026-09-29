@@ -2,16 +2,17 @@
  * 진입 경로: 앱 실행
  *
  * 용도:
- * 최초 권한 안내와 인증 상태에 따라 시작 화면을 전환한다.
+ * 최초 권한 안내와 인증 상태에 따라 로딩, 연결 오류, 로그인, 메인 화면을 전환한다.
  *
  * 구조:
- * 권한 안내, 인증 확인, 로그인, 로그인 완료 WebView와
+ * 권한 안내, 인증 확인, 서버 연결 오류, 로그인, 로그인 완료 WebView와
  * 하단 탭과 자연스럽게 이어지는 기기 세이프 영역으로 구성되어 있다.
  */
 import { StatusBar } from 'expo-status-bar'
 import { useCallback, useState } from 'react'
 import { SafeAreaView, StyleSheet, View } from 'react-native'
 import { useNativeAuth } from './auth/useNativeAuth'
+import { NativeConnectionErrorScreen } from './components/native-auth/NativeConnectionErrorScreen'
 import { NativeLoginScreen } from './components/native-auth/NativeLoginScreen'
 import { InitialPermissionPromptHost } from './components/native-permission/InitialPermissionPromptHost'
 import { NativeWebViewScreen } from './components/native-webview/NativeWebViewScreen'
@@ -32,22 +33,38 @@ export default function App() {
     setNotificationPath(null)
   }, [])
 
-  if (
-    !isPermissionFlowComplete ||
-    auth.status === 'checking' ||
-    auth.status === 'signed-out' ||
-    !auth.session
-  ) {
+  if (!isPermissionFlowComplete || auth.status === 'checking') {
     return (
       <SafeAreaView style={styles.screen}>
         <StatusBar style="dark" />
         <NativeLoginScreen
-          isPreparing={!isPermissionFlowComplete || auth.status === 'checking'}
+          isPreparing
           onTestLogin={auth.loginWithTestAccount}
         />
         {!isPermissionFlowComplete ? (
           <InitialPermissionPromptHost onComplete={completePermissionFlow} />
         ) : null}
+      </SafeAreaView>
+    )
+  }
+
+  if (auth.status === 'connection-error') {
+    return (
+      <SafeAreaView style={styles.screen}>
+        <StatusBar style="dark" />
+        <NativeConnectionErrorScreen onRetry={auth.retrySessionCheck} />
+      </SafeAreaView>
+    )
+  }
+
+  if (auth.status === 'signed-out' || !auth.session) {
+    return (
+      <SafeAreaView style={styles.screen}>
+        <StatusBar style="dark" />
+        <NativeLoginScreen
+          isPreparing={false}
+          onTestLogin={auth.loginWithTestAccount}
+        />
       </SafeAreaView>
     )
   }

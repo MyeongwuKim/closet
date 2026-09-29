@@ -343,6 +343,7 @@ export const typeDefs = `#graphql
   type WardrobeItem {
     id: ID!
     name: String!
+    brandName: String
     displayImageAsset: ImageAsset
     originalImageAsset: ImageAsset
     category: ClothingCategory
@@ -377,6 +378,7 @@ export const typeDefs = `#graphql
 
   input CreateWardrobeItemInput {
     name: String!
+    brandName: String
     displayImageAssetId: ID!
     originalImageAssetId: ID
     category: ClothingCategory
@@ -407,6 +409,7 @@ export const typeDefs = `#graphql
 
   input UpdateWardrobeItemInput {
     name: String
+    brandName: String
     category: ClothingCategory
     additionalCategories: [ClothingCategory!]
     subcategory: String
@@ -414,6 +417,7 @@ export const typeDefs = `#graphql
     colorDetailName: String
     colorHex: String
     colorMode: ColorMode
+    fashionAttributes: FashionItemAttributesInput
     seasons: [Season!]
     tags: [String!]
     sizeLabel: String
@@ -791,6 +795,7 @@ export const typeDefs = `#graphql
     health: ApiHealth!
     me: Viewer!
     wardrobeItems(category: ClothingCategory, subcategory: String): [WardrobeItem!]!
+    wardrobeBrandOptions: [String!]!
     wardrobeItem(id: ID!): WardrobeItem!
     outfits(style: String, wardrobeItemIds: [ID!]): [Outfit!]!
     outfit(id: ID!): Outfit!

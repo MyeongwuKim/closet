@@ -11,6 +11,7 @@ import { useState } from 'react'
 import { ChevronLeft, Save } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { PageTitle } from '../../../components/PageTitle'
+import { ToggleSwitch } from '../../../components/ToggleSwitch'
 import { useUiStore } from '../../../stores/useUiStore'
 import {
   useMeQuery,
@@ -47,23 +48,12 @@ function ToggleRow({
         <p className="text-sm font-black">{title}</p>
         <p className="mt-1 text-xs leading-5 text-muted">{description}</p>
       </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        aria-label={`${title} ${checked ? '끄기' : '켜기'}`}
-        onClick={() => onChange(!checked)}
+      <ToggleSwitch
+        checked={checked}
         disabled={disabled}
-        className={`relative mt-1 h-7 w-12 shrink-0 rounded-full transition disabled:cursor-not-allowed disabled:opacity-40 ${
-          checked ? 'bg-ink' : 'bg-line'
-        }`}
-      >
-        <span
-          className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition-transform ${
-            checked ? 'translate-x-6' : 'translate-x-1'
-          }`}
-        />
-      </button>
+        ariaLabel={`${title} ${checked ? '끄기' : '켜기'}`}
+        onChange={onChange}
+      />
     </div>
   )
 }

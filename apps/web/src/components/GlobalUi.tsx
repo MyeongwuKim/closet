@@ -1,6 +1,11 @@
 import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
-import type { ClothingCategory, ColorMode, Season } from '@closet/types'
+import type {
+  ClothingCategory,
+  ColorMode,
+  FashionItemAttributes,
+  Season,
+} from '@closet/types'
 import { ClassificationConfirmModal } from './ClassificationConfirmModal'
 import { ToastViewport } from './ToastViewport'
 import { useSaveWardrobeItemMutation } from '../features/closet/api/saveWardrobeItem'
@@ -38,6 +43,7 @@ export function GlobalUi() {
     _itemId: string,
     result: {
       name: string
+      brandName: string | null
       category: ClothingCategory
       additionalCategories: ClothingCategory[]
       subcategory: string
@@ -45,6 +51,7 @@ export function GlobalUi() {
       colorDetailName: string | null
       colorHex: string
       colorMode: ColorMode | null
+      fashionAttributes: FashionItemAttributes
       seasons: Season[]
       tags: string[]
     } & GarmentSizeInput,

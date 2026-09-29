@@ -4,8 +4,8 @@ import { toGraphQLError } from '../../graphql/errors.js'
 import {
   wardrobeService,
   type CreateWardrobeItemInput,
+  type UpdateWardrobeItemInput,
 } from './wardrobe.service.js'
-import type { UpdateWardrobeItemData } from './wardrobe.repository.js'
 
 const isoDate = (value: Date | null | undefined) => value?.toISOString() ?? null
 
@@ -20,6 +20,22 @@ export const wardrobeResolvers = {
     lastWornAt: (item: { lastWornAt?: Date | null }) => isoDate(item.lastWornAt),
   },
   Query: {
+    wardrobeBrandOptions: async (
+      _parent: unknown,
+      _args: Record<string, never>,
+      context: GraphQLContext,
+    ) => {
+      try {
+        const viewer = await context.getViewer()
+        return wardrobeService.listBrands(viewer.id)
+      } catch (error) {
+        throw toGraphQLError(
+          error,
+          '브랜드 목록을 불러오지 못했습니다.',
+          'WARDROBE_BRAND_OPTIONS_FAILED',
+        )
+      }
+    },
     wardrobeItems: async (
       _parent: unknown,
       args: { category?: ClothingCategory; subcategory?: string },
@@ -60,7 +76,7 @@ export const wardrobeResolvers = {
     },
     updateWardrobeItem: async (
       _parent: unknown,
-      { id, input }: { id: string; input: UpdateWardrobeItemData },
+      { id, input }: { id: string; input: UpdateWardrobeItemInput },
       context: GraphQLContext,
     ) => {
       try {

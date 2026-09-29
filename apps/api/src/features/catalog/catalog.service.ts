@@ -58,6 +58,7 @@ export function wardrobePageWhere(userId: string, input: WardrobePageInput, tags
       ...(input.tag ? [{ tags: { hasSome: tags.filter((tag) => normalize(tag) === normalize(input.tag!)) } }] : []),
       ...tokens(input.search).map((term) => ({ OR: [
         { name: contains(term) }, { subcategory: contains(term) },
+        { brandName: contains(term) },
         { colorName: contains(term) }, { colorDetailName: contains(term) },
         { category: { in: matchingCategories(term) } },
         { additionalCategories: { hasSome: matchingCategories(term) } },

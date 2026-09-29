@@ -13,6 +13,7 @@ import { useClosetStore } from '../stores/useClosetStore'
 export interface WardrobeItemPayload {
   id: string
   name: string
+  brandName: string | null
   createdAt: string
   category: ClothingCategory | null
   additionalCategories: ClothingCategory[]
@@ -46,6 +47,7 @@ export function toWardrobeItem(item: WardrobeItemPayload): WardrobeItem {
   return {
     id: item.id,
     name: item.name,
+    brandName: item.brandName ?? undefined,
     createdAt: item.createdAt,
     category: item.category,
     additionalCategories: item.additionalCategories,
@@ -85,7 +87,7 @@ export function useWardrobeItemsQuery(enabled = true) {
         `
           query WardrobeItems {
             wardrobeItems {
-              id name createdAt category additionalCategories subcategory colorName colorDetailName
+              id name brandName createdAt category additionalCategories subcategory colorName colorDetailName
               colorHex colorMode seasons tags
               fashionAttributes {
                 layerRole silhouette pattern material texture warmth formality confidence
@@ -110,10 +112,28 @@ export function useWardrobeItemsQuery(enabled = true) {
   })
 }
 
+/** 사용자가 옷에 저장한 브랜드명을 브랜드 선택창에서 사용할 목록으로 조회한다. */
+export function useWardrobeBrandOptionsQuery(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.wardrobe.brandOptions,
+    enabled,
+    staleTime: 60_000,
+    queryFn: async ({ signal }) => {
+      const data = await graphqlRequest<{ wardrobeBrandOptions: string[] }>(
+        `query WardrobeBrandOptions { wardrobeBrandOptions }`,
+        undefined,
+        signal,
+      )
+      return data.wardrobeBrandOptions
+    },
+  })
+}
+
 export interface UpdateWardrobeItemVariables {
   id: string
   input: {
     name?: string
+    brandName?: string | null
     category?: ClothingCategory
     additionalCategories?: ClothingCategory[]
     subcategory?: string
@@ -121,6 +141,7 @@ export interface UpdateWardrobeItemVariables {
     colorDetailName?: string | null
     colorHex?: string
     colorMode?: ColorMode | null
+    fashionAttributes?: FashionItemAttributes
     seasons?: Season[]
     tags?: string[]
     sizeLabel?: string | null
@@ -138,7 +159,7 @@ export interface UpdateWardrobeItemVariables {
 }
 
 export const wardrobeItemFields = `
-  id name createdAt category additionalCategories subcategory colorName colorDetailName
+  id name brandName createdAt category additionalCategories subcategory colorName colorDetailName
   colorHex colorMode seasons tags
   fashionAttributes {
     layerRole silhouette pattern material texture warmth formality confidence
@@ -183,6 +204,24 @@ export function useUpdateWardrobeItemMutation() {
           currentItems.map((item) =>
             item.id === updatedItem.id ? updatedItem : item,
           ),
+      )
+      queryClient.setQueriesData<{
+        pages: Array<{ items: WardrobeItem[] }>
+        pageParams: unknown[]
+      }>(
+        { queryKey: ['wardrobe', 'pages'] },
+        (currentData) =>
+          currentData
+            ? {
+                ...currentData,
+                pages: currentData.pages.map((page) => ({
+                  ...page,
+                  items: page.items.map((item) =>
+                    item.id === updatedItem.id ? updatedItem : item,
+                  ),
+                })),
+              }
+            : currentData,
       )
       void queryClient.invalidateQueries({ queryKey: queryKeys.wardrobe.all })
       void queryClient.invalidateQueries({ queryKey: queryKeys.outfits.all })

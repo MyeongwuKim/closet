@@ -24,6 +24,10 @@ import {
 } from '../api/wardrobeQueries'
 import { colorHexToRgb, colorModeLabels } from '../utils/color'
 import { getWardrobeItemCategories } from '../utils/wardrobeCategories'
+import {
+  fashionMaterialLabels,
+  fashionWarmthLabels,
+} from '../utils/fashionAttributes'
 import { useWardrobeItemQuery } from '../../../lib/catalogQueries'
 import { useOutfitsQuery } from '../../lookbook/api/lookbookQueries'
 
@@ -166,6 +170,12 @@ export function ClosetDetailPage() {
                 : '아직 착용 기록이 없습니다.'}
             </p>
 
+            <p className="mt-3 inline-flex rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-bold">
+              {selectedItem.brandName
+                ? `브랜드 · ${selectedItem.brandName}`
+                : '브랜드 없음'}
+            </p>
+
             {itemCategories.length > 0 && (
               <div className="mt-4 flex flex-wrap gap-2" aria-label="카테고리">
                 {itemCategories.map((category, index) => (
@@ -280,6 +290,32 @@ export function ClosetDetailPage() {
                 </dl>
               </div>
             )}
+
+            <div className="mt-5 rounded-2xl border border-line bg-surface p-4">
+              <p className="text-xs font-black">소재 및 보온 정보</p>
+              <dl className="mt-3 grid grid-cols-2 gap-3">
+                <div>
+                  <dt className="text-[11px] text-muted">소재·원단</dt>
+                  <dd className="mt-0.5 text-sm font-bold">
+                    {selectedItem.fashionAttributes
+                      ? fashionMaterialLabels[
+                          selectedItem.fashionAttributes.material
+                        ]
+                      : '미분류'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] text-muted">따뜻한 정도</dt>
+                  <dd className="mt-0.5 text-sm font-bold">
+                    {selectedItem.fashionAttributes
+                      ? fashionWarmthLabels[
+                          selectedItem.fashionAttributes.warmth
+                        ]
+                      : '미분류'}
+                  </dd>
+                </div>
+              </dl>
+            </div>
 
             {sizeDetails.length > 0 && (
               <div className="mt-5 rounded-2xl border border-line bg-surface p-4">

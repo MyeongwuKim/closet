@@ -1,3 +1,9 @@
+/**
+ * 진입 경로: 하단 플래너 탭
+ *
+ * 오늘·주간·월간 범위의 플래너 데이터를 조회하고 선택한 보기의 카드나 달력을 조합한다.
+ * 오늘 보기는 선택한 하루만, 주간 보기는 이동 가능한 7개 행을, 월간 보기는 달력 범위를 조회한다.
+ */
 import {
   useCallback,
   useEffect,
@@ -7,7 +13,7 @@ import {
 } from 'react'
 import { DndProvider } from 'react-dnd'
 import { TouchBackend } from 'react-dnd-touch-backend'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useClosetStore } from '../../closet/stores/useClosetStore'
 import { useUiStore } from '../../../stores/useUiStore'
 import { PlanDayRow } from '../components/PlanDayRow'
@@ -16,7 +22,9 @@ import { PlanMonthCalendar } from '../components/PlanMonthCalendar'
 import { PlanPageHeader } from '../components/PlanPageHeader'
 import { PlanPeriodHeader } from '../components/PlanPeriodHeader'
 import { PlanPeriodSkeleton } from '../components/PlanPeriodSkeleton'
+import { PlanTodayCard } from '../components/PlanTodayCard'
 import { PlanViewToggle } from '../components/PlanViewToggle'
+import type { PlanViewMode } from '../components/PlanViewToggle'
 import { WeeklyPlanEditor } from '../components/WeeklyPlanEditor'
 import { OutfitRecommendationActions } from '../components/OutfitRecommendationActions'
 import {
@@ -26,6 +34,7 @@ import {
 } from '../api/plannerQueries'
 import {
   createMonthCalendar,
+  createEmptyPlanEntry,
   formatDateOnly,
   formatMonthKey,
   getCurrentWeekStart,
@@ -68,6 +77,7 @@ function createDisplayRows(entries: PlanEntry[]): DisplayPlanRow[] {
 }
 
 export function PlanPage() {
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const items = useClosetStore((state) => state.items)
   const entries = usePlanStore((state) => state.entries)
@@ -90,7 +100,17 @@ export function PlanPage() {
     'backward' | 'forward' | 'switch'
   >('switch')
   const today = formatDateOnly(new Date())
-  const viewMode = searchParams.get('view') === 'month' ? 'month' : 'week'
+  const requestedView = searchParams.get('view')
+  const viewMode: PlanViewMode =
+    requestedView === 'week'
+      ? 'week'
+      : requestedView === 'month'
+        ? 'month'
+        : 'today'
+  const requestedDay = searchParams.get('date')
+  const selectedDate = /^\d{4}-\d{2}-\d{2}$/.test(requestedDay ?? '')
+    ? (requestedDay as string)
+    : today
   const weekStartsOn = entries[0]?.date ?? ''
   const requestedMonth = searchParams.get('month')
   const monthKey = /^\d{4}-\d{2}$/.test(requestedMonth ?? '')
@@ -102,6 +122,11 @@ export function PlanPage() {
   const plannerWeekQuery = usePlannerWeekQuery(
     weekStartsOn,
     viewMode === 'week',
+  )
+  const plannerDayQuery = usePlannerEntriesQuery(
+    selectedDate,
+    selectedDate,
+    viewMode === 'today',
   )
   const plannerEntriesQuery = usePlannerEntriesQuery(
     monthRangeStart,
@@ -256,27 +281,63 @@ export function PlanPage() {
     setSearchParams({ view: 'month', month: formatMonthKey(nextMonth) })
   }
 
-  const changeViewMode = (nextMode: 'week' | 'month') => {
+  const moveDay = (dayOffset: number) => {
+    setTransitionDirection(dayOffset < 0 ? 'backward' : 'forward')
+    const nextDate = new Date(`${selectedDate}T00:00:00`)
+    nextDate.setDate(nextDate.getDate() + dayOffset)
+    const nextDateValue = formatDateOnly(nextDate)
+    setSearchParams(
+      nextDateValue === today
+        ? { view: 'today' }
+        : { view: 'today', date: nextDateValue },
+    )
+  }
+
+  const changeViewMode = (nextMode: PlanViewMode) => {
     if (nextMode === viewMode) return
     setTransitionDirection('switch')
 
+    if (nextMode === 'today') {
+      setSearchParams({ view: 'today' })
+      return
+    }
+
     if (nextMode === 'month') {
-      const referenceDate = weekStartsOn
-        ? new Date(`${weekStartsOn}T00:00:00`)
-        : new Date()
+      const referenceDate =
+        viewMode === 'week' && weekStartsOn
+          ? new Date(`${weekStartsOn}T00:00:00`)
+          : viewMode === 'today'
+            ? new Date(`${selectedDate}T00:00:00`)
+            : new Date()
       setSearchParams({ view: 'month', month: formatMonthKey(referenceDate) })
       return
     }
 
-    const monthDate = new Date(`${monthKey}-01T00:00:00`)
     const todayDate = new Date(`${today}T00:00:00`)
     const referenceDate =
-      formatMonthKey(todayDate) === monthKey ? todayDate : monthDate
+      viewMode === 'month'
+        ? formatMonthKey(todayDate) === monthKey
+          ? todayDate
+          : new Date(`${monthKey}-01T00:00:00`)
+        : viewMode === 'today'
+          ? new Date(`${selectedDate}T00:00:00`)
+          : todayDate
     setWeek(getCurrentWeekStart(referenceDate))
-    setSearchParams({})
+    setSearchParams({ view: 'week' })
   }
 
-  const openWeekEditor = () => {
+  const openPlanEditor = () => {
+    if (viewMode === 'today') {
+      navigate(
+        `/plan/${selectedDate}?from=${encodeURIComponent(
+          selectedDate === today
+            ? '/plan?view=today'
+            : `/plan?view=today&date=${selectedDate}`,
+        )}`,
+      )
+      return
+    }
+
     if (viewMode === 'month') {
       changeViewMode('week')
       return
@@ -291,38 +352,89 @@ export function PlanPage() {
         ? 'plan-period-forward-enter'
         : 'plan-view-switch-enter'
   const periodTransitionKey =
-    viewMode === 'week' ? `week-${weekStartsOn}` : `month-${monthKey}`
+    viewMode === 'today'
+      ? `today-${selectedDate}`
+      : viewMode === 'week'
+        ? `week-${weekStartsOn}`
+        : `month-${monthKey}`
   const currentWeekRows =
     displayRows[0]?.weekStartsOn === weekStartsOn
       ? displayRows
       : createDisplayRows(entries)
+  const selectedDayEntry =
+    plannerDayQuery.data?.find((entry) => entry.date === selectedDate) ??
+    createEmptyPlanEntry(selectedDate)
+  const selectedDayItems = selectedDayEntry.itemIds
+    .map((itemId) => items.find((item) => item.id === itemId))
+    .filter((item) => item !== undefined)
 
   return (
     <section
       className={`mx-auto max-w-3xl pb-16 ${
-        viewMode === 'week'
+        viewMode !== 'month'
           ? 'flex h-[calc(100dvh-6.625rem-env(safe-area-inset-bottom))] flex-col sm:block sm:h-auto'
           : ''
       }`}
     >
-      <PlanPageHeader viewMode={viewMode} today={today} onEditWeek={openWeekEditor} />
+      <PlanPageHeader
+        viewMode={viewMode}
+        today={today}
+        onEditPlan={openPlanEditor}
+      />
       {!isEditingWeek && <OutfitRecommendationActions />}
       <PlanViewToggle value={viewMode} onChange={changeViewMode} />
       <PlanPeriodHeader
         viewMode={viewMode}
-        anchorDate={viewMode === 'week' ? weekStartsOn : `${monthKey}-01`}
-        onPrevious={() =>
-          viewMode === 'week' ? moveWeek(-7) : moveMonth(-1)
+        anchorDate={
+          viewMode === 'today'
+            ? selectedDate
+            : viewMode === 'week'
+              ? weekStartsOn
+              : `${monthKey}-01`
         }
-        onNext={() => (viewMode === 'week' ? moveWeek(7) : moveMonth(1))}
+        onPrevious={() =>
+          viewMode === 'today'
+            ? moveDay(-1)
+            : viewMode === 'week'
+              ? moveWeek(-7)
+              : moveMonth(-1)
+        }
+        onNext={() =>
+          viewMode === 'today'
+            ? moveDay(1)
+            : viewMode === 'week'
+              ? moveWeek(7)
+              : moveMonth(1)
+        }
       />
       <div
         key={periodTransitionKey}
         className={`${periodTransitionClass} ${
-          viewMode === 'week' ? 'flex min-h-0 flex-1 flex-col' : ''
+          viewMode !== 'month' ? 'flex min-h-0 flex-1 flex-col' : ''
         }`}
       >
-        {viewMode === 'week' && plannerWeekQuery.isPending ? (
+        {viewMode === 'today' && plannerDayQuery.isError ? (
+          <div className="mt-4 rounded-3xl border border-dashed border-line px-6 py-12 text-center">
+            <h2 className="text-sm font-black">
+              오늘 플래너를 불러오지 못했어요
+            </h2>
+            <button
+              type="button"
+              onClick={() => void plannerDayQuery.refetch()}
+              className="mt-4 rounded-full bg-ink px-4 py-2 text-xs font-bold text-white"
+            >
+              다시 불러오기
+            </button>
+          </div>
+        ) : viewMode === 'today' && plannerDayQuery.isPending ? (
+          <PlanPeriodSkeleton viewMode="today" />
+        ) : viewMode === 'today' ? (
+          <PlanTodayCard
+            entry={selectedDayEntry}
+            items={selectedDayItems}
+            isToday={selectedDate === today}
+          />
+        ) : viewMode === 'week' && plannerWeekQuery.isPending ? (
           <PlanPeriodSkeleton viewMode="week" />
         ) : viewMode === 'week' ? (
           <DndProvider backend={TouchBackend} options={weeklyPlanDndOptions}>

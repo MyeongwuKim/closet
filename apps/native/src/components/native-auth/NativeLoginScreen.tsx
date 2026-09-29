@@ -50,33 +50,8 @@ export function NativeLoginScreen({
   useEffect(() => {
     if (isPreparing) {
       entrance.setValue(0)
-      const loadingAnimation = Animated.sequence([
-        Animated.timing(progress, {
-          toValue: 0.72,
-          duration: 1050,
-          easing: Easing.inOut(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(progress, {
-              toValue: 0.82,
-              duration: 460,
-              easing: Easing.inOut(Easing.quad),
-              useNativeDriver: true,
-            }),
-            Animated.timing(progress, {
-              toValue: 0.7,
-              duration: 460,
-              easing: Easing.inOut(Easing.quad),
-              useNativeDriver: true,
-            }),
-          ]),
-        ),
-      ])
-
-      loadingAnimation.start()
-      return () => loadingAnimation.stop()
+      progress.setValue(0)
+      return
     }
 
     const completionAnimation = Animated.sequence([

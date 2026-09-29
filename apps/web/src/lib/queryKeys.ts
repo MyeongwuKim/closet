@@ -7,6 +7,7 @@ export const queryKeys = {
   wardrobe: {
     all: ['wardrobe'] as const,
     statistics: ['wardrobe', 'statistics'] as const,
+    brandOptions: ['wardrobe', 'brand-options'] as const,
     list: (filter?: { category?: ClosetFilter; subcategory?: string }) =>
       ['wardrobe', 'list', filter ?? {}] as const,
   },

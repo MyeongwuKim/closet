@@ -24,6 +24,7 @@ interface PreparedUploadPayload {
 interface WardrobeItemPayload {
   id: string
   name: string
+  brandName: string | null
   createdAt: string
   category: ClothingCategory | null
   additionalCategories: ClothingCategory[]
@@ -54,6 +55,7 @@ interface WardrobeItemPayload {
 
 export interface SaveWardrobeItemInput {
   name: string
+  brandName?: string | null
   category: ClothingCategory
   additionalCategories: ClothingCategory[]
   subcategory: string
@@ -61,6 +63,7 @@ export interface SaveWardrobeItemInput {
   colorDetailName?: string | null
   colorHex: string
   colorMode?: ColorMode | null
+  fashionAttributes: FashionItemAttributes
   seasons: Season[]
   tags: string[]
   sizeLabel?: string | null
@@ -182,7 +185,7 @@ export async function saveWardrobeItem(
     `
       mutation CreateWardrobeItem($input: CreateWardrobeItemInput!) {
         createWardrobeItem(input: $input) {
-          id name createdAt category additionalCategories subcategory colorName colorDetailName
+          id name brandName createdAt category additionalCategories subcategory colorName colorDetailName
           colorHex colorMode seasons tags
           fashionAttributes {
             layerRole silhouette pattern material texture warmth formality confidence
@@ -205,7 +208,7 @@ export async function saveWardrobeItem(
         classificationStatus: 'classified',
         classificationConfidence: candidate.confidence,
         classificationModel: candidate.model,
-        fashionAttributes: candidate.fashionAttributes,
+        fashionAttributes: input.fashionAttributes,
       },
     },
   )
@@ -214,6 +217,7 @@ export async function saveWardrobeItem(
   return {
     id: item.id,
     name: item.name,
+    brandName: item.brandName ?? undefined,
     createdAt: item.createdAt,
     category: item.category,
     additionalCategories: item.additionalCategories,

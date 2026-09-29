@@ -45,6 +45,9 @@ export function ClosetItemCard({
         </span>
         <span className="block px-2 pt-3 pb-2">
           <strong className="block truncate text-sm">{item.name}</strong>
+          <span className="mt-1 block truncate text-[11px] font-bold text-muted">
+            {item.brandName ? `브랜드 · ${item.brandName}` : '브랜드 없음'}
+          </span>
           <span className="mt-1 block truncate text-xs text-muted">
             {item.classificationStatus === 'pending'
               ? 'AI 분류 대기'

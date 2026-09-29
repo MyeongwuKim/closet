@@ -1,5 +1,26 @@
 interface PlanPeriodSkeletonProps {
-  viewMode: 'week' | 'month'
+  viewMode: 'today' | 'week' | 'month'
+}
+
+function PlanTodaySkeleton() {
+  return (
+    <div className="mt-2 flex min-h-0 flex-1 animate-pulse flex-col rounded-3xl border border-line bg-surface p-4 sm:mt-4 sm:min-h-[520px] sm:p-6">
+      <span className="block h-3 w-10 rounded-full bg-line/50" />
+      <span className="mt-3 block h-6 w-40 rounded-full bg-line/55" />
+      <span className="mt-2 block h-3 w-28 rounded-full bg-line/30" />
+      <span className="mt-4 grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-3 sm:mt-6 sm:gap-4">
+        {Array.from({ length: 4 }, (_, index) => (
+          <span
+            className="block rounded-2xl bg-line/25"
+            aria-hidden="true"
+            key={index}
+          />
+        ))}
+      </span>
+      <span className="mt-4 block h-5 w-44 rounded-full bg-line/50 sm:mt-6" />
+      <span className="mt-2 block h-3 w-32 rounded-full bg-line/30" />
+    </div>
+  )
 }
 
 function PlanWeekSkeleton() {
@@ -61,9 +82,12 @@ function PlanMonthSkeleton() {
   )
 }
 
+/** 선택한 플래너 보기와 같은 카드 구조를 유지하며 조회 중 상태를 표시한다. */
 export function PlanPeriodSkeleton({ viewMode }: PlanPeriodSkeletonProps) {
   const loadingLabel =
-    viewMode === 'week'
+    viewMode === 'today'
+      ? '오늘 플래너를 불러오는 중'
+      : viewMode === 'week'
       ? '주간 플래너를 불러오는 중'
       : '월간 플래너를 불러오는 중'
 
@@ -72,11 +96,17 @@ export function PlanPeriodSkeleton({ viewMode }: PlanPeriodSkeletonProps) {
       role="status"
       aria-label={loadingLabel}
       className={
-        viewMode === 'week' ? 'flex min-h-0 flex-1 flex-col' : undefined
+        viewMode !== 'month' ? 'flex min-h-0 flex-1 flex-col' : undefined
       }
     >
       <span className="sr-only">{loadingLabel}</span>
-      {viewMode === 'week' ? <PlanWeekSkeleton /> : <PlanMonthSkeleton />}
+      {viewMode === 'today' ? (
+        <PlanTodaySkeleton />
+      ) : viewMode === 'week' ? (
+        <PlanWeekSkeleton />
+      ) : (
+        <PlanMonthSkeleton />
+      )}
     </div>
   )
 }

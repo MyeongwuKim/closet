@@ -16,6 +16,7 @@ import {
 
 export interface CreateWardrobeItemInput {
   name: string
+  brandName?: string | null
   displayImageAssetId: string
   originalImageAssetId?: string | null
   category?: ClothingCategory | null
@@ -42,6 +43,11 @@ export interface CreateWardrobeItemInput {
   classificationStatus?: ClassificationStatus
   classificationConfidence?: number | null
   classificationModel?: string | null
+}
+
+export interface UpdateWardrobeItemInput
+  extends Omit<UpdateWardrobeItemData, 'fashionAttributes'> {
+  fashionAttributes?: FashionItemAttributes
 }
 
 const fashionAttributeValues = {
@@ -234,6 +240,19 @@ function normalizeSizeLabel(value: string | null | undefined) {
   return sizeLabel || null
 }
 
+/** 브랜드명 앞뒤 공백과 연속 공백을 정리하며 빈 입력은 null로 저장한다. */
+function normalizeBrandName(value: string | null | undefined) {
+  if (value === null || value === undefined) return value
+  const brandName = value.normalize('NFKC').replace(/\s+/g, ' ').trim()
+  if (brandName.length > 50) {
+    throw new ServiceError(
+      '브랜드는 50자 이내로 입력해주세요.',
+      'INVALID_WARDROBE_BRAND',
+    )
+  }
+  return brandName || null
+}
+
 function normalizeColorDetailName(value: string | null | undefined) {
   if (value === null || value === undefined) return value
   const colorDetailName = value.trim()
@@ -359,6 +378,23 @@ export const wardrobeService = {
     return { ...item, wearCount: wear?.wearCount ?? 0, lastWornAt: wear?.lastWornAt ?? null }
   },
 
+  /** 저장된 옷의 브랜드명을 중복 없이 정리해 브랜드 선택 목록으로 반환한다. */
+  async listBrands(userId: string) {
+    const rows = await wardrobeRepository.findBrandNames(userId)
+    const brandByKey = new Map<string, string>()
+
+    rows.forEach(({ brandName }) => {
+      const normalizedBrand = normalizeBrandName(brandName)
+      if (!normalizedBrand) return
+      const key = normalizedBrand.toLocaleLowerCase('ko-KR')
+      if (!brandByKey.has(key)) brandByKey.set(key, normalizedBrand)
+    })
+
+    return [...brandByKey.values()].sort((left, right) =>
+      left.localeCompare(right, 'ko'),
+    )
+  },
+
   async create(userId: string, input: CreateWardrobeItemInput) {
     const name = input.name.trim()
     if (!name) {
@@ -387,6 +423,7 @@ export const wardrobeService = {
       userId,
       ...input,
       name,
+      brandName: normalizeBrandName(input.brandName),
       additionalCategories: normalizeAdditionalCategories(
         input.category,
         input.additionalCategories,
@@ -409,7 +446,7 @@ export const wardrobeService = {
   async update(
     userId: string,
     itemId: string,
-    input: UpdateWardrobeItemData,
+    input: UpdateWardrobeItemInput,
   ) {
     const currentItem = await requireWardrobeItem(userId, itemId)
     if (input.name !== undefined && !input.name.trim()) {
@@ -427,6 +464,14 @@ export const wardrobeService = {
     return wardrobeRepository.update(itemId, {
       ...input,
       name: input.name?.trim(),
+      brandName: normalizeBrandName(input.brandName),
+      fashionAttributes:
+        input.fashionAttributes === undefined
+          ? undefined
+          : normalizeFashionAttributes(
+              input.fashionAttributes,
+              nextCategory,
+            ) as unknown as Prisma.InputJsonValue,
       additionalCategories: normalizeAdditionalCategories(
         nextCategory,
         nextAdditionalCategories,

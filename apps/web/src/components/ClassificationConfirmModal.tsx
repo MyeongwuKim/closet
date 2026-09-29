@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import type {
   ClothingCategory,
   ColorMode,
+  FashionItemAttributes,
   Season,
   WardrobeItem,
 } from '@closet/types'
@@ -21,6 +22,12 @@ import {
 import { SimilarWardrobeItems } from '../features/closet/components/SimilarWardrobeItems'
 import { CategoryMultiSelectField } from '../features/closet/components/CategoryMultiSelectField'
 import { WardrobeTagField } from '../features/closet/components/WardrobeTagField'
+import { FashionAttributeFields } from '../features/closet/components/FashionAttributeFields'
+import { WardrobeBrandField } from '../features/closet/components/WardrobeBrandField'
+import {
+  fashionAttributesFromItem,
+  mergeEditableFashionAttributes,
+} from '../features/closet/utils/fashionAttributes'
 import {
   emptyGarmentSize,
   toGarmentSizeInput,
@@ -41,6 +48,7 @@ interface ClassificationConfirmModalProps {
     itemId: string,
     result: {
       name: string
+      brandName: string | null
       category: ClothingCategory
       additionalCategories: ClothingCategory[]
       subcategory: string
@@ -48,6 +56,7 @@ interface ClassificationConfirmModalProps {
       colorDetailName: string | null
       colorHex: string
       colorMode: ColorMode | null
+      fashionAttributes: FashionItemAttributes
       seasons: Season[]
       tags: string[]
     } & GarmentSizeInput,
@@ -72,9 +81,13 @@ export function ClassificationConfirmModal({
     ClothingCategory[]
   >([])
   const [name, setName] = useState(candidate.itemName)
+  const [brandName, setBrandName] = useState('')
   const [subcategory, setSubcategory] = useState(candidate.subcategory)
   const [colorName, setColorName] = useState(candidate.colorName)
   const [seasons, setSeasons] = useState<Season[]>([])
+  const [fashionAttributes, setFashionAttributes] = useState(() =>
+    fashionAttributesFromItem(candidate.fashionAttributes),
+  )
   const [tags, setTags] = useState<string[]>([])
   const [garmentSize, setGarmentSize] =
     useState<GarmentSizeFormValue>(emptyGarmentSize)
@@ -112,6 +125,7 @@ export function ClassificationConfirmModal({
     try {
       await onConfirm(candidate.itemId, {
         name: name.trim(),
+        brandName: brandName.trim() || null,
         category,
         additionalCategories,
         subcategory: subcategory.trim(),
@@ -119,6 +133,11 @@ export function ClassificationConfirmModal({
         colorDetailName: candidate.colorDetailName.trim() || null,
         colorHex: candidate.colorHex,
         colorMode: candidate.colorMode,
+        fashionAttributes: mergeEditableFashionAttributes(
+          candidate.fashionAttributes,
+          fashionAttributes,
+          category,
+        ),
         seasons,
         tags,
         ...toGarmentSizeInput(category, garmentSize),
@@ -282,6 +301,11 @@ export function ClassificationConfirmModal({
                 />
               </label>
 
+              <WardrobeBrandField
+                value={brandName}
+                onChange={setBrandName}
+              />
+
               <CategoryMultiSelectField
                 value={category ? [category, ...additionalCategories] : []}
                 onChange={changeCategories}
@@ -331,6 +355,11 @@ export function ClassificationConfirmModal({
                 </div>
               </fieldset>
 
+              <FashionAttributeFields
+                value={fashionAttributes}
+                onChange={setFashionAttributes}
+              />
+
               <GarmentSizeFields
                 category={category}
                 value={garmentSize}
@@ -374,7 +403,11 @@ export function ClassificationConfirmModal({
                   colorName={colorName}
                   colorHex={candidate.colorHex}
                   colorMode={candidate.colorMode}
-                  fashionAttributes={candidate.fashionAttributes}
+                  fashionAttributes={mergeEditableFashionAttributes(
+                    candidate.fashionAttributes,
+                    fashionAttributes,
+                    category,
+                  )}
                   wardrobeItems={wardrobeItems}
                 />
               )}

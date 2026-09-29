@@ -1,7 +1,8 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import type { PlanViewMode } from './PlanViewToggle'
 
 interface PlanPeriodHeaderProps {
-  viewMode: 'week' | 'month'
+  viewMode: PlanViewMode
   anchorDate: string
   onPrevious: () => void
   onNext: () => void
@@ -19,14 +20,18 @@ export function PlanPeriodHeader({
   const title = new Intl.DateTimeFormat('ko-KR', {
     year: 'numeric',
     month: 'long',
+    ...(viewMode === 'today' ? { day: 'numeric' } : {}),
   }).format(start)
   const period =
-    viewMode === 'week'
+    viewMode === 'today'
+      ? `${new Intl.DateTimeFormat('ko-KR', { weekday: 'long' }).format(start)} · 하루 코디를 확인해보세요.`
+      : viewMode === 'week'
       ? `${start.getMonth() + 1}월 ${start.getDate()}일–${
           end.getMonth() + 1
         }월 ${end.getDate()}일`
       : '한 달의 코디 계획과 빈 날짜를 한눈에 확인해보세요.'
-  const unitLabel = viewMode === 'week' ? '주' : '달'
+  const unitLabel =
+    viewMode === 'today' ? '날짜' : viewMode === 'week' ? '주' : '달'
 
   return (
     <div className="mt-2 flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-3 py-2.5 sm:mt-6 sm:items-end sm:gap-4 sm:rounded-3xl sm:p-6">

@@ -114,6 +114,7 @@ export function NativeWebViewScreen({
         javaScriptEnabled
         domStorageEnabled
         sharedCookiesEnabled
+        hideKeyboardAccessoryView
         bounces={false}
         overScrollMode="never"
         setBuiltInZoomControls={false}

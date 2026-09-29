@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  createEmptyPlanEntry,
   createEmptyWeeklyPlan,
   mergeWeeklyPlanEntries,
   moveArrayItem,
@@ -8,6 +9,15 @@ import {
   placePlanOutfitInDate,
   shouldMovePlanRow,
 } from '../src/features/plan/data/weeklyPlan'
+
+test('오늘 보기의 빈 항목은 지정한 날짜와 요일로 생성한다', () => {
+  const entry = createEmptyPlanEntry('2026-09-29')
+
+  assert.equal(entry.date, '2026-09-29')
+  assert.equal(entry.dayLabel, '화')
+  assert.equal(entry.dayNumber, 29)
+  assert.deepEqual(entry.itemIds, [])
+})
 
 test('빈 요일로 옮기면 코디만 이동하고 날짜 정보는 유지한다', () => {
   const entries = createEmptyWeeklyPlan('2026-08-24').map((entry, index) => ({

@@ -69,6 +69,7 @@ export function wardrobeItemMatchesSearch(
   )
   const searchableText = [
     item.name,
+    item.brandName,
     item.subcategory,
     item.colorName,
     item.colorDetailName,

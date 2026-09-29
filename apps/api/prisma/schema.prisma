@@ -253,6 +253,7 @@ model WardrobeItem {
   id                       String               @id @default(auto()) @map("_id") @db.ObjectId
   userId                   String               @db.ObjectId
   name                     String
+  brandName                String?
   displayImageAssetId      String?              @db.ObjectId
   originalImageAssetId     String?              @db.ObjectId
   category                 ClothingCategory?
