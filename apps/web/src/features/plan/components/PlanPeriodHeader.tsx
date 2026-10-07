@@ -8,6 +8,7 @@ interface PlanPeriodHeaderProps {
   onNext: () => void
 }
 
+/** 보기별 날짜와 이전·다음 이동 버튼을 표시한다. 하루 보기에서는 날짜와 요일을 한 줄에 모아 코디 영역의 공간을 확보한다. */
 export function PlanPeriodHeader({
   viewMode,
   anchorDate,
@@ -17,15 +18,12 @@ export function PlanPeriodHeader({
   const start = new Date(`${anchorDate}T00:00:00`)
   const end = new Date(start)
   end.setDate(start.getDate() + 6)
-  const title = new Intl.DateTimeFormat('ko-KR', {
-    year: 'numeric',
-    month: 'long',
-    ...(viewMode === 'today' ? { day: 'numeric' } : {}),
-  }).format(start)
+  const title = new Intl.DateTimeFormat('ko-KR', viewMode === 'today'
+    ? { month: 'long', day: 'numeric', weekday: 'long' }
+    : { year: 'numeric', month: 'long' },
+  ).format(start)
   const period =
-    viewMode === 'today'
-      ? `${new Intl.DateTimeFormat('ko-KR', { weekday: 'long' }).format(start)} · 하루 코디를 확인해보세요.`
-      : viewMode === 'week'
+    viewMode === 'week'
       ? `${start.getMonth() + 1}월 ${start.getDate()}일–${
           end.getMonth() + 1
         }월 ${end.getDate()}일`
@@ -34,21 +32,21 @@ export function PlanPeriodHeader({
     viewMode === 'today' ? '날짜' : viewMode === 'week' ? '주' : '달'
 
   return (
-    <div className="mt-2 flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-3 py-2.5 sm:mt-6 sm:items-end sm:gap-4 sm:rounded-3xl sm:p-6">
+    <div className="plan-period-header mt-4 flex items-center justify-between gap-3 pb-1 sm:mt-6 sm:items-end sm:gap-4">
       <div className="min-w-0">
-        <h2 className="truncate text-lg font-black tracking-[-0.04em] sm:text-3xl">
+        <h2 className="truncate text-base font-semibold tracking-[-0.04em] sm:text-2xl">
           {title}
         </h2>
-        <p className="mt-0.5 truncate text-xs text-muted sm:mt-2 sm:text-sm">
+        {viewMode !== 'today' && <p className="mt-0.5 truncate text-xs text-muted sm:mt-2 sm:text-sm">
           {period}
-        </p>
+        </p>}
       </div>
 
       <div className="flex shrink-0 gap-1.5 sm:gap-2">
         <button
           type="button"
           onClick={onPrevious}
-          className="flex size-8 items-center justify-center rounded-full border border-line bg-surface hover:border-ink sm:size-10"
+          className="flex size-11 items-center justify-center rounded-full border border-line bg-surface hover:border-accent"
           aria-label={`이전 ${unitLabel}`}
         >
           <ChevronLeft size={18} />
@@ -56,7 +54,7 @@ export function PlanPeriodHeader({
         <button
           type="button"
           onClick={onNext}
-          className="flex size-8 items-center justify-center rounded-full border border-line bg-surface hover:border-ink sm:size-10"
+          className="flex size-11 items-center justify-center rounded-full border border-line bg-surface hover:border-accent"
           aria-label={`다음 ${unitLabel}`}
         >
           <ChevronRight size={18} />

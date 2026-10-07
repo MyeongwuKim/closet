@@ -20,7 +20,7 @@ export function WeatherSnapshotSummary({
 }: WeatherSnapshotSummaryProps) {
   return (
     <div className={compact ? 'mt-1.5' : 'mt-2'}>
-      <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-1 text-[10px] font-bold text-sky-800">
+      <span className="inline-flex items-center gap-1 rounded-full bg-sage px-2 py-1 text-[10px] font-medium text-accent">
         <CloudSun size={11} />
         {weather.temperatureC}° · {weather.summary} · 체감{' '}
         {weather.apparentTemperatureC}°

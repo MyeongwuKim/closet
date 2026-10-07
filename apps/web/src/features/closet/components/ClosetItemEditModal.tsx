@@ -168,7 +168,7 @@ export function ClosetItemEditModal({
       <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto grid max-w-3xl gap-5 px-5 py-6 sm:grid-cols-[220px_minmax(0,1fr)] sm:px-6 sm:py-8">
-            <div className="flex aspect-square items-center justify-center overflow-hidden rounded-3xl bg-surface shadow-[inset_0_0_0_1px_#dedad1]">
+            <div className="flex aspect-square items-center justify-center overflow-hidden rounded-3xl bg-surface border border-line">
               <ClosetItemVisual item={item} />
             </div>
 

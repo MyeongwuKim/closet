@@ -5,7 +5,6 @@ import {
   buildOutfitCombinations,
   excludeOuterItems,
   getColorHarmonyScore,
-  getItemStyleScore,
   type StyleRuleItem,
 } from './outfit-style-rules.js'
 
@@ -106,8 +105,6 @@ test('아우터와 하의만으로는 완성 코디 후보를 만들지 않는�
       createItem('bottom', 'bottom', '데님'),
       createItem('shoes', 'shoes', '스니커즈'),
     ],
-    'casual',
-    'regular',
     'autumn',
   )
 
@@ -122,8 +119,6 @@ test('아우터가 들어간 모든 후보에 이너 상의가 포함된다', ()
       createItem('bottom', 'bottom', '데님'),
       createItem('shoes', 'shoes', '스니커즈'),
     ],
-    'casual',
-    'regular',
     'autumn',
   )
   const layeredCombinations = combinations.filter((combination) =>
@@ -147,8 +142,6 @@ test('체감 23도에는 선택하지 않은 아우터와 중간 레이어를 �
       createItem('outer', 'outer', '재킷'),
       createItem('midlayer', 'midlayer', '가디건'),
     ],
-    'casual',
-    'regular',
     'autumn',
     undefined,
     23,
@@ -203,8 +196,6 @@ test('체감 23도에는 울 니트와 보온성 있는 상의를 추천하지 �
       }),
       createItem('bottom', 'bottom', '데님'),
     ],
-    'casual',
-    'regular',
     'autumn',
     undefined,
     23,
@@ -228,8 +219,6 @@ test('더운 날씨에도 사용자가 기준으로 고른 아우터는 유지�
       createItem('shoes', 'shoes', '스니커즈'),
       createItem('other-outer', 'outer', '코트'),
     ],
-    'casual',
-    'regular',
     'autumn',
     baseOuter.id,
     23,
@@ -260,8 +249,6 @@ test('체감 18도에는 가벼운 아우터만 추천 후보로 사용한다', 
         fashionAttributes: createLayerAttributes('outer', 'heavy'),
       }),
     ],
-    'casual',
-    'regular',
     'autumn',
     undefined,
     18,
@@ -288,8 +275,6 @@ test('체감 7도에는 아우터 조합을 아우터 없는 조합보다 높게
         fashionAttributes: createLayerAttributes('outer', 'heavy'),
       }),
     ],
-    'casual',
-    'regular',
     'winter',
     undefined,
     7,
@@ -306,56 +291,7 @@ test('체감 7도에는 아우터 조합을 아우터 없는 조합보다 높게
   assert.ok(layered.score > unlayered.score)
 })
 
-test('선택한 목표 스타일 하나만 아이템 점수에 반영한다', () => {
-  const hoodie = createItem('hoodie', 'top', '후드')
-  const blazer = createItem('blazer', 'outer', '블레이저')
-
-  assert.ok(
-    getItemStyleScore(hoodie, 'casual', 'regular') >
-      getItemStyleScore(blazer, 'casual', 'regular'),
-  )
-  assert.ok(
-    getItemStyleScore(blazer, 'classic', 'regular') >
-      getItemStyleScore(hoodie, 'classic', 'regular'),
-  )
-})
-
-test('캐주얼 점수는 특정 바지 이름보다 관찰 속성을 중심으로 계산한다', () => {
-  const denim = createItem('denim', 'bottom', '데님', {
-    fashionAttributes: {
-      layerRole: 'single',
-      silhouette: 'relaxed',
-      pattern: 'solid',
-      material: 'denim',
-      texture: 'distressed',
-      warmth: 'medium',
-      formality: 0.2,
-      confidence: 0.9,
-    },
-  })
-  const cottonTwillPants = createItem('cotton-twill', 'bottom', '일반 긴바지', {
-    name: '올리브 유틸리티 팬츠',
-    fashionAttributes: {
-      layerRole: 'single',
-      silhouette: 'relaxed',
-      pattern: 'solid',
-      material: 'cotton',
-      texture: 'twill',
-      warmth: 'medium',
-      formality: 0.2,
-      confidence: 0.9,
-    },
-  })
-
-  const scoreDifference =
-    getItemStyleScore(denim, 'casual', 'regular') -
-    getItemStyleScore(cottonTwillPants, 'casual', 'regular')
-
-  assert.ok(scoreDifference >= 0)
-  assert.ok(scoreDifference <= 1.5)
-})
-
-test('연속 캐주얼 추천은 같은 고득점 하의에 몰리지 않는다', () => {
+test('연속 추천은 같은 하의에 몰리지 않는다', () => {
   const attributes = {
     layerRole: 'single' as const,
     silhouette: 'relaxed' as const,
@@ -390,8 +326,6 @@ test('연속 캐주얼 추천은 같은 고득점 하의에 몰리지 않는다'
       ...bottoms,
       createItem('shoes', 'shoes', '스니커즈', { colorHex: '#F2F1EC' }),
     ],
-    'casual',
-    'regular',
     'autumn',
   )
   const firstBottomIds = combinations.slice(0, 4).flatMap((combination) =>
@@ -403,7 +337,7 @@ test('연속 캐주얼 추천은 같은 고득점 하의에 몰리지 않는다'
   assert.ok(new Set(firstBottomIds).size >= 3)
 })
 
-test('코트도 캐주얼 조합 후보에서 제외하지 않는다', () => {
+test('코트도 조합 후보에서 제외하지 않는다', () => {
   const combinations = buildOutfitCombinations(
     [
       createItem('top', 'top', '긴팔'),
@@ -415,8 +349,6 @@ test('코트도 캐주얼 조합 후보에서 제외하지 않는다', () => {
       createItem('denim-outer', 'outer', '데님'),
       createItem('coat', 'outer', '코트'),
     ],
-    'casual',
-    'regular',
     'winter',
   )
 
@@ -427,7 +359,7 @@ test('코트도 캐주얼 조합 후보에서 제외하지 않는다', () => {
   )
 })
 
-test('캐주얼 요소와 매치한 코트는 겨울 캐주얼 점수를 보완한다', () => {
+test('겨울에는 코트를 포함한 조합의 레이어 점수를 보완한다', () => {
   const combinations = buildOutfitCombinations(
     [
       createItem('shirt', 'top', '셔츠'),
@@ -435,8 +367,6 @@ test('캐주얼 요소와 매치한 코트는 겨울 캐주얼 점수를 보완�
       createItem('sneakers', 'shoes', '스니커즈'),
       createItem('coat', 'outer', '코트'),
     ],
-    'casual',
-    'regular',
     'winter',
   )
   const withoutCoat = combinations.find(
@@ -493,8 +423,6 @@ test('상위 후보를 이너·하의·아우터·신발에 걸쳐 다양하게 
   ]
   const combinations = buildOutfitCombinations(
     [...tops, ...bottoms, ...outers, ...shoes],
-    'casual',
-    'regular',
     'autumn',
   )
   const usedIds = (category: ClothingCategory) =>
@@ -552,12 +480,12 @@ test('기준 아이템은 모든 카테고리의 후보 제한과 조합 제한 
         baseItem,
       ]
 
-      const unanchored = buildOutfitCombinations(items, 'casual', 'regular', 'autumn')
+      const unanchored = buildOutfitCombinations(items, 'autumn')
       assert.ok(unanchored.every(({ items: selected }) =>
         selected.every((item) => item.id !== baseItem.id),
       ))
 
-      const anchored = buildOutfitCombinations(items, 'casual', 'regular', 'autumn', baseItem.id)
+      const anchored = buildOutfitCombinations(items, 'autumn', baseItem.id)
       assert.ok(anchored.length > 0)
       assert.ok(anchored.every(({ items: selected }) =>
         selected.filter((item) => item.id === baseItem.id).length === 1 && selected.length <= 5,
@@ -586,7 +514,7 @@ test('기준 아우터는 원피스 또는 이너와 하의에 조합하고 단�
     createItem('top', 'top', '긴팔'),
     createItem('bottom', 'bottom', '데님'),
     createItem('dress', 'dress', '원피스'),
-  ], 'casual', 'regular', 'autumn', baseOuter.id)
+  ], 'autumn', baseOuter.id)
 
   assert.ok(combinations.some(({ items }) => items.some((item) => item.id === 'dress')))
   assert.ok(combinations.every(({ items }) => {
@@ -612,7 +540,7 @@ test('중간 레이어 역할인 기준 상의에는 별도의 이너 상의를 
     baseMidlayer,
     createItem('top', 'top', '긴팔'),
     createItem('bottom', 'bottom', '데님'),
-  ], 'casual', 'regular', 'autumn', baseMidlayer.id)
+  ], 'autumn', baseMidlayer.id)
 
   assert.ok(combinations.length > 0)
   assert.ok(combinations.every(({ items }) =>
@@ -625,11 +553,63 @@ test('기준 아이템이 없거나 함께 입을 이너가 없으면 다른 완
   const dress = createItem('dress', 'dress', '원피스')
   const baseMidlayer = createItem('base-midlayer', 'midlayer', '가디건')
   assert.deepEqual(
-    buildOutfitCombinations([dress], 'casual', 'regular', 'autumn', 'missing-item'),
+    buildOutfitCombinations([dress], 'autumn', 'missing-item'),
     [],
   )
   assert.deepEqual(
-    buildOutfitCombinations([dress, baseMidlayer], 'casual', 'regular', 'autumn', baseMidlayer.id),
+    buildOutfitCombinations([dress, baseMidlayer], 'autumn', baseMidlayer.id),
     [],
   )
+})
+
+
+test('더운 날 입을 수 있는 상의는 보온성 후보가 많아도 후보 제한에서 밀리지 않는다', () => {
+  const warmTops = Array.from({ length: 12 }, (_, index) =>
+    createItem(`warm-${index}`, 'top', '울 니트', {
+      colorName: '화이트', colorHex: '#F2F0E9',
+      fashionAttributes: { ...createLayerAttributes('mid', 'heavy'), layerRole: 'base', material: 'wool' },
+    }),
+  )
+  const combinations = buildOutfitCombinations([
+    ...warmTops,
+    createItem('light-top', 'top', '반팔', {
+      colorName: '그린', colorHex: '#00FF00',
+      fashionAttributes: { ...createLayerAttributes('mid', 'light'), layerRole: 'base' },
+    }),
+    createItem('bottom', 'bottom', '데님'),
+  ], 'summer', undefined, 25)
+  assert.ok(combinations.length > 0)
+  assert.ok(combinations.every(({ items }) => items.some((item) => item.id === 'light-top')))
+  assert.ok(combinations.every(({ items }) => items.every((item) => !item.id.startsWith('warm-'))))
+})
+
+test('분석 속성과 색이 같으면 이름의 스타일 단어는 조합 점수를 바꾸지 않는다', () => {
+  const attributes = { ...createLayerAttributes('mid', 'medium'), layerRole: 'base' }
+  const top = createItem('top', 'top', '셔츠', { fashionAttributes: attributes })
+  const bottom = createItem('bottom', 'bottom', '데님')
+  const original = buildOutfitCombinations([top, bottom], 'autumn')
+  const renamed = buildOutfitCombinations([
+    { ...top, name: '빈티지 스포티 미니멀 셔츠' }, bottom,
+  ], 'autumn')
+  assert.equal(original[0]?.score, renamed[0]?.score)
+  assert.deepEqual(original[0]?.items.map((item) => item.id), renamed[0]?.items.map((item) => item.id))
+})
+
+test('같은 옷장에서는 색 궁합과 실제 상하의 볼륨 균형이 점수에 반영된다', () => {
+  const top = createItem('top', 'top', '긴팔', {
+    colorName: '레드', colorHex: '#D52525',
+    fashionAttributes: { ...createLayerAttributes('mid', 'medium'), layerRole: 'base', silhouette: 'relaxed' },
+  })
+  const compatible = createItem('compatible', 'bottom', '일반 긴바지', {
+    fashionAttributes: { ...createLayerAttributes('mid', 'medium'), layerRole: 'single', silhouette: 'slim' },
+  })
+  const competing = createItem('competing', 'bottom', '일반 긴바지', {
+    colorName: '그린', colorHex: '#00CC36',
+    fashionAttributes: { ...createLayerAttributes('mid', 'medium'), layerRole: 'single', silhouette: 'oversized' },
+  })
+  const combinations = buildOutfitCombinations([top, compatible, competing], 'autumn')
+  const preferred = combinations.find(({ items }) => items.some((item) => item.id === compatible.id))
+  const other = combinations.find(({ items }) => items.some((item) => item.id === competing.id))
+  assert.ok(preferred && other)
+  assert.ok(preferred.score > other.score)
 })

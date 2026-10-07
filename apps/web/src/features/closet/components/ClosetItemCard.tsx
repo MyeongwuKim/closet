@@ -1,5 +1,6 @@
 import type { WardrobeItem } from '@closet/types'
 import { Check, Plus } from 'lucide-react'
+import { WoodCardClip } from '../../../components/WoodCardClip'
 import { formatSeasonLabels } from '../../../constants/seasons'
 import { closetCategoryLabels } from '../constants'
 import { ClosetItemVisual } from './ClosetItemVisual'
@@ -11,6 +12,7 @@ interface ClosetItemCardProps {
   onToggleSelection: () => void
 }
 
+/** 옷 사진만 집게에 걸고 이름·브랜드·색상은 배경 위 캡션으로 표시한다. 사진과 캡션은 상세 열기, 별도 선택 버튼은 코디에 넣을 옷 선택을 부모에 요청한다. */
 export function ClosetItemCard({
   item,
   isSelected,
@@ -19,19 +21,19 @@ export function ClosetItemCard({
 }: ClosetItemCardProps) {
   return (
     <article
-      className={`relative overflow-hidden rounded-3xl bg-surface p-2 text-left transition-shadow hover:shadow-sm ${
+      className={`collection-clipped-card group relative min-w-0 text-left ${
         isSelected
-          ? 'ring-2 ring-accent ring-offset-2 ring-offset-canvas'
-          : 'shadow-[inset_0_0_0_1px_#dedad1]'
+          ? 'rounded-2xl outline-2 outline-accent outline-offset-4'
+          : ''
       }`}
     >
       <button
         type="button"
         onClick={onToggleSelection}
-        className={`absolute top-3.5 right-3.5 z-10 flex size-6 items-center justify-center rounded-full border shadow-sm ${
+        className={`absolute top-5 right-3 z-10 flex size-8 items-center justify-center rounded-full border ${
           isSelected
             ? 'border-accent bg-accent text-white'
-            : 'border-line bg-white/90 text-muted hover:border-accent hover:text-accent'
+            : 'border-line bg-surface text-muted hover:border-accent hover:text-accent'
         }`}
         aria-label={`${item.name} ${isSelected ? '선택 해제' : '코디로 선택'}`}
         aria-pressed={isSelected}
@@ -40,15 +42,18 @@ export function ClosetItemCard({
       </button>
 
       <button type="button" onClick={onOpen} className="block w-full text-left">
-        <span className="flex aspect-square items-center justify-center overflow-hidden rounded-[1.25rem] bg-canvas">
-          <ClosetItemVisual item={item} />
-        </span>
-        <span className="block px-2 pt-3 pb-2">
-          <strong className="block truncate text-sm">{item.name}</strong>
-          <span className="mt-1 block truncate text-[11px] font-bold text-muted">
-            {item.brandName ? `브랜드 · ${item.brandName}` : '브랜드 없음'}
+        <span className="collection-photo block">
+          <WoodCardClip />
+          <span className="archive-image wardrobe-image flex aspect-[4/5] items-center justify-center transition-colors">
+            <ClosetItemVisual item={item} />
           </span>
-          <span className="mt-1 block truncate text-xs text-muted">
+        </span>
+        <span className="block px-0.5 pt-3 pb-1">
+          <strong className="line-clamp-2 text-sm font-semibold leading-5 tracking-[-.025em]">{item.name}</strong>
+          {item.brandName && <span className="mt-1 block truncate text-[10px] text-muted">{item.brandName}</span>}
+          <span className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted">
+            <span className="size-2 shrink-0 rounded-full border border-ink/15" style={{ backgroundColor: item.colorHex }} aria-hidden="true" />
+            <span className="truncate">
             {item.classificationStatus === 'pending'
               ? 'AI 분류 대기'
               : `${item.subcategory ?? (item.category ? closetCategoryLabels[item.category] : '미분류')} · ${item.colorDetailName ?? item.colorName}${
@@ -56,6 +61,7 @@ export function ClosetItemCard({
                     ? ` · ${formatSeasonLabels(item.seasons)}`
                     : ''
                 }`}
+            </span>
           </span>
         </span>
       </button>

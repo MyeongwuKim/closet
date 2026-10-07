@@ -35,7 +35,8 @@ export interface SetDirectPlannerEntryInput {
   itemIds: string[]
   previewImage?: CreateOutfitInput['previewImage']
   recommendationName?: string | null
-  recommendationStyle?: OutfitStyle | null
+  /** 새 추천의 표시명(옷장 추천) 또는 이전 추천의 스타일명. 저장할 코디의 분류와 중복 확인에 사용한다. */
+  recommendationStyle?: string | null
   weatherSummary?: string | null
   temperatureC?: number | null
 }

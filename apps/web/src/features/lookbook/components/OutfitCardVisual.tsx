@@ -8,6 +8,7 @@ interface OutfitCardVisualProps {
   className?: string
 }
 
+/** 저장된 룩북 이미지를 표시한다. 이미지가 없으면 레이어 순서대로 옷 네 개를 펼치고 나머지 개수를 표시한다. */
 export function OutfitCardVisual({
   outfit,
   items,
@@ -15,7 +16,7 @@ export function OutfitCardVisual({
 }: OutfitCardVisualProps) {
   if (outfit.previewImageUrl) {
     return (
-      <div className={`overflow-hidden rounded-[1.25rem] bg-canvas ${className}`}>
+      <div className={`overflow-hidden bg-sage/60 ${className}`}>
         <img
           src={outfit.previewImageUrl}
           loading="lazy"
@@ -40,12 +41,12 @@ export function OutfitCardVisual({
 
   return (
     <div
-      className={`grid grid-cols-2 gap-2 overflow-hidden rounded-[1.25rem] bg-canvas p-3 ${className}`}
+      className={`grid grid-cols-2 gap-2 overflow-hidden bg-sage/60 p-4 ${className}`}
       aria-label={`${outfit.name} 코디 아이템`}
     >
       {visibleItems.map((item, index) => (
         <span
-          className="relative flex min-h-0 items-center justify-center overflow-hidden rounded-xl bg-surface"
+          className="relative flex min-h-0 items-center justify-center overflow-hidden rounded-xl bg-surface/75"
           key={item.id}
         >
           <ClosetItemVisual item={item} compact />

@@ -2,7 +2,8 @@
  * 진입 경로: 하단 플래너 탭
  *
  * 오늘·주간·월간 범위의 플래너 데이터를 조회하고 선택한 보기의 카드나 달력을 조합한다.
- * 오늘 보기는 선택한 하루만, 주간 보기는 이동 가능한 7개 행을, 월간 보기는 달력 범위를 조회한다.
+ * 오늘 보기는 선택한 하루를 화면 높이에 맞춰 표시하고, 주간 보기는 이동 가능한 7개 행을, 월간 보기는 달력 범위를 조회한다.
+ * 주간 편집은 현재 보기와 기간을 유지한 채 대상 일주일을 추가로 조회한다.
  */
 import {
   useCallback,
@@ -13,7 +14,7 @@ import {
 } from 'react'
 import { DndProvider } from 'react-dnd'
 import { TouchBackend } from 'react-dnd-touch-backend'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { useClosetStore } from '../../closet/stores/useClosetStore'
 import { useUiStore } from '../../../stores/useUiStore'
 import { PlanDayRow } from '../components/PlanDayRow'
@@ -26,7 +27,6 @@ import { PlanTodayCard } from '../components/PlanTodayCard'
 import { PlanViewToggle } from '../components/PlanViewToggle'
 import type { PlanViewMode } from '../components/PlanViewToggle'
 import { WeeklyPlanEditor } from '../components/WeeklyPlanEditor'
-import { OutfitRecommendationActions } from '../components/OutfitRecommendationActions'
 import {
   usePlannerEntriesQuery,
   usePlannerWeekQuery,
@@ -77,7 +77,6 @@ function createDisplayRows(entries: PlanEntry[]): DisplayPlanRow[] {
 }
 
 export function PlanPage() {
-  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const items = useClosetStore((state) => state.items)
   const entries = usePlanStore((state) => state.entries)
@@ -121,7 +120,7 @@ export function PlanPage() {
   const monthRangeEnd = monthDays.at(-1)?.date ?? ''
   const plannerWeekQuery = usePlannerWeekQuery(
     weekStartsOn,
-    viewMode === 'week',
+    viewMode === 'week' || isEditingWeek,
   )
   const plannerDayQuery = usePlannerEntriesQuery(
     selectedDate,
@@ -326,21 +325,15 @@ export function PlanPage() {
     setSearchParams({ view: 'week' })
   }
 
-  const openPlanEditor = () => {
+  /** 현재 탭·날짜·월을 유지하고 해당 기간의 일주일 편집 화면만 연다. 오늘·월간 탭에서도 편집할 주를 Store에 설정해 주간 조회를 활성화한다. */
+  const openWeeklyEditor = () => {
     if (viewMode === 'today') {
-      navigate(
-        `/plan/${selectedDate}?from=${encodeURIComponent(
-          selectedDate === today
-            ? '/plan?view=today'
-            : `/plan?view=today&date=${selectedDate}`,
-        )}`,
-      )
-      return
-    }
-
-    if (viewMode === 'month') {
-      changeViewMode('week')
-      return
+      setWeek(getCurrentWeekStart(new Date(`${selectedDate}T00:00:00`)))
+    } else if (viewMode === 'month') {
+      const referenceDate = monthKey === formatMonthKey(new Date(`${today}T00:00:00`))
+        ? new Date(`${today}T00:00:00`)
+        : new Date(`${monthKey}-01T00:00:00`)
+      setWeek(getCurrentWeekStart(referenceDate))
     }
     setIsEditingWeek(true)
   }
@@ -369,19 +362,11 @@ export function PlanPage() {
     .filter((item) => item !== undefined)
 
   return (
-    <section
-      className={`mx-auto max-w-3xl pb-16 ${
-        viewMode !== 'month'
-          ? 'flex h-[calc(100dvh-6.625rem-env(safe-area-inset-bottom))] flex-col sm:block sm:h-auto'
-          : ''
-      }`}
-    >
+    <section className={`plan-page mx-auto w-full max-w-3xl ${viewMode === 'today' ? 'plan-today-page' : viewMode === 'month' ? 'plan-month-page pb-8' : 'pb-8'}`}>
       <PlanPageHeader
-        viewMode={viewMode}
         today={today}
-        onEditPlan={openPlanEditor}
+        onEditWeek={openWeeklyEditor}
       />
-      {!isEditingWeek && <OutfitRecommendationActions />}
       <PlanViewToggle value={viewMode} onChange={changeViewMode} />
       <PlanPeriodHeader
         viewMode={viewMode}
@@ -410,7 +395,7 @@ export function PlanPage() {
       <div
         key={periodTransitionKey}
         className={`${periodTransitionClass} ${
-          viewMode !== 'month' ? 'flex min-h-0 flex-1 flex-col' : ''
+          viewMode !== 'month' ? 'flex min-h-0 flex-1 flex-col' : 'plan-month-content'
         }`}
       >
         {viewMode === 'today' && plannerDayQuery.isError ? (
@@ -441,7 +426,7 @@ export function PlanPage() {
             <PlanDayRowDragLayer />
             <div
               ref={rowListRef}
-              className="mt-2 grid min-h-0 flex-1 grid-rows-7 gap-2 pb-2 sm:mt-4 sm:flex-none sm:grid-rows-none sm:gap-3 sm:pb-0"
+              className="mt-4 grid gap-3 pb-2"
             >
               {currentWeekRows.map((row, index) => {
                 const dateEntry = entries[index] ?? row.entry

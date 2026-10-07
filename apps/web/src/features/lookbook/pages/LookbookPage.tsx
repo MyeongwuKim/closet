@@ -1,14 +1,15 @@
 import { useState } from 'react'
 import type { Season } from '@closet/types'
-import { Plus, Search, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { PageTitle } from '../../../components/PageTitle'
+import { LookbookPageHeader } from '../components/LookbookPageHeader'
 import { CatalogCardSkeletonGrid } from '../../../components/CatalogCardSkeletonGrid'
+import { WardrobeCabinet } from '../../../components/WardrobeCabinet'
+import { useWardrobeTransition } from '../../../hooks/useWardrobeTransition'
 import { WardrobeEmptyStateIllustration } from '../../../components/WardrobeEmptyStateIllustration'
 import { seasonLabels } from '../../../constants/seasons'
 import { getOutfitStyleLabel } from '../../../constants/styleOptions'
 import { useClosetStore } from '../../closet/stores/useClosetStore'
-import { OutfitRecommendationActions } from '../../plan/components/OutfitRecommendationActions'
 import { LookbookOutfitCard } from '../components/LookbookOutfitCard'
 import { OutfitDetailModal } from '../components/OutfitDetailModal'
 import { OutfitFilterControls } from '../components/OutfitFilterControls'
@@ -44,6 +45,7 @@ export function LookbookPage() {
     search: searchQuery, sort: sortOrder, wardrobeItemIds: selectedItemIds,
   })
   const outfits = outfitsQuery.data?.pages.flatMap((page) => page.items) ?? []
+  const wardrobeTransition = useWardrobeTransition(outfitsQuery.isPending || (outfitsQuery.isFetching && outfits.length === 0))
   const filterOptions = useOutfitFilterOptions()
   const totalCount = filterOptions.data?.totalCount ?? outfitsQuery.data?.pages[0]?.totalCount ?? 0
   const wearSummaries = useOutfitWearSummaries(
@@ -92,41 +94,12 @@ export function LookbookPage() {
 
   return (
     <section className="pb-16">
-      <div className="flex items-center justify-between gap-3 sm:items-end">
-        <div className="min-w-0 [&_p]:hidden sm:[&_p]:block">
-          <PageTitle
-            title="코디북"
-            description={`내 옷으로 만든 코디를 모아보세요 · ${totalCount}개`}
-          />
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {totalCount > 0 && (
-            <button
-              type="button"
-              onClick={toggleSearch}
-              className={`flex size-10 shrink-0 items-center justify-center rounded-full border transition focus-visible:outline-2 focus-visible:outline-ink focus-visible:outline-offset-2 sm:size-11 ${
-                isSearchOpen
-                  ? 'border-ink bg-ink text-white'
-                  : 'border-line bg-surface text-muted hover:text-ink'
-              }`}
-              aria-label={isSearchOpen ? '코디 검색 닫기' : '코디 검색'}
-              aria-expanded={isSearchOpen}
-              title={isSearchOpen ? '검색 닫기' : '코디 검색'}
-            >
-              <Search size={20} strokeWidth={2.3} />
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => navigate('/lookbook/new')}
-            className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent text-white transition hover:bg-accent/90 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 sm:size-11"
-            aria-label="새 코디 만들기"
-            title="새 코디"
-          >
-            <Plus size={22} strokeWidth={2.5} />
-          </button>
-        </div>
-      </div>
+      <LookbookPageHeader
+        outfitCount={totalCount}
+        isSearchOpen={isSearchOpen}
+        onToggleSearch={toggleSearch}
+        onCreate={() => navigate('/lookbook/new')}
+      />
 
       {totalCount > 0 && (
         <OutfitFilterControls
@@ -138,7 +111,9 @@ export function LookbookPage() {
           searchQuery={searchQuery}
           sortOrder={sortOrder}
           styleOptions={visibleStyleOptions}
-          onSeasonChange={setActiveSeason}
+          onSeasonChange={(season) => {
+            if (season !== activeSeason || wardrobeTransition.phase !== 'idle') wardrobeTransition.changeSeason(() => setActiveSeason(season))
+          }}
           onStyleChange={setActiveStyle}
           onColorChange={setActiveColor}
           onSearchChange={setSearchQuery}
@@ -167,6 +142,12 @@ export function LookbookPage() {
         </div>
       )}
 
+      <WardrobeCabinet
+        key={activeSeason ?? 'all'}
+        label={activeSeason ? `${seasonLabels[activeSeason]}의 코디` : '코디 앨범'}
+        countLabel={`${outfitsQuery.data?.pages[0]?.totalCount ?? 0}개의 코디`}
+        phase={wardrobeTransition.phase}
+      >
       {outfitsQuery.isPending ||
       (outfitsQuery.isFetching && outfits.length === 0) ? (
         <CatalogCardSkeletonGrid variant="outfit" />
@@ -190,7 +171,7 @@ export function LookbookPage() {
           <p className="mx-auto mt-2 min-h-14 max-w-md text-sm leading-7 text-muted">
             {selectedItemIds.length > 0
               ? '선택한 아이템을 미리 넣은 상태로 새 코디를 만들 수 있어요.'
-              : '내 옷장에서 아이템을 골라 사람 없는 코디 이미지를 만들어보세요.'}
+              : '내 옷장에서 아이템을 골라 코디를 저장해보세요.'}
           </p>
           {selectedItemIds.length > 0 && (
             <button
@@ -203,7 +184,7 @@ export function LookbookPage() {
           )}
         </div>
       ) : visibleOutfits.length > 0 ? (
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="wardrobe-item-grid grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 sm:gap-x-6 lg:grid-cols-4">
           {visibleOutfits.map((outfit) => (
             <LookbookOutfitCard
               key={outfit.id}
@@ -251,6 +232,7 @@ export function LookbookPage() {
           )}
         </div>
       )}
+      </WardrobeCabinet>
       {outfits.length > 0 && (
         <InfiniteScrollFooter
           hasNextPage={outfitsQuery.hasNextPage}
@@ -259,7 +241,6 @@ export function LookbookPage() {
           onLoadMore={outfitsQuery.fetchNextPage}
         />
       )}
-      {!selectedOutfit && <OutfitRecommendationActions />}
       {selectedOutfit && (
         <OutfitDetailModal
           outfit={selectedOutfit}

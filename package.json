@@ -11,12 +11,17 @@
     "native:dev": "pnpm --filter @closet/native start",
     "native:bundle": "pnpm --filter @closet/native bundle:web",
     "native:web:sync": "pnpm --filter @closet/native web:sync",
-    "native:ios:dev": "pnpm run native:ios:local",
+    "native:ios:dev": "pnpm --filter @closet/native ios:dev",
+    "native:ios:prod": "pnpm --filter @closet/native ios:prod",
     "native:ios:local": "pnpm --filter @closet/native ios:local",
     "native:ios:device": "pnpm --filter @closet/native ios:device",
     "native:android:dev": "pnpm --filter @closet/native android",
     "build": "pnpm -r --if-present build",
     "lint": "pnpm -r --if-present lint",
-    "typecheck": "pnpm -r --if-present typecheck"
+    "typecheck": "pnpm -r --if-present typecheck",
+    "ios:dev": "pnpm --filter @closet/native ios:dev",
+    "ios:prod": "pnpm --filter @closet/native ios:prod",
+    "ios:local": "pnpm --filter @closet/native ios:local",
+    "ios:device": "pnpm --filter @closet/native ios:device"
   }
 }

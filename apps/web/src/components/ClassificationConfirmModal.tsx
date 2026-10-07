@@ -232,7 +232,7 @@ export function ClassificationConfirmModal({
               </p>
             </div>
 
-            <div className="flex aspect-[1.4] max-h-105 items-center justify-center overflow-hidden rounded-2xl bg-surface shadow-[inset_0_0_0_1px_#dedad1]">
+            <div className="flex aspect-[1.4] max-h-105 items-center justify-center overflow-hidden rounded-2xl bg-surface border border-line">
               <img
                 src={candidate.imageUrl}
                 alt={candidate.itemName}

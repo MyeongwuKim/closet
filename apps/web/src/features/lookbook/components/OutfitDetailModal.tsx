@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { OutfitPreview, Season, WardrobeItem } from '@closet/types'
 import {
   ChevronLeft,
@@ -71,6 +72,7 @@ function createPreviewState(): OutfitPreviewState {
   }
 }
 
+/** 저장된 코디의 옷 구성·정보를 편집하고 AI 룩북을 확인한다. 최상위 포털에서 전체 화면을 덮어 목록의 전환 효과와 하단 탭에 가려지지 않게 한다. */
 export function OutfitDetailModal({
   outfit,
   items,
@@ -270,7 +272,7 @@ export function OutfitDetailModal({
     }
   }
 
-  return (
+  return createPortal(
     <section
       className="classification-page-enter fixed inset-0 z-[90] flex h-dvh flex-col overflow-hidden bg-canvas"
       role="dialog"
@@ -523,6 +525,7 @@ export function OutfitDetailModal({
           }}
         />
       )}
-    </section>
+    </section>,
+    document.body,
   )
 }

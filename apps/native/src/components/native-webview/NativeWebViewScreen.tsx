@@ -7,6 +7,7 @@
  * 구조:
  * WebView와 로딩·오류 화면으로 구성되어 있다.
  */
+import { wearroomColors } from '../../theme/wearroomTheme'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AppState, StyleSheet, View } from 'react-native'
 import WebView from 'react-native-webview'
@@ -159,10 +160,10 @@ export function NativeWebViewScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f3f0e9',
+    backgroundColor: wearroomColors.canvas,
   },
   webView: {
     flex: 1,
-    backgroundColor: '#f3f0e9',
+    backgroundColor: wearroomColors.canvas,
   },
 })

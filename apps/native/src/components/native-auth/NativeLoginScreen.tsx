@@ -5,8 +5,9 @@
  * 소셜 로그인 또는 개발용 테스트 계정으로 앱을 시작한다.
  *
  * 구조:
- * 스플래시와 이어지는 옷장 이미지, 로그인 안내, 소셜 로그인, 테스트 로그인으로 구성되어 있다.
+ * 스플래시와 이어지는 옷장 이미지, 브랜드와 어디서든 여는 내 작은 옷장 슬로건, 소셜 로그인, 테스트 로그인으로 구성되어 있다.
  */
+import { wearroomColors } from '../../theme/wearroomTheme'
 import { useEffect, useRef, useState } from 'react'
 import {
   Animated,
@@ -74,6 +75,7 @@ export function NativeLoginScreen({
     return () => completionAnimation.stop()
   }, [entrance, isPreparing, progress])
 
+  /** 선택한 소셜 서비스의 인증을 시작한다. 시작에 실패하면 화면에 오류를 표시한다. */
   const handleProviderLogin = async (provider: NativeAuthProvider) => {
     setErrorMessage(null)
 
@@ -86,6 +88,7 @@ export function NativeLoginScreen({
     }
   }
 
+  /** 입력한 테스트 계정으로 로그인을 요청하고 완료 여부와 오류를 표시한다. 계정 저장은 onTestLogin에 맡긴다. */
   const handleTestLogin = async () => {
     setErrorMessage(null)
     setIsSubmitting(true)
@@ -160,8 +163,8 @@ export function NativeLoginScreen({
             },
           ]}
         >
-          <Text style={styles.logo}>closet</Text>
-          <Text style={styles.tagline}>나만의 옷장</Text>
+          <Text accessibilityRole="header" style={styles.brand}>wearroom<Text style={styles.brandDot}>.</Text></Text>
+          <Text style={styles.tagline}>어디서든 여는 내 작은 옷장</Text>
 
           <View style={styles.providerGroup}>
             {Platform.OS === 'ios' ? (
@@ -211,7 +214,7 @@ export function NativeLoginScreen({
               maxLength={30}
               onChangeText={setLoginId}
               placeholder="테스트 ID"
-              placeholderTextColor="#918e86"
+              placeholderTextColor={wearroomColors.muted}
               style={styles.input}
               value={loginId}
             />
@@ -220,7 +223,7 @@ export function NativeLoginScreen({
               maxLength={72}
               onChangeText={setPassword}
               placeholder="비밀번호"
-              placeholderTextColor="#918e86"
+              placeholderTextColor={wearroomColors.muted}
               secureTextEntry
               style={styles.input}
               value={password}
@@ -229,7 +232,7 @@ export function NativeLoginScreen({
               maxLength={30}
               onChangeText={setDisplayName}
               placeholder="표시 이름 (선택)"
-              placeholderTextColor="#918e86"
+              placeholderTextColor={wearroomColors.muted}
               style={styles.input}
               value={displayName}
             />
@@ -271,7 +274,7 @@ export function NativeLoginScreen({
           },
         ]}
       >
-        <Text style={styles.loadingLogo}>closet</Text>
+        <Text style={styles.loadingLogo}>웨어룸</Text>
         <View style={styles.progressTrack}>
           <Animated.View
             style={[
@@ -297,12 +300,12 @@ export function NativeLoginScreen({
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#f3f0e9',
+    backgroundColor: wearroomColors.canvas,
   },
   content: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 8,
+    paddingTop: 16,
     paddingBottom: 40,
   },
   hero: {
@@ -313,6 +316,13 @@ const styles = StyleSheet.create({
   },
   loginContent: {
     width: '100%',
+    maxWidth: 440,
+    alignSelf: 'center',
+    borderWidth: 5,
+    borderColor: wearroomColors.wood,
+    borderRadius: 18,
+    padding: 18,
+    backgroundColor: wearroomColors.surface,
   },
   loadingStatus: {
     position: 'absolute',
@@ -322,9 +332,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingLogo: {
-    color: '#171714',
+    color: wearroomColors.ink,
     fontSize: 22,
-    fontWeight: '900',
+    fontWeight: '600',
     letterSpacing: -0.8,
   },
   progressTrack: {
@@ -333,26 +343,30 @@ const styles = StyleSheet.create({
     height: 5,
     marginTop: 16,
     borderRadius: 3,
-    backgroundColor: '#d8d3c8',
+    backgroundColor: wearroomColors.line,
   },
   progressFill: {
     width: 132,
     height: 5,
     borderRadius: 3,
-    backgroundColor: '#f05a3c',
+    backgroundColor: wearroomColors.accent,
   },
-  logo: {
-    color: '#171714',
-    fontSize: 30,
-    fontWeight: '900',
-    letterSpacing: -1.1,
+  brand: {
+    color: wearroomColors.ink,
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    fontSize: 24,
+    letterSpacing: -1,
     textAlign: 'center',
   },
+  brandDot: {
+    color: wearroomColors.accent,
+  },
   tagline: {
-    marginTop: 6,
-    color: '#6f6c65',
+    marginTop: 12,
+    color: wearroomColors.muted,
     fontSize: 14,
-    fontWeight: '600',
+    lineHeight: 20,
+    fontWeight: '400',
     letterSpacing: -0.3,
     textAlign: 'center',
   },
@@ -366,7 +380,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     height: 54,
-    borderRadius: 15,
+    borderRadius: 16,
   },
   appleButton: {
     backgroundColor: '#171714',
@@ -384,8 +398,8 @@ const styles = StyleSheet.create({
   },
   googleButton: {
     borderWidth: 1,
-    borderColor: '#d8d3c8',
-    backgroundColor: '#fffdf9',
+    borderColor: wearroomColors.line,
+    backgroundColor: wearroomColors.surface,
   },
   googleIcon: {
     position: 'absolute',
@@ -395,7 +409,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   googleButtonText: {
-    color: '#171714',
+    color: wearroomColors.ink,
     fontSize: 15,
     fontWeight: '700',
   },
@@ -408,48 +422,48 @@ const styles = StyleSheet.create({
   divider: {
     flex: 1,
     height: 1,
-    backgroundColor: '#d8d3c8',
+    backgroundColor: wearroomColors.line,
   },
   dividerText: {
-    color: '#77736b',
+    color: wearroomColors.muted,
     fontSize: 12,
     fontWeight: '700',
   },
   testPanel: {
     gap: 10,
     borderWidth: 1,
-    borderColor: '#ded9cf',
+    borderColor: wearroomColors.line,
     borderRadius: 22,
     padding: 18,
-    backgroundColor: '#fffdf9',
+    backgroundColor: wearroomColors.surface,
   },
   testPanelTitle: {
-    color: '#171714',
+    color: wearroomColors.ink,
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '600',
   },
   testPanelDescription: {
     marginBottom: 4,
-    color: '#77736b',
+    color: wearroomColors.muted,
     fontSize: 12,
     lineHeight: 18,
   },
   input: {
-    height: 49,
+    minHeight: 50,
     borderWidth: 1,
-    borderColor: '#d8d3c8',
+    borderColor: wearroomColors.line,
     borderRadius: 13,
     paddingHorizontal: 14,
-    color: '#171714',
-    backgroundColor: '#f8f5ee',
-    fontSize: 15,
+    color: wearroomColors.ink,
+    backgroundColor: wearroomColors.canvas,
+    fontSize: 16,
   },
   errorMessage: {
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    color: '#b33b27',
-    backgroundColor: '#f05a3c14',
+    color: wearroomColors.danger,
+    backgroundColor: wearroomColors.dangerSoft,
     fontSize: 12,
     fontWeight: '700',
     lineHeight: 18,
@@ -460,10 +474,10 @@ const styles = StyleSheet.create({
     height: 50,
     marginTop: 2,
     borderRadius: 13,
-    backgroundColor: '#f05a3c',
+    backgroundColor: wearroomColors.accent,
   },
   testLoginButtonText: {
-    color: '#ffffff',
+    color: wearroomColors.surface,
     fontSize: 14,
     fontWeight: '800',
   },

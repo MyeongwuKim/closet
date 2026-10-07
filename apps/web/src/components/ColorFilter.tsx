@@ -1,7 +1,8 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef } from 'react'
 import { Check, ChevronDown, Palette, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import type { WardrobeColorOption } from '../features/closet/utils/color'
+import { useDrawerDisclosure } from '../hooks/useDrawerDisclosure'
 
 interface ColorFilterProps {
   className?: string
@@ -10,6 +11,7 @@ interface ColorFilterProps {
   onChange: (value: string | null) => void
 }
 
+/** 대표 색상 목록을 서랍 형태의 시트로 보여준다. 선택은 onChange에 맡기고 닫힘 후 원래 필터 버튼으로 초점을 돌린다. */
 export function ColorFilter({
   className = '',
   value,
@@ -17,35 +19,42 @@ export function ColorFilter({
   onChange,
 }: ColorFilterProps) {
   const titleId = useId()
-  const [isOpen, setIsOpen] = useState(false)
+  const { isOpen, isVisible, open, close } = useDrawerDisclosure()
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const closeRef = useRef(close)
+  useEffect(() => { closeRef.current = close }, [close])
   const selectedOption = options.find((option) => option.name === value)
 
   useEffect(() => {
-    if (!isOpen) return
+    if (!isVisible) return
 
     const previousOverflow = document.body.style.overflow
+    const trigger = triggerRef.current
     document.body.style.overflow = 'hidden'
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsOpen(false)
+      if (event.key === 'Escape') closeRef.current()
     }
     window.addEventListener('keydown', handleKeyDown)
 
     return () => {
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', handleKeyDown)
+      trigger?.focus({ preventScroll: true })
     }
-  }, [isOpen])
+  }, [isVisible])
 
+  /** 선택한 대표 색상 또는 전체를 뜻하는 null을 전달한 뒤 서랍을 닫는다. */
   const selectColor = (nextColor: string | null) => {
     onChange(nextColor)
-    setIsOpen(false)
+    close()
   }
 
   return (
     <>
       <button
         type="button"
-        onClick={() => setIsOpen(true)}
+        ref={triggerRef}
+        onClick={open}
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-bold transition ${
@@ -67,21 +76,22 @@ export function ColorFilter({
         <ChevronDown size={14} aria-hidden="true" />
       </button>
 
-      {isOpen &&
+      {isVisible &&
         createPortal(
           <div
             className="option-picker-backdrop fixed inset-0 z-[130] flex items-end justify-center bg-black/45 backdrop-blur-[2px] sm:items-center sm:p-6"
             onMouseDown={(event) => {
-              if (event.target === event.currentTarget) setIsOpen(false)
+              if (event.target === event.currentTarget) close()
             }}
           >
             <section
-              className="option-picker-enter w-full max-w-md rounded-t-3xl bg-surface shadow-2xl sm:rounded-3xl"
+              className="room-drawer-sheet flex max-h-[calc(100dvh-1.5rem)] w-full max-w-md flex-col shadow-2xl"
+              data-state={isOpen ? 'open' : 'closing'}
               role="dialog"
               aria-modal="true"
               aria-labelledby={titleId}
             >
-              <header className="flex items-start gap-3 border-b border-line px-5 py-4">
+              <header className="flex shrink-0 items-start gap-3 border-b border-line px-5 py-4">
                 <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-sage">
                   <Palette size={17} aria-hidden="true" />
                 </span>
@@ -95,7 +105,7 @@ export function ColorFilter({
                 </div>
                 <button
                   type="button"
-                  onClick={() => setIsOpen(false)}
+                  onClick={close}
                   className="flex size-9 shrink-0 items-center justify-center rounded-full hover:bg-canvas"
                   aria-label="색상 필터 닫기"
                   autoFocus
@@ -104,7 +114,7 @@ export function ColorFilter({
                 </button>
               </header>
 
-              <div className="px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-5">
+              <div className="min-h-0 overflow-y-auto px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-5">
                 <button
                   type="button"
                   onClick={() => selectColor(null)}

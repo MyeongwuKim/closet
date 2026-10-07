@@ -13,6 +13,7 @@ interface PlanMonthCalendarProps {
 
 const weekdayLabels = ['월', '화', '수', '목', '금', '토', '일']
 
+/** 월간 날짜와 저장한 코디의 대표 옷을 표시한다. 충분한 높이의 모바일 화면에서는 주 수에 따라 칸 높이를 나눠 전체 달력을 보여준다. 날짜 선택은 하루 편집으로 이동한다. */
 export function PlanMonthCalendar({
   days,
   entries,
@@ -25,8 +26,8 @@ export function PlanMonthCalendar({
   const backPath = `/plan?view=month&month=${monthKey}`
 
   return (
-    <section className="mt-4 overflow-hidden rounded-3xl border border-line bg-surface">
-      <div className="grid grid-cols-7 border-b border-line bg-canvas/70">
+    <section className="plan-month-calendar mt-4 overflow-hidden rounded-3xl border border-line bg-surface">
+      <div className="grid shrink-0 grid-cols-7 border-b border-line bg-canvas/70">
         {weekdayLabels.map((label, index) => (
           <span
             className={`py-2.5 text-center text-[10px] font-black sm:text-xs ${
@@ -39,7 +40,7 @@ export function PlanMonthCalendar({
         ))}
       </div>
 
-      <div className="grid grid-cols-7">
+      <div className="plan-month-calendar-days grid grid-cols-7" style={{ gridTemplateRows: `repeat(${Math.ceil(days.length / 7)}, minmax(0, 1fr))` }}>
         {days.map((day, index) => {
           const entry = entryByDate.get(day.date)
           const firstItem = entry?.itemIds[0]
@@ -50,7 +51,7 @@ export function PlanMonthCalendar({
           return (
             <Link
               to={`/plan/${day.date}?from=${encodeURIComponent(backPath)}`}
-              className={`group relative min-h-20 min-w-0 p-1.5 transition hover:bg-canvas sm:min-h-32 sm:p-2.5 ${
+              className={`plan-month-calendar-day group relative min-h-20 min-w-0 p-1.5 transition hover:bg-canvas sm:min-h-32 sm:p-2.5 ${
                 index % 7 !== 6 ? 'border-r border-line' : ''
               } ${index >= 7 ? 'border-t border-line' : ''} ${
                 day.isCurrentMonth ? 'bg-surface' : 'bg-canvas/45 text-muted'
@@ -59,7 +60,7 @@ export function PlanMonthCalendar({
               key={day.date}
             >
               <span
-                className={`flex size-6 items-center justify-center rounded-full text-[11px] font-black sm:size-7 sm:text-xs ${
+                className={`plan-month-calendar-date flex size-6 items-center justify-center rounded-full text-[11px] font-black sm:size-7 sm:text-xs ${
                   isToday ? 'bg-accent text-white' : ''
                 }`}
               >
@@ -68,10 +69,10 @@ export function PlanMonthCalendar({
 
               {firstItem ? (
                 <>
-                  <span className="mt-1 flex h-10 items-center justify-center overflow-hidden rounded-lg bg-canvas sm:h-16 sm:rounded-xl">
+                  <span className="plan-month-calendar-preview mt-1 flex h-10 items-center justify-center overflow-hidden rounded-lg bg-canvas sm:h-16 sm:rounded-xl">
                     <ClosetItemVisual item={firstItem} compact />
                   </span>
-                  <strong className="mt-1.5 hidden truncate text-[10px] sm:block">
+                  <strong className="plan-month-calendar-caption mt-1.5 hidden truncate text-[10px] sm:block">
                     {entry?.title}
                   </strong>
                   {(entry?.itemIds.length ?? 0) > 1 && (

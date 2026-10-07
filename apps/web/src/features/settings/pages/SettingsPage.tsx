@@ -9,33 +9,27 @@
  */
 import { useState } from 'react'
 import {
-  BarChart3,
   ChevronLeft,
-  ChevronRight,
-  CloudSun,
-  History,
-  Info,
   LogOut,
   Ruler,
   Save,
-  Sparkles,
   Weight,
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { PageTitle } from '../../../components/PageTitle'
+import { CollectionHeading } from '../../../components/CollectionHeading'
 import { SegmentedControl } from '../../../components/SegmentedControl'
-import { outfitStyleOptions } from '../../../constants/styleOptions'
 import { useUiStore } from '../../../stores/useUiStore'
 import {
   useMeQuery,
   useUpdateStyleProfileMutation,
 } from '../api/profileQueries'
 import { useLogoutMutation } from '../../auth/api/authQueries'
+import { SettingsDrawerList } from '../components/SettingsDrawerList'
 import {
   type BodyBuild,
   type Gender,
   type PreferredFit,
-  type PreferredStyle,
   type StyleProfile,
   useStyleProfileStore,
 } from '../stores/useStyleProfileStore'
@@ -57,9 +51,9 @@ const fitOptions: Array<{
   description: string
   value: PreferredFit
 }> = [
-  { label: '여유롭게', description: '넓은 착용감', value: 'wide' },
-  { label: '기본', description: '정사이즈 착용감', value: 'regular' },
-  { label: '슬림하게', description: '몸에 맞는 착용감', value: 'skinny' },
+  { label: '여유롭게', description: '여유 있는 핏', value: 'wide' },
+  { label: '기본', description: '기본 핏', value: 'regular' },
+  { label: '슬림하게', description: '몸에 가까운 핏', value: 'skinny' },
 ]
 
 type DetailedBodyKey =
@@ -107,18 +101,6 @@ function StyleProfileForm({ initialProfile }: StyleProfileFormProps) {
   const [preferredFit, setPreferredFit] = useState(
     initialProfile.preferredFit,
   )
-  const [preferredStyles, setPreferredStyles] = useState(
-    initialProfile.preferredStyles,
-  )
-
-  const toggleStyle = (style: PreferredStyle) => {
-    setPreferredStyles((currentStyles) =>
-      currentStyles.includes(style)
-        ? currentStyles.filter((item) => item !== style)
-        : [...currentStyles, style],
-    )
-  }
-
   const saveProfile = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
@@ -174,7 +156,7 @@ function StyleProfileForm({ initialProfile }: StyleProfileFormProps) {
         weightKg: weightKg ? weight : null,
         ...detailedBodyInput,
         preferredFit,
-        preferredStyles,
+        preferredStyles: [],
       })
       updateProfile({
         gender,
@@ -183,7 +165,7 @@ function StyleProfileForm({ initialProfile }: StyleProfileFormProps) {
         weightKg,
         ...bodyMeasurements,
         preferredFit,
-        preferredStyles,
+        preferredStyles: [],
       })
       pushToast('스타일 프로필을 저장했습니다.', 'success')
     } catch (error) {
@@ -206,7 +188,7 @@ function StyleProfileForm({ initialProfile }: StyleProfileFormProps) {
           <div className="overflow-hidden rounded-3xl border border-line bg-surface">
             <div className="space-y-8 p-5 sm:p-6">
               <fieldset>
-                <legend className="text-sm font-black">신체 정보</legend>
+                <legend className="text-sm font-semibold">신체 정보</legend>
                 <p className="mt-1 text-xs text-muted">
                   AI 룩북에서 체형과 옷의 착용감을 표현할 때 참고해요.
                 </p>
@@ -278,7 +260,7 @@ function StyleProfileForm({ initialProfile }: StyleProfileFormProps) {
                 </div>
 
                 <div className="mt-5 border-t border-line pt-5">
-                  <p className="text-xs font-black">상세 신체 치수</p>
+                  <p className="text-xs font-semibold">상세 신체 치수</p>
                   <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {detailedBodyFields.map((field) => (
                       <label className="block" key={field.key}>
@@ -313,7 +295,10 @@ function StyleProfileForm({ initialProfile }: StyleProfileFormProps) {
               </fieldset>
 
               <fieldset>
-                <legend className="text-sm font-black">선호하는 착용감</legend>
+                <legend className="text-sm font-semibold">룩북에서 참고할 핏</legend>
+                <p className="mt-1 text-xs leading-5 text-muted">
+                  옷 사진과 실측으로 핏을 알기 어려울 때만 참고해요. 코디 추천에는 사용하지 않아요.
+                </p>
 
                 <div className="mt-3 grid grid-cols-3 gap-2">
                   {fitOptions.map((option) => {
@@ -345,34 +330,7 @@ function StyleProfileForm({ initialProfile }: StyleProfileFormProps) {
                 </div>
               </fieldset>
 
-              <fieldset>
-                <legend className="text-sm font-black">선호하는 옷 스타일</legend>
-                <p className="mt-1 text-xs text-muted">
-                  여러 개 선택할 수 있어요.
-                </p>
 
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {outfitStyleOptions.map((option) => {
-                    const isSelected = preferredStyles.includes(option.value)
-
-                    return (
-                      <button
-                        type="button"
-                        onClick={() => toggleStyle(option.value)}
-                        className={`rounded-full border px-3 py-2 text-xs font-bold transition outline-none focus-visible:ring-2 focus-visible:ring-accent/35 ${
-                          isSelected
-                            ? 'border-accent bg-accent/10 text-accent'
-                            : 'border-line bg-canvas text-muted hover:border-ink hover:text-ink'
-                        }`}
-                        aria-pressed={isSelected}
-                        key={option.value}
-                      >
-                        {option.label}
-                      </button>
-                    )
-                  })}
-                </div>
-              </fieldset>
             </div>
           </div>
         </div>
@@ -456,92 +414,15 @@ export function SettingsPage() {
   const logout = useLogoutMutation()
 
   return (
-    <section className="mx-auto max-w-2xl">
-      <PageTitle
-        title="설정"
-        description="프로필과 계정 정보를 관리해보세요."
-      />
+    <section className="settings-page mx-auto max-w-2xl">
+      <CollectionHeading title="설정" label="My room" description="나의 취향과 드레스룸 설정을 모아두었어요." />
 
-      <nav className="mt-6 overflow-hidden rounded-3xl border border-line bg-surface">
-        <Link
-          to="/settings/style-profile"
-          className="flex items-center gap-4 p-5 transition hover:bg-canvas sm:p-6"
-        >
-          <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-sage">
-            <Sparkles size={22} />
-          </span>
-          <span className="min-w-0 flex-1">
-            <strong className="block text-sm font-black">스타일 프로필</strong>
-            <span className="mt-1 block text-xs leading-5 text-muted">
-              성별·체형과 신체 치수, 선호 착용감 관리
-            </span>
-          </span>
-          <ChevronRight className="shrink-0 text-muted" size={20} />
-        </Link>
-        <Link
-          to="/settings/wear-reminder"
-          className="flex items-center gap-4 border-t border-line p-5 transition hover:bg-canvas sm:p-6"
-        >
-          <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-sage">
-            <History size={22} />
-          </span>
-          <span className="min-w-0 flex-1">
-            <strong className="block text-sm font-black">
-              최근 착용 리마인드
-            </strong>
-            <span className="mt-1 block text-xs leading-5 text-muted">
-              같은 코디와 옷의 반복 착용 기준 관리
-            </span>
-          </span>
-          <ChevronRight className="shrink-0 text-muted" size={20} />
-        </Link>
-        <Link
-          to="/settings/notifications-weather"
-          className="flex items-center gap-4 border-t border-line p-5 transition hover:bg-canvas sm:p-6"
-        >
-          <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-sage">
-            <CloudSun size={22} />
-          </span>
-          <span className="min-w-0 flex-1">
-            <strong className="block text-sm font-black">알림 및 날씨</strong>
-            <span className="mt-1 block text-xs leading-5 text-muted">
-              AI 작업 완료 알림과 위치 기반 날씨 설정
-            </span>
-          </span>
-          <ChevronRight className="shrink-0 text-muted" size={20} />
-        </Link>
-        <Link
-          to="/settings/statistics"
-          className="flex items-center gap-4 border-t border-line p-5 transition hover:bg-canvas sm:p-6"
-        >
-          <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-sage"><BarChart3 size={22} /></span>
-          <span className="min-w-0 flex-1">
-            <strong className="block text-sm font-black">옷장 통계</strong>
-            <span className="mt-1 block text-xs leading-5 text-muted">옷 종류·색상 비중과 자주 입은 옷·스타일</span>
-          </span>
-          <ChevronRight className="shrink-0 text-muted" size={20} />
-        </Link>
-        <Link
-          to="/settings/app-info"
-          className="flex items-center gap-4 border-t border-line p-5 transition hover:bg-canvas sm:p-6"
-        >
-          <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-canvas">
-            <Info size={22} />
-          </span>
-          <span className="min-w-0 flex-1">
-            <strong className="block text-sm font-black">앱 정보</strong>
-            <span className="mt-1 block text-xs leading-5 text-muted">
-              실행 환경과 앱·OS·웹 번들 버전 확인
-            </span>
-          </span>
-          <ChevronRight className="shrink-0 text-muted" size={20} />
-        </Link>
-      </nav>
+      <SettingsDrawerList />
 
-      <div className="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-line bg-surface px-4 py-3">
+      <div className="settings-account">
         <div className="min-w-0">
           <p className="text-xs font-bold text-muted">로그인 계정</p>
-          <p className="mt-0.5 truncate text-sm font-black">
+          <p className="mt-0.5 truncate text-sm font-semibold">
             {meQuery.data?.displayName ?? '테스트 사용자'}
           </p>
         </div>

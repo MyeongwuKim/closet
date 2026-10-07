@@ -1,19 +1,17 @@
 /**
- * 사용 위치: 앱 시작 로딩, 로그인 진입, 추후 패치 다운로드 화면
+ * 사용 위치: 앱 시작 로딩, 로그인 진입
  *
  * 용도:
  * 전달받은 진행률에 맞춰 닫힌 옷장 문을 열고 내부 옷과 반짝이를 보여준다.
  *
  * 동작 방식:
- * 정적 스플래시와 같은 닫힌 이미지를 첫 프레임으로 사용한 뒤
- * 문, 옷, 완료 효과를 각각의 진행 구간에 맞춰 애니메이션한다.
+ * 크림색 문과 원목 프레임을 직접 그린 뒤 문, 옷, 완료 효과를 진행 구간에 맞춰 움직인다.
+ * 색상은 웹과 같은 테마를 사용하며 별도 이미지의 색에 의존하지 않는다.
  */
+import { wearroomColors } from '../../theme/wearroomTheme'
 import { Animated, StyleSheet, Text, View } from 'react-native'
 
 export const WARDROBE_HERO_SIZE = 280
-
-const CLOSED_WARDROBE_IMAGE = require('../../../assets/splash-wardrobe-closed-transparent.png')
-const OPEN_WARDROBE_IMAGE = require('../../../assets/wardrobe-open-transparent.png')
 
 interface WardrobeProgressHeroProps {
   progress: Animated.Value
@@ -55,36 +53,14 @@ export function WardrobeProgressHero({
     outputRange: [0, 1.25, 1],
     extrapolate: 'clamp',
   })
-  const generatedFrameOpacity = progress.interpolate({
-    inputRange: [0, 0.1, 0.66, 0.9],
-    outputRange: [0, 1, 1, 0],
-    extrapolate: 'clamp',
-  })
-  const splashFrameOpacity = progress.interpolate({
-    inputRange: [0, 0.12],
-    outputRange: [1, 0],
-    extrapolate: 'clamp',
-  })
-  const openFrameOpacity = progress.interpolate({
-    inputRange: [0.58, 0.88],
-    outputRange: [0, 1],
-    extrapolate: 'clamp',
-  })
-  const openFrameScale = progress.interpolate({
-    inputRange: [0.62, 0.9, 1],
-    outputRange: [0.78, 1.06, 1],
-    extrapolate: 'clamp',
-  })
-
   return (
-    <View style={[styles.viewport, { width: size, height: size }]}>
+    <View accessible accessibilityLabel="크림색 문과 원목 프레임의 작은 옷장" style={[styles.viewport, { width: size, height: size }]}>
       <Animated.View
         style={[
           styles.scaledCanvas,
           {
             top: (size - WARDROBE_HERO_SIZE) / 2,
             left: (size - WARDROBE_HERO_SIZE) / 2,
-            opacity: generatedFrameOpacity,
             transform: [{ scale }],
           },
         ]}
@@ -104,13 +80,13 @@ export function WardrobeProgressHero({
               <View style={styles.hangingGroup}>
                 <View style={[styles.hangingItem, styles.warmWhiteItem]} />
                 <View style={[styles.hangingItem, styles.sageItem]} />
-                <View style={[styles.hangingItem, styles.coralItem]} />
+                <View style={[styles.hangingItem, styles.accentItem]} />
               </View>
 
               <View style={styles.shelfGroup}>
                 <View style={[styles.foldedItem, styles.warmWhiteItem]} />
                 <View style={[styles.foldedItem, styles.sageItem]} />
-                <View style={[styles.foldedItem, styles.coralItem]} />
+                <View style={[styles.foldedItem, styles.accentItem]} />
               </View>
             </Animated.View>
           </View>
@@ -168,29 +144,6 @@ export function WardrobeProgressHero({
         </Animated.View>
       </Animated.View>
 
-      <Animated.Image
-        accessibilityLabel="문이 닫힌 옷장"
-        resizeMode="contain"
-        source={CLOSED_WARDROBE_IMAGE}
-        style={[
-          styles.splashFrame,
-          { width: size, height: size, opacity: splashFrameOpacity },
-        ]}
-      />
-      <Animated.Image
-        accessibilityLabel="양쪽 문이 열리고 코랄색 옷걸이가 나타난 옷장"
-        resizeMode="contain"
-        source={OPEN_WARDROBE_IMAGE}
-        style={[
-          styles.openFrame,
-          {
-            width: size,
-            height: size,
-            opacity: openFrameOpacity,
-            transform: [{ scale: openFrameScale }],
-          },
-        ]}
-      />
     </View>
   )
 }
@@ -212,9 +165,9 @@ const styles = StyleSheet.create({
     width: 186,
     height: 186,
     borderWidth: 5,
-    borderColor: '#1b2118',
-    borderRadius: 10,
-    backgroundColor: '#dfe6d2',
+    borderColor: wearroomColors.wood,
+    borderRadius: 7,
+    backgroundColor: wearroomColors.sage,
   },
   interior: {
     position: 'absolute',
@@ -223,9 +176,9 @@ const styles = StyleSheet.create({
     bottom: 14,
     left: 9,
     overflow: 'hidden',
-    borderWidth: 4,
-    borderColor: '#1b2118',
-    backgroundColor: '#f7f4ec',
+    borderWidth: 1,
+    borderColor: wearroomColors.line,
+    backgroundColor: wearroomColors.sage,
   },
   rail: {
     position: 'absolute',
@@ -234,7 +187,7 @@ const styles = StyleSheet.create({
     width: 86,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#1b2118',
+    backgroundColor: wearroomColors.ink,
   },
   wardrobeContents: {
     ...StyleSheet.absoluteFillObject,
@@ -249,21 +202,21 @@ const styles = StyleSheet.create({
   hangingItem: {
     width: 23,
     height: 84,
-    borderWidth: 3,
-    borderColor: '#1b2118',
+    borderWidth: 1,
+    borderColor: wearroomColors.accent,
     borderTopLeftRadius: 10,
     borderTopRightRadius: 10,
     borderBottomLeftRadius: 4,
     borderBottomRightRadius: 4,
   },
   warmWhiteItem: {
-    backgroundColor: '#fffdf8',
+    backgroundColor: wearroomColors.surface,
   },
   sageItem: {
-    backgroundColor: '#bdc8ad',
+    backgroundColor: wearroomColors.sageDeep,
   },
-  coralItem: {
-    backgroundColor: '#f05a3c',
+  accentItem: {
+    backgroundColor: wearroomColors.accent,
   },
   shelfGroup: {
     position: 'absolute',
@@ -274,8 +227,8 @@ const styles = StyleSheet.create({
   foldedItem: {
     width: 43,
     height: 17,
-    borderWidth: 3,
-    borderColor: '#1b2118',
+    borderWidth: 1,
+    borderColor: wearroomColors.accent,
     borderRadius: 7,
   },
   door: {
@@ -283,9 +236,9 @@ const styles = StyleSheet.create({
     top: 8,
     bottom: 14,
     width: 82,
-    borderWidth: 4,
-    borderColor: '#1b2118',
-    backgroundColor: '#dfe6d2',
+    borderWidth: 1,
+    borderColor: wearroomColors.line,
+    backgroundColor: wearroomColors.canvas,
   },
   leftDoor: {
     left: 8,
@@ -302,10 +255,10 @@ const styles = StyleSheet.create({
     top: 77,
     width: 11,
     height: 11,
-    borderWidth: 3,
-    borderColor: '#1b2118',
+    borderWidth: 1,
+    borderColor: wearroomColors.accent,
     borderRadius: 6,
-    backgroundColor: '#fffdf8',
+    backgroundColor: wearroomColors.wood,
   },
   leftHandle: {
     right: 6,
@@ -318,12 +271,12 @@ const styles = StyleSheet.create({
     top: 226,
     width: 17,
     height: 22,
-    borderWidth: 4,
-    borderColor: '#1b2118',
+    borderWidth: 1,
+    borderColor: wearroomColors.wood,
     borderTopWidth: 0,
     borderBottomLeftRadius: 6,
     borderBottomRightRadius: 6,
-    backgroundColor: '#dfe6d2',
+    backgroundColor: wearroomColors.sage,
   },
   leftFoot: {
     left: 60,
@@ -347,14 +300,8 @@ const styles = StyleSheet.create({
     bottom: 55,
   },
   sparkleText: {
-    color: '#f05a3c',
+    color: wearroomColors.accent,
     fontSize: 28,
     fontWeight: '900',
-  },
-  splashFrame: {
-    position: 'absolute',
-  },
-  openFrame: {
-    position: 'absolute',
   },
 })

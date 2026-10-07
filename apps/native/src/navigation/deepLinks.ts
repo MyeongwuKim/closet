@@ -45,7 +45,7 @@ export function normalizeWebPath(pathValue: string) {
 export function deepLinkToWebPath(urlValue: string) {
   try {
     const url = new URL(urlValue)
-    if (url.protocol !== 'closet:') return null
+    if (!['wearoom:', 'wearoom-dev:', 'wearoom-local:', 'closet:'].includes(url.protocol)) return null
 
     if (url.hostname === 'open') {
       const path = url.searchParams.get('path')

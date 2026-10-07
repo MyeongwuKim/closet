@@ -8,11 +8,11 @@ const toastStyles = {
   },
   success: {
     icon: CheckCircle2,
-    className: 'border-[#b8c99e] bg-[#edf3e5] text-[#38432f]',
+    className: 'border-line bg-sage text-ink',
   },
   error: {
     icon: XCircle,
-    className: 'border-[#edb6aa] bg-[#fff0ec] text-[#8d3525]',
+    className: 'border-danger/20 bg-danger-soft text-danger',
   },
 }
 

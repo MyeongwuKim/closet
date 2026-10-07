@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { LogIn, Sparkles } from 'lucide-react'
+import { LogIn } from 'lucide-react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { isLoggedIn } from '../../../lib/auth'
 import { useTestLoginMutation } from '../api/authQueries'
+import { LoginWelcome } from '../components/LoginWelcome'
 
+/** 로그인 → 플래너 진입. 테스트 계정 입력을 인증 API에 보내고, 성공하면 이전에 요청한 화면 또는 플래너로 이동한다. */
 export function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -36,22 +38,18 @@ export function LoginPage() {
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-canvas px-5 py-10 text-ink">
-      <section className="w-full max-w-md overflow-hidden rounded-[2rem] border border-line bg-surface shadow-[0_24px_70px_rgba(27,27,24,0.12)]">
-        <div className="border-b border-line p-6 sm:p-8">
-          <span className="flex size-12 items-center justify-center rounded-2xl bg-sage">
-            <Sparkles size={22} />
-          </span>
-          <h1 className="mt-5 text-3xl font-black tracking-[-0.05em]">
-            테스트 로그인
-          </h1>
-          <p className="mt-2 text-sm leading-6 text-muted">
+      <section className="room-login-cabinet w-full max-w-md overflow-hidden bg-surface shadow-[0_12px_48px_rgba(67,57,47,0.06)]">
+        <LoginWelcome />
+        <div className="mx-6 rounded-2xl bg-sage p-4 sm:mx-8">
+          <h2 className="text-sm font-semibold">테스트 계정으로 시작하기</h2>
+          <p className="mt-2 text-xs leading-5 text-muted">
             처음 사용하는 ID는 테스트 계정으로 자동 생성돼요. 옷장과 코디,
             플래너 정보는 이 계정에 저장됩니다.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="grid gap-4 p-6 sm:p-8">
-          <label className="grid gap-2 text-sm font-bold">
+          <label className="grid gap-2 text-sm font-medium">
             테스트 ID
             <input
               value={loginId}
@@ -67,7 +65,7 @@ export function LoginPage() {
             />
           </label>
 
-          <label className="grid gap-2 text-sm font-bold">
+          <label className="grid gap-2 text-sm font-medium">
             비밀번호
             <input
               type="password"
@@ -82,8 +80,8 @@ export function LoginPage() {
             />
           </label>
 
-          <label className="grid gap-2 text-sm font-bold">
-            표시 이름 <span className="font-normal text-muted">선택</span>
+          <label className="grid gap-2 text-sm font-medium">
+            <span>표시 이름 <span className="font-normal text-muted">선택</span></span>
             <input
               value={displayName}
               onChange={(event) => setDisplayName(event.target.value)}
@@ -94,7 +92,7 @@ export function LoginPage() {
           </label>
 
           {errorMessage && (
-            <p className="rounded-xl bg-accent/10 px-3 py-2.5 text-sm font-bold text-accent">
+            <p role="alert" className="rounded-xl bg-danger-soft px-3 py-2.5 text-sm font-medium text-danger">
               {errorMessage}
             </p>
           )}

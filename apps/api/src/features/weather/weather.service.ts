@@ -3,8 +3,9 @@
  * 현재 위치 좌표와 날짜를 Open-Meteo 예보로 변환해 코디 추천에 제공한다.
  *
  * 동작 방식:
- * 좌표와 날짜를 검증한 뒤 짧은 시간 동안 지역 단위로 캐시하고,
+ * 좌표와 날짜를 검증한 뒤 지역 단위로 30분 동안 캐시하고,
  * 현재 또는 일별 기온과 WMO 날씨 코드를 앱용 설명으로 정리한다.
+ * expiresAt은 캐시를 재사용해도 변경하지 않아 화면에서도 같은 시각에 만료된다.
  */
 import type { Season } from '@prisma/client'
 import { ServiceError } from '../../graphql/errors.js'
@@ -18,6 +19,8 @@ export interface WeatherForecastInput {
 
 export interface WeatherSnapshot {
   date: string
+  /** 제공자 응답의 만료 시각. 저장된 추천이나 전달받은 날씨에는 없을 수 있다. */
+  expiresAt?: string | null
   temperatureC: number
   minTemperatureC: number
   maxTemperatureC: number
@@ -49,11 +52,12 @@ interface OpenMeteoResponse {
   }
 }
 
-const WEATHER_CACHE_DURATION_MS = 15 * 60 * 1000
+const WEATHER_CACHE_DURATION_MS = 30 * 60 * 1000
 const OPEN_METEO_ATTRIBUTION_URL = 'https://open-meteo.com/'
+type FreshWeatherSnapshot = WeatherSnapshot & { expiresAt: string }
 const weatherCache = new Map<
   string,
-  { expiresAt: number; value: WeatherSnapshot }
+  { expiresAt: number; value: FreshWeatherSnapshot }
 >()
 
 function validateCoordinates(input: WeatherForecastInput) {
@@ -164,7 +168,7 @@ function createWeatherUrl(input: WeatherForecastInput) {
 
 async function fetchWeatherForecast(
   input: WeatherForecastInput,
-): Promise<WeatherSnapshot> {
+): Promise<FreshWeatherSnapshot> {
   let response: Response
   try {
     response = await fetch(createWeatherUrl(input), {
@@ -232,6 +236,7 @@ async function fetchWeatherForecast(
 
   return {
     date: input.date,
+    expiresAt: new Date(Date.now() + WEATHER_CACHE_DURATION_MS).toISOString(),
     temperatureC: Math.round(temperatureC * 10) / 10,
     minTemperatureC: getNumberAt(
       daily.temperature_2m_min,
@@ -261,6 +266,7 @@ async function fetchWeatherForecast(
 }
 
 export const weatherService = {
+  /** 지역·날짜별 만료 전 예보를 재사용하고, 만료됐으면 제공자를 다시 조회한다. */
   async getForecast(input: WeatherForecastInput) {
     validateCoordinates(input)
     const cacheKey = getCacheKey(input)
@@ -269,12 +275,13 @@ export const weatherService = {
 
     const value = await fetchWeatherForecast(input)
     weatherCache.set(cacheKey, {
-      expiresAt: Date.now() + WEATHER_CACHE_DURATION_MS,
+      expiresAt: Date.parse(value.expiresAt),
       value,
     })
     return value
   },
 
+  /** 보관한 모든 지역·날짜의 날씨를 제거해 다음 조회에서 제공자를 호출하게 한다. */
   clearCache() {
     weatherCache.clear()
   },

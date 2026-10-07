@@ -5,14 +5,30 @@
   },
   "build": {
     "development": {
-      "developmentClient": true,
-      "distribution": "internal"
+      "developmentClient": false,
+      "distribution": "internal",
+      "env": {
+        "WEAROOM_APP_ENV": "development"
+      }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "WEAROOM_APP_ENV": "development"
+      }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "WEAROOM_APP_ENV": "production"
+      }
+    },
+    "local": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "WEAROOM_APP_ENV": "local"
+      }
     }
   },
   "submit": {

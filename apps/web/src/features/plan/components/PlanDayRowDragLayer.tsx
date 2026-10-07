@@ -40,7 +40,7 @@ export function PlanDayRowDragLayer() {
         <div
           className={`relative h-full rounded-xl border bg-surface opacity-75 shadow-[0_16px_36px_rgba(27,27,24,0.22)] sm:rounded-2xl ${
             item.isToday
-              ? 'border-accent shadow-[inset_3px_0_0_#f05a3c,0_16px_36px_rgba(27,27,24,0.22)]'
+              ? 'border-accent shadow-[inset_3px_0_0_var(--color-accent),0_16px_36px_rgba(27,27,24,0.22)]'
               : 'border-ink'
           }`}
         >

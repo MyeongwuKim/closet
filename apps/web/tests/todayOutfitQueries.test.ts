@@ -4,6 +4,7 @@ import type { Season, WardrobeItem } from '@closet/types'
 import { QueryClient } from '@tanstack/react-query'
 import type { OutfitStyle } from '../src/constants/styleOptions'
 import { queryKeys } from '../src/lib/queryKeys'
+import { cleanRecommendationText } from '../src/features/plan/utils/recommendationText'
 import {
   matchesTodayRecommendationBaseItem,
   readAllRecentTodayRecommendationHistory,
@@ -54,7 +55,7 @@ function withStorage(run: (storage: MemoryStorage) => void) {
 function createEntry(
   index: number,
   season: Season,
-  style: OutfitStyle,
+  style: OutfitStyle | null,
   baseItemId?: string,
 ): TodayRecommendationHistoryEntry {
   const item: WardrobeItem = {
@@ -97,6 +98,28 @@ function createEntry(
     },
   }
 }
+
+test('기존 추천 기록의 깨진 설명을 복원할 때 제거하고 원본·아이템은 보존한다', () => {
+  withStorage((storage) => {
+    const entry = createEntry(1, 'autumn', null)
+    storeTodayRecommendation('viewer-1', entry.date, entry.season, entry.style, entry.variation, entry.recommendation)
+    entry.recommendation.summary = '상하의 색을 연결했어요. 」java.lang.String;}}}}}}'
+    entry.recommendation.reasons = ['여유로운 핏을 연결해요. }}}}}}}}', 'java.lang.String;}}}}}}']
+    const rawValue = JSON.stringify([entry])
+    storage.setItem(storage.key(0)!, rawValue)
+
+    for (const entries of [
+      readTodayRecommendationHistory('viewer-1', entry.date, 'autumn', null),
+      readAllRecentTodayRecommendationHistory('viewer-1', entry.date),
+    ]) {
+      assert.equal(entries[0].recommendation.summary, '상하의 색을 연결했어요.')
+      assert.deepEqual(entries[0].recommendation.reasons, ['여유로운 핏을 연결해요.'])
+      assert.deepEqual(entries[0].recommendation.items, entry.recommendation.items)
+    }
+    assert.equal(storage.getItem(storage.key(0)!), rawValue)
+    assert.equal(cleanRecommendationText('그레이(멜란지)와 블랙을 연결해요.'), '그레이(멜란지)와 블랙을 연결해요.')
+  })
+})
 
 test('계절과 스타일별 기록을 합쳐 최신 10개만 반환한다', () => {
   withStorage((storage) => {
@@ -523,7 +546,6 @@ test('추천 쿼리 캐시는 일반 추천과 각 기준 아이템을 구분한
       'viewer-1',
       '2026-08-26',
       'autumn',
-      'casual',
       0,
       [],
       baseItemId,
@@ -545,4 +567,22 @@ test('추천 쿼리 캐시는 일반 추천과 각 기준 아이템을 구분한
   } finally {
     client.clear()
   }
+})
+
+
+test('스타일 없는 새 추천은 별도로 저장하고 이전 스타일 기록도 계속 읽는다', () => {
+  withStorage(() => {
+    const legacy = createEntry(1, 'autumn', 'vintage')
+    const current = createEntry(2, 'autumn', null)
+    for (const entry of [legacy, current]) {
+      storeTodayRecommendation('viewer-1', entry.date, entry.season, entry.style, entry.variation, entry.recommendation)
+    }
+    const initial = readTodayRecommendationHistory('viewer-1', current.date, 'autumn', null)
+    assert.equal(initial.length, 1)
+    assert.equal(initial[0].style, null)
+    const all = readAllRecentTodayRecommendationHistory('viewer-1', current.date)
+    assert.equal(all.length, 2)
+    assert.ok(all.some((entry) => entry.style === 'vintage'))
+    assert.ok(all.some((entry) => entry.style === null))
+  })
 })

@@ -10,6 +10,7 @@ interface ConfirmDialogProps {
   onConfirm: () => void
 }
 
+/** 삭제 등의 확인 요청을 표시한다. 처리 중에는 취소와 확인을 비활성화하며 실제 변경은 onConfirm에 맡긴다. */
 export function ConfirmDialog({
   title,
   description,
@@ -35,11 +36,11 @@ export function ConfirmDialog({
       >
         <div className="p-5">
           <div className="flex items-start gap-3">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[#fff0ec] text-accent">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-danger-soft text-danger">
               <AlertTriangle size={21} />
             </span>
             <div className="min-w-0 flex-1">
-              <h2 id="confirm-dialog-title" className="text-xl font-black">
+              <h2 id="confirm-dialog-title" className="text-xl font-semibold tracking-[-.03em]">
                 {title}
               </h2>
               <p
@@ -74,7 +75,7 @@ export function ConfirmDialog({
             type="button"
             onClick={onConfirm}
             disabled={isPending}
-            className="rounded-xl bg-accent px-4 py-3 text-sm font-bold text-white disabled:cursor-wait disabled:opacity-60"
+            className="rounded-xl bg-danger px-4 py-3 text-sm font-medium text-white disabled:cursor-wait disabled:opacity-60"
           >
             {isPending ? pendingLabel : confirmLabel}
           </button>

@@ -1,7 +1,8 @@
 import type { WardrobeItem } from '@closet/types'
 import { CalendarDays, Check, ChevronLeft } from 'lucide-react'
 import { ClothingCategoryIcon } from '../../../components/ClothingCategoryIcon'
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { formatRecentWearLabel } from '../../../utils/wearDate'
 import { ClosetItemVisual } from '../../closet/components/ClosetItemVisual'
 import { closetCategoryLabels } from '../../closet/constants'
@@ -16,6 +17,7 @@ interface OutfitWardrobePickerProps {
   onConfirm: (itemIds: string[]) => void
 }
 
+/** 코디 슬롯에 맞는 옷을 선택하고 완료할 때 ID 목록을 부모에 전달한다. 애니메이션이 있는 편집 시트 안에서도 화면 전체를 덮도록 body에 표시하며 Escape는 이 선택 화면만 닫는다. */
 export function OutfitWardrobePicker({
   slot,
   items,
@@ -53,6 +55,17 @@ export function OutfitWardrobePicker({
           (item) => item.subcategory === activeSubcategory,
         )
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown, { capture: true })
+    return () => window.removeEventListener('keydown', handleKeyDown, true)
+  }, [onClose])
+
   useLayoutEffect(() => {
     const selectedItemId = initialSelectedItemIdRef.current
     const scrollContainer = scrollContainerRef.current
@@ -88,7 +101,7 @@ export function OutfitWardrobePicker({
     })
   }
 
-  return (
+  return createPortal(
     <section
       className="classification-page-enter fixed inset-0 z-[110] flex h-dvh flex-col overflow-hidden bg-canvas text-ink"
       role="dialog"
@@ -247,6 +260,7 @@ export function OutfitWardrobePicker({
             : '선택 없이 완료'}
         </button>
       </footer>
-    </section>
+    </section>,
+    document.body,
   )
 }

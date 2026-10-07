@@ -13,7 +13,6 @@ import type {
   WardrobeItem,
   WeatherSnapshot,
 } from '@closet/types'
-import type { OutfitStyle } from '../../../constants/styleOptions'
 import { GraphqlRequestError } from '../../../lib/graphql'
 import { useUiStore } from '../../../stores/useUiStore'
 import { useSetDirectPlannerEntryMutation } from '../api/plannerQueries'
@@ -33,7 +32,6 @@ interface UseTodayOutfitRecommendationResultOptions {
   viewerId: string
   date: string
   season: Season
-  style: OutfitStyle
   baseItemId?: string
   hasTodayOutfit: boolean
   weather?: WeatherSnapshot | null
@@ -43,7 +41,6 @@ export function useTodayOutfitRecommendationResult({
   viewerId,
   date,
   season,
-  style,
   baseItemId,
   hasTodayOutfit,
   weather,
@@ -51,7 +48,7 @@ export function useTodayOutfitRecommendationResult({
   const pushToast = useUiStore((state) => state.pushToast)
   const hydrateEntries = usePlanStore((state) => state.hydrateEntries)
   const [initialHistory] = useState(() =>
-    readTodayRecommendationHistory(viewerId, date, season, style, baseItemId),
+    readTodayRecommendationHistory(viewerId, date, season, null, baseItemId),
   )
   const storedRecommendation = initialHistory[0] ?? null
   const [variation, setVariation] = useState(
@@ -63,7 +60,6 @@ export function useTodayOutfitRecommendationResult({
     viewerId,
     date,
     season,
-    style,
     variation,
     excludedOuterItemIds,
     {
@@ -75,6 +71,8 @@ export function useTodayOutfitRecommendationResult({
           ? storedRecommendation.recommendation.weather?.date === weather.date &&
             storedRecommendation.recommendation.weather.temperatureC ===
               weather.temperatureC &&
+            storedRecommendation.recommendation.weather.apparentTemperatureC ===
+              weather.apparentTemperatureC &&
             storedRecommendation.recommendation.weather.weatherCode ===
               weather.weatherCode
           : !storedRecommendation?.recommendation.weather)
@@ -133,7 +131,7 @@ export function useTodayOutfitRecommendationResult({
         recommendationName: formatRecommendationHeadline(
           recommendation.headline,
         ),
-        recommendationStyle: style,
+        recommendationStyle: '옷장 추천',
         weatherSummary: recommendation.weather?.summary,
         temperatureC: recommendation.weather?.temperatureC,
       })

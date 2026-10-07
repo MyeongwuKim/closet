@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { OutfitPreview } from '@closet/types'
 import {
   BookHeart,
@@ -30,6 +31,7 @@ import {
 import { useRecentWearReminder } from '../hooks/useRecentWearReminder'
 import { usePlanStore } from '../stores/usePlanStore'
 
+/** 플래너 → 날짜별 코디 설정. 옷 구성·저장·AI 룩북 확인을 전체 화면에서 제공하며, 포털로 화면 전환 레이어와 하단 탭의 영향을 피한다. */
 export function PlanDetailPage() {
   const navigate = useNavigate()
   const { date } = useParams()
@@ -253,7 +255,7 @@ export function PlanDetailPage() {
     }
   }
 
-  return (
+  return createPortal(
     <section
       className="classification-page-enter fixed inset-0 z-[80] flex h-dvh flex-col overflow-hidden bg-canvas"
       role="dialog"
@@ -285,7 +287,7 @@ export function PlanDetailPage() {
               type="button"
               onClick={() => setIsRemoveConfirmOpen(true)}
               disabled={clearPlannerEntry.isPending}
-              className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-[#fff0ec] hover:text-accent disabled:cursor-wait disabled:opacity-40"
+              className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-sage hover:text-accent disabled:cursor-wait disabled:opacity-40"
               aria-label="이 날짜에서 코디 빼기"
             >
               {clearPlannerEntry.isPending ? (
@@ -400,6 +402,7 @@ export function PlanDetailPage() {
           onClose={() => setIsLookbookOpen(false)}
         />
       )}
-    </section>
+    </section>,
+    document.body,
   )
 }

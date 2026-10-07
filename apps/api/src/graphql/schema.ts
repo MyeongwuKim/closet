@@ -481,7 +481,7 @@ export const typeDefs = `#graphql
     ready: Boolean!
     headline: String!
     summary: String!
-    style: String!
+    style: String
     items: [WardrobeItem!]!
     reasons: [String!]!
     profileSummary: [String!]!
@@ -572,6 +572,7 @@ export const typeDefs = `#graphql
 
   input WeatherSnapshotInput {
     date: String!
+    expiresAt: String
     temperatureC: Float!
     minTemperatureC: Float!
     maxTemperatureC: Float!
@@ -587,6 +588,7 @@ export const typeDefs = `#graphql
 
   type WeatherSnapshot {
     date: String!
+    expiresAt: String
     temperatureC: Float!
     minTemperatureC: Float!
     maxTemperatureC: Float!
@@ -666,7 +668,7 @@ export const typeDefs = `#graphql
     itemIds: [ID!]!
     previewImage: OutfitPreviewImageInput
     recommendationName: String
-    recommendationStyle: OutfitStyle
+    recommendationStyle: String
     weatherSummary: String
     temperatureC: Float
   }

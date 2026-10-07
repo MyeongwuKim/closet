@@ -18,9 +18,9 @@ export function WardrobeSavingOverlay() {
             width="160"
             height="160"
             rx="48"
-            fill="#fffdf8"
+            fill="var(--color-surface)"
           />
-          <ellipse cx="90" cy="158" rx="64" ry="7" fill="#dedad1" />
+          <ellipse cx="90" cy="158" rx="64" ry="7" fill="var(--color-line)" />
 
           <g className="wardrobe-saving-closet">
             <rect
@@ -29,8 +29,8 @@ export function WardrobeSavingOverlay() {
               width="104"
               height="103"
               rx="7"
-              fill="#dfe6d2"
-              stroke="#1b1b18"
+              fill="var(--color-sage)"
+              stroke="var(--color-ink)"
               strokeWidth="3"
             />
             <rect
@@ -39,49 +39,49 @@ export function WardrobeSavingOverlay() {
               width="84"
               height="82"
               rx="3"
-              fill="#fffdf8"
-              stroke="#1b1b18"
+              fill="var(--color-surface)"
+              stroke="var(--color-ink)"
               strokeWidth="2.5"
             />
             <path
               d="M57 70h66"
               fill="none"
-              stroke="#1b1b18"
+              stroke="var(--color-ink)"
               strokeWidth="3"
               strokeLinecap="round"
             />
             <path
               d="m62 78 10-6 10 6H62Zm36 0 10-6 10 6H98Z"
               fill="none"
-              stroke="#757169"
+              stroke="var(--color-muted)"
               strokeWidth="2"
               strokeLinejoin="round"
             />
-            <path d="M49 116h82" stroke="#1b1b18" strokeWidth="2.5" />
-            <rect x="55" y="123" width="70" height="13" rx="3" fill="#f3f0e9" />
-            <path d="M82 129h16" stroke="#757169" strokeWidth="2" strokeLinecap="round" />
+            <path d="M49 116h82" stroke="var(--color-ink)" strokeWidth="2.5" />
+            <rect x="55" y="123" width="70" height="13" rx="3" fill="var(--color-canvas)" />
+            <path d="M82 129h16" stroke="var(--color-muted)" strokeWidth="2" strokeLinecap="round" />
             <path
               d="M32 46h116l-4 10H36l-4-10Z"
-              fill="#dfe6d2"
-              stroke="#1b1b18"
+              fill="var(--color-sage)"
+              stroke="var(--color-ink)"
               strokeWidth="3"
               strokeLinejoin="round"
             />
-            <path d="M46 153v6M134 153v6" stroke="#1b1b18" strokeWidth="4" strokeLinecap="round" />
+            <path d="M46 153v6M134 153v6" stroke="var(--color-ink)" strokeWidth="4" strokeLinecap="round" />
           </g>
 
           <g className="wardrobe-saving-shirt">
             <path
               d="M76 22 83 19c1.5 5 4 7 7 7s5.5-2 7-7l7 3 10 9-8 9-6-5v25H80V35l-6 5-8-9 10-9Z"
-              fill="#f05a3c"
-              stroke="#1b1b18"
+              fill="var(--color-accent)"
+              stroke="var(--color-ink)"
               strokeWidth="3"
               strokeLinejoin="round"
             />
             <path
               d="M83 19c1.5 5 4 7 7 7s5.5-2 7-7"
               fill="none"
-              stroke="#fffdf8"
+              stroke="var(--color-surface)"
               strokeWidth="3"
               strokeLinecap="round"
             />
@@ -90,28 +90,28 @@ export function WardrobeSavingOverlay() {
           <g className="wardrobe-saving-closet">
             <path
               d="M39 55 15 68v75l24 10V55Z"
-              fill="#fffdf8"
-              stroke="#1b1b18"
+              fill="var(--color-surface)"
+              stroke="var(--color-ink)"
               strokeWidth="3"
               strokeLinejoin="round"
             />
             <path
               d="m141 55 24 13v75l-24 10V55Z"
-              fill="#fffdf8"
-              stroke="#1b1b18"
+              fill="var(--color-surface)"
+              stroke="var(--color-ink)"
               strokeWidth="3"
               strokeLinejoin="round"
             />
             <path
               d="M22 75v58M158 75v58"
               fill="none"
-              stroke="#dedad1"
+              stroke="var(--color-line)"
               strokeWidth="2"
               strokeLinecap="round"
             />
           </g>
 
-          <g className="wardrobe-saving-sparkle" fill="#f05a3c">
+          <g className="wardrobe-saving-sparkle" fill="var(--color-accent)">
             <path d="m151 35 3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7Z" />
             <circle cx="29" cy="38" r="4" />
           </g>

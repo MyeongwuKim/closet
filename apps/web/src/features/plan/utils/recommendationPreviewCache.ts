@@ -13,11 +13,11 @@ const recommendationPreviewCache = new Map<string, OutfitPreview>()
 
 export function getRecommendationPreviewKey(
   viewerId: string,
-  style: string,
+  style: string | null,
   itemIds: string[],
 ) {
   const itemKey = [...new Set(itemIds)].sort().join(':')
-  return `recommendation-preview:v1:${viewerId}:${style}:${itemKey}`
+  return `recommendation-preview:v1:${viewerId}:${style ?? 'wardrobe'}:${itemKey}`
 }
 
 export function readRecommendationPreview(key: string) {

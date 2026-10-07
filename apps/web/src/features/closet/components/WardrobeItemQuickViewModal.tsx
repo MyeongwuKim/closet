@@ -88,7 +88,7 @@ export function WardrobeItemQuickViewModal({
 
         <div className="min-h-0 overflow-y-auto overscroll-contain p-5">
           <div className="grid gap-5 sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] sm:items-start">
-            <div className="flex aspect-square items-center justify-center overflow-hidden rounded-2xl bg-canvas shadow-[inset_0_0_0_1px_#dedad1]">
+            <div className="flex aspect-square items-center justify-center overflow-hidden rounded-2xl bg-canvas border border-line">
               <ClosetItemVisual item={item} />
             </div>
 

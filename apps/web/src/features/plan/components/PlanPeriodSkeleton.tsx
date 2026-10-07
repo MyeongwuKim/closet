@@ -4,31 +4,21 @@ interface PlanPeriodSkeletonProps {
 
 function PlanTodaySkeleton() {
   return (
-    <div className="mt-2 flex min-h-0 flex-1 animate-pulse flex-col rounded-3xl border border-line bg-surface p-4 sm:mt-4 sm:min-h-[520px] sm:p-6">
-      <span className="block h-3 w-10 rounded-full bg-line/50" />
-      <span className="mt-3 block h-6 w-40 rounded-full bg-line/55" />
-      <span className="mt-2 block h-3 w-28 rounded-full bg-line/30" />
-      <span className="mt-4 grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-3 sm:mt-6 sm:gap-4">
-        {Array.from({ length: 4 }, (_, index) => (
-          <span
-            className="block rounded-2xl bg-line/25"
-            aria-hidden="true"
-            key={index}
-          />
-        ))}
-      </span>
-      <span className="mt-4 block h-5 w-44 rounded-full bg-line/50 sm:mt-6" />
-      <span className="mt-2 block h-3 w-32 rounded-full bg-line/30" />
+    <div className="plan-today-card plan-today-skeleton flex min-h-0 flex-1 animate-pulse flex-col items-center justify-center gap-3 rounded-3xl border border-line bg-surface p-5" aria-hidden="true">
+      <span className="plan-today-empty-icon size-12 shrink-0 rounded-2xl bg-sage" />
+      <span className="h-5 w-44 shrink-0 rounded-full bg-line/50" />
+      <span className="plan-today-empty-description h-3 w-32 shrink-0 rounded-full bg-line/30" />
+      <span className="mt-2 h-11 w-28 shrink-0 rounded-full bg-sage" />
     </div>
   )
 }
 
 function PlanWeekSkeleton() {
   return (
-    <div className="mt-2 grid min-h-0 flex-1 animate-pulse grid-rows-7 gap-2 pb-2 sm:mt-4 sm:flex-none sm:grid-rows-none sm:gap-3 sm:pb-0">
+    <div className="mt-4 grid animate-pulse gap-3 pb-2">
       {Array.from({ length: 7 }, (_, index) => (
         <div
-          className="grid h-full min-h-11 grid-cols-[38px_minmax(0,1fr)_16px] items-center gap-2 rounded-xl border border-line/70 bg-surface py-1.5 pr-4 pl-2 sm:min-h-23 sm:grid-cols-[58px_minmax(220px,0.85fr)_minmax(180px,1fr)_auto] sm:gap-3 sm:rounded-2xl sm:p-4"
+          className="grid h-full min-h-18 grid-cols-[38px_minmax(0,1fr)_16px] items-center gap-2 rounded-2xl border border-line/70 bg-surface py-3 pr-4 pl-2 sm:min-h-23 sm:grid-cols-[58px_minmax(180px,0.85fr)_minmax(140px,1fr)_auto] sm:gap-3 sm:p-4"
           aria-hidden="true"
           key={index}
         >

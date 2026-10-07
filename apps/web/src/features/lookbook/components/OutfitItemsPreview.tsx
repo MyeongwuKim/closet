@@ -7,6 +7,7 @@ interface OutfitItemsPreviewProps {
   layers: OutfitLayer[]
 }
 
+/** 매칭 코디의 구성 옷 사진을 레이어 순서대로 최대 두 열에 배치한다. 등록된 사진이 없으면 안내를 표시하고 높이는 부모가 전달한 className에 따른다. */
 export function OutfitItemsPreview({
   className = '',
   items,
@@ -26,7 +27,7 @@ export function OutfitItemsPreview({
 
   return (
     <div
-      className={`flex items-center justify-center gap-1.5 overflow-hidden rounded-[1.5rem] bg-[#fbfaf6] p-3 shadow-[inset_0_0_0_1px_#dedad1] ${className}`}
+      className={`grid auto-rows-fr ${imageItems.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} gap-1 overflow-hidden rounded-xl bg-canvas/70 p-1.5 ${className}`}
       aria-label="코디 아이템 이미지"
     >
       {imageItems.length > 0 ? (
@@ -34,12 +35,12 @@ export function OutfitItemsPreview({
           <img
             src={imageUrl}
             alt={item.name}
-            className="h-[88%] w-0 min-w-0 flex-1 object-contain"
+            className="size-full min-h-0 min-w-0 object-contain"
             key={item.id}
           />
         ))
       ) : (
-        <span className="text-xs font-bold text-muted">
+        <span className="col-span-full flex items-center justify-center px-2 text-center text-[10px] leading-4 text-muted">
           표시할 아이템 이미지가 없어요
         </span>
       )}

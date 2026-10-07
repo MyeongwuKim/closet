@@ -45,7 +45,7 @@ export function ClosetDetailHeader({
           <button
             type="button"
             onClick={onDelete}
-            className="flex size-10 items-center justify-center rounded-full text-muted transition hover:bg-[#fff0ec] hover:text-accent"
+            className="flex size-10 items-center justify-center rounded-full text-muted transition hover:bg-sage hover:text-accent"
             aria-label="옷장에서 삭제"
             title="옷장에서 삭제"
           >

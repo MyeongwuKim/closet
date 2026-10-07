@@ -14,8 +14,8 @@ export function PageTitle({
       <h1
         className={
           compact
-            ? 'truncate text-lg font-black tracking-[-0.03em] sm:text-xl'
-            : 'text-2xl font-black tracking-[-0.04em] sm:text-3xl'
+            ? 'truncate text-lg font-semibold tracking-[-0.03em] sm:text-xl'
+            : 'text-2xl font-semibold tracking-[-0.04em] sm:text-3xl'
         }
       >
         {title}

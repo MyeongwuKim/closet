@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { CalendarDays, Palette, Sparkles, Tag } from 'lucide-react'
 import {
   Navigate,
@@ -15,6 +16,7 @@ import { ClosetItemEditModal } from '../components/ClosetItemEditModal'
 import { ClosetItemVisual } from '../components/ClosetItemVisual'
 import { ClosetItemOutfitActions } from '../components/ClosetItemOutfitActions'
 import { MatchedOutfitsRail } from '../components/MatchedOutfitsRail'
+import { MatchedOutfitsModal } from '../components/MatchedOutfitsModal'
 import { closetCategoryLabels } from '../constants'
 import { useClosetStore } from '../stores/useClosetStore'
 import { OutfitDetailModal } from '../../lookbook/components/OutfitDetailModal'
@@ -31,6 +33,7 @@ import {
 import { useWardrobeItemQuery } from '../../../lib/catalogQueries'
 import { useOutfitsQuery } from '../../lookbook/api/lookbookQueries'
 
+/** 옷장·플래너 → 아이템 상세. 최상위 전체 화면에 옷 사진·매칭 코디·착용 기록·분류 정보를 표시한다. 매칭 코디 전체보기와 코디 상세는 아이템 위에 열어 뒤로가면 이전 화면과 스크롤을 유지하며, 옷 수정·삭제는 별도 확인 화면에서 처리한다. */
 export function ClosetDetailPage() {
   const navigate = useNavigate()
   const { date, itemId } = useParams()
@@ -46,6 +49,8 @@ export function ClosetDetailPage() {
   const [isEditing, setIsEditing] = useState(false)
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [isRecommendationOpen, setIsRecommendationOpen] = useState(false)
+  /** 전체보기 목록의 표시 여부. 코디 상세를 열어도 목록을 유지해 닫으면 같은 목록으로 돌아온다. */
+  const [isMatchedOutfitsOpen, setIsMatchedOutfitsOpen] = useState(false)
   const [selectedOutfitId, setSelectedOutfitId] = useState<string | null>(null)
   const requestedBackPath = searchParams.get('from')
   const backPath =
@@ -68,6 +73,11 @@ export function ClosetDetailPage() {
         return
       }
 
+      if (isMatchedOutfitsOpen) {
+        setIsMatchedOutfitsOpen(false)
+        return
+      }
+
       if (isEditing || isDeleteConfirmOpen || isRecommendationOpen) return
 
       navigate(backPath)
@@ -83,12 +93,13 @@ export function ClosetDetailPage() {
     backPath,
     isDeleteConfirmOpen,
     isEditing,
+    isMatchedOutfitsOpen,
     isRecommendationOpen,
     navigate,
     selectedOutfitId,
   ])
 
-  if (itemQuery.isPending) return <div className="fixed inset-0 z-[60] grid place-items-center bg-canvas" role="status">옷을 불러오는 중...</div>
+  if (itemQuery.isPending) return createPortal(<div className="fixed inset-0 z-[60] grid place-items-center bg-canvas" role="status">옷을 불러오는 중...</div>, document.body)
   if (!selectedItem) return <Navigate to="/closet" replace />
 
   const relatedOutfits = outfits
@@ -127,12 +138,13 @@ export function ClosetDetailPage() {
     ['총장', selectedItem.totalLengthCm],
   ].filter((detail) => detail[1] !== undefined && detail[1] !== '')
 
-  return (
+  return createPortal(
     <section
       className="fixed inset-0 z-[60] overflow-y-auto bg-canvas"
       role="dialog"
       aria-modal="true"
       aria-label={`${selectedItem.name} 상세`}
+      inert={isMatchedOutfitsOpen || Boolean(selectedOutfit)}
     >
       <ClosetDetailHeader
         title={selectedItem.name}
@@ -144,11 +156,18 @@ export function ClosetDetailPage() {
       />
 
       <div className="mx-auto max-w-6xl px-5 pt-6 pb-[calc(7rem+env(safe-area-inset-bottom))] sm:px-8 sm:pt-10 sm:pb-[calc(8rem+env(safe-area-inset-bottom))]">
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)] lg:items-start">
-          <div>
-            <div className="detail-image-enter flex aspect-square max-h-145 items-center justify-center overflow-hidden rounded-[2rem] bg-surface shadow-[inset_0_0_0_1px_#dedad1]">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)] lg:items-start">
+          <div className="min-w-0 space-y-5">
+            <div className="detail-image-enter flex aspect-square max-h-145 items-center justify-center overflow-hidden rounded-[2rem] bg-surface border border-line">
               <ClosetItemVisual item={selectedItem} />
             </div>
+            <MatchedOutfitsRail
+              items={items}
+              outfits={relatedOutfits.slice(0, 5)}
+              isLoading={relatedQuery.isPending}
+              onOutfitClick={(outfit) => setSelectedOutfitId(outfit.id)}
+              onViewAll={() => setIsMatchedOutfitsOpen(true)}
+            />
           </div>
 
           <div className="lg:pt-5">
@@ -337,12 +356,6 @@ export function ClosetDetailPage() {
           </div>
         </div>
 
-        <MatchedOutfitsRail
-          items={items}
-          outfits={relatedOutfits.slice(0, 5)}
-          onOutfitClick={(outfit) => setSelectedOutfitId(outfit.id)}
-          onViewAll={() => navigate(`/lookbook?items=${selectedItem.id}`)}
-        />
       </div>
 
       <ClosetItemOutfitActions
@@ -351,11 +364,22 @@ export function ClosetDetailPage() {
         onRecommendationOpenChange={setIsRecommendationOpen}
       />
 
+      {isMatchedOutfitsOpen && (
+        <MatchedOutfitsModal
+          item={selectedItem}
+          items={items}
+          outfits={relatedOutfits}
+          onSelect={setSelectedOutfitId}
+          onClose={() => setIsMatchedOutfitsOpen(false)}
+        />
+      )}
+
       {selectedOutfit && (
         <OutfitDetailModal
           outfit={selectedOutfit}
           items={items}
           onClose={() => setSelectedOutfitId(null)}
+          backLabel={isMatchedOutfitsOpen ? '포함된 코디 목록으로 돌아가기' : '아이템 상세로 돌아가기'}
         />
       )}
 
@@ -409,6 +433,7 @@ export function ClosetDetailPage() {
           }}
         />
       )}
-    </section>
+    </section>,
+    document.body,
   )
 }

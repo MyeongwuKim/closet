@@ -213,7 +213,7 @@ function WearReminderSettingsForm({
           {enabled &&
             !combinationReminderEnabled &&
             !itemReminderEnabled && (
-              <p className="rounded-2xl bg-[#fff0ec] px-4 py-3.5 text-xs leading-5 text-accent">
+              <p className="rounded-2xl bg-danger-soft px-4 py-3.5 text-xs leading-5 text-danger">
                 확인할 기준이 모두 꺼져 있어 리마인드가 나타나지 않아요.
               </p>
             )}

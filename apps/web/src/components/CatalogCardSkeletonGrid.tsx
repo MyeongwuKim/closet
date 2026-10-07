@@ -1,8 +1,11 @@
+import { WoodCardClip } from './WoodCardClip'
+
 interface CatalogCardSkeletonGridProps {
   variant: 'wardrobe' | 'outfit'
   count?: number
 }
 
+/** 옷장·코디북의 동일한 크기 목록이 로딩 중일 때 사진과 제목 자리를 표시한다. */
 export function CatalogCardSkeletonGrid({
   variant,
   count = 8,
@@ -12,29 +15,22 @@ export function CatalogCardSkeletonGrid({
 
   return (
     <div
-      className="mt-6 grid animate-pulse grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
+      className="wardrobe-item-grid grid animate-pulse grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 sm:gap-x-6 lg:grid-cols-4"
       role="status"
       aria-label={loadingLabel}
     >
       <span className="sr-only">{loadingLabel}</span>
       {Array.from({ length: count }, (_, index) => (
         <div
-          className="overflow-hidden rounded-3xl border border-line/70 bg-surface p-2"
+          className="collection-clipped-card"
           aria-hidden="true"
           key={index}
         >
-          <div
-            className={`rounded-[1.25rem] bg-line/35 ${
-              variant === 'wardrobe' ? 'aspect-square' : 'aspect-[4/5]'
-            }`}
-          />
-          <div className="px-2 pt-3 pb-2">
-            {variant === 'outfit' && (
-              <div className="mb-2 flex gap-1.5">
-                <span className="h-5 w-12 rounded-full bg-sage" />
-                <span className="h-5 w-10 rounded-full bg-line/45" />
-              </div>
-            )}
+          <div className="collection-photo">
+            <WoodCardClip />
+            <div className="aspect-[4/5] rounded-xs bg-line/35" />
+          </div>
+          <div className="px-0.5 pt-3 pb-1">
             <span className="block h-3.5 w-2/3 rounded-full bg-line/55" />
             <span className="mt-2 block h-3 w-4/5 rounded-full bg-line/35" />
             {variant === 'outfit' && (

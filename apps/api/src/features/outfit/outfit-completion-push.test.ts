@@ -21,7 +21,7 @@ test('오늘의 코디 추천이 준비되면 요청한 계정에 완료 알림�
   t.mock.method(
     todayOutfitRecommendationService,
     'recommend',
-    async () => ({ ready: true }) as Awaited<ReturnType<typeof todayOutfitRecommendationService.recommend>>,
+    async () => ({ ready: true, style: null }) as Awaited<ReturnType<typeof todayOutfitRecommendationService.recommend>>,
   )
   const send = t.mock.method(pushService, 'sendCompletion', async (userId: string, kind: CompletionPushKind) => {
     assert.equal(userId, 'user-one')
@@ -36,11 +36,12 @@ test('오늘의 코디 추천이 준비되면 요청한 계정에 완료 알림�
     url: '/graphql',
     headers: { authorization: 'Bearer session-secret' },
     payload: {
-      query: 'query { todayOutfitRecommendation(input: { date: "2026-09-14", season: autumn }) { ready } }',
+      query: 'query { todayOutfitRecommendation(input: { date: "2026-09-14", season: autumn }) { ready style } }',
     },
   })
 
   assert.equal(response.json().data?.todayOutfitRecommendation?.ready, true)
+  assert.equal(response.json().data?.todayOutfitRecommendation?.style, null)
   assert.equal(send.mock.callCount(), 1)
 })
 

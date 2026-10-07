@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { createPortal } from 'react-dom'
 import type {
   ClothingCategory,
   Season,
@@ -18,7 +19,6 @@ import { useUiStore } from '../../../stores/useUiStore'
 import { useClosetStore } from '../../closet/stores/useClosetStore'
 import { formatDateOnly } from '../../plan/data/weeklyPlan'
 import { useRecentWearReminder } from '../../plan/hooks/useRecentWearReminder'
-import { useStyleProfileStore } from '../../settings/stores/useStyleProfileStore'
 import { useMeQuery } from '../../settings/api/profileQueries'
 import { OutfitComposerHeader } from '../components/OutfitComposerHeader'
 import { OutfitCompletionActions } from '../components/OutfitCompletionActions'
@@ -133,6 +133,7 @@ function getCommonSeasons(items: WardrobeItem[]) {
   )
 }
 
+/** 옷장·코디북 → 코디 맞춰보기. 기준 옷부터 종류별로 조합을 만들며 선택 단계·옷 레이어·미리보기 상태를 관리한다. 저장·AI 이미지 생성은 mutation에 요청하고, 최상위 전체 화면에서 원래 진입 화면으로 복귀한다. */
 export function OutfitComposerPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -150,9 +151,6 @@ export function OutfitComposerPage() {
     useRecentWearReminder()
   const meQuery = useMeQuery()
   const pushToast = useUiStore((state) => state.pushToast)
-  const preferredStyles = useStyleProfileStore(
-    (state) => state.profile.preferredStyles,
-  )
 
   // 편집 중 URL의 items가 바뀌어도 최초 아이템과 복귀 경로는 유지한다.
   const [initialItemIds] = useState(
@@ -188,7 +186,7 @@ export function OutfitComposerPage() {
       createOutfitComposerState(layers, originItemIds),
   )
   const [style, setStyle] = useState<string>(
-    () => searchParams.get('style') ?? preferredStyles[0] ?? '',
+    () => searchParams.get('style') ?? '',
   )
   const [outfitSeasons, setOutfitSeasons] = useState<Season[]>(() =>
     getCommonSeasons(initialItems),
@@ -763,9 +761,9 @@ export function OutfitComposerPage() {
     closeSave: () => dispatch({ type: 'GO_BACK' }),
   }
 
-  return (
+  return createPortal(
     <OutfitComposerContext.Provider value={composerSession}>
-      <section className="classification-page-enter fixed inset-0 z-[80] flex h-dvh flex-col overflow-hidden bg-canvas">
+      <section className="classification-page-enter fixed inset-0 z-[80] flex h-dvh flex-col overflow-hidden bg-canvas" role="dialog" aria-modal="true" aria-label="코디 맞춰보기">
         <OutfitComposerHeader />
 
         <div className="min-h-0 flex-1 bg-canvas">
@@ -835,6 +833,7 @@ export function OutfitComposerPage() {
           />
           )}
       </section>
-    </OutfitComposerContext.Provider>
+    </OutfitComposerContext.Provider>,
+    document.body,
   )
 }

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "closet",
+    "name": "웨어룸",
     "slug": "closet",
     "owner": "myeongwukim",
     "version": "0.1.0",
@@ -10,7 +10,7 @@
       }
     },
     "orientation": "portrait",
-    "scheme": "closet",
+    "scheme": "wearoom",
     "icon": "./assets/app-icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
@@ -20,7 +20,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#F3F0E9",
+          "backgroundColor": "#F5F4ED",
           "image": "./assets/splash-wardrobe-closed-transparent.png",
           "imageWidth": 280,
           "resizeMode": "contain"
@@ -42,7 +42,7 @@
       ]
     ],
     "ios": {
-      "bundleIdentifier": "com.myeongwu.closet",
+      "bundleIdentifier": "com.myeongwu.wearoom",
       "buildNumber": "1",
       "supportsTablet": true,
       "infoPlist": {
@@ -52,11 +52,11 @@
       }
     },
     "android": {
-      "package": "com.myeongwu.closet",
+      "package": "com.myeongwu.wearoom",
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/app-icon.png",
-        "backgroundColor": "#F3F0E9"
+        "backgroundColor": "#F5F4ED"
       },
       "edgeToEdgeEnabled": true
     }

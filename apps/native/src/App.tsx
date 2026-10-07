@@ -8,6 +8,7 @@
  * 권한 안내, 인증 확인, 서버 연결 오류, 로그인, 로그인 완료 WebView와
  * 하단 탭과 자연스럽게 이어지는 기기 세이프 영역으로 구성되어 있다.
  */
+import { wearroomColors } from './theme/wearroomTheme'
 import { StatusBar } from 'expo-status-bar'
 import { useCallback, useState } from 'react'
 import { SafeAreaView, StyleSheet, View } from 'react-native'
@@ -86,11 +87,11 @@ export default function App() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#f3f0e9',
+    backgroundColor: wearroomColors.canvas,
   },
   signedInScreen: {
     flex: 1,
-    backgroundColor: '#fffdf8',
+    backgroundColor: wearroomColors.surface,
   },
   topSafeAreaBackground: {
     position: 'absolute',
@@ -98,6 +99,6 @@ const styles = StyleSheet.create({
     right: 0,
     left: 0,
     height: 80,
-    backgroundColor: '#f3f0e9',
+    backgroundColor: wearroomColors.canvas,
   },
 })

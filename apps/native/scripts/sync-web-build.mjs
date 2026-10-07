@@ -5,6 +5,7 @@ import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { constrainNativeDocument } from './native-document.mjs'
+import { loadBuildEnvironment } from './build-environment.mjs'
 
 const nativeRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
 const webRoot = path.resolve(nativeRoot, '../web')
@@ -20,26 +21,13 @@ function createWebBundleVersion() {
   return `${date.replaceAll('-', '')}.${time.slice(0, 8).replaceAll(':', '')}`
 }
 
-async function loadEnvFile(filePath) {
-  if (!existsSync(filePath)) return
-
-  const contents = await readFile(filePath, 'utf8')
-  for (const line of contents.split(/\r?\n/)) {
-    const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)\s*$/)
-    if (!match || process.env[match[1]] !== undefined) continue
-
-    process.env[match[1]] = match[2].trim().replace(/^['"]|['"]$/g, '')
-  }
-}
-
+/** 앱과 같은 환경 파일의 API 주소를 웹 번들에도 적용한다. Vite 모드는 앱 환경에 맞춰 지정한다. */
 function buildWeb() {
-  const nativeApiUrl = process.env.EXPO_PUBLIC_API_URL?.trim()
-  const result = spawnSync('pnpm', ['run', 'build'], {
+  const result = spawnSync('pnpm', ['run', 'build', '--mode', variant.environment === 'local' ? 'development' : variant.environment], {
     cwd: webRoot,
     env: {
-      ...process.env,
+      ...env,
       CLOSET_NATIVE_WEB_BUNDLE: '1',
-      ...(nativeApiUrl ? { VITE_API_URL: nativeApiUrl } : {}),
     },
     stdio: 'inherit',
     shell: process.platform === 'win32',
@@ -50,9 +38,9 @@ function buildWeb() {
   }
 }
 
-await loadEnvFile(path.join(nativeRoot, '.env'))
+const { variant, env } = loadBuildEnvironment(process.env.WEAROOM_APP_ENV)
 webBundleVersion =
-  process.env.CLOSET_WEB_BUNDLE_VERSION?.trim() || createWebBundleVersion()
+  env.CLOSET_WEB_BUNDLE_VERSION?.trim() || createWebBundleVersion()
 
 if (!shouldSkipBuild) {
   buildWeb()

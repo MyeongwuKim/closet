@@ -11,13 +11,18 @@
     "test:camera-bridge": "node --test scripts/camera-bridge.test.mjs",
     "test:location-bridge": "node --test scripts/location-bridge.test.mjs",
     "test:initial-permission": "node --test scripts/initial-permission.test.mjs",
-    "start": "pnpm run bundle:web && expo start --dev-client",
-    "android": "pnpm run bundle:web && expo run:android",
+    "start": "pnpm run bundle:web && node scripts/with-app-env.mjs local expo start --dev-client",
+    "android": "pnpm run bundle:web && node scripts/with-app-env.mjs local expo prebuild --platform android --no-install && node scripts/with-app-env.mjs local expo run:android",
     "ios": "pnpm run ios:local",
-    "ios:local": "pnpm run bundle:web && expo run:ios",
-    "ios:device": "pnpm run bundle:web && expo run:ios --device",
+    "ios:local": "node scripts/run-ios.mjs local",
+    "ios:device": "node scripts/run-ios.mjs local --device",
     "web": "expo start --web",
-    "typecheck": "pnpm run bundle:web && tsc --noEmit"
+    "typecheck": "pnpm run bundle:web && tsc --noEmit",
+    "ios:dev": "node scripts/run-ios.mjs development",
+    "ios:prod": "node scripts/run-ios.mjs production",
+    "test:build-environment": "node --test scripts/build-environment.test.mjs scripts/metro-environment.test.mjs",
+    "test:app-variant": "node --test scripts/app-variant.test.mjs",
+    "test:ios-provisioning": "node --test scripts/ios-provisioning.test.mjs"
   },
   "dependencies": {
     "@closet/types": "workspace:*",

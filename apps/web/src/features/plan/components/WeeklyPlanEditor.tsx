@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { Season } from '@closet/types'
 import {
   Check,
@@ -28,11 +29,13 @@ import {
 } from '../api/plannerQueries'
 import { useRecentWearReminder } from '../hooks/useRecentWearReminder'
 import { usePlanStore } from '../stores/usePlanStore'
+import { WeeklyPlanDayButton } from './WeeklyPlanDayButton'
 
 interface WeeklyPlanEditorProps {
   onClose: () => void
 }
 
+/** 플래너의 현재 탭 위에 전체 화면으로 열어 Store의 일주일 날짜에 코디를 배치하거나 비운다. 요일 선택은 내부에서 관리하고 저장·삭제는 플래너 mutation에 맡기며, 닫을 때는 부모 콜백만 호출한다. */
 export function WeeklyPlanEditor({ onClose }: WeeklyPlanEditorProps) {
   const navigate = useNavigate()
   const items = useClosetStore((state) => state.items)
@@ -137,12 +140,12 @@ export function WeeklyPlanEditor({ onClose }: WeeklyPlanEditorProps) {
     setIsSearchOpen(!isSearchOpen)
   }
 
-  return (
+  return createPortal(
     <section
       className="classification-page-enter fixed inset-0 z-[80] flex h-dvh flex-col overflow-hidden bg-canvas"
       role="dialog"
       aria-modal="true"
-      aria-label="이번 주 옷 설정"
+      aria-label="주간 코디 편집"
     >
       <header className="shrink-0 border-b border-line bg-canvas/95 backdrop-blur">
         <div className="mx-auto flex min-h-16 max-w-4xl items-center gap-3 px-3 py-2 sm:px-5">
@@ -156,7 +159,7 @@ export function WeeklyPlanEditor({ onClose }: WeeklyPlanEditorProps) {
             <ChevronLeft size={25} />
           </button>
           <div>
-            <h1 className="text-lg font-black">이번 주 옷 설정</h1>
+            <h1 className="text-lg font-black">주간 코디 편집</h1>
             <p className="text-xs text-muted">요일을 고른 뒤 코디북의 코디를 배치하세요.</p>
           </div>
         </div>
@@ -165,26 +168,15 @@ export function WeeklyPlanEditor({ onClose }: WeeklyPlanEditorProps) {
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
         <div className="mx-auto max-w-4xl">
           <div className="scrollbar-hidden flex gap-2 overflow-x-auto pb-2" aria-label="설정할 요일">
-            {entries.map((entry) => {
-              const isActive = entry.date === activeDate
-              return (
-                <button
-                  type="button"
-                  onClick={() => setActiveDate(entry.date)}
-                  className={`min-w-[76px] shrink-0 rounded-2xl border px-3 py-3 text-center transition ${
-                    isActive
-                      ? 'border-ink bg-ink text-white'
-                      : 'border-line bg-surface hover:border-ink'
-                  }`}
-                  aria-pressed={isActive}
-                  key={entry.date}
-                >
-                  <span className="block text-xs font-bold opacity-70">{entry.dayLabel}요일</span>
-                  <strong className="mt-1 block text-lg">{entry.dayNumber}</strong>
-                  <span className="mt-1 block text-[10px]">{entry.itemIds.length > 0 ? `${entry.itemIds.length}개 설정` : '비어 있음'}</span>
-                </button>
-              )
-            })}
+            {entries.map((entry) => (
+              <WeeklyPlanDayButton
+                key={entry.date}
+                entry={entry}
+                items={items}
+                isActive={entry.date === activeDate}
+                onSelect={setActiveDate}
+              />
+            ))}
           </div>
 
           <div className="mt-6 flex items-center justify-between gap-3">
@@ -335,6 +327,7 @@ export function WeeklyPlanEditor({ onClose }: WeeklyPlanEditorProps) {
           )}
         </div>
       </div>
-    </section>
+    </section>,
+    document.body,
   )
 }

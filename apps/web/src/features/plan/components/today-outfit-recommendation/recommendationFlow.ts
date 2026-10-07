@@ -1,6 +1,6 @@
 import type { Season } from '@closet/types'
 
-export type RecommendationStep = 'intro' | 'season' | 'style' | 'result'
+export type RecommendationStep = 'intro' | 'season' | 'result'
 export type SeasonChoice = 'current-weather' | Season
 
 export function getSeasonForDate(date: string): Season {

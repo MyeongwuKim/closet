@@ -165,7 +165,7 @@ export function WardrobeTagField({
           </div>
 
           {errorMessage && (
-            <p className="mt-2 text-xs font-bold text-accent" role="alert">
+            <p className="mt-2 text-xs font-medium text-danger" role="alert">
               {errorMessage}
             </p>
           )}

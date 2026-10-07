@@ -6,6 +6,7 @@ import { imageRepository } from './features/image/image.repository.js'
 import { todayOutfitRecommendationService } from './features/outfit/today-outfit-recommendation.service.js'
 import { wardrobeRepository, type CreateWardrobeItemData } from './features/wardrobe/wardrobe.repository.js'
 import { wardrobeService } from './features/wardrobe/wardrobe.service.js'
+import { plannerService, type SetDirectPlannerEntryInput } from './features/planner/planner.service.js'
 import { ServiceError } from './graphql/errors.js'
 
 test('설정된 웹 주소와 번들 WebView 주소에만 CORS를 허용한다', async (t) => {
@@ -205,4 +206,28 @@ test('시보리 정보가 없는 기존 저장 데이터도 GraphQL nullable 필
     ribbedHem: null,
     ribbedNeckline: null,
   })
+})
+
+
+test('스타일 분류 없는 옷장 추천 표시를 일정 저장 요청에 전달한다', async (t) => {
+  t.mock.method(authService, 'getViewer', async () => ({ id: 'viewer' }))
+  const save = t.mock.method(plannerService, 'setDirectEntry', async (userId: string, input: SetDirectPlannerEntryInput) => {
+    assert.equal(userId, 'viewer')
+    assert.equal(input.recommendationStyle, '옷장 추천')
+    assert.deepEqual(input.itemIds, ['top', 'bottom'])
+    return { id: 'saved-week' } as Awaited<ReturnType<typeof plannerService.setDirectEntry>>
+  })
+  const app = await buildApp()
+  t.after(() => app.close())
+  const response = await app.inject({
+    method: 'POST', url: '/graphql',
+    headers: { authorization: 'Bearer session-secret' },
+    payload: {
+      query: 'mutation Save($input: SetDirectPlannerEntryInput!) { setDirectPlannerEntry(input: $input) { id } }',
+      variables: { input: { weekStartsOn: '2026-10-05', date: '2026-10-06', itemIds: ['top', 'bottom'], recommendationName: '오늘의 옷장 조합', recommendationStyle: '옷장 추천' } },
+    },
+  })
+  assert.equal(response.json().errors, undefined)
+  assert.equal(response.json().data?.setDirectPlannerEntry?.id, 'saved-week')
+  assert.equal(save.mock.callCount(), 1)
 })

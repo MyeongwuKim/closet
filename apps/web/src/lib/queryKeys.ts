@@ -1,4 +1,3 @@
-import type { OutfitStyle } from '../constants/styleOptions'
 import type { ClosetFilter } from '../features/closet/constants'
 import type { ClothingCategory, Season } from '@closet/types'
 
@@ -24,7 +23,7 @@ export const queryKeys = {
       [
         'outfits',
         'recommendation',
-        'v3',
+        'v4',
         { selectedItemIds, targetCategory },
       ] as const,
   },
@@ -34,7 +33,6 @@ export const queryKeys = {
       viewerId: string,
       date: string,
       season: Season,
-      style: OutfitStyle,
       variation: number,
       excludedOuterItemIds: string[],
       baseItemId?: string,
@@ -43,11 +41,10 @@ export const queryKeys = {
       [
         'planner',
         'today-recommendation',
-        'v5',
+        'v6',
         viewerId,
         date,
         season,
-        style,
         variation,
         excludedOuterItemIds,
         baseItemId ?? null,

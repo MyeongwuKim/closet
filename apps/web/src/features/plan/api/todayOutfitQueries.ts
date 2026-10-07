@@ -3,7 +3,7 @@
  * 오늘의 코디 추천을 조회하고 기준 아이템·날씨별 캐시와 추천 기록을 관리한다.
  *
  * 동작 방식:
- * 계절과 스타일, 선택한 날씨를 GraphQL에 전달하고
+ * 계절과 선택한 날씨를 GraphQL에 전달하고
  * 기준 아이템을 포함한 유효한 결과만 변환해 로컬 추천 기록에 저장한다.
  */
 import { useQuery } from '@tanstack/react-query'
@@ -12,9 +12,9 @@ import type {
   TodayOutfitRecommendation,
   WeatherSnapshot,
 } from '@closet/types'
-import type { OutfitStyle } from '../../../constants/styleOptions'
 import { graphqlRequest } from '../../../lib/graphql'
 import { queryKeys } from '../../../lib/queryKeys'
+import { normalizeRecommendationText } from '../utils/recommendationText'
 import {
   toWardrobeItem,
   wardrobeItemFields,
@@ -63,14 +63,13 @@ function validateRecommendationBaseItem(
       '선택한 아이템이 추천에 포함되지 않았어요. 다시 추천받아 주세요.',
     )
   }
-  return recommendation
+  return normalizeRecommendationText(recommendation)
 }
 
 export function useTodayOutfitRecommendationQuery(
   viewerId: string,
   date: string,
   season: Season,
-  style: OutfitStyle,
   variation: number,
   excludedOuterItemIds: string[],
   {
@@ -85,7 +84,6 @@ export function useTodayOutfitRecommendationQuery(
       viewerId,
       date,
       season,
-      style,
       variation,
       excludedOuterItemIds,
       baseItemId,
@@ -114,7 +112,6 @@ export function useTodayOutfitRecommendationQuery(
           input: {
             date: string
             season: Season
-            style: OutfitStyle
             variation: number
             excludedOuterItemIds: string[]
             baseItemId?: string
@@ -142,7 +139,6 @@ export function useTodayOutfitRecommendationQuery(
           input: {
             date,
             season,
-            style,
             variation,
             excludedOuterItemIds,
             ...(baseItemId !== undefined ? { baseItemId } : {}),
@@ -164,7 +160,7 @@ export function useTodayOutfitRecommendationQuery(
           viewerId,
           date,
           season,
-          style,
+          null,
           variation,
           recommendation,
           baseItemId,

@@ -1,12 +1,3 @@
-/**
- * 사용 위치: 오늘의 코디 추천 → 추천 기록
- *
- * 용도:
- * 이전에 추천받은 코디를 날짜별로 확인하고 다시 선택할 수 있는 시트다.
- *
- * 구조:
- * 고정된 높이의 헤더와 내부 스크롤 목록으로 구성되어 있다.
- */
 import { useEffect } from 'react'
 import { History, LoaderCircle, RefreshCw, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
@@ -58,10 +49,10 @@ function RecommendationHistoryCard({
       className="flex w-full items-start gap-3 rounded-2xl border border-line bg-white p-2.5 text-left transition hover:border-ink"
       aria-label={`${formatRecommendationHeadline(recommendation.headline)} 추천 설명 열기`}
     >
-      <span className="grid size-20 shrink-0 grid-cols-2 gap-1 rounded-xl bg-canvas p-1.5">
+      <span className="grid size-20 shrink-0 grid-cols-2 grid-rows-2 gap-1 rounded-xl bg-canvas p-1.5">
         {recommendation.items.slice(0, 4).map((item) => (
           <span
-            className="flex min-h-0 items-center justify-center overflow-hidden rounded-lg bg-surface"
+            className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden rounded-lg bg-surface"
             key={item.id}
           >
             <ClosetItemVisual item={item} compact />
@@ -72,7 +63,7 @@ function RecommendationHistoryCard({
         <span className="flex flex-wrap items-center gap-x-1.5 text-[10px] font-bold text-muted">
           <span>
             {seasonLabels[recommendation.season]} ·{' '}
-            {getOutfitStyleLabel(recommendation.style as OutfitStyle)}
+            {recommendation.style ? getOutfitStyleLabel(recommendation.style as OutfitStyle) : '옷장 추천'}
           </span>
           <span aria-hidden="true">·</span>
           <span>{formatStoredAt(entry.createdAt)}</span>
@@ -93,6 +84,7 @@ function RecommendationHistoryCard({
   )
 }
 
+/** AI 추천과 같은 높이의 하단 시트에 최근 추천 기록을 표시한다. 목록만 내부에서 스크롤하며 카드 선택은 부모의 추천 설명 열기에 맡긴다. */
 export function RecommendationHistorySheet({
   entries,
   isLoading,
@@ -122,18 +114,19 @@ export function RecommendationHistorySheet({
 
   return createPortal(
     <div
-      className="option-picker-backdrop fixed inset-0 z-[120] flex items-end justify-center bg-black/45 backdrop-blur-[2px] sm:items-center sm:p-6"
+      className="option-picker-backdrop fixed inset-0 z-[120] flex items-end justify-center bg-ink/20"
       onMouseDown={(event) => {
         event.stopPropagation()
         if (event.target === event.currentTarget) onClose()
       }}
     >
       <section
-        className="option-picker-enter flex h-[min(42rem,84dvh)] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-surface shadow-2xl sm:rounded-3xl"
+        className="ai-recommendation-sheet flex w-full max-w-xl flex-col overflow-hidden rounded-t-[1.75rem] border border-line border-b-0 bg-surface shadow-2xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="recommendation-history-title"
       >
+        <span className="mx-auto mt-2.5 h-1 w-9 shrink-0 rounded-full bg-line" aria-hidden="true" />
         <header className="flex shrink-0 items-start gap-3 border-b border-line px-5 py-4">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-sage">
             <History size={17} />
@@ -158,7 +151,7 @@ export function RecommendationHistorySheet({
           </button>
         </header>
 
-        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-4 py-4">
           {errorMessage ? (
             <div className="rounded-2xl border border-line bg-canvas px-5 py-8 text-center">
               <p className="text-sm font-black">추천 기록을 불러오지 못했어요</p>

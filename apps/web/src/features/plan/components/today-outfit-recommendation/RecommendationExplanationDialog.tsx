@@ -15,7 +15,7 @@ interface RecommendationExplanationDialogProps {
   summary: string
   reasons: string[]
   season: Season
-  style: OutfitStyle
+  style: OutfitStyle | null
   items: WardrobeItem[]
   closeLabel?: string
   backLabel?: string
@@ -23,6 +23,7 @@ interface RecommendationExplanationDialogProps {
   onOpenDetails: () => void
 }
 
+/** 추천 결과·기록에서 연 설명을 공통 높이의 하단 시트에 표시한다. 긴 설명만 내부에서 스크롤하며 구성 편집 버튼과 돌아가기 동작은 유지한다. */
 export function RecommendationExplanationDialog({
   headline,
   summary,
@@ -55,18 +56,19 @@ export function RecommendationExplanationDialog({
 
   return createPortal(
     <div
-      className="option-picker-backdrop fixed inset-0 z-[120] flex items-end justify-center bg-black/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-6"
+      className="option-picker-backdrop fixed inset-0 z-[120] flex items-end justify-center bg-ink/20"
       onMouseDown={(event) => {
         event.stopPropagation()
         if (event.target === event.currentTarget) onClose()
       }}
     >
       <section
-        className="option-picker-enter flex max-h-[82dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-surface shadow-2xl sm:rounded-3xl"
+        className="ai-recommendation-sheet flex w-full max-w-xl flex-col overflow-hidden rounded-t-[1.75rem] border border-line border-b-0 bg-surface shadow-2xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="recommendation-explanation-title"
       >
+        <span className="mx-auto mt-2.5 h-1 w-9 shrink-0 rounded-full bg-line" aria-hidden="true" />
         <header className="flex shrink-0 items-start gap-3 border-b border-line px-5 py-4">
           {backLabel && (
             <button
@@ -106,10 +108,10 @@ export function RecommendationExplanationDialog({
           )}
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
           <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2.5 py-1.5 text-[11px] font-black text-accent">
             <Sparkles size={12} /> {seasonLabels[season]} ·{' '}
-            {getOutfitStyleLabel(style)}
+            {style ? getOutfitStyleLabel(style) : '옷장 추천'}
           </span>
           <h3 className="mt-3 text-lg leading-7 font-black tracking-[-0.025em]">
             {formatRecommendationHeadline(headline)}
@@ -134,16 +136,16 @@ export function RecommendationExplanationDialog({
           )}
         </div>
 
-        <footer className="shrink-0 border-t border-line bg-canvas/45 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:p-4">
+        <footer className="shrink-0 border-t border-line bg-canvas/45 p-3">
           <button
             type="button"
             onClick={onOpenDetails}
             className="flex w-full items-center gap-3 rounded-2xl bg-ink p-2.5 text-left text-white transition hover:bg-accent focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
           >
-            <span className="grid size-12 shrink-0 grid-cols-2 gap-0.5 rounded-xl bg-white/12 p-1">
+            <span className="grid size-12 shrink-0 grid-cols-2 grid-rows-2 gap-0.5 rounded-xl bg-white/12 p-1">
               {items.slice(0, 4).map((item) => (
                 <span
-                  className="flex min-h-0 items-center justify-center overflow-hidden rounded bg-white/90"
+                  className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden rounded bg-white/90"
                   key={item.id}
                 >
                   <ClosetItemVisual item={item} compact />

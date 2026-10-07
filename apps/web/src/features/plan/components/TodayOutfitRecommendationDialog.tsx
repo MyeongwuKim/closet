@@ -1,12 +1,3 @@
-/**
- * 사용 위치: 오늘의 AI 코디 추천 → 추천 코디 구성
- *
- * 용도:
- * 추천받은 아이템 구성을 확인·수정하고 AI 룩북을 만들거나 일정에 적용한다.
- *
- * 구조:
- * 아이템 슬롯 편집 영역, AI 룩북·일정 적용 액션, 룩북 미리보기로 구성되어 있다.
- */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { OutfitPreview, WardrobeItem } from '@closet/types'
 import type { OutfitStyle } from '../../../constants/styleOptions'
@@ -37,7 +28,7 @@ interface TodayOutfitRecommendationDialogProps {
   backLabel?: string
   items: WardrobeItem[]
   initialItems: WardrobeItem[]
-  style: OutfitStyle
+  style: OutfitStyle | null
   hasTodayOutfit: boolean
   isSaving: boolean
   onClose: () => void
@@ -78,6 +69,7 @@ function createPreviewState(
   }
 }
 
+/** AI 추천 썸네일·설명에서 연 코디 구성을 추천 시트와 같은 높이로 표시한다. 슬롯 영역은 내부에서 스크롤하며 옷 교체·룩북 생성·일정 적용은 기존 편집 흐름에 맡긴다. */
 export function TodayOutfitRecommendationDialog({
   viewerId,
   date,
@@ -157,7 +149,7 @@ export function TodayOutfitRecommendationDialog({
     void generateOutfitPreview
       .mutateAsync({
         selectedItemIds: selectedItems.map((item) => item.id),
-        style,
+        ...(style ? { style } : {}),
       })
       .then((result) => {
         cacheRecommendationPreview(requestedPreviewKey, result)
@@ -220,6 +212,7 @@ export function TodayOutfitRecommendationDialog({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (
         event.key === 'Escape' &&
+        !event.defaultPrevented &&
         !useUiStore.getState().recentWearConfirmation
       ) {
         onClose()
@@ -234,128 +227,137 @@ export function TodayOutfitRecommendationDialog({
   }, [onClose])
 
   return createPortal(
-    <section
-      className="classification-page-enter fixed inset-0 z-[80] flex h-dvh flex-col overflow-hidden bg-canvas"
-      role="dialog"
-      aria-modal="true"
-      aria-label="오늘의 추천 코디 상세"
-      onMouseDown={(event) => event.stopPropagation()}
+    <div
+      className="option-picker-backdrop fixed inset-0 z-[80] flex items-end justify-center bg-ink/20"
+      onMouseDown={(event) => {
+        event.stopPropagation()
+        if (event.target === event.currentTarget) onClose()
+      }}
     >
-      <header className="shrink-0 border-b border-line bg-canvas/95 backdrop-blur">
-        <div className="mx-auto flex min-h-16 max-w-3xl items-center gap-2 px-3 py-2 sm:min-h-18 sm:px-5">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-surface"
-            aria-label={backLabel}
-            autoFocus
-          >
-            <ChevronLeft size={25} strokeWidth={2.2} />
-          </button>
-          <div className="min-w-0 flex-1">
-            <h1 className="flex min-w-0 items-center gap-1.5 text-lg font-black tracking-[-0.03em]">
-              <Sparkles className="shrink-0 text-accent" size={18} />
-              <span className="min-w-0 flex-1 truncate" title={title}>
-                {title}
-              </span>
-            </h1>
-            <p className="mt-0.5 truncate text-xs text-muted">
-              {formattedDate} · 아이템을 누르면 바꿀 수 있어요.
-            </p>
-          </div>
-        </div>
-      </header>
-
-      <div className="min-h-0 flex-1 px-3 py-3 sm:px-6 sm:py-6">
-        <div className="mx-auto h-full max-w-3xl">
-          <OutfitSlotEditor
-            items={availableItems}
-            selectedItems={selectedItems}
-            onChange={(nextItems) => {
-              setSelectedItems(nextItems)
-              const nextPreviewKey = getRecommendationPreviewKey(
-                viewerId,
-                style,
-                nextItems.map((item) => item.id),
-              )
-              previewKeyRef.current = nextPreviewKey
-              setPreview(
-                createPreviewState(
-                  readRecommendationPreview(nextPreviewKey),
-                ),
-              )
-            }}
-            className="h-full w-full"
-          />
-        </div>
-      </div>
-
-      <footer className="shrink-0 border-t border-line bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(27,27,24,0.06)]">
-        <div className="mx-auto max-w-3xl">
-          {completionMessage && (
-            <p className="mb-2 text-center text-xs font-bold text-muted">
-              {completionMessage}
-            </p>
-          )}
-          <div className="grid grid-cols-[0.85fr_1.15fr] gap-2">
+      <section
+        className="ai-recommendation-sheet flex w-full max-w-xl flex-col overflow-hidden rounded-t-[1.75rem] border border-line border-b-0 bg-surface"
+        role="dialog"
+        aria-modal="true"
+        aria-label="오늘의 추천 코디 상세"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <span className="mx-auto mt-2.5 h-1 w-9 shrink-0 rounded-full bg-line" aria-hidden="true" />
+        <header className="shrink-0 border-b border-line bg-surface">
+          <div className="mx-auto flex min-h-16 max-w-3xl items-center gap-2 px-3 py-2 sm:min-h-18 sm:px-5">
             <button
               type="button"
-              onClick={openOrGeneratePreview}
-              disabled={Boolean(completionMessage)}
-              className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-canvas px-3 py-3.5 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={onClose}
+              className="flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-surface"
+              aria-label={backLabel}
+              autoFocus
             >
-              {preview.status === 'success' && preview.imageUrl ? (
-                <Sparkles size={16} />
-              ) : (
-                <ImagePlus size={16} />
-              )}
-              {preview.status === 'success' && preview.imageUrl
-                ? 'AI 룩북 보기'
-                : 'AI 룩북 만들기'}
+              <ChevronLeft size={25} strokeWidth={2.2} />
             </button>
-            <button
-              type="button"
-              onClick={async () => {
-                if (completionMessage) return
-                const didApply = await onApply(selectedItems, generatedPreview)
-                if (didApply) handleApplied()
+            <div className="min-w-0 flex-1">
+              <h1 className="flex min-w-0 items-center gap-1.5 text-base font-black tracking-[-0.03em]">
+                <Sparkles className="shrink-0 text-accent" size={18} />
+                <span className="min-w-0 flex-1 truncate" title={title}>
+                  {title}
+                </span>
+              </h1>
+              <p className="mt-0.5 truncate text-xs text-muted">
+                {formattedDate} · 아이템을 누르면 바꿀 수 있어요.
+              </p>
+            </div>
+          </div>
+        </header>
+
+        <div className="min-h-0 flex-1 px-3 py-3">
+          <div className="mx-auto h-full max-w-3xl">
+            <OutfitSlotEditor
+              items={availableItems}
+              selectedItems={selectedItems}
+              onChange={(nextItems) => {
+                setSelectedItems(nextItems)
+                const nextPreviewKey = getRecommendationPreviewKey(
+                  viewerId,
+                  style,
+                  nextItems.map((item) => item.id),
+                )
+                previewKeyRef.current = nextPreviewKey
+                setPreview(
+                  createPreviewState(
+                    readRecommendationPreview(nextPreviewKey),
+                  ),
+                )
               }}
-              disabled={Boolean(completionMessage) || isSaving}
-              className="flex items-center justify-center gap-1.5 rounded-xl bg-accent px-3 py-3.5 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
-            >
-              {isSaving ? (
-                <LoaderCircle className="animate-spin" size={18} />
-              ) : (
-                <CalendarPlus size={18} />
-              )}
-              {isSaving
-                ? '일정에 담는 중...'
-                : hasTodayOutfit
-                  ? '오늘 코디 바꾸기'
-                  : '오늘 일정에 추가'}
-            </button>
+              className="h-full w-full"
+            />
           </div>
         </div>
-      </footer>
 
-      <OutfitPreviewDialogView
-        selectedItems={selectedItems}
-        preview={preview}
-        generatePreview={generatePreview}
-        closePreview={() =>
-          setPreview((current) => ({ ...current, isOpen: false }))
-        }
-        onPrimary={() => {
-          void onApply(selectedItems, generatedPreview).then((didApply) => {
-            if (!didApply) return
+        <footer className="shrink-0 border-t border-line bg-surface px-4 py-3">
+          <div className="mx-auto max-w-3xl">
+            {completionMessage && (
+              <p className="mb-2 text-center text-xs font-bold text-muted">
+                {completionMessage}
+              </p>
+            )}
+            <div className="grid grid-cols-[0.85fr_1.15fr] gap-2">
+              <button
+                type="button"
+                onClick={openOrGeneratePreview}
+                disabled={Boolean(completionMessage)}
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-canvas px-3 py-3.5 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {preview.status === 'success' && preview.imageUrl ? (
+                  <Sparkles size={16} />
+                ) : (
+                  <ImagePlus size={16} />
+                )}
+                {preview.status === 'success' && preview.imageUrl
+                  ? 'AI 룩북 보기'
+                  : 'AI 룩북 만들기'}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (completionMessage) return
+                  const didApply = await onApply(selectedItems, generatedPreview)
+                  if (didApply) handleApplied()
+                }}
+                disabled={Boolean(completionMessage) || isSaving}
+                className="flex items-center justify-center gap-1.5 rounded-xl bg-accent px-3 py-3.5 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
+              >
+                {isSaving ? (
+                  <LoaderCircle className="animate-spin" size={18} />
+                ) : (
+                  <CalendarPlus size={18} />
+                )}
+                {isSaving
+                  ? '일정에 담는 중...'
+                  : hasTodayOutfit
+                    ? '오늘 코디 바꾸기'
+                    : '오늘 일정에 추가'}
+              </button>
+            </div>
+          </div>
+        </footer>
+
+        <OutfitPreviewDialogView
+          selectedItems={selectedItems}
+          preview={preview}
+          generatePreview={generatePreview}
+          closePreview={() =>
             setPreview((current) => ({ ...current, isOpen: false }))
-            handleApplied()
-          })
-        }}
-        primaryLabel={hasTodayOutfit ? '오늘 코디 바꾸기' : '오늘 일정에 추가'}
-        isPrimaryPending={isSaving}
-      />
-    </section>,
+          }
+          onPrimary={() => {
+            void onApply(selectedItems, generatedPreview).then((didApply) => {
+              if (!didApply) return
+              setPreview((current) => ({ ...current, isOpen: false }))
+              handleApplied()
+            })
+          }}
+          primaryLabel={hasTodayOutfit ? '오늘 코디 바꾸기' : '오늘 일정에 추가'}
+          isPrimaryPending={isSaving}
+        />
+      </section>
+    </div>,
     document.body,
   )
 }

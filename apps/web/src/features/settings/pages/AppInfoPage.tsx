@@ -168,7 +168,7 @@ export function AppInfoPage() {
               </span>
               <ExternalLink className="shrink-0 text-muted" size={17} />
             </button>
-            {error && <p className="mt-2 px-1 text-xs text-accent">{error}</p>}
+            {error && <p role="alert" className="mt-2 px-1 text-xs text-danger">{error}</p>}
           </section>
         </div>
       </div>

@@ -50,7 +50,7 @@ const permissionLabels: Record<NativePermissionStatus, string> = {
 const permissionStyles: Record<NativePermissionStatus, string> = {
   granted: 'bg-sage text-ink',
   limited: 'bg-amber-100 text-amber-700',
-  denied: 'bg-[#fff0ec] text-accent',
+  denied: 'bg-danger-soft text-danger',
   undetermined: 'bg-canvas text-muted',
   unavailable: 'bg-canvas text-muted',
 }
@@ -454,7 +454,7 @@ export function NotificationWeatherPage() {
           </div>
 
           {error && (
-            <p className="rounded-xl bg-[#fff0ec] px-4 py-3 text-xs leading-5 font-bold text-accent">
+            <p className="rounded-xl bg-danger-soft px-4 py-3 text-xs leading-5 font-medium text-danger">
               {error}
             </p>
           )}

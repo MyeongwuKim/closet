@@ -88,6 +88,47 @@ test('같은 지역과 날짜의 예보는 캐시해 중복 호출하지 않는�
   assert.equal(requestCount, 1)
 })
 
+test('캐시는 30분 경계에서 만료되며 재사용으로 만료 시각이 연장되지 않는다', async (t) => {
+  weatherService.clearCache()
+  const startedAt = Date.parse('2026-09-02T03:00:00Z')
+  let now = startedAt
+  let requestCount = 0
+  t.mock.method(Date, 'now', () => now)
+  t.mock.method(globalThis, 'fetch', async () => {
+    requestCount += 1
+    return new Response(JSON.stringify(createProviderResponse()), { status: 200 })
+  })
+  const input = { latitude: 37.5, longitude: 126.9, date: '2026-09-02' }
+  const first = await weatherService.getForecast(input)
+  assert.equal(Date.parse(first.expiresAt), startedAt + 30 * 60 * 1000)
+
+  now += 30 * 60 * 1000 - 1
+  const cached = await weatherService.getForecast(input)
+  assert.equal(requestCount, 1)
+  assert.equal(cached.expiresAt, first.expiresAt)
+
+  now += 1
+  const refreshed = await weatherService.getForecast(input)
+  assert.equal(requestCount, 2)
+  assert.equal(Date.parse(refreshed.expiresAt), now + 30 * 60 * 1000)
+})
+
+test('만료 후 제공자 조회에 실패하면 이전 기온을 새 날씨로 반환하지 않는다', async (t) => {
+  weatherService.clearCache()
+  let now = Date.parse('2026-09-02T03:00:00Z')
+  t.mock.method(Date, 'now', () => now)
+  t.mock.method(globalThis, 'fetch', async () =>
+    new Response(JSON.stringify(createProviderResponse()), { status: 200 }),
+  )
+  const input = { latitude: 37.5, longitude: 126.9, date: '2026-09-02' }
+  await weatherService.getForecast(input)
+  now += 30 * 60 * 1000
+  t.mock.method(globalThis, 'fetch', async () => new Response('', { status: 503 }))
+  await assert.rejects(weatherService.getForecast(input), (error: unknown) =>
+    error instanceof ServiceError && error.code === 'WEATHER_FORECAST_UNAVAILABLE',
+  )
+})
+
 test('좌표 범위를 벗어난 위치는 제공자 호출 전에 거절한다', async () => {
   weatherService.clearCache()
   await assert.rejects(

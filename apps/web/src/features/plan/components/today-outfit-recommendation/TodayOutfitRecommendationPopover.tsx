@@ -11,7 +11,7 @@ import { RecommendationPlannerStatus } from './RecommendationPlannerStatus'
 import { RecommendationIntroStep } from './steps/RecommendationIntroStep'
 import { RecommendationResultStep } from './steps/RecommendationResultStep'
 import { RecommendationSeasonStep } from './steps/RecommendationSeasonStep'
-import { RecommendationStyleStep } from './steps/RecommendationStyleStep'
+import { RecommendationReadinessStatus } from './RecommendationReadinessStatus'
 
 interface TodayOutfitRecommendationPopoverProps {
   date: string
@@ -19,6 +19,7 @@ interface TodayOutfitRecommendationPopoverProps {
   onClose: () => void
 }
 
+/** 상단 또는 옷 상세의 AI 추천 버튼에서 하단 시트를 연다. 모든 단계에서 같은 높이를 유지하고 바깥 클릭·닫기·Escape로 종료한다. 추천 조건과 조회는 흐름 Hook 및 각 단계에 맡긴다. */
 export function TodayOutfitRecommendationPopover({
   date,
   baseItem,
@@ -31,9 +32,6 @@ export function TodayOutfitRecommendationPopover({
     step,
     seasonChoice,
     selectedSeason,
-    selectedStyle,
-    availableStyleOptions,
-    hasPreferredStyles,
     meQuery,
     plannerWeekQuery,
     hasTodayOutfit,
@@ -42,6 +40,9 @@ export function TodayOutfitRecommendationPopover({
   } = useTodayOutfitRecommendationFlow({ date, baseItem })
 
   useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented) return
       if (useUiStore.getState().recentWearConfirmation) return
@@ -51,7 +52,10 @@ export function TodayOutfitRecommendationPopover({
     }
 
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+    }
   }, [onClose])
 
   const openCloset = () => {
@@ -71,28 +75,20 @@ export function TodayOutfitRecommendationPopover({
         onSelect={actions.selectSeason}
       />
     )
-  } else if (step === 'style' || !selectedStyle || !meQuery.data) {
+  } else if (
+    !meQuery.data || meQuery.isError ||
+    (seasonChoice === 'current-weather' && (!locationWeather.weather || locationWeather.isLoading))
+  ) {
+    const weatherError = seasonChoice === 'current-weather' ? locationWeather.errorMessage : null
     stepContent = (
-      <RecommendationStyleStep
-        season={selectedSeason}
-        seasonChoice={seasonChoice}
-        options={availableStyleOptions}
-        hasPreferredStyles={hasPreferredStyles}
-        isLoading={meQuery.isLoading}
-        isError={meQuery.isError || (!meQuery.isLoading && !meQuery.data)}
-        weather={locationWeather.weather}
-        isWeatherLoading={
-          seasonChoice === 'current-weather' && locationWeather.isLoading
-        }
-        weatherError={
-          seasonChoice === 'current-weather'
-            ? locationWeather.errorMessage
-            : null
-        }
+      <RecommendationReadinessStatus
+        isLoading={meQuery.isLoading || locationWeather.isLoading}
+        errorMessage={weatherError ?? (meQuery.isError ? '계정 정보를 불러오지 못했어요.' : null)}
+        onRetry={() => {
+          if (weatherError) locationWeather.actions.retry()
+          else void meQuery.refetch()
+        }}
         onBack={actions.showSeasons}
-        onRetry={() => void meQuery.refetch()}
-        onWeatherRetry={locationWeather.actions.retry}
-        onSelect={actions.selectStyle}
       />
     )
   } else if (plannerWeekQuery.isError || !plannerWeekQuery.data) {
@@ -109,37 +105,34 @@ export function TodayOutfitRecommendationPopover({
         viewerId={meQuery.data.id}
         date={date}
         season={selectedSeason}
-        style={selectedStyle}
         hasTodayOutfit={hasTodayOutfit}
         baseItemId={baseItem?.id}
         weather={
           seasonChoice === 'current-weather' ? locationWeather.weather : null
         }
         onOpenCloset={openCloset}
-        onBack={actions.showStyles}
+        onBack={actions.showSeasons}
       />
     )
   }
 
   return createPortal(
     <div
-      className={`fixed inset-0 ${baseItem ? 'z-[70] bg-ink/20' : 'z-[60] bg-ink/5 md:bg-transparent'}`}
+      className={`fixed inset-0 flex items-end justify-center bg-ink/20 ${baseItem ? 'z-[70]' : 'z-[60]'}`}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose()
       }}
     >
       <section
         ref={popoverRef}
-        className={`selection-bar-enter absolute inset-x-3 flex flex-col overflow-hidden rounded-[1.75rem] border border-line bg-canvas shadow-[0_22px_60px_rgba(27,27,24,0.22)] sm:right-5 sm:left-auto sm:w-[25rem] ${baseItem
-          ? 'bottom-[calc(1rem+env(safe-area-inset-bottom))] h-[28rem] max-h-[calc(100dvh-3rem-env(safe-area-inset-bottom))] md:right-6 md:bottom-6'
-          : 'bottom-[calc(9.25rem+env(safe-area-inset-bottom))] h-96 max-h-[calc(100dvh-10.25rem)] md:right-6 md:bottom-20 md:max-h-[calc(100dvh-6rem)]'
-        }`}
+        className="ai-recommendation-sheet relative flex w-full max-w-xl flex-col overflow-hidden rounded-t-[1.75rem] border border-line border-b-0 bg-surface shadow-[0_-12px_48px_rgba(27,27,24,0.16)]"
         role="dialog"
         aria-modal="true"
         aria-label={baseItem ? '이 옷으로 AI 코디 추천' : '오늘의 AI 코디 추천'}
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-line bg-surface px-4 py-3.5">
+        <span className="mx-auto mt-2.5 h-1 w-9 shrink-0 rounded-full bg-line" aria-hidden="true" />
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-line bg-surface px-5 pt-2 pb-3">
           <div className="min-w-0">
             <h2 className="flex items-center gap-1.5 text-sm font-black">
               <Sparkles className="text-accent" size={16} /> AI 추천 코디
@@ -180,7 +173,7 @@ export function TodayOutfitRecommendationPopover({
             </div>
           </div>
         )}
-        <div className="min-h-0 flex-1 overflow-y-auto p-3 [&>section]:mt-0 sm:p-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 [&>section]:mt-0">
           {stepContent}
         </div>
       </section>

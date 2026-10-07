@@ -66,7 +66,7 @@ export function ClosetCategoryFilter({
             ref={activeButtonRef}
             type="button"
             onClick={() => selectCategory(null)}
-            className="shrink-0 rounded-full bg-ink px-4 py-2 text-sm font-bold text-white"
+            className="shrink-0 rounded-full bg-ink px-4 py-2 text-sm font-medium text-white"
           >
             전체
           </button>
@@ -74,7 +74,7 @@ export function ClosetCategoryFilter({
             <button
               type="button"
               onClick={() => selectCategory(availableCategory)}
-              className="shrink-0 rounded-full border border-line bg-surface px-4 py-2 text-sm font-bold text-muted hover:text-ink"
+              className="shrink-0 rounded-full border border-line bg-surface px-4 py-2 text-sm font-medium text-muted hover:text-ink"
               key={availableCategory}
             >
               {closetCategoryLabels[availableCategory]}
@@ -95,9 +95,9 @@ export function ClosetCategoryFilter({
             ref={subcategory === null ? activeButtonRef : undefined}
             type="button"
             onClick={() => onSubcategoryChange(null)}
-            className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold ${
+            className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium ${
               subcategory === null
-                ? 'bg-ink text-white'
+                ? 'bg-accent text-surface'
                 : 'border border-line bg-surface text-muted hover:text-ink'
             }`}
           >
@@ -112,9 +112,9 @@ export function ClosetCategoryFilter({
               }
               type="button"
               onClick={() => onSubcategoryChange(availableSubcategory)}
-              className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold ${
+              className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium ${
                 subcategory === availableSubcategory
-                  ? 'bg-ink text-white'
+                  ? 'bg-accent text-surface'
                   : 'border border-line bg-surface text-muted hover:text-ink'
               }`}
               key={availableSubcategory}

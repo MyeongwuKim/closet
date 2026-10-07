@@ -4,11 +4,13 @@ import type {
   Season,
   WardrobeItem,
 } from '@closet/types'
-import { Outlet, useLocation, useMatch, useNavigate, useSearchParams } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { ColorFilter } from '../../../components/ColorFilter'
 import { CatalogCardSkeletonGrid } from '../../../components/CatalogCardSkeletonGrid'
 import { DateSortButton } from '../../../components/DateSortButton'
 import { SeasonFilter } from '../../../components/SeasonFilter'
+import { WardrobeCabinet } from '../../../components/WardrobeCabinet'
+import { useWardrobeTransition } from '../../../hooks/useWardrobeTransition'
 import { WardrobeEmptyStateIllustration } from '../../../components/WardrobeEmptyStateIllustration'
 import { seasonLabels } from '../../../constants/seasons'
 import { useUiStore } from '../../../stores/useUiStore'
@@ -27,7 +29,6 @@ import {
 } from '../components/WardrobeImagePickerDialogs'
 import { useWardrobeImageAnalysis } from '../hooks/useWardrobeImageAnalysis'
 import { useWardrobeImagePicker } from '../hooks/useWardrobeImagePicker'
-import { OutfitRecommendationActions } from '../../plan/components/OutfitRecommendationActions'
 import { createOutfitComposerPath } from '../../lookbook/utils/outfitComposerNavigation'
 
 const FILTER_EXIT_DURATION = 170
@@ -38,7 +39,6 @@ type FilterTransitionPhase = 'idle' | 'leaving' | 'entering'
 export function ClosetPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const isClosetList = useMatch('/closet') !== null
   const [searchParams, setSearchParams] = useSearchParams()
   const items = useClosetStore((state) => state.items)
   const pushToast = useUiStore((state) => state.pushToast)
@@ -95,6 +95,7 @@ export function ClosetPage() {
   const filteredItems = wardrobeItemsQuery.data?.pages.flatMap((page) => page.items) ?? []
   const totalCount = filterOptions.data?.totalCount ?? wardrobeItemsQuery.data?.pages[0]?.totalCount ?? 0
   const matchCount = wardrobeItemsQuery.data?.pages[0]?.totalCount ?? 0
+  const wardrobeTransition = useWardrobeTransition(wardrobeItemsQuery.isPending || (wardrobeItemsQuery.isFetching && filteredItems.length === 0))
   const availableCategories = (Object.keys(closetCategoryLabels) as ClothingCategory[])
     .filter((category) => filterOptions.data?.categories.includes(category))
   const availableColors = filterOptions.data?.colors ?? []
@@ -307,12 +308,13 @@ export function ClosetPage() {
         <SeasonFilter
           className="mt-6"
           value={activeSeason}
-          onChange={(season) => updateFilterParam('season', season)}
+          onChange={(season) => {
+            if (season !== activeSeason || wardrobeTransition.phase !== 'idle') wardrobeTransition.changeSeason(() => updateFilterParam('season', season))
+          }}
         />
       )}
       <div
-        className={filterTransitionClass}
-        aria-busy={filterTransitionPhase !== 'idle'}
+        className="closet-catalog"
       >
         {totalCount > 0 && (
           <div className="mt-3">
@@ -348,6 +350,13 @@ export function ClosetPage() {
           </div>
         )}
 
+        <WardrobeCabinet
+          key={activeSeason ?? 'all'}
+          label={activeSeason ? `${seasonLabels[activeSeason]}에 입는 옷` : '전체 옷장'}
+          countLabel={`${matchCount}개의 옷`}
+          phase={wardrobeTransition.phase}
+          contentClassName={filterTransitionClass}
+        >
         {wardrobeItemsQuery.isPending ||
         (wardrobeItemsQuery.isFetching && filteredItems.length === 0) ? (
           <CatalogCardSkeletonGrid variant="wardrobe" />
@@ -374,7 +383,7 @@ export function ClosetPage() {
               </p>
             )}
             <div
-              className={`${searchQuery.trim() || selectedTag ? 'mt-3' : 'mt-5'} grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4`}
+              className="wardrobe-item-grid grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 sm:gap-x-6 lg:grid-cols-4"
             >
               {filteredItems.map((item) => (
                 <ClosetItemCard
@@ -432,6 +441,7 @@ export function ClosetPage() {
             </p>
           </div>
         )}
+        </WardrobeCabinet>
       </div>
 
       {filteredItems.length > 0 && (
@@ -450,10 +460,6 @@ export function ClosetPage() {
           onViewInLookbook={viewInLookbook}
           onSendToLookbook={sendToLookbook}
         />
-      )}
-
-      {isClosetList && selectedIds.length === 0 && (
-        <OutfitRecommendationActions />
       )}
 
       {(pickerStep === 'source' || pickerStep === 'capturing') && (

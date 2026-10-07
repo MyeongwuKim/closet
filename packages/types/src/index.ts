@@ -234,7 +234,8 @@ export interface TodayOutfitRecommendation {
   ready: boolean
   headline: string
   summary: string
-  style: string
+  /** 새 추천은 스타일을 지정하지 않으며, 이전 추천 기록에는 스타일명이 남아 있을 수 있다. */
+  style: string | null
   items: WardrobeItem[]
   reasons: string[]
   profileSummary: string[]
@@ -245,6 +246,8 @@ export interface TodayOutfitRecommendation {
 
 export interface WeatherSnapshot {
   date: string
+  /** 날씨 제공자를 조회한 시점부터 30분 뒤의 만료 시각. 이전 추천 기록에는 없을 수 있다. */
+  expiresAt?: string | null
   temperatureC: number
   minTemperatureC: number
   maxTemperatureC: number

@@ -103,7 +103,7 @@ export function useRecommendationHistory({
         itemIds: selectedItems.map((item) => item.id),
         previewImage,
         recommendationName: selectedEntry.recommendation.headline,
-        recommendationStyle: selectedEntry.style,
+        recommendationStyle: selectedEntry.style ?? '옷장 추천',
         weatherSummary: selectedEntry.recommendation.weather?.summary,
         temperatureC: selectedEntry.recommendation.weather?.temperatureC,
       })

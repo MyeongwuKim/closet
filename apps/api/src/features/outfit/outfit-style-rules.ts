@@ -1,7 +1,5 @@
 import type {
   ClothingCategory,
-  OutfitStyle,
-  PreferredFit,
   Season,
 } from '@prisma/client'
 import type {
@@ -31,93 +29,6 @@ export interface OutfitCombination<T extends StyleRuleItem> {
   id: string
   items: T[]
   score: number
-}
-
-interface StyleDefinition {
-  description: string
-  keywords: string[]
-  subcategories: string[]
-  silhouettes: FashionSilhouette[]
-  patterns: FashionPattern[]
-  materials: FashionMaterial[]
-  textures: FashionTexture[]
-  formality: [number, number]
-  neutralColorBonus: boolean
-}
-
-export const styleDefinitions: Record<OutfitStyle, StyleDefinition> = {
-  minimal: {
-    description:
-      '아이템 종류보다 전체 코디의 절제된 인상을 본다. 색과 패턴 수가 적고 장식이 과하지 않으며, 상하의 볼륨이 정돈된 조합을 우선한다. 여유로운 옷도 선이 깔끔하고 색 구성이 단순하면 미니멀로 볼 수 있다.',
-    keywords: ['무지', '셔츠', '슬랙스', '니트', '코트', '로퍼', '블레이저'],
-    subcategories: ['셔츠', '니트', '슬랙스', '일반 긴바지', '블레이저', '코트', '로퍼'],
-    silhouettes: ['slim', 'regular', 'relaxed'],
-    patterns: ['solid', 'stripe'],
-    materials: ['cotton', 'knit', 'wool'],
-    textures: ['smooth', 'twill', 'ribbed'],
-    formality: [0.4, 0.82],
-    neutralColorBonus: true,
-  },
-  casual: {
-    description:
-      '특정 아이템 종류가 아니라 전체 코디에서 느껴지는 편안함과 자연스러운 실루엣을 본다. 셔츠·니트·코트처럼 단정한 아이템도 데님·치노·스니커즈나 여유로운 이너와 조합되면 캐주얼이며, 슬랙스도 편안한 상의·와이드 실루엣·편한 신발과 맞추면 캐주얼이 될 수 있다. 반대로 코트·셔츠·니트·슬랙스가 하나 들어갔다는 이유만으로 클래식으로 판단하지 않는다.',
-    keywords: ['티셔츠', '반팔', '긴팔', '데님', '청바지', '스니커즈', '후드', '맨투맨', '치노'],
-    subcategories: ['반팔', '긴팔', '맨투맨', '후드', '폴로 셔츠', '데님', '치노 팬츠', '일반 긴바지', '스니커즈', '재킷', '가디건'],
-    silhouettes: ['regular', 'relaxed'],
-    patterns: ['solid', 'stripe', 'check', 'graphic'],
-    materials: ['cotton', 'denim', 'knit'],
-    textures: ['smooth', 'twill', 'corduroy', 'ribbed', 'quilted', 'distressed'],
-    formality: [0.08, 0.62],
-    neutralColorBonus: false,
-  },
-  street: {
-    description:
-      '상의와 하의의 오버사이즈·와이드 볼륨, 레이어드, 그래픽이나 스포티한 디테일이 전체 조합에서 분명하게 드러나는지 본다. 와이드 아이템 하나만으로 스트릿으로 판단하지 않고 다른 아이템과 만든 실루엣을 함께 본다.',
-    keywords: ['오버핏', '와이드', '카고', '후드', '조거', '스니커즈', '그래픽', '집업', '패딩'],
-    subcategories: ['맨투맨', '후드', '와이드 팬츠', '조거 팬츠', '집업', '패딩', '스니커즈', '모자'],
-    silhouettes: ['relaxed', 'oversized'],
-    patterns: ['solid', 'graphic', 'other'],
-    materials: ['cotton', 'denim', 'synthetic', 'leather'],
-    textures: ['smooth', 'twill', 'quilted', 'distressed'],
-    formality: [0, 0.42],
-    neutralColorBonus: false,
-  },
-  classic: {
-    description:
-      '구조적인 소재와 정돈된 레귤러·슬림 실루엣, 셔츠·테일러드 슬랙스·블레이저·로퍼 같은 아이템의 결합으로 전체 격식이 높아지는 조합을 본다. 셔츠나 슬랙스 하나만 포함됐다는 이유로 클래식으로 판단하지 않는다.',
-    keywords: ['셔츠', '슬랙스', '블레이저', '재킷', '코트', '로퍼', '구두', '니트'],
-    subcategories: ['셔츠', '니트', '슬랙스', '블레이저', '코트', '로퍼', '구두'],
-    silhouettes: ['slim', 'regular'],
-    patterns: ['solid', 'stripe', 'check'],
-    materials: ['cotton', 'knit', 'wool', 'leather'],
-    textures: ['smooth', 'twill', 'ribbed'],
-    formality: [0.58, 1],
-    neutralColorBonus: true,
-  },
-  vintage: {
-    description:
-      '워싱, 체크, 코듀로이, 레더처럼 시간이 느껴지는 질감과 색이 여러 아이템 사이에서 자연스럽게 이어지는지 본다. 특정 소재 하나보다 전체 조합의 시대감과 질감 조화를 우선한다.',
-    keywords: ['워싱', '코듀로이', '레더', '가죽', '체크', '데님', '브라운', '올리브'],
-    subcategories: ['셔츠', '데님', '재킷', '부츠', '로퍼'],
-    silhouettes: ['regular', 'relaxed', 'oversized'],
-    patterns: ['solid', 'stripe', 'check', 'floral', 'other'],
-    materials: ['denim', 'leather', 'wool', 'cotton'],
-    textures: ['twill', 'corduroy', 'suede', 'distressed'],
-    formality: [0.18, 0.72],
-    neutralColorBonus: false,
-  },
-  sporty: {
-    description:
-      '기능성 소재, 활동하기 좋은 실루엣, 트랙·조거·바람막이·러닝화 같은 요소가 전체 조합에서 운동복의 인상을 만드는지 본다. 스니커즈나 후드 하나만 포함됐다는 이유로 스포티로 판단하지 않는다.',
-    keywords: ['트랙', '조거', '레깅스', '러닝', '스니커즈', '바람막이', '집업', '후드'],
-    subcategories: ['후드', '집업', '조거 팬츠', '레깅스', '스니커즈'],
-    silhouettes: ['slim', 'regular', 'relaxed'],
-    patterns: ['solid', 'graphic', 'other'],
-    materials: ['synthetic', 'cotton', 'knit'],
-    textures: ['smooth', 'quilted', 'glossy'],
-    formality: [0, 0.3],
-    neutralColorBonus: false,
-  },
 }
 
 const neutralColors = new Set(['블랙', '화이트', '크림', '베이지', '그레이', '네이비'])
@@ -214,6 +125,7 @@ function softenRepresentativeColorScore(
   return hasComplexColor ? 3.5 + (score - 3.5) * 0.7 : score
 }
 
+/** 실제 대표색의 명도·채도·색상 차이를 비교한다. 대표색이 없으면 넓은 색상명 규칙을 사용한다. */
 export function getColorHarmonyScore(
   left: StyleRuleItem,
   right: StyleRuleItem,
@@ -265,13 +177,6 @@ export function getColorHarmonyScore(
   return clamp(softenRepresentativeColorScore(score, left, right), 1, 6)
 }
 
-function isNeutralItemColor(item: StyleRuleItem) {
-  const color = colorHexToOklch(item.colorHex)
-  return color
-    ? color.chroma <= NEUTRAL_CHROMA_MAX
-    : neutralColors.has(item.colorName?.trim() ?? '')
-}
-
 const layerRoles = new Set(['base', 'mid', 'outer', 'single', 'unknown'])
 const silhouettes = new Set(['slim', 'regular', 'relaxed', 'oversized', 'unknown'])
 const patterns = new Set(['solid', 'stripe', 'check', 'graphic', 'floral', 'other', 'unknown'])
@@ -283,6 +188,7 @@ function includesCategory(item: StyleRuleItem, category: ClothingCategory) {
   return item.category === category || item.additionalCategories?.includes(category) === true
 }
 
+/** 직전 추천의 아우터만 후보에서 제외한다. 사용자가 고른 기준 옷은 제외 목록에 있어도 유지한다. */
 export function excludeOuterItems<T extends StyleRuleItem>(
   items: T[],
   excludedItemIds: Iterable<string>,
@@ -383,6 +289,7 @@ function inferFashionAttributes(item: StyleRuleItem): FashionItemAttributes {
   }
 }
 
+/** 저장된 관찰 속성을 읽으며, 누락되거나 유효하지 않으면 옷 이름·종류·색 구성으로 보조 추정한다. */
 export function getFashionAttributes(item: StyleRuleItem): FashionItemAttributes {
   if (!item.fashionAttributes || typeof item.fashionAttributes !== 'object') {
     return inferFashionAttributes(item)
@@ -430,108 +337,31 @@ function getRotationScore(item: StyleRuleItem) {
   return Math.min(Math.max(daysSinceWorn, 0), 30) / 15 - Math.min(item.wearCount, 10) / 10
 }
 
-function getFitScore(attributes: FashionItemAttributes, fit: PreferredFit) {
-  const preferredByFit: Record<PreferredFit, FashionSilhouette[]> = {
-    wide: ['relaxed', 'oversized'],
-    regular: ['regular', 'relaxed'],
-    skinny: ['slim', 'regular'],
-  }
-  return preferredByFit[fit].includes(attributes.silhouette) ? 2 : 0
-}
-
-export function getItemStyleScore(
-  item: StyleRuleItem,
-  style: OutfitStyle,
-  fit: PreferredFit,
-) {
-  const definition = styleDefinitions[style]
-  const attributes = getFashionAttributes(item)
-  const text = `${item.name} ${item.subcategory ?? ''}`.toLocaleLowerCase()
-  const keywordMatchCount = definition.keywords.filter((keyword) =>
-    text.includes(keyword.toLocaleLowerCase()),
-  ).length
-  const keywordScore = style === 'casual'
-    ? Math.min(keywordMatchCount, 1) * 1.25
-    : Math.min(keywordMatchCount * 2.5, 7.5)
-  const subcategoryScore = definition.subcategories.some(
-    (subcategory) => item.subcategory === subcategory || text.includes(subcategory.toLocaleLowerCase()),
+/**
+ * 상의·겉옷과 하의의 실제 실루엣을 비교해 볼륨 균형을 보조 평가한다.
+ * 같은 핏이나 기본 핏을 포함한 조합, 여유로운 옷과 슬림한 옷의 조합에 가점을 준다.
+ * unknown은 판단에서 제외하고 분석 확신도가 낮으면 가점을 줄이며 어떤 실루엣도 추천 후보에서 금지하지 않는다.
+ */
+function getSilhouetteBalanceScore<T extends StyleRuleItem>(items: T[]) {
+  const upperItems = items.filter((item) =>
+    ['top', 'midlayer', 'outer'].some((category) =>
+      includesCategory(item, category as ClothingCategory),
+    ),
   )
-    ? style === 'casual' ? 2.5 : 4
-    : 0
-  const silhouetteScore = definition.silhouettes.includes(attributes.silhouette) ? 2.5 : 0
-  const patternScore = definition.patterns.includes(attributes.pattern) ? 1.5 : 0
-  const materialScore = definition.materials.includes(attributes.material) ? 2 : 0
-  const textureScore = definition.textures.includes(attributes.texture ?? 'unknown')
-    ? 1.5
-    : 0
-  const [minFormality, maxFormality] = definition.formality
-  const formalityScore =
-    attributes.formality >= minFormality && attributes.formality <= maxFormality
-      ? 3
-      : Math.max(
-          0,
-          3 - Math.min(
-            Math.abs(attributes.formality - minFormality),
-            Math.abs(attributes.formality - maxFormality),
-          ) * 6,
-        )
-  const colorScore =
-    definition.neutralColorBonus && isNeutralItemColor(item)
-      ? 1.5
-      : 0
-
-  return (
-    keywordScore +
-    subcategoryScore +
-    silhouetteScore +
-    patternScore +
-    materialScore +
-    textureScore +
-    formalityScore +
-    colorScore +
-    getFitScore(attributes, fit)
-  )
-}
-
-function isCasualAnchor(item: StyleRuleItem) {
-  const definition = styleDefinitions.casual
-  const attributes = getFashionAttributes(item)
-  const text = `${item.name} ${item.subcategory ?? ''}`.toLocaleLowerCase()
-  const hasCasualKeyword = definition.keywords.some((keyword) =>
-    text.includes(keyword.toLocaleLowerCase()),
-  )
-  const hasCasualSubcategory = definition.subcategories.some(
-    (subcategory) =>
-      item.subcategory === subcategory ||
-      text.includes(subcategory.toLocaleLowerCase()),
-  )
-  const hasRelaxedEverydayShape =
-    ['relaxed', 'oversized'].includes(attributes.silhouette) &&
-    attributes.formality <= definition.formality[1]
-
-  return (
-    hasCasualKeyword ||
-    hasCasualSubcategory ||
-    attributes.formality <= 0.3 ||
-    hasRelaxedEverydayShape
-  )
-}
-
-function getStyleRelationshipScore<T extends StyleRuleItem>(
-  items: T[],
-  style: OutfitStyle,
-) {
-  if (style !== 'casual') return 0
-
-  const casualAnchorCount = items.filter(isCasualAnchor).length
-  const structuredItemCount = items.filter(
-    (item) => getFashionAttributes(item).formality > 0.62,
-  ).length
-  const casualCoherenceScore = Math.min(casualAnchorCount, 3) * 0.8
-  const mixedFormalityScore =
-    casualAnchorCount >= 2 ? Math.min(structuredItemCount, 2) * 3 : 0
-
-  return casualCoherenceScore + mixedFormalityScore
+  const bottom = items.find((item) => includesCategory(item, 'bottom'))
+  if (!bottom || upperItems.length === 0) return 0
+  const bottomAttributes = getFashionAttributes(bottom)
+  const bottomShape = bottomAttributes.silhouette
+  const scores = upperItems.flatMap((item) => {
+    const upperAttributes = getFashionAttributes(item)
+    const upperShape = upperAttributes.silhouette
+    const confidence = Math.min(upperAttributes.confidence, bottomAttributes.confidence)
+    if (upperShape === 'unknown' || bottomShape === 'unknown') return []
+    if (upperShape === bottomShape || [upperShape, bottomShape].includes('regular')) return [confidence]
+    if ([upperShape, bottomShape].includes('slim')) return [1.5 * confidence]
+    return [0.5 * confidence]
+  })
+  return scores.length > 0 ? scores.reduce((sum, score) => sum + score, 0) / scores.length : 0
 }
 
 function isOuterLayer(item: StyleRuleItem) {
@@ -642,14 +472,9 @@ function getWeatherCompatibilityScore<T extends StyleRuleItem>(
 
 function scoreCombination<T extends StyleRuleItem>(
   items: T[],
-  style: OutfitStyle,
-  fit: PreferredFit,
   season: Season,
   apparentTemperatureC?: number,
 ) {
-  const averageStyle =
-    items.reduce((sum, item) => sum + getItemStyleScore(item, style, fit), 0) /
-    items.length
   const pairs: Array<[T, T]> = []
   items.forEach((item, index) => {
     items.slice(index + 1).forEach((other) => pairs.push([item, other]))
@@ -683,10 +508,9 @@ function scoreCombination<T extends StyleRuleItem>(
       : getWeatherCompatibilityScore(items, apparentTemperatureC)
 
   return (
-    averageStyle * 2.4 +
-    averageColor * 1.7 +
+    averageColor * 2.5 +
+    getSilhouetteBalanceScore(items) * 1.5 +
     averageRotation +
-    getStyleRelationshipScore(items, style) +
     (hasShoes ? 2 : 0) +
     layerScore -
     patternPenalty -
@@ -694,19 +518,30 @@ function scoreCombination<T extends StyleRuleItem>(
   )
 }
 
+/**
+ * 각 역할의 후보를 색 궁합과 최근 착용 기록으로 정렬해 최대 8개 남긴다.
+ * 기준 옷이 있으면 그 옷과의 색 궁합을, 없으면 다른 종류 옷과의 평균 궁합을 비교한다.
+ * 기준 옷은 점수와 무관하게 맨 앞에 두어 후보 제한으로 빠지지 않게 한다.
+ */
 function sortPool<T extends StyleRuleItem>(
   items: T[],
-  style: OutfitStyle,
-  fit: PreferredFit,
+  wardrobeItems: T[],
   baseItemId?: string,
 ) {
-  // Keep the requested item ahead of both the pool limit and per-role limits.
+  const baseItem = wardrobeItems.find((item) => item.id === baseItemId)
+  const scores = new Map(items.map((item) => {
+    const partners = baseItem && baseItem.id !== item.id
+      ? [baseItem]
+      : wardrobeItems.filter((other) => other.id !== item.id && other.category !== item.category)
+    const colorScore = partners.length > 0
+      ? partners.reduce((sum, partner) => sum + getColorHarmonyScore(item, partner), 0) / partners.length
+      : 0
+    return [item.id, colorScore + getRotationScore(item)]
+  }))
   return [...items]
-    .sort(
-      (left, right) =>
-        Number(right.id === baseItemId) - Number(left.id === baseItemId) ||
-        getItemStyleScore(right, style, fit) + getRotationScore(right) -
-        (getItemStyleScore(left, style, fit) + getRotationScore(left)),
+    .sort((left, right) =>
+      Number(right.id === baseItemId) - Number(left.id === baseItemId) ||
+      scores.get(right.id)! - scores.get(left.id)!,
     )
     .slice(0, 8)
 }
@@ -787,10 +622,14 @@ function selectDiverseCombinations<T extends StyleRuleItem>(
   return selected
 }
 
+/**
+ * 이너와 하의 또는 원피스를 갖춘 옷장 조합을 만들고 색·핏 균형·레이어·착용 기록으로 정렬한다.
+ * 계절은 겉옷과 두께 평가에 사용하고, 기온이 있으면 더운 날의 보온성 옷을 후보에서 제외한다.
+ * baseItemId가 있으면 모든 결과에 포함하며 함께 입을 기본 구성이 없으면 빈 배열을 반환한다.
+ * 스타일 이름이나 선호 핏으로 옷을 제한하지 않고 최대 18개의 서로 다른 조합을 반환한다.
+ */
 export function buildOutfitCombinations<T extends StyleRuleItem>(
   items: T[],
-  style: OutfitStyle,
-  fit: PreferredFit,
   season: Season,
   baseItemId?: string,
   apparentTemperatureC?: number,
@@ -798,40 +637,40 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
   if (baseItemId !== undefined && !items.some((item) => item.id === baseItemId)) {
     return []
   }
+  // 기온에 맞지 않는 옷을 후보 제한 전에 제외해, 착용 가능한 옷이 8개 제한 아래로 밀리지 않게 한다.
+  const availableItems = apparentTemperatureC === undefined
+    ? items
+    : items.filter((item) => isWeatherCompatibleCombination([item], apparentTemperatureC, baseItemId))
   const tops = sortPool(
-    items.filter((item) => {
+    availableItems.filter((item) => {
       const role = getFashionAttributes(item).layerRole
       return includesCategory(item, 'top') && role !== 'outer' && role !== 'mid'
     }),
-    style,
-    fit,
+    availableItems,
     baseItemId,
   )
-  const bottoms = sortPool(items.filter((item) => includesCategory(item, 'bottom')), style, fit, baseItemId)
-  const dresses = sortPool(items.filter((item) => includesCategory(item, 'dress')), style, fit, baseItemId)
+  const bottoms = sortPool(availableItems.filter((item) => includesCategory(item, 'bottom')), availableItems, baseItemId)
+  const dresses = sortPool(availableItems.filter((item) => includesCategory(item, 'dress')), availableItems, baseItemId)
   const midlayers = sortPool(
-    items.filter(
+    availableItems.filter(
       (item) =>
         includesCategory(item, 'midlayer') || getFashionAttributes(item).layerRole === 'mid',
     ),
-    style,
-    fit,
+    availableItems,
     baseItemId,
   )
   const outers = sortPool(
-    items.filter(
+    availableItems.filter(
       (item) =>
         includesCategory(item, 'outer') || getFashionAttributes(item).layerRole === 'outer',
     ),
-    style,
-    fit,
+    availableItems,
     baseItemId,
   )
-  const shoes = sortPool(items.filter((item) => includesCategory(item, 'shoes')), style, fit, baseItemId)
+  const shoes = sortPool(availableItems.filter((item) => includesCategory(item, 'shoes')), availableItems, baseItemId)
   const accessories = sortPool(
-    items.filter((item) => includesCategory(item, 'accessory')),
-    style,
-    fit,
+    availableItems.filter((item) => includesCategory(item, 'accessory')),
+    availableItems,
     baseItemId,
   )
   const combinations = new Map<string, T[]>()
@@ -890,8 +729,6 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
       items: selectedItems,
       score: scoreCombination(
         selectedItems,
-        style,
-        fit,
         season,
         apparentTemperatureC,
       ),

@@ -1,6 +1,5 @@
 import type { Season, WeatherSnapshot } from '@closet/types'
 import { ChevronLeft } from 'lucide-react'
-import type { OutfitStyle } from '../../../../../constants/styleOptions'
 import { RecommendationQuickReply } from '../RecommendationChatUi'
 import { TodayOutfitRecommendationResult } from '../TodayOutfitRecommendationResult'
 
@@ -8,7 +7,6 @@ interface RecommendationResultStepProps {
   viewerId: string
   date: string
   season: Season
-  style: OutfitStyle
   hasTodayOutfit: boolean
   baseItemId?: string
   weather?: WeatherSnapshot | null
@@ -20,7 +18,6 @@ export function RecommendationResultStep({
   viewerId,
   date,
   season,
-  style,
   hasTodayOutfit,
   baseItemId,
   weather,
@@ -31,11 +28,10 @@ export function RecommendationResultStep({
     <section className="flex h-full min-h-0 flex-col gap-2 py-1">
       <div className="min-h-0 flex-1">
         <TodayOutfitRecommendationResult
-          key={`${viewerId}:${date}:${season}:${style}:${baseItemId ?? 'all'}`}
+          key={`${viewerId}:${date}:${season}:${baseItemId ?? 'all'}`}
           viewerId={viewerId}
           date={date}
           season={season}
-          style={style}
           hasTodayOutfit={hasTodayOutfit}
           baseItemId={baseItemId}
           weather={weather}

@@ -4,6 +4,7 @@ import type { ClothingCategory } from '@prisma/client'
 import { ServiceError } from '../../graphql/errors.js'
 import { userRepository } from '../user/user.repository.js'
 import { wardrobeRepository } from '../wardrobe/wardrobe.repository.js'
+import { outfitRecommendationService } from './outfit-recommendation.service.js'
 import { todayOutfitRecommendationService } from './today-outfit-recommendation.service.js'
 
 type WardrobeItem = Awaited<ReturnType<typeof wardrobeRepository.findMany>>[number]
@@ -188,6 +189,33 @@ test('AI 설명에 기준 아이템을 전달하고 응답에도 같은 기준 �
   assert.ok(result.items.some((item) => item.id === baseItem.id))
 })
 
+test('AI 설명에 코드·반복 기호·과도한 길이가 있으면 옷 구성은 유지하고 설명만 대체한다', async (t) => {
+  setupWardrobe(t, [createItem('top', 'top'), createItem('bottom', 'bottom')])
+  process.env.OPENAI_API_KEY = 'test-key'
+  const invalidReasons = [
+    '기본 핏을 연결해요. 」java.lang.String;}}}}}}}}',
+    '기본 핏을 연결해요. }}}}}}}}',
+    '색'.repeat(161),
+  ]
+  let reason = invalidReasons[0]
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({
+    output_text: JSON.stringify({
+      headline: '차분한 옷장 조합',
+      summary: '상하의 색을 연결했어요.',
+      reasons: [reason],
+    }),
+  }), { status: 200 }))
+
+  for (reason of invalidReasons) {
+    const result = await todayOutfitRecommendationService.recommend(userId, input)
+    assert.equal(result.source, 'fallback')
+    assert.equal(result.ready, true)
+    assert.deepEqual(result.items.map((item) => item.id).sort(), ['bottom', 'top'])
+    assert.ok(result.reasons.length > 0)
+    assert.doesNotMatch(result.reasons.join(' '), /java\.lang|\}{6,}/u)
+  }
+})
+
 test('기준을 지정하지 않은 기존 추천은 null 입력과 동일하게 동작한다', async (t) => {
   setupWardrobe(t, [createItem('top', 'top'), createItem('bottom', 'bottom')])
   const original = await todayOutfitRecommendationService.recommend(userId, input)
@@ -279,4 +307,71 @@ test('추천 날짜와 다른 날씨 정보는 거절한다', async () => {
     (error: unknown) =>
       error instanceof ServiceError && error.code === 'INVALID_WEATHER_SNAPSHOT',
   )
+})
+
+
+test('이전 스타일 입력과 저장된 취향을 읽지 않고 같은 옷장 조합을 반환한다', async (t) => {
+  setupWardrobe(t, [createItem('plain-shirt', 'top', { subcategory: '셔츠' }), createItem('plain-slacks', 'bottom', { subcategory: '슬랙스' })])
+  const profileRead = t.mock.method(userRepository, 'findViewerById', async () => {
+    throw new Error('추천은 저장된 스타일과 선호 핏을 읽지 않아야 한다')
+  })
+  const ordinary = await todayOutfitRecommendationService.recommend(userId, input)
+  for (const style of ['vintage', 'sporty', 'street'] as const) {
+    assert.deepEqual(await todayOutfitRecommendationService.recommend(userId, { ...input, style }), ordinary)
+  }
+  assert.equal(profileRead.mock.callCount(), 0)
+  assert.equal(ordinary.style, null)
+  assert.deepEqual(ordinary.profileSummary, [])
+  assert.ok(ordinary.reasons.length > 0)
+  assert.doesNotMatch(ordinary.summary + ordinary.reasons.join(' '), /빈티지|스포티|캐주얼|선호/)
+})
+
+test('AI 설명에는 목표 스타일과 선호 핏 없이 선택된 옷의 관찰 속성만 전달한다', async (t) => {
+  setupWardrobe(t, [createItem('top', 'top'), createItem('bottom', 'bottom')])
+  process.env.OPENAI_API_KEY = 'test-key'
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, options: RequestInit) => {
+    const body = JSON.parse(String(options.body)) as { input: Array<{ role: string; content: string }> }
+    const userMessage = body.input.find((message) => message.role === 'user')!
+    const prompt = JSON.parse(userMessage.content)
+    assert.equal(prompt.targetStyle, undefined)
+    assert.equal(prompt.styleGuide, undefined)
+    assert.equal(prompt.profile, undefined)
+    assert.equal(prompt.outfit.items.length, 2)
+    assert.ok(prompt.outfit.items[0].관찰속성)
+    return new Response(JSON.stringify({ output_text: JSON.stringify({ headline: '옷장 조합', summary: '두 옷의 색을 연결했어요.', reasons: ['기본 구성을 맞췄어요.'] }) }), { status: 200 })
+  })
+  const result = await todayOutfitRecommendationService.recommend(userId, input)
+  assert.equal(result.source, 'ai')
+  assert.equal(result.style, null)
+})
+
+
+test('수동 매칭의 색상 추천은 고른 옷 전체를 전달하며 선호 스타일·핏을 조회하지 않는다', async (t) => {
+  const selected = [createItem('top', 'top'), createItem('outer', 'outer')]
+  setupWardrobe(t, [createItem('bottom', 'bottom')])
+  t.mock.method(wardrobeRepository, 'findManyOwnedByIds', async () => selected)
+  const profileRead = t.mock.method(userRepository, 'findViewerById', async () => {
+    throw new Error('색상 추천은 스타일 프로필을 읽지 않아야 한다')
+  })
+  process.env.OPENAI_API_KEY = 'test-key'
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, options: RequestInit) => {
+    const body = JSON.parse(String(options.body)) as { input: Array<{ role: string; content: string }> }
+    const prompt = JSON.parse(body.input.find((message) => message.role === 'user')!.content)
+    assert.deepEqual(prompt.selectedItems.map((item: { id: string }) => item.id), ['top', 'outer'])
+    assert.equal(prompt.targetCategory, 'bottom')
+    assert.equal(prompt.styleProfile, undefined)
+    return new Response(JSON.stringify({ output_text: JSON.stringify({
+      headline: '고른 옷에 맞는 하의 색', summary: '두 옷의 대표색을 함께 비교했어요.',
+      recommendedColors: [
+        { name: '화이트', role: 'safe', reason: '색 대비를 만들어요.' },
+        { name: '그레이', role: 'harmony', reason: '차분하게 연결해요.' },
+        { name: '레드', role: 'accent', reason: '포인트를 더해요.' },
+      ], candidates: [],
+    }) }), { status: 200 })
+  })
+  const result = await outfitRecommendationService.recommend(userId, { selectedItemIds: ['top', 'outer'], targetCategory: 'bottom' })
+  assert.equal(profileRead.mock.callCount(), 0)
+  assert.equal(result.source, 'ai')
+  assert.equal(result.recommendedColors.length, 3)
+  assert.ok(result.candidates.every((candidate) => candidate.item.id === 'bottom'))
 })

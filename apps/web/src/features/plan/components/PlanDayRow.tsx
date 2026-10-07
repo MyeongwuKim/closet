@@ -61,7 +61,7 @@ export function PlanDayRowContent({
   return (
     <>
       <span className="text-center">
-        <strong className="block text-lg leading-none font-black sm:text-xl sm:leading-normal">
+        <strong className="block font-editorial text-2xl leading-none tracking-[-.05em] sm:text-3xl sm:leading-normal">
           {entry.dayNumber}
         </strong>
         <span
@@ -200,20 +200,20 @@ export function PlanDayRow({
   return (
     <div
       ref={connectRow}
-      className={`relative h-full min-h-11 rounded-xl border bg-surface sm:rounded-2xl ${
+      className={`relative h-full min-h-18 rounded-2xl border ${
         isDragging ? 'opacity-0 transition-none' : 'opacity-100 transition'
       } ${
         isOver && !isDragging
-          ? 'border-ink bg-sage/45'
+          ? 'border-accent bg-sage/45'
           : isToday
-            ? 'border-accent shadow-[inset_3px_0_0_#f05a3c]'
-            : 'border-line'
+            ? 'border-accent/40 bg-sage/65'
+            : 'border-line bg-surface'
       }`}
       data-plan-date={entry.date}
     >
       <Link
         to={`/plan/${entry.date}`}
-        className="grid h-full min-h-11 grid-cols-[38px_minmax(0,1fr)_16px] items-center gap-2 rounded-[inherit] py-1.5 pr-10 pl-2 transition hover:bg-canvas/35 sm:grid-cols-[58px_minmax(220px,0.85fr)_minmax(180px,1fr)_auto] sm:gap-3 sm:p-4 sm:pr-12 sm:hover:-translate-y-0.5"
+        className="grid h-full min-h-18 grid-cols-[38px_minmax(0,1fr)_16px] items-center gap-2 rounded-[inherit] py-3 pr-10 pl-2 transition hover:bg-canvas/35 sm:grid-cols-[58px_minmax(180px,0.85fr)_minmax(140px,1fr)_auto] sm:gap-3 sm:p-4 sm:pr-12 sm:hover:-translate-y-0.5"
         aria-current={isToday ? 'date' : undefined}
       >
         <PlanDayRowContent entry={entry} items={items} isToday={isToday} />

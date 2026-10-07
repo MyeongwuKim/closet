@@ -7,10 +7,6 @@ import {
   RefreshCw,
   Sparkles,
 } from 'lucide-react'
-import {
-  getOutfitStyleLabel,
-  type OutfitStyle,
-} from '../../../../constants/styleOptions'
 import { seasonLabels } from '../../../../constants/seasons'
 import { useWardrobeItemsQuery } from '../../../closet/api/wardrobeQueries'
 import { ClosetItemVisual } from '../../../closet/components/ClosetItemVisual'
@@ -26,7 +22,6 @@ interface TodayOutfitRecommendationResultProps {
   viewerId: string
   date: string
   season: Season
-  style: OutfitStyle
   baseItemId?: string
   weather?: WeatherSnapshot | null
   hasTodayOutfit: boolean
@@ -36,11 +31,9 @@ interface TodayOutfitRecommendationResultProps {
 function RecommendationRefreshLoading({
   items,
   season,
-  style,
 }: {
   items: WardrobeItem[]
   season: Season
-  style: OutfitStyle
 }) {
   return (
     <div
@@ -72,8 +65,7 @@ function RecommendationRefreshLoading({
 
       <div className="min-w-0 flex-1">
         <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-1 text-[10px] font-black text-accent">
-          <Sparkles size={11} /> {seasonLabels[season]} ·{' '}
-          {getOutfitStyleLabel(style)}
+          <Sparkles size={11} /> {seasonLabels[season]} · 옷장 추천
         </span>
         <h2 className="mt-2 text-sm leading-5 font-black tracking-[-0.02em]">
           다른 조합을 맞춰보고 있어요
@@ -91,11 +83,11 @@ function RecommendationRefreshLoading({
   )
 }
 
+/** 선택한 계절·기준 옷의 추천 조합을 조회해 썸네일과 설명을 나란히 표시한다. 내용은 내부에서 스크롤하고 재추천·오늘 일정 적용 버튼은 아래에 유지한다. 구성 수정과 긴 설명은 별도 팝업으로 연다. */
 export function TodayOutfitRecommendationResult({
   viewerId,
   date,
   season,
-  style,
   baseItemId,
   weather,
   hasTodayOutfit,
@@ -120,7 +112,6 @@ export function TodayOutfitRecommendationResult({
     viewerId,
     date,
     season,
-    style,
     baseItemId,
     weather,
     hasTodayOutfit,
@@ -191,7 +182,7 @@ export function TodayOutfitRecommendationResult({
     <>
       <section
         key={`${recommendation.headline}:${recommendation.items.map((item) => item.id).join(',')}`}
-        className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_8px_24px_rgba(27,27,24,0.05)]"
+        className="flex h-full min-h-0 flex-col overflow-hidden bg-surface"
         aria-busy={recommendationQuery.isFetching}
       >
         {recommendationQuery.isFetching ? (
@@ -202,20 +193,19 @@ export function TodayOutfitRecommendationResult({
                 : recommendation.items
             }
             season={season}
-            style={style}
           />
         ) : (
-          <div className="flex min-h-0 flex-1 items-center gap-3 p-3">
+          <div className="flex min-h-0 flex-1 items-center gap-3 overflow-y-auto pb-3">
             <button
               type="button"
               onClick={() => setActiveOverlay('detail-result')}
               style={{ animationDelay: '140ms' }}
-              className="ai-recommendation-chat-enter group relative grid size-24 shrink-0 grid-cols-2 gap-1 rounded-xl bg-canvas p-1.5 text-left transition hover:ring-2 hover:ring-accent/30 focus-visible:outline-2 focus-visible:outline-accent"
+              className="ai-recommendation-chat-enter group relative grid size-28 shrink-0 grid-cols-2 grid-rows-2 gap-1 rounded-xl bg-canvas p-1.5 text-left transition hover:ring-2 hover:ring-accent/30 focus-visible:outline-2 focus-visible:outline-accent"
               aria-label="추천 코디 구성 변경하기"
             >
               {recommendation.items.slice(0, 4).map((item) => (
                 <span
-                  className="flex min-h-0 items-center justify-center overflow-hidden rounded-lg bg-surface"
+                  className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden rounded-lg bg-surface"
                   key={item.id}
                 >
                   <ClosetItemVisual item={item} compact />
@@ -233,8 +223,7 @@ export function TodayOutfitRecommendationResult({
                 >
                   <Sparkles className="shrink-0" size={11} />
                   <span className="truncate">
-                    {seasonLabels[season]} ·{' '}
-                    {getOutfitStyleLabel(recommendation.style)}
+                    {seasonLabels[season]} · 옷장 추천
                   </span>
                 </span>
               </div>
@@ -268,14 +257,14 @@ export function TodayOutfitRecommendationResult({
         )}
 
         <div
-          className="ai-recommendation-chat-enter grid shrink-0 grid-cols-[0.85fr_1.15fr] gap-2 border-t border-line/70 bg-canvas/45 p-2.5"
+          className="ai-recommendation-chat-enter grid shrink-0 grid-cols-[0.85fr_1.15fr] gap-2 border-t border-line/70 pt-3"
           style={{ animationDelay: '360ms' }}
         >
           <button
             type="button"
             onClick={actions.requestAnotherRecommendation}
             disabled={recommendationQuery.isFetching}
-            className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3 py-2 text-xs font-bold disabled:opacity-50"
+            className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3 py-3 text-xs font-bold disabled:opacity-50"
           >
             <RefreshCw
               className={recommendationQuery.isFetching ? 'animate-spin' : ''}
@@ -287,7 +276,7 @@ export function TodayOutfitRecommendationResult({
             type="button"
             onClick={() => void actions.applyTodayOutfit()}
             disabled={recommendationQuery.isFetching || isSaving}
-            className="flex items-center justify-center gap-1.5 rounded-xl bg-accent px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+            className="flex items-center justify-center gap-1.5 rounded-xl bg-accent px-3 py-3 text-xs font-bold text-white disabled:opacity-50"
           >
             {isSaving ? (
               <LoaderCircle className="animate-spin" size={16} />
@@ -311,7 +300,7 @@ export function TodayOutfitRecommendationResult({
           }
           items={wardrobeQuery.data ?? closetItems}
           initialItems={recommendation.items}
-          style={style}
+          style={null}
           hasTodayOutfit={hasTodayOutfit}
           isSaving={isSaving}
           onClose={() =>
@@ -330,7 +319,7 @@ export function TodayOutfitRecommendationResult({
           summary={recommendation.summary}
           reasons={recommendation.reasons}
           season={season}
-          style={style}
+          style={null}
           items={recommendation.items}
           onClose={() => setActiveOverlay(null)}
           onOpenDetails={() => setActiveOverlay('detail-explanation')}

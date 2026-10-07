@@ -1,12 +1,14 @@
 import type { Season, TodayOutfitRecommendation } from '@closet/types'
 import type { OutfitStyle } from '../../../constants/styleOptions'
+import { normalizeRecommendationText } from './recommendationText'
 
 export interface TodayRecommendationHistoryEntry {
   id: string
   createdAt: string
   date: string
   season: Season
-  style: OutfitStyle
+  /** 새 추천은 null이며, 이전 기록의 스타일 이름은 표시·룩북 재열기·일정 저장에 보존하고 새 추천 조건에는 사용하지 않는다. */
+  style: OutfitStyle | null
   variation: number
   baseItemId?: string
   recommendation: TodayOutfitRecommendation
@@ -20,13 +22,13 @@ function getStorageKey(
   viewerId: string,
   date: string,
   season: Season,
-  style: OutfitStyle,
+  style: OutfitStyle | null,
   baseItemId?: string,
 ) {
   const scope = baseItemId !== undefined
     ? `:base:${encodeURIComponent(baseItemId)}`
     : ''
-  return `${TODAY_RECOMMENDATION_STORAGE_PREFIX}:${viewerId}:${date}:${season}:${style}${scope}`
+  return `${TODAY_RECOMMENDATION_STORAGE_PREFIX}:${viewerId}:${date}:${season}:${style ?? 'wardrobe'}${scope}`
 }
 
 export function matchesTodayRecommendationBaseItem(
@@ -53,7 +55,7 @@ function isHistoryEntry(
   value: unknown,
   date: string,
   season: Season,
-  style: OutfitStyle,
+  style: OutfitStyle | null,
   baseItemId?: string,
 ): value is TodayRecommendationHistoryEntry {
   if (!value || typeof value !== 'object') return false
@@ -91,7 +93,7 @@ export function readTodayRecommendationHistory(
   viewerId: string,
   date: string,
   season: Season,
-  style: OutfitStyle,
+  style: OutfitStyle | null,
   baseItemId?: string,
 ): TodayRecommendationHistoryEntry[] {
   try {
@@ -108,6 +110,10 @@ export function readTodayRecommendationHistory(
         isHistoryEntry(entry, date, season, style, baseItemId),
       )
       .slice(0, MAX_TODAY_RECOMMENDATION_HISTORY)
+      .map((entry) => ({
+        ...entry,
+        recommendation: normalizeRecommendationText(entry.recommendation),
+      }))
   } catch {
     return []
   }
@@ -140,14 +146,14 @@ function readRecentRecommendationHistory(
         const entry = value as Partial<TodayRecommendationHistoryEntry>
         if (
           typeof entry.season !== 'string' ||
-          typeof entry.style !== 'string' ||
+          (entry.style !== null && typeof entry.style !== 'string') ||
           (entry.baseItemId !== undefined && typeof entry.baseItemId !== 'string') ||
           (scope !== undefined && entry.baseItemId !== scope.baseItemId) ||
           !isHistoryEntry(
             value,
             date,
             entry.season as Season,
-            entry.style as OutfitStyle,
+            entry.style as OutfitStyle | null,
             entry.baseItemId,
           )
         ) {
@@ -167,7 +173,10 @@ function readRecentRecommendationHistory(
           return
         }
 
-        entries.push(value)
+        entries.push({
+          ...value,
+          recommendation: normalizeRecommendationText(value.recommendation),
+        })
       })
     }
   } catch {
@@ -202,7 +211,7 @@ export function storeTodayRecommendation(
   viewerId: string,
   date: string,
   season: Season,
-  style: OutfitStyle,
+  style: OutfitStyle | null,
   variation: number,
   recommendation: TodayOutfitRecommendation,
   baseItemId?: string,
@@ -239,7 +248,7 @@ export function storeTodayRecommendation(
     style,
     variation,
     ...(baseItemId !== undefined ? { baseItemId } : {}),
-    recommendation,
+    recommendation: normalizeRecommendationText(recommendation),
   }
   const nextHistory = [
     entry,
