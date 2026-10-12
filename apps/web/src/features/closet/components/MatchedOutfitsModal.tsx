@@ -61,7 +61,7 @@ export function MatchedOutfitsModal({
           </div>
 
           {outfits.length > 0 ? (
-            <div className="wardrobe-item-grid grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 sm:gap-x-6 lg:grid-cols-4">
+              <div className="lookbook-cover-grid grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
               {outfits.map((outfit) => (
                 <LookbookOutfitCard
                   key={outfit.id}

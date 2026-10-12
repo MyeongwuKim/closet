@@ -1,32 +1,12 @@
-/* 얕은 면과 그림자로 원목 프레임과 수납장, 집게로 고정한 카드를 표현한다. */
+/* 공통 화면은 같은 배경과 간격을 사용하고, 옷장·룩북·서랍의 표현은 각 내용 영역에 둔다. */
 .wearroom-shell {
   max-width: 1152px;
-  margin: 8px auto 0;
-  border: 6px solid var(--color-wood);
-  border-radius: 18px;
-  background: var(--color-sage);
-  box-shadow: inset 0 0 0 1px rgb(128 94 66 / 12%);
-}
-
-.wearroom-shell > header {
-  border-radius: 12px 12px 0 0;
-  background: color-mix(in srgb, var(--color-surface) 45%, var(--color-sage));
-}
-
-.wearroom-shell .app-main {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 12%, var(--color-sage)), var(--color-sage));
-  border-radius: 0 0 12px 12px;
-}
-
-/* 플래너는 오늘의 옷을 살피는 공간으로 두고, 화면 전체에 가구 테두리를 겹치지 않는다. */
-.wearroom-shell:has(.plan-page) {
-  border-color: transparent;
+  margin: var(--app-shell-offset) auto 0;
   background: var(--color-canvas);
-  box-shadow: none;
 }
 
-.wearroom-shell:has(.plan-page) > header,
-.wearroom-shell:has(.plan-page) .app-main {
+.wearroom-shell > header,
+.wearroom-shell .app-main {
   background: var(--color-canvas);
 }
 
@@ -39,11 +19,6 @@
   min-height: 0;
   flex: 1;
   flex-direction: column;
-}
-
-.collection-heading {
-  margin-bottom: 12px;
-  border-bottom: 1px solid color-mix(in srgb, var(--color-accent) 18%, var(--color-sage));
 }
 
 .plan-page .plan-view-tabs,
@@ -62,19 +37,19 @@
 .season-filter-rail {
   position: relative;
   isolation: isolate;
-  border-radius: 16px;
+  border-radius: 14px;
   background: color-mix(in srgb, var(--color-accent) 10%, var(--color-sage));
 }
 
 .season-filter-rail::before {
   position: absolute;
   z-index: -1;
-  top: 4px;
-  bottom: 4px;
-  left: 4px;
-  width: calc((100% - 8px) / 5);
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc((100% - 6px) / 5);
   content: '';
-  border-radius: 12px;
+  border-radius: 11px;
   background: var(--color-surface);
   box-shadow: 0 1px 4px rgb(67 57 47 / 7%);
   transform: translateX(calc(var(--season-index) * 100%));
@@ -91,7 +66,7 @@
 }
 
 .wardrobe-cabinet {
-  margin-top: 16px;
+  margin-top: 8px;
 }
 
 .wardrobe-cabinet-toolbar {
@@ -99,7 +74,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .wardrobe-cabinet-stage {
@@ -173,15 +148,17 @@
   }
 }
 
+/* 앱 옷장 아이콘과 같은 오크 가장자리·크림 문판·브라운 손잡이를 사용한다. */
 .wardrobe-door {
   position: absolute;
   z-index: 3;
   top: 0;
   bottom: 0;
   width: 50%;
-  border: 1px solid var(--color-line);
-  border-radius: 3px;
-  background: var(--color-canvas);
+  border: 1px solid var(--color-ink);
+  border-radius: 4px;
+  background: var(--color-wood);
+  box-shadow: inset 0 0 0 1px rgb(67 57 47 / 12%);
   backface-visibility: hidden;
   pointer-events: none;
   transition: transform .25s cubic-bezier(.22,.75,.3,1), opacity .23s;
@@ -197,23 +174,32 @@
   transform-origin: right center;
 }
 
+.wardrobe-door::before {
+  position: absolute;
+  inset: 6px;
+  content: '';
+  border: 1px solid rgb(67 57 47 / 28%);
+  border-radius: 1px;
+  background: var(--color-sage);
+}
+
 .wardrobe-door::after {
   position: absolute;
   top: min(46%, 180px);
-  width: 9px;
-  height: 9px;
+  width: 5px;
+  height: 24px;
   content: '';
-  border-radius: 50%;
-  background: var(--color-wood);
-  box-shadow: 0 2px 3px rgb(67 57 47 / 15%);
+  border-radius: 3px;
+  background: var(--color-accent);
+  box-shadow: 0 1px 2px rgb(67 57 47 / 12%);
 }
 
 .wardrobe-door-left::after {
-  right: 10px;
+  right: 16px;
 }
 
 .wardrobe-door-right::after {
-  left: 10px;
+  left: 16px;
 }
 
 [data-door-state='open'] > .wardrobe-door-left {
@@ -286,8 +272,343 @@
   filter: drop-shadow(0 3px 3px rgb(67 57 47 / 7%));
 }
 
-.wearroom-shell[data-room='wardrobe'] .app-main {
-  background: color-mix(in srgb, var(--color-canvas) 65%, var(--color-sage));
+/* 작은 룩북 표지를 격자로 모아 여러 코디를 한 화면에서 살펴본다. */
+.lookbook-cover-grid {
+  gap: 22px 16px;
+  padding: 4px 2px 10px;
+}
+
+/* 표지의 직선적인 모서리와 아래쪽 종이 가장자리로 작은 룩북을 표현한다. */
+.lookbook-cover-card {
+  position: relative;
+  padding: 0 6px 9px;
+  border: 0;
+  border-radius: 2px;
+  background: var(--color-surface);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-line) 70%, transparent), 0 5px 12px -9px rgb(67 57 47 / 24%);
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+
+.lookbook-cover-card::after {
+  position: absolute;
+  right: 2px;
+  bottom: -4px;
+  left: 2px;
+  height: 4px;
+  content: '';
+  border: 1px solid var(--color-line);
+  border-top: 0;
+  background: repeating-linear-gradient(0deg, var(--color-surface) 0 1px, var(--color-line) 1px 2px);
+  pointer-events: none;
+}
+
+.lookbook-cover-masthead {
+  display: flex;
+  min-width: 0;
+  width: 100%;
+  height: 30px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--color-muted);
+  font-size: 9px;
+  letter-spacing: .04em;
+}
+
+.lookbook-cover-number {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: baseline;
+  gap: 4px;
+  color: var(--color-ink);
+  font-family: var(--font-editorial);
+  font-size: 10px;
+  letter-spacing: .03em;
+}
+
+.lookbook-cover-number > span {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.06em;
+}
+
+.lookbook-cover-visual {
+  overflow: hidden;
+  border-radius: 1px;
+  background: var(--color-canvas);
+}
+
+.lookbook-cover-label {
+  padding: 9px 1px 0;
+}
+
+.outfit-items-box {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 8px;
+  overflow: hidden;
+  background: linear-gradient(145deg, var(--color-canvas), color-mix(in srgb, var(--color-surface) 70%, var(--color-sage)));
+}
+
+.outfit-items-box[data-single-item='true'] {
+  grid-template-columns: 1fr;
+}
+
+.outfit-items-box-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--color-muted);
+}
+
+.outfit-item-compartment {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: transparent;
+}
+
+/* 세 개·다섯 개 구성에서는 마지막 옷을 가운데에 두어 한쪽만 빈 칸으로 남지 않게 한다. */
+.outfit-items-box:not([data-single-item='true']) > .outfit-item-compartment:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+.outfit-item-compartment > img {
+  padding: 4px;
+  filter: drop-shadow(0 3px 3px rgb(67 57 47 / 9%));
+}
+
+.outfit-item-compartment > svg,
+.outfit-item-compartment > span:not(.outfit-item-extra-count) {
+  max-width: 84%;
+  max-height: 84%;
+}
+
+.outfit-item-extra-count {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: var(--color-ink);
+  color: var(--color-surface);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.lookbook-view-switch {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.lookbook-view-switch-track {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 24px;
+  flex-shrink: 0;
+  margin-left: 3px;
+  border-radius: 24px;
+  background: var(--color-line);
+  transition: background .2s ease;
+}
+
+.lookbook-view-switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  box-shadow: 0 1px 3px rgb(67 57 47 / 12%);
+  transition: transform .2s ease;
+}
+
+.lookbook-view-switch[aria-checked='true'] .lookbook-view-switch-track {
+  background: var(--color-accent);
+}
+
+.lookbook-view-switch[aria-checked='true'] .lookbook-view-switch-thumb {
+  transform: translateX(16px);
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .lookbook-cover-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 0 1px var(--color-line), 0 8px 18px -12px rgb(67 57 47 / 25%);
+  }
+}
+
+@media (min-width: 640px) {
+  .lookbook-cover-grid { gap: 28px 24px; }
+  .lookbook-cover-card { padding: 0 8px 12px; }
+  .lookbook-cover-masthead { height: 34px; }
+  .outfit-items-box { gap: 6px; padding: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lookbook-cover-card,
+  .lookbook-view-switch-track,
+  .lookbook-view-switch-thumb {
+    transition: none;
+  }
+}
+
+.lookbook-folded-outfit {
+  transform-origin: 80px 118px;
+}
+
+.lookbook-shirt-left-sleeve {
+  transform-origin: 58px 99px;
+}
+
+.lookbook-shirt-right-sleeve {
+  transform-origin: 102px 99px;
+}
+
+.lookbook-shirt-bottom {
+  transform-origin: 80px 118px;
+}
+
+.lookbook-folding-scene[data-folding='true'] .lookbook-folded-outfit {
+  animation: lookbook-put-away 3.2s ease-in-out infinite;
+}
+
+.lookbook-folding-scene[data-folding='true'] .lookbook-shirt-left-sleeve {
+  animation: lookbook-fold-left 3.2s ease-in-out infinite;
+}
+
+.lookbook-folding-scene[data-folding='true'] .lookbook-shirt-right-sleeve {
+  animation: lookbook-fold-right 3.2s ease-in-out infinite;
+}
+
+.lookbook-folding-scene[data-folding='true'] .lookbook-shirt-bottom {
+  animation: lookbook-fold-bottom 3.2s ease-in-out infinite;
+}
+
+@keyframes lookbook-fold-left {
+  0%, 9% { transform: scaleX(1); }
+  26%, 100% { transform: scaleX(-.6); }
+}
+
+@keyframes lookbook-fold-right {
+  0%, 25% { transform: scaleX(1); }
+  42%, 100% { transform: scaleX(-.6); }
+}
+
+@keyframes lookbook-fold-bottom {
+  0%, 40% { transform: scaleY(1); }
+  58%, 100% { transform: scaleY(-1); }
+}
+
+@keyframes lookbook-put-away {
+  0% { opacity: 0; transform: none; }
+  7%, 58% { opacity: 1; transform: none; }
+  78%, 89% { opacity: 1; transform: translate(138px, 1px) scale(.86); }
+  98%, 100% { opacity: 0; transform: translate(138px, 1px) scale(.86); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lookbook-folding-scene[data-folding='true'] .lookbook-folded-outfit,
+  .lookbook-folding-scene[data-folding='true'] .lookbook-shirt-left-sleeve,
+  .lookbook-folding-scene[data-folding='true'] .lookbook-shirt-right-sleeve,
+  .lookbook-folding-scene[data-folding='true'] .lookbook-shirt-bottom {
+    animation: none;
+  }
+
+  .lookbook-folding-scene[data-folding='true'] .lookbook-folded-outfit {
+    transform: translate(138px, 1px) scale(.86);
+  }
+
+  .lookbook-folding-scene[data-folding='true'] .lookbook-shirt-left-sleeve,
+  .lookbook-folding-scene[data-folding='true'] .lookbook-shirt-right-sleeve {
+    transform: scaleX(-.6);
+  }
+
+  .lookbook-folding-scene[data-folding='true'] .lookbook-shirt-bottom {
+    transform: scaleY(-1);
+  }
+}
+
+.closet-page .season-filter-rail,
+.lookbook-page .season-filter-rail {
+  margin-top: 8px;
+}
+
+/* 상단 제목·필터와 하단 탭 사이에서 목록 영역만 남은 높이를 사용한다. */
+.wearroom-shell:has(.closet-page),
+.wearroom-shell:has(.lookbook-page) {
+  display: flex;
+  height: calc(100dvh - var(--app-bottom-space) - var(--app-shell-offset));
+  flex-direction: column;
+}
+
+.wearroom-shell:has(.closet-page) > header,
+.wearroom-shell:has(.lookbook-page) > header {
+  flex-shrink: 0;
+}
+
+.app-main:has(.closet-page),
+.app-main:has(.lookbook-page),
+.app-main:has(.closet-page) > .room-page-enter,
+.app-main:has(.lookbook-page) > .room-page-enter,
+.closet-page,
+.lookbook-page,
+.closet-catalog {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.app-main:has(.closet-page),
+.app-main:has(.lookbook-page) {
+  padding-bottom: 0;
+}
+
+.closet-page,
+.lookbook-page {
+  padding-bottom: 0;
+}
+
+.closet-page > :not(.closet-catalog),
+.lookbook-page > :not(.catalog-scroll-region),
+.closet-catalog > :not(.catalog-scroll-region) {
+  flex-shrink: 0;
+}
+
+.catalog-scroll-region {
+  min-height: 0;
+  flex: 1;
+  padding-bottom: 16px;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
+.catalog-scroll-region:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.closet-page.has-selection .catalog-scroll-region {
+  padding-bottom: 144px;
 }
 
 .plan-today-card {
@@ -386,39 +707,14 @@
 }
 
 @media (max-width: 767px) {
-  .wearroom-shell {
-    margin-inline: 8px;
-  }
-  .wearroom-shell > header > div {
-    padding-inline: 14px;
-  }
   .wearroom-shell > header a {
     font-size: 25px;
   }
 }
 
 @media (max-width: 767px) and (max-height: 640px) {
-  .app-main:has(.plan-page) {
-    padding-top: 6px;
-  }
-  .plan-page .collection-heading {
-    padding-bottom: 8px;
-    margin-bottom: 8px;
-  }
-  .plan-page .collection-title {
-    margin-top: 4px;
-    font-size: 22px;
-  }
-  .plan-page .collection-heading p:last-child {
-    margin-top: 4px;
-  }
-  .plan-page .plan-view-tabs,
   .plan-page .plan-period-header {
     margin-top: 4px;
-  }
-  .plan-page .plan-view-tabs > button {
-    min-height: 36px;
-    padding-block: 6px;
   }
   .plan-today-empty {
     padding-block: 8px;
@@ -443,7 +739,7 @@
   .app-main:has(.plan-month-page) {
     display: flex;
     flex-direction: column;
-    height: calc(100dvh - 4rem - 4.125rem - env(safe-area-inset-bottom) - 20px);
+    height: calc(100dvh - var(--app-header-height) - var(--app-bottom-space) - var(--app-shell-offset));
   }
   .app-main:has(.plan-month-page) > .room-page-enter,
   .plan-month-page {

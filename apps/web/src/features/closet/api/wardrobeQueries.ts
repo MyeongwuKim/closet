@@ -9,6 +9,7 @@ import type {
 import { graphqlRequest } from '../../../lib/graphql'
 import { queryKeys } from '../../../lib/queryKeys'
 import { useClosetStore } from '../stores/useClosetStore'
+import { clearWardrobeBrandFromItems, getWardrobeBrandKey } from '../utils/wardrobeBrands'
 
 export interface WardrobeItemPayload {
   id: string
@@ -125,6 +126,32 @@ export function useWardrobeBrandOptionsQuery(enabled = true) {
         signal,
       )
       return data.wardrobeBrandOptions
+    },
+  })
+}
+
+/** 브랜드를 삭제하고 연결된 옷의 로컬 브랜드 정보와 선택 목록을 갱신한다. 옷장·코디·플래너 조회도 무효화해 상세 화면에 삭제 전 이름이 남지 않게 한다. */
+export function useDeleteWardrobeBrandMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (brandName: string) => {
+      const data = await graphqlRequest<{ deleteWardrobeBrand: number }>(
+        `mutation DeleteWardrobeBrand($brandName: String!) { deleteWardrobeBrand(brandName: $brandName) }`,
+        { brandName },
+      )
+      return data.deleteWardrobeBrand
+    },
+    onSuccess: async (_count, brandName) => {
+      const store = useClosetStore.getState()
+      store.hydrateItems(clearWardrobeBrandFromItems(store.items, brandName))
+      queryClient.setQueryData<string[]>(queryKeys.wardrobe.brandOptions, (brands) =>
+        brands?.filter((brand) => getWardrobeBrandKey(brand) !== getWardrobeBrandKey(brandName)),
+      )
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.wardrobe.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.outfits.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.planner.all }),
+      ])
     },
   })
 }

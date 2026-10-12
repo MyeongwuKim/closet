@@ -166,6 +166,35 @@ test('저장된 브랜드명을 중복 없이 정리해 선택 목록으로 반�
   ])
 })
 
+test('브랜드 삭제는 사용자 범위에서 같은 브랜드의 표기를 찾아 보관한 옷까지 브랜드만 해제한다', async (t) => {
+  const read = t.mock.method(wardrobeRepository, 'findBrandNames', async (_userId: string, _includeArchived?: boolean) => [
+    { brandName: 'COS' }, { brandName: 'cos' }, { brandName: '  ＣＯＳ  ' },
+    { brandName: 'COS' }, { brandName: 'COS STUDIO' }, { brandName: null },
+  ])
+  const clear = t.mock.method(wardrobeRepository, 'clearBrandName', async (_userId: string, _brandNames: string[]) => ({ count: 4 }))
+
+  assert.equal(await wardrobeService.deleteBrand('viewer', '  cos '), 4)
+  assert.deepEqual(read.mock.calls[0]?.arguments, ['viewer', true])
+  assert.deepEqual(clear.mock.calls[0]?.arguments, ['viewer', ['COS', 'cos', '  ＣＯＳ  ']])
+})
+
+test('등록되지 않은 브랜드를 삭제하면 옷을 갱신하지 않고 0을 반환한다', async (t) => {
+  t.mock.method(wardrobeRepository, 'findBrandNames', async () => [{ brandName: '러프사이드' }])
+  const clear = t.mock.method(wardrobeRepository, 'clearBrandName', async () => ({ count: 0 }))
+  assert.equal(await wardrobeService.deleteBrand('viewer', '스테디 에브리웨어'), 0)
+  assert.equal(clear.mock.callCount(), 0)
+})
+
+test('비어 있거나 너무 긴 브랜드 삭제 요청은 조회 전에 거절한다', async (t) => {
+  const read = t.mock.method(wardrobeRepository, 'findBrandNames', async () => [])
+  for (const brand of [' \t ', 'A'.repeat(51)]) {
+    await assert.rejects(wardrobeService.deleteBrand('viewer', brand), (error: unknown) =>
+      error instanceof ServiceError && error.code === 'INVALID_WARDROBE_BRAND',
+    )
+  }
+  assert.equal(read.mock.callCount(), 0)
+})
+
 test('옷 정보 수정 시 선택한 브랜드명을 정리해 DB 업데이트 값으로 전달한다', async (t) => {
   t.mock.method(wardrobeRepository, 'findById', async () => ({
     category: 'bottom',

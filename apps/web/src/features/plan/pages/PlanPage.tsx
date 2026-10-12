@@ -1,8 +1,8 @@
 /**
  * 진입 경로: 하단 플래너 탭
  *
- * 오늘·주간·월간 범위의 플래너 데이터를 조회하고 선택한 보기의 카드나 달력을 조합한다.
- * 오늘 보기는 선택한 하루를 화면 높이에 맞춰 표시하고, 주간 보기는 이동 가능한 7개 행을, 월간 보기는 달력 범위를 조회한다.
+ * 하루·주간·월간 범위의 플래너 데이터를 조회하고 선택한 보기의 카드나 달력을 조합한다.
+ * 하루 보기는 선택한 날짜를 화면 높이에 맞춰 표시하고, 주간 보기는 이동 가능한 7개 행을, 월간 보기는 달력 범위를 조회한다.
  * 주간 편집은 현재 보기와 기간을 유지한 채 대상 일주일을 추가로 조회한다.
  */
 import {
@@ -325,7 +325,7 @@ export function PlanPage() {
     setSearchParams({ view: 'week' })
   }
 
-  /** 현재 탭·날짜·월을 유지하고 해당 기간의 일주일 편집 화면만 연다. 오늘·월간 탭에서도 편집할 주를 Store에 설정해 주간 조회를 활성화한다. */
+  /** 현재 탭·날짜·월을 유지하고 해당 기간의 일주일 편집 화면만 연다. 하루·월간 탭에서도 편집할 주를 Store에 설정해 주간 조회를 활성화한다. */
   const openWeeklyEditor = () => {
     if (viewMode === 'today') {
       setWeek(getCurrentWeekStart(new Date(`${selectedDate}T00:00:00`)))
@@ -401,7 +401,7 @@ export function PlanPage() {
         {viewMode === 'today' && plannerDayQuery.isError ? (
           <div className="mt-4 rounded-3xl border border-dashed border-line px-6 py-12 text-center">
             <h2 className="text-sm font-black">
-              오늘 플래너를 불러오지 못했어요
+              선택한 날짜의 플래너를 불러오지 못했어요
             </h2>
             <button
               type="button"

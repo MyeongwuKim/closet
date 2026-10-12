@@ -1,22 +1,25 @@
 import type { WardrobeItem } from '@closet/types'
-import { ClosetItemVisual } from '../../closet/components/ClosetItemVisual'
-import type { SavedOutfit } from '../types'
+import type { LookbookViewMode, SavedOutfit } from '../types'
+import { OutfitItemsBox } from './OutfitItemsBox'
 
 interface OutfitCardVisualProps {
   outfit: SavedOutfit
   items: WardrobeItem[]
   className?: string
+  /** ai에서도 생성 이미지가 없으면 옷 사진으로 표시한다. 기본값 ai는 기존 소비 화면의 표현을 유지한다. */
+  viewMode?: LookbookViewMode
 }
 
-/** 저장된 룩북 이미지를 표시한다. 이미지가 없으면 레이어 순서대로 옷 네 개를 펼치고 나머지 개수를 표시한다. */
+/** 보기 옵션이 ai이고 생성 이미지가 있으면 AI 룩을 표시한다. 나머지 경우에는 조회된 옷을 레이어 순서로 정리해 콜라주로 표시한다. 원본 레이어 배열은 변경하지 않는다. */
 export function OutfitCardVisual({
   outfit,
   items,
   className = '',
+  viewMode = 'ai',
 }: OutfitCardVisualProps) {
-  if (outfit.previewImageUrl) {
+  if (viewMode === 'ai' && outfit.previewImageUrl) {
     return (
-      <div className={`overflow-hidden bg-sage/60 ${className}`}>
+      <div className={`overflow-hidden bg-canvas ${className}`}>
         <img
           src={outfit.previewImageUrl}
           loading="lazy"
@@ -36,27 +39,7 @@ export function OutfitCardVisual({
       )
       return item ? [item] : []
     })
-  const visibleItems = outfitItems.slice(0, 4)
-  const hiddenCount = outfitItems.length - visibleItems.length
-
   return (
-    <div
-      className={`grid grid-cols-2 gap-2 overflow-hidden bg-sage/60 p-4 ${className}`}
-      aria-label={`${outfit.name} 코디 아이템`}
-    >
-      {visibleItems.map((item, index) => (
-        <span
-          className="relative flex min-h-0 items-center justify-center overflow-hidden rounded-xl bg-surface/75"
-          key={item.id}
-        >
-          <ClosetItemVisual item={item} compact />
-          {hiddenCount > 0 && index === visibleItems.length - 1 && (
-            <span className="absolute inset-0 flex items-center justify-center bg-black/55 text-sm font-black text-white backdrop-blur-[1px]">
-              +{hiddenCount}
-            </span>
-          )}
-        </span>
-      ))}
-    </div>
+    <OutfitItemsBox outfitName={outfit.name} items={outfitItems} className={className} />
   )
 }

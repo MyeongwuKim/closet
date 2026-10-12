@@ -14,6 +14,7 @@ import type {
   PreferredFit,
 } from '@prisma/client'
 import type { FashionTrimPresence } from '@closet/types'
+import { isBagItem, MAX_OUTFIT_ITEMS } from '@closet/types/outfit-items'
 import { ServiceError } from '../../graphql/errors.js'
 import { userRepository } from '../user/user.repository.js'
 import { wardrobeRepository } from '../wardrobe/wardrobe.repository.js'
@@ -280,6 +281,29 @@ interface LookbookLayerItem {
   fashionAttributes?: unknown
 }
 
+/**
+ * 선택한 가방의 참조 이미지 번호와 휴대 방식을 안내한다.
+ * 가방이 없으면 null을 반환하며 목도리·벨트·장갑은 휴대 소품으로 바꾸지 않는다.
+ */
+export function getLookbookBagGuide(items: LookbookLayerItem[]) {
+  const bags = items.flatMap((item, index) => {
+    if (!isBagItem(item)) return []
+    const text = `${item.name} ${item.subcategory ?? ''}`.normalize('NFKC').toLocaleLowerCase()
+    const carryingGuide = /백팩|배낭|backpack|rucksack/u.test(text)
+      ? 'Wear this backpack naturally on the back using its original shoulder straps; do not turn it into a handbag.'
+      : /크로스|메신저|crossbody|messenger/u.test(text)
+        ? 'Wear this bag naturally across the body using its original strap; keep the bag at the side without obscuring the front garment.'
+        : 'Use the original handles or shoulder strap to carry this bag naturally beside the thigh or at the side; do not invent straps or change the bag type.'
+    return [`Reference image ${index + 1} is a carried bag: ${carryingGuide}`]
+  })
+  if (bags.length === 0) return null
+  return [
+    ...bags,
+    'Render each selected bag exactly once, preserving its reference size, shape, color, material, handles, straps and hardware. Keep it inside the full-body crop and recognizable without covering the main outfit.',
+    'Bags are separate from worn accessories. Keep referenced scarves, gloves, belts and jewelry worn in their normal positions; never turn a bag strap into a belt or replace an accessory with a bag.',
+  ].join(' ')
+}
+
 function hasKnitMaterial(item: LookbookLayerItem) {
   if (!item.fashionAttributes || typeof item.fashionAttributes !== 'object') {
     return false
@@ -321,6 +345,10 @@ function buildPrompt(
     )
     .join('\n')
   const baseLayerGuide = getLookbookBaseLayerGuide(items)
+  const bagGuide = getLookbookBagGuide(items)
+  const armsGuide = bagGuide
+    ? 'Keep the arms relaxed beside the torso and both hands outside every pocket. Allow one hand to hold a referenced bag handle naturally beside the thigh when its design requires hand carrying. Otherwise keep the hands relaxed and visible. Do not cover the garment front, put a hand on the waist or hip, hold a jacket, or use the bag to hide garment details.'
+    : 'Both arms must hang straight and relaxed beside the torso, with both hands fully visible next to the thighs. Keep both hands completely outside every pocket and away from the garments. Do not cross or fold the arms, bend an arm across the torso, put a hand on the waist or hip, touch or hold a jacket, cover the waistline, lean, step forward, or create a dynamic pose. Arms and hands must not obscure the top, outerwear, waistband, pockets, or lower garment.'
   const extraGarmentRule = baseLayerGuide
     ? 'Do not add any other extra garments beyond the single white base T-shirt explicitly allowed above.'
     : 'Do not add any extra garments.'
@@ -348,9 +376,11 @@ Supporting base-layer rule: ${baseLayerGuide ?? 'Do not invent or add a supporti
 
 Garment length and natural hem rule: ${lookbookGarmentLengthGuide}
 
+Bag and worn accessories rule: ${bagGuide ?? 'No bag was selected. Do not invent or add a bag, backpack, handbag or carrying strap. Keep any referenced wearable accessories in their normal positions.'}
+
 Preserve each referenced garment's visible color, material, pattern, length, proportions, and distinctive details. Body chest, waist, and hip values are full circumferences, while garment chest, waist, and hip widths are flat measurements. When both are provided, use their relationship to depict plausible ease without treating the result as exact virtual fitting. Dress a single adult fashion model matching the body guide in the complete coordinated outfit.
 
-Show the model in a three-quarter front view like a clean apparel catalog photo. Keep the model centered, then rotate the torso, hips, knees, feet, neck, and implied gaze together about 20 to 30 degrees away from straight-on toward the left edge of the final image from the viewer's perspective (image-left). Keep this same image-left orientation in every generation. Never turn or mirror the pose toward image-right, and never alternate the pose direction. Do not use a full side profile. Keep the torso upright, shoulders level, legs uncrossed, and both feet flat with a small natural gap. Use a neutral standing-at-attention pose, not an editorial fashion pose. Both arms must hang straight and relaxed beside the torso, with both hands fully visible next to the thighs. Keep both hands completely outside every pocket and away from the garments. Do not cross or fold the arms, bend an arm across the torso, put a hand on the waist or hip, touch or hold a jacket, cover the waistline, lean, step forward, or create a dynamic pose. Arms and hands must not obscure the top, outerwear, waistband, pockets, or lower garment.
+Show the model in a three-quarter front view like a clean apparel catalog photo. Keep the model centered, then rotate the torso, hips, knees, feet, neck, and implied gaze together about 20 to 30 degrees away from straight-on toward the left edge of the final image from the viewer's perspective (image-left). Keep this same image-left orientation in every generation. Never turn or mirror the pose toward image-right, and never alternate the pose direction. Do not use a full side profile. Keep the torso upright, shoulders level, legs uncrossed, and both feet flat with a small natural gap. Use a neutral standing-at-attention pose, not an editorial fashion pose. ${armsGuide}
 
 Frame the complete outfit from the neck to the feet, keeping the model's face entirely outside the image. Use a warm off-white studio background, soft natural light, realistic fabric folds, and a clean Korean fashion lookbook composition. ${extraGarmentRule} Do not add text, captions, logos, duplicate items, shopping UI, borders, or a collage. Do not infer or reproduce a real person's identity or face.`
 }
@@ -387,7 +417,7 @@ export const outfitPreviewService = {
     style?: string | null,
   ) {
     const uniqueItemIds = [...new Set(selectedItemIds)]
-    if (uniqueItemIds.length < 2 || uniqueItemIds.length > 8) {
+    if (uniqueItemIds.length < 2 || uniqueItemIds.length > MAX_OUTFIT_ITEMS) {
       throw new ServiceError(
         'AI 룩 미리보기는 2개에서 8개의 옷으로 만들 수 있습니다.',
         'INVALID_OUTFIT_PREVIEW_ITEMS',

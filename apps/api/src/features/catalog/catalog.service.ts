@@ -24,6 +24,10 @@ export const savedOutfitWhere = {
 export interface WardrobePageInput extends PageInput {
   category?: ClothingCategory | null
   subcategory?: string | null
+  /** 선택한 브랜드명. null·빈 값은 전체 브랜드이며 다른 목록 조건과 함께 적용한다. */
+  brandName?: string | null
+  /** true이면 브랜드가 없는 옷만 조회하며 brandName보다 우선한다. */
+  unbrandedOnly?: boolean | null
   season?: Season | null
   color?: string | null
   tag?: string | null
@@ -46,13 +50,18 @@ function categoryWhere(category: ClothingCategory): Prisma.WardrobeItemWhereInpu
   return { OR: [{ category }, { additionalCategories: { has: category } }] }
 }
 
+/** 사용자의 보관 중인 옷에 목록 조건을 함께 적용한다. 브랜드는 공백·유니코드를 정리한 전체 이름으로 대소문자 없이 비교하며, 페이지 조회와 개수 집계에 같은 조건을 사용한다. */
 export function wardrobePageWhere(userId: string, input: WardrobePageInput, tags: string[] = []): Prisma.WardrobeItemWhereInput {
+  const brandName = input.brandName?.normalize('NFKC').replace(/\s+/g, ' ').trim()
   return {
     userId,
     AND: [
       activeWardrobeWhere,
       ...(input.category ? [categoryWhere(input.category)] : []),
       ...(input.subcategory ? [{ subcategory: input.subcategory }] : []),
+      ...(input.unbrandedOnly ? [{ OR: [
+        { brandName: null }, { brandName: { isSet: false } }, { brandName: '' },
+      ] }] : brandName ? [{ brandName: { equals: brandName, mode: 'insensitive' as const } }] : []),
       ...(input.season ? [{ seasons: { has: input.season } }] : []),
       ...(input.color ? [{ colorName: input.color }] : []),
       ...(input.tag ? [{ tags: { hasSome: tags.filter((tag) => normalize(tag) === normalize(input.tag!)) } }] : []),

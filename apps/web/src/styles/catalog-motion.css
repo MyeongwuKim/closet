@@ -1,0 +1,37 @@
+.catalog-search-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  flex-shrink: 0;
+  opacity: 0;
+  transform: translateY(-5px);
+  transition: grid-template-rows 280ms cubic-bezier(.22,.75,.3,1), opacity 180ms ease, transform 280ms cubic-bezier(.22,.75,.3,1);
+}
+.catalog-search-panel[data-open='true'] { grid-template-rows: 1fr; opacity: 1; transform: none; }
+.catalog-search-clip { min-height: 0; overflow: hidden; }
+.catalog-search-field {
+  display: flex;
+  height: 46px;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  margin-bottom: 4px;
+  padding: 0 10px 0 15px;
+  border: 1px solid var(--color-line);
+  border-radius: 16px;
+  background: var(--color-surface);
+  transition: border-color 180ms, box-shadow 180ms;
+}
+.catalog-search-field:focus-within { border-color: var(--color-accent); box-shadow: 0 0 0 3px rgb(128 94 66 / 7%); }
+.catalog-search-field input { min-width: 0; flex: 1; background: transparent; font-size: 14px; outline: none; }
+.catalog-search-field input::placeholder { color: var(--color-muted); opacity: .65; }
+.catalog-search-field input::-webkit-search-cancel-button { display: none; }
+.catalog-search-clear { display: grid; width: 30px; height: 30px; flex-shrink: 0; place-items: center; border-radius: 50%; background: var(--color-canvas); color: var(--color-muted); opacity: 0; transform: scale(.75); transition: opacity 160ms, transform 200ms; }
+.catalog-search-clear[data-visible='true'] { opacity: 1; transform: none; }
+.catalog-results { transition: opacity 180ms ease; }
+.catalog-results[data-pending='true'] { opacity: .55; }
+.collection-action[aria-expanded='true'] { border-color: var(--color-accent); background: var(--color-sage); }
+.collection-action svg { transition: transform 250ms cubic-bezier(.22,.75,.3,1); }
+.collection-action[aria-expanded='true'] svg { transform: rotate(-12deg) scale(.93); }
+@media (prefers-reduced-motion: reduce) {
+  .catalog-search-panel, .catalog-search-field, .catalog-search-clear, .catalog-results, .collection-action svg { transition: none; transform: none; }
+}

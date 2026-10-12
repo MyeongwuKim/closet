@@ -76,7 +76,7 @@ function PlanMonthSkeleton() {
 export function PlanPeriodSkeleton({ viewMode }: PlanPeriodSkeletonProps) {
   const loadingLabel =
     viewMode === 'today'
-      ? '오늘 플래너를 불러오는 중'
+      ? '하루 플래너를 불러오는 중'
       : viewMode === 'week'
       ? '주간 플래너를 불러오는 중'
       : '월간 플래너를 불러오는 중'

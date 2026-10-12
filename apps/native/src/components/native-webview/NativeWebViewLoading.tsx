@@ -1,21 +1,28 @@
 import { wearroomColors } from '../../theme/wearroomTheme'
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { WearroomWordmark } from '../branding/WearroomWordmark'
+import { WardrobeLoadingAnimation } from '../wardrobe/WardrobeLoadingAnimation'
 
 interface NativeWebViewLoadingProps {
   error?: string | null
   onRetry?: () => void
 }
 
-/** WebView 로딩 중에는 준비 안내를, 실패하면 오류와 재시도 버튼을 표시한다. 다시 불러오기는 부모에 맡긴다. */
+/**
+ * 로그인 후 WebView를 기다리는 동안 고정된 옷장 안의 옷걸이·반짝이 애니메이션과 준비 안내를 표시한다.
+ * 오류가 있으면 움직임을 멈추고 설명·재시도 버튼을 표시한다. 로딩 완료와 다시 불러오기는 부모에 맡긴다.
+ */
 export function NativeWebViewLoading({
   error,
   onRetry,
 }: NativeWebViewLoadingProps) {
   return (
     <View style={styles.container}>
-      <Text style={styles.brand}>wearroom.</Text>
-      {error ? null : <ActivityIndicator color={wearroomColors.accent} size="large" />}
-      <Text style={styles.title}>
+      <WardrobeLoadingAnimation isAnimating={!error} />
+      <View style={styles.brand}>
+        <WearroomWordmark width={220} />
+      </View>
+      <Text accessibilityRole={error ? 'alert' : 'text'} accessibilityLiveRegion="polite" style={styles.title}>
         {error ? '화면을 불러오지 못했어요' : '옷장을 준비하고 있어요'}
       </Text>
       {error ? <Text style={styles.description}>{error}</Text> : null}
@@ -37,23 +44,25 @@ const styles = StyleSheet.create({
     left: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
     paddingHorizontal: 32,
     backgroundColor: wearroomColors.canvas,
   },
   title: {
-    color: wearroomColors.ink,
-    fontSize: 18,
-    fontWeight: '700',
+    marginTop: 12,
+    color: wearroomColors.muted,
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: 'center',
   },
   description: {
+    marginTop: 12,
     color: wearroomColors.muted,
     fontSize: 14,
     lineHeight: 21,
     textAlign: 'center',
   },
   retry: {
-    marginTop: 8,
+    marginTop: 20,
     overflow: 'hidden',
     borderRadius: 14,
     minHeight: 48,
@@ -69,9 +78,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   brand: {
-    color: wearroomColors.accent,
-    fontSize: 24,
-    letterSpacing: -0.8,
-    marginBottom: 16,
+    marginTop: 24,
   },
 })

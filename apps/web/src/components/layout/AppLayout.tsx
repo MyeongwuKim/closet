@@ -30,11 +30,11 @@ export function AppLayout() {
   )
 
   return (
-    <div className="flow-root min-h-dvh bg-canvas pb-[calc(4.125rem+env(safe-area-inset-bottom))] text-ink md:pb-8">
+    <div className="app-layout flow-root min-h-dvh bg-canvas text-ink">
       <GlobalUi />
       <div className="wearroom-shell" data-room={room}>
         <AppHeader actions={hasHeaderRecommendations ? <OutfitRecommendationActions placement="header" /> : undefined} />
-        <main className="app-main mx-auto w-full max-w-6xl px-4 pt-3 pb-6 sm:px-8 sm:pt-6 sm:pb-12">
+        <main className="app-main mx-auto w-full max-w-6xl px-4 pt-2 pb-6 sm:px-8 sm:pt-4 sm:pb-12">
           <div className="room-page-enter" key={location.pathname.split('/')[1]}><Outlet /></div>
         </main>
       </div>

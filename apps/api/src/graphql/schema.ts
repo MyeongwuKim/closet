@@ -745,6 +745,8 @@ export const typeDefs = `#graphql
     sort: CatalogSort = latest
     category: ClothingCategory
     subcategory: String
+    brandName: String
+    unbrandedOnly: Boolean
     season: Season
     color: String
     tag: String
@@ -823,6 +825,7 @@ export const typeDefs = `#graphql
     createWardrobeItem(input: CreateWardrobeItemInput!): WardrobeItem!
     updateWardrobeItem(id: ID!, input: UpdateWardrobeItemInput!): WardrobeItem!
     archiveWardrobeItem(id: ID!): WardrobeItem!
+    deleteWardrobeBrand(brandName: String!): Int!
     createOutfit(input: CreateOutfitInput!): Outfit!
     updateOutfit(id: ID!, input: UpdateOutfitInput!): Outfit!
     generateOutfitPreview(input: OutfitPreviewInput!): OutfitPreview!

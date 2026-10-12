@@ -1,234 +1,32 @@
 import { useEffect, useRef, useState } from 'react'
-import type {
-  ClothingCategory,
-  OutfitMatchRelation,
-  WardrobeItem,
-} from '@closet/types'
+import type { ClothingCategory } from '@closet/types'
 import { useNavigate } from 'react-router-dom'
-import {
-  Check,
-  LoaderCircle,
-  RefreshCw,
-  Sparkles,
-  X,
-} from 'lucide-react'
+import { Check } from 'lucide-react'
 import { ClothingCategoryIcon } from '../../../components/ClothingCategoryIcon'
-import { ClosetItemVisual } from '../../closet/components/ClosetItemVisual'
-import {
-  closetCategoryLabels,
-} from '../../closet/constants'
+import { closetCategoryLabels } from '../../closet/constants'
 import { ClosetCategoryFilter } from '../../closet/components/ClosetCategoryFilter'
-import { useOutfitRecommendationQuery } from '../api/lookbookQueries'
+import { useUiStore } from '../../../stores/useUiStore'
 import { useOutfitComposer } from '../contexts/OutfitComposerContext'
 import { OutfitItemBrowser } from './OutfitItemBrowser'
+import { OutfitWardrobeCard } from './OutfitWardrobeCard'
+import { OutfitStyleSuggestion } from './OutfitRecommendationSection'
+import { OutfitStylingLayout } from './OutfitStylingLayout'
+import {
+  getOutfitSelectionCategory,
+  matchesOutfitSelectionCategory,
+  outfitSelectionLabels,
+  type OutfitSelectionCategory,
+} from '../utils/outfitSelection'
 
 const FILTER_EXIT_DURATION = 170
 const FILTER_ENTER_DURATION = 280
 
 type FilterTransitionPhase = 'idle' | 'leaving' | 'entering'
 
-const relationLabels: Record<OutfitMatchRelation, string> = {
-  'clean-contrast': '깔끔한 대비',
-  'tone-on-tone': '톤온톤',
-  'soft-balance': '부드러운 조합',
-  accent: '포인트 조합',
-}
-
-const colorRoleLabels = {
-  safe: '무난하게',
-  harmony: '자연스럽게',
-  accent: '포인트로',
-} as const
-
-function withObjectParticle(label: string) {
-  const lastCode = label.charCodeAt(label.length - 1)
-  const hasFinalConsonant =
-    lastCode >= 0xac00 && lastCode <= 0xd7a3
-      ? (lastCode - 0xac00) % 28 !== 0
-      : false
-  return `${label}${hasFinalConsonant ? '을' : '를'}`
-}
-
-interface MatchCandidatePreview {
-  item: WardrobeItem
-  label: string
-  reason: string
-}
-
-function ClosetChoiceCard({
-  item,
-  onClick,
-}: {
-  item: WardrobeItem
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="relative min-w-0 rounded-2xl bg-surface p-1.5 text-left shadow-[inset_0_0_0_1px_#dedad1] transition hover:-translate-y-0.5"
-    >
-      <span className="flex aspect-square items-center justify-center overflow-hidden rounded-xl bg-canvas">
-        <ClosetItemVisual item={item} compact />
-      </span>
-      <span className="mt-1.5 block truncate px-1 pb-0.5 text-[11px] font-bold">
-        {item.name}
-      </span>
-    </button>
-  )
-}
-
-function SelectedItemCard({
-  item,
-  isBase,
-  isLatest,
-  onRemove,
-}: {
-  item: WardrobeItem
-  isBase: boolean
-  isLatest: boolean
-  onRemove: () => void
-}) {
-  return (
-    <div
-      className={`relative w-[5.25rem] shrink-0 ${
-        isLatest ? 'outfit-selected-flash' : ''
-      }`}
-    >
-      <div className="relative aspect-square overflow-hidden rounded-2xl border border-line bg-surface p-1.5">
-        <span className="flex size-full items-center justify-center overflow-hidden rounded-xl bg-canvas">
-          <ClosetItemVisual item={item} compact />
-        </span>
-        <button
-          type="button"
-          onClick={onRemove}
-          className="absolute top-1 right-1 flex size-6 items-center justify-center rounded-full bg-white/95 text-muted shadow-sm"
-          aria-label={`${item.name} 코디에서 빼기`}
-        >
-          <X size={12} />
-        </button>
-      </div>
-      <span className="mt-1.5 block truncate text-center text-[10px] font-bold">
-        {item.name}
-      </span>
-      {isBase && (
-        <span className="mt-0.5 block text-center text-[9px] font-black text-accent">
-          기준 아이템
-        </span>
-      )}
-    </div>
-  )
-}
-
-function RecommendationLoading({
-  category,
-  mode,
-}: {
-  category: ClothingCategory
-  mode: 'items' | 'colors'
-}) {
-  return (
-    <div className="flex min-h-64 flex-col items-center justify-center text-center">
-      <span className="flex size-12 items-center justify-center rounded-2xl bg-sage">
-        <LoaderCircle className="animate-spin" size={22} />
-      </span>
-      <strong className="mt-4 text-sm font-black">
-        {mode === 'colors'
-          ? '어울리는 컬러 조합을 찾고 있어요'
-          : `어울리는 ${closetCategoryLabels[category]}를 찾고 있어요`}
-      </strong>
-      <span className="mt-1 text-xs text-muted">잠깐만 기다려주세요.</span>
-    </div>
-  )
-}
-
-function RecommendationDetailDialog({
-  candidate,
-  onConfirm,
-  onClose,
-}: {
-  candidate: MatchCandidatePreview | null
-  onConfirm: () => void
-  onClose: () => void
-}) {
-  useEffect(() => {
-    if (!candidate) return
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [candidate, onClose])
-
-  if (!candidate) return null
-
-  return (
-    <div
-      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 p-4 backdrop-blur-[2px]"
-      onMouseDown={onClose}
-      role="presentation"
-    >
-      <div
-        className="w-full max-w-sm rounded-[1.75rem] bg-surface p-4 shadow-2xl"
-        onMouseDown={(event) => event.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="recommendation-item-title"
-      >
-        <div className="relative flex h-52 items-center justify-center overflow-hidden rounded-2xl bg-canvas">
-          <ClosetItemVisual item={candidate.item} />
-          <button
-            type="button"
-            onClick={onClose}
-            className="absolute top-3 right-3 flex size-9 items-center justify-center rounded-full bg-white/95 text-muted shadow-sm"
-            aria-label="추천 상세 닫기"
-          >
-            <X size={17} />
-          </button>
-        </div>
-
-        <div className="px-1 pt-4">
-          <span className="flex items-center gap-1.5 text-[11px] font-bold text-accent">
-            <span
-              className="size-3 rounded-full border border-black/10"
-              style={{ backgroundColor: candidate.item.colorHex }}
-            />
-            {candidate.label}
-          </span>
-          <h3
-            id="recommendation-item-title"
-            className="mt-1 text-lg font-black"
-          >
-            {candidate.item.name}
-          </h3>
-          <p className="mt-2 text-sm leading-6 text-muted">
-            {candidate.reason}
-          </p>
-        </div>
-
-        <div className="mt-5 grid grid-cols-[0.8fr_1.2fr] gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl border border-line bg-canvas px-4 py-3 text-sm font-bold"
-          >
-            취소
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className="rounded-xl bg-accent px-4 py-3 text-sm font-bold text-white"
-          >
-            코디에 추가
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
+/** 편집 중인 Look과 옷장 탐색을 연결한다. 아이템 추가·제거와 종류 선택은 composer 세션에 맡긴다. */
 export function OutfitMatchPanel() {
   const navigate = useNavigate()
+  const pushToast = useUiStore((state) => state.pushToast)
   const {
     items,
     selectedIds,
@@ -242,16 +40,13 @@ export function OutfitMatchPanel() {
   } = useOutfitComposer()
   const [startCategory, setStartCategory] =
     useState<ClothingCategory | null>(null)
+  /** 시작 단계와 다음 아이템 단계가 바뀌어도 모바일 옷장 시트 상태를 유지한다. */
+  const [isWardrobeExpanded, setIsWardrobeExpanded] = useState(false)
+  const previousSelectedCountRef = useRef(selectedIds.length)
   const [startSubcategory, setStartSubcategory] = useState<string | null>(null)
   const [filterTransitionPhase, setFilterTransitionPhase] =
     useState<FilterTransitionPhase>('idle')
   const filterTransitionTimersRef = useRef<number[]>([])
-  const [selectedCandidate, setSelectedCandidate] =
-    useState<MatchCandidatePreview | null>(null)
-  const [recommendationView, setRecommendationView] = useState<{
-    category: ClothingCategory
-    mode: 'items' | 'colors'
-  } | null>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const lastSelectedItem = selectedItems[selectedItems.length - 1]
   const classifiedItems = items.filter(
@@ -276,32 +71,27 @@ export function OutfitMatchPanel() {
       (startCategory === null || item.category === startCategory) &&
       (startSubcategory === null || item.subcategory === startSubcategory),
   )
+  // 상의 칸은 원피스와 조합 위치를 공유한다. 원피스를 넣을 수 있을 때만 같은 옷장 목록에 표시한다.
+  const canChooseDressFromTop = targetCategory === 'top' && targetOptions.includes('dress')
   const targetClosetItems = targetCategory
     ? classifiedItems.filter(
         (item) =>
-          item.category === targetCategory && !selectedIds.includes(item.id),
+          (matchesOutfitSelectionCategory(item, targetCategory) ||
+            (canChooseDressFromTop && matchesOutfitSelectionCategory(item, 'dress'))) &&
+          !selectedIds.includes(item.id),
       )
     : []
-  const recommendationMode =
-    recommendationView?.category === targetCategory
-      ? recommendationView.mode
-      : null
-  const isRecommendationRequested = Boolean(
-    recommendationMode && targetCategory,
+  const hasTargetClosetCandidates = targetCategory !== null && targetClosetItems.some(
+    (item) => matchesOutfitSelectionCategory(item, targetCategory),
   )
-  const recommendationQuery = useOutfitRecommendationQuery(
-    selectedIds,
-    targetCategory,
-    isRecommendationRequested && step === 'items',
+  // 상의가 없고 원피스만 남은 경우 추천 요청도 실제로 고를 수 있는 원피스를 대상으로 한다.
+  const recommendationCategory = canChooseDressFromTop && !hasTargetClosetCandidates &&
+    targetClosetItems.some((item) => matchesOutfitSelectionCategory(item, 'dress'))
+    ? 'dress'
+    : targetCategory
+  const hasRecommendationCandidates = recommendationCategory !== null && targetClosetItems.some(
+    (item) => matchesOutfitSelectionCategory(item, recommendationCategory),
   )
-  const recommendation = recommendationQuery.data
-  const isRecommendationLoading =
-    isRecommendationRequested && recommendationQuery.isLoading
-  const isRecommendationError =
-    isRecommendationRequested && recommendationQuery.isError
-  const aiCandidates = recommendation?.candidates ?? []
-  const recommendedColors = recommendation?.recommendedColors ?? []
-
   useEffect(
     () => () => {
       filterTransitionTimersRef.current.forEach((timer) =>
@@ -363,19 +153,38 @@ export function OutfitMatchPanel() {
     contentRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
   }, [selectedIds.length, step, targetCategory])
 
+  // 옷을 추가·제거하거나 전체 해제하면 시트를 닫아 변경된 Look의 모든 칸을 보여준다.
+  useEffect(() => {
+    if (selectedIds.length !== previousSelectedCountRef.current) {
+      setIsWardrobeExpanded(false)
+    }
+    previousSelectedCountRef.current = selectedIds.length
+  }, [selectedIds.length])
+
+  const selectCanvasSlot = (category: OutfitSelectionCategory) => {
+    if (!targetOptions.includes(category)) {
+      pushToast('이 종류의 옷을 바꾸려면 먼저 선택한 아이템을 빼주세요.')
+      return
+    }
+    setIsWardrobeExpanded(true)
+    selectTargetCategory(category)
+  }
+
   if (step === 'start') {
     return (
-      <section className="mx-auto flex h-full min-h-0 w-full max-w-2xl flex-col bg-canvas">
-        <div className="shrink-0 px-5 pt-6">
-          <span className="text-[11px] font-black tracking-[0.12em] text-accent">
-            첫 아이템
-          </span>
-          <h2 className="mt-1 text-xl font-black">
-            기준이 될 옷을 골라주세요
-          </h2>
-          <p className="mt-1 text-sm text-muted">
-            무엇을 먼저 골라도 다음 옷을 이어서 추천해드릴게요.
-          </p>
+      <OutfitStylingLayout
+        selectedItems={selectedItems}
+        selectableCategories={targetOptions}
+        isWardrobeExpanded={isWardrobeExpanded}
+        onWardrobeExpandedChange={setIsWardrobeExpanded}
+        onSlotSelect={selectCanvasSlot}
+        onItemRemove={toggleItem}
+      >
+      <section className="flex h-full min-h-0 w-full flex-col bg-canvas">
+        <div className="shrink-0 px-5 pt-2">
+          <span className="text-[10px] font-black tracking-[0.12em] text-accent">MY CLOSET</span>
+          <h2 className="mt-0.5 text-base font-black">첫 아이템을 골라주세요</h2>
+          <p className="mt-0.5 text-[11px] text-muted">어떤 옷부터 시작해도 좋아요.</p>
         </div>
 
         <div
@@ -384,7 +193,7 @@ export function OutfitMatchPanel() {
         >
           <div className="shrink-0 px-5">
           <ClosetCategoryFilter
-            className="mt-4"
+            className="mt-2"
             category={startCategory}
             subcategory={startSubcategory}
             availableCategories={availableStartCategories}
@@ -396,13 +205,13 @@ export function OutfitMatchPanel() {
           />
           </div>
 
-          <div className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto px-5 pt-2 pb-6">
+          <div className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto px-5 pt-2 pb-4">
             {startItems.length > 0 ? (
-              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+              <div className="outfit-wardrobe-grid">
                 {startItems.map((item) => (
-                  <ClosetChoiceCard
+                  <OutfitWardrobeCard
                     item={item}
-                    onClick={() => toggleItem(item)}
+                    onSelect={toggleItem}
                     key={item.id}
                   />
                 ))}
@@ -415,59 +224,53 @@ export function OutfitMatchPanel() {
           </div>
         </div>
       </section>
+      </OutfitStylingLayout>
     )
   }
 
-  const targetLabel = targetCategory
-    ? closetCategoryLabels[targetCategory]
+  const lastSelectionCategory = lastSelectedItem
+    ? getOutfitSelectionCategory(lastSelectedItem)
     : null
-  const lastCategoryLabel = lastSelectedItem.category
-    ? closetCategoryLabels[lastSelectedItem.category]
+  const lastCategoryLabel = lastSelectionCategory
+    ? outfitSelectionLabels[lastSelectionCategory]
     : '옷'
-  const title = step === 'category'
-    ? '다음에 무엇을 추가할까요?'
-    : targetLabel
-      ? `다음은 ${withObjectParticle(targetLabel)} 골라볼까요?`
-      : '코디가 완성됐어요'
-  const description = step === 'category'
-    ? '정해진 순서 없이 원하는 종류를 직접 골라보세요.'
-    : targetLabel
-      ? '고른 옷과 어울리는 아이템을 골라보세요.'
-      : '이대로 코디북에 저장할 수 있어요.'
   const stepAnimationKey = `${selectedIds.join('-')}-${step}-${targetCategory}`
 
   return (
     <>
-      <section className="mx-auto flex h-full min-h-0 w-full max-w-2xl flex-col bg-canvas">
+      <OutfitStylingLayout
+        selectedItems={selectedItems}
+        selectableCategories={targetOptions}
+        isWardrobeExpanded={isWardrobeExpanded}
+        onWardrobeExpandedChange={setIsWardrobeExpanded}
+        onSlotSelect={selectCanvasSlot}
+        onItemRemove={toggleItem}
+        wardrobeAction={step === 'items' && recommendationCategory && recommendationCategory !== 'bag' && selectedIds.length > 0 ? (
+          <OutfitStyleSuggestion
+            key={targetCategory}
+            category={recommendationCategory}
+            selectedItemIds={selectedIds}
+            hasClosetCandidates={hasRecommendationCandidates}
+            onAddItem={toggleItem}
+          />
+        ) : undefined}
+      >
+      <section className="flex h-full min-h-0 w-full flex-col bg-canvas">
         <div
           className="outfit-step-enter flex min-h-0 flex-1 flex-col"
           key={stepAnimationKey}
         >
-          <div className="shrink-0 border-b border-line px-5 pt-5 pb-4">
-            <span className="outfit-step-light inline-flex rounded-full px-2 py-1 text-[10px] font-black tracking-[0.1em] text-accent">
-              {step === 'category'
-                ? `${lastCategoryLabel} 선택 완료`
-                : `${selectedItems.length + 1}번째`}
-            </span>
-            <h2 className="mt-2 text-xl leading-7 font-black">{title}</h2>
-            <p className="mt-1 text-sm leading-5 text-muted">{description}</p>
-
-            <div className="scrollbar-hidden mt-4 flex gap-3 overflow-x-auto pb-1">
-              {selectedItems.map((item, index) => (
-                <SelectedItemCard
-                  item={item}
-                  isBase={index === 0}
-                  isLatest={index === selectedItems.length - 1}
-                  onRemove={() => toggleItem(item)}
-                  key={item.id}
-                />
-              ))}
+          {step === 'category' && (
+            <div className="shrink-0 border-b border-line px-5 pt-2 pb-2">
+              <span className="outfit-step-light inline-flex rounded-full px-2 py-1 text-[10px] font-black tracking-[0.1em] text-accent">
+                {lastCategoryLabel} 선택됨 · {selectedItems.length}개
+              </span>
+              <h2 className="mt-1 text-base leading-6 font-black">Look에 무엇을 더할까요?</h2>
             </div>
-          </div>
-
+          )}
           <div
             ref={contentRef}
-            className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto px-5 py-5"
+            className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto px-5 py-3"
           >
             {step === 'category' ? (
               <div>
@@ -475,7 +278,7 @@ export function OutfitMatchPanel() {
                   {targetOptions.map((category) => {
                     const availableCount = classifiedItems.filter(
                       (item) =>
-                        item.category === category &&
+                        matchesOutfitSelectionCategory(item, category) &&
                         !selectedIds.includes(item.id),
                     ).length
                     const isRecommended = category === recommendedCategory
@@ -503,7 +306,7 @@ export function OutfitMatchPanel() {
                           />
                         </span>
                         <strong className="mt-3 block text-sm font-black">
-                          {closetCategoryLabels[category]}
+                          {outfitSelectionLabels[category]}
                         </strong>
                         <span className="mt-0.5 block text-[10px] text-muted">
                           내 옷장 {availableCount}개
@@ -533,198 +336,18 @@ export function OutfitMatchPanel() {
               <div>
                 <OutfitItemBrowser
                   category={targetCategory}
+                  categoryLabel={canChooseDressFromTop ? '상의·원피스' : undefined}
                   items={targetClosetItems}
                   onSelect={toggleItem}
                   onOpenCloset={() => navigate('/closet')}
                 />
-
-                {targetClosetItems.length > 0 && (
-                  <section className="mt-5 border-t border-line pt-5">
-                    <div className="rounded-3xl bg-surface p-4 shadow-[inset_0_0_0_1px_#dedad1]">
-                      <div className="flex items-start gap-3">
-                        <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-sage">
-                          <Sparkles size={18} />
-                        </span>
-                        <div>
-                          <h3 className="text-sm font-black">AI 도움받기</h3>
-                          <p className="mt-1 text-xs leading-5 text-muted">
-                            필요한 추천만 골라서 확인해보세요.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setRecommendationView({
-                              category: targetCategory,
-                              mode: 'items',
-                            })
-                          }}
-                          className={`rounded-xl border px-3 py-3 text-xs font-bold transition ${
-                            recommendationMode === 'items'
-                              ? 'border-ink bg-ink text-white'
-                              : 'border-line bg-canvas text-ink'
-                          }`}
-                        >
-                          {closetCategoryLabels[targetCategory]} 추천받기
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setRecommendationView({
-                              category: targetCategory,
-                              mode: 'colors',
-                            })
-                          }}
-                          className={`rounded-xl border px-3 py-3 text-xs font-bold transition ${
-                            recommendationMode === 'colors'
-                              ? 'border-ink bg-ink text-white'
-                              : 'border-line bg-canvas text-ink'
-                          }`}
-                        >
-                          컬러 조합 추천
-                        </button>
-                      </div>
-                    </div>
-
-                    {recommendationMode && (
-                      <div className="mt-4">
-                        {isRecommendationError ? (
-                          <div className="flex min-h-44 flex-col items-center justify-center rounded-3xl border border-dashed border-line text-center">
-                            <strong className="text-sm font-black">
-                              추천을 불러오지 못했어요
-                            </strong>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                void recommendationQuery.refetch()
-                              }}
-                              className="mt-4 flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-xs font-bold text-white"
-                            >
-                              <RefreshCw size={13} /> 다시 추천받기
-                            </button>
-                          </div>
-                        ) : !isRecommendationRequested ||
-                          isRecommendationLoading ||
-                          !recommendation ? (
-                          <RecommendationLoading
-                            category={targetCategory}
-                            mode={recommendationMode}
-                          />
-                        ) : recommendationMode === 'colors' ? (
-                          recommendedColors.length > 0 ? (
-                            <div className="rounded-3xl border border-line bg-surface p-5">
-                              <span className="text-[10px] font-black tracking-[0.08em] text-accent">
-                                AI 컬러 조합
-                              </span>
-                              <div className="mt-3 space-y-3">
-                                {recommendedColors.slice(0, 3).map((color) => (
-                                  <p
-                                    className="flex items-start gap-2 text-xs leading-5"
-                                    key={color.name}
-                                  >
-                                    <span
-                                      className="mt-1 size-3 shrink-0 rounded-full border border-black/10"
-                                      style={{ backgroundColor: color.hex }}
-                                    />
-                                    <span>
-                                      <strong className="font-black">
-                                        {colorRoleLabels[color.role]} · {color.name}
-                                      </strong>
-                                      <span className="text-muted">
-                                        {' '}· {color.reason}
-                                      </span>
-                                    </span>
-                                  </p>
-                                ))}
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="rounded-3xl border border-dashed border-line px-5 py-8 text-center text-sm font-bold">
-                              추천할 컬러 조합을 찾지 못했어요.
-                            </div>
-                          )
-                        ) : aiCandidates.length > 0 ? (
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="flex size-8 items-center justify-center rounded-xl bg-sage">
-                                <Sparkles size={15} />
-                              </span>
-                              <div>
-                                <span className="text-[10px] font-black tracking-[0.08em] text-accent">
-                                  AI 옷 추천
-                                </span>
-                                <h3 className="text-sm font-black">
-                                  어울리는 {closetCategoryLabels[targetCategory]}
-                                </h3>
-                              </div>
-                            </div>
-
-                            <div className="scrollbar-hidden -mx-5 mt-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 pb-3">
-                              {aiCandidates.map((candidate) => (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setSelectedCandidate({
-                                      item: candidate.item,
-                                      label: relationLabels[candidate.relation],
-                                      reason: candidate.reason,
-                                    })
-                                  }
-                                  className="w-32 shrink-0 snap-start rounded-2xl border border-line bg-surface p-1.5 text-left transition hover:-translate-y-0.5 hover:border-accent/50"
-                                  key={candidate.item.id}
-                                >
-                                  <span className="flex h-24 items-center justify-center overflow-hidden rounded-xl bg-canvas">
-                                    <ClosetItemVisual item={candidate.item} compact />
-                                  </span>
-                                  <span className="mt-1.5 flex items-center gap-1 px-1 text-[9px] font-bold text-accent">
-                                    <span
-                                      className="size-2 rounded-full border border-black/10"
-                                      style={{ backgroundColor: candidate.item.colorHex }}
-                                    />
-                                    {relationLabels[candidate.relation]}
-                                  </span>
-                                  <strong className="mt-1 block truncate px-1 text-xs">
-                                    {candidate.item.name}
-                                  </strong>
-                                  <span className="mt-0.5 block truncate px-1 pb-1 text-[9px] text-muted">
-                                    {candidate.reason}
-                                  </span>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="rounded-3xl border border-dashed border-line px-5 py-8 text-center">
-                            <strong className="text-sm font-black">
-                              추천할 수 있는 {closetCategoryLabels[targetCategory]}가 없어요
-                            </strong>
-                            <p className="mt-2 text-xs leading-5 text-muted">
-                              내 옷장 목록에서 직접 골라보세요.
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </section>
-                )}
               </div>
             )}
           </div>
         </div>
       </section>
+      </OutfitStylingLayout>
 
-      <RecommendationDetailDialog
-        candidate={selectedCandidate}
-        onClose={() => setSelectedCandidate(null)}
-        onConfirm={() => {
-          if (!selectedCandidate) return
-          toggleItem(selectedCandidate.item)
-          setSelectedCandidate(null)
-        }}
-      />
     </>
   )
 }

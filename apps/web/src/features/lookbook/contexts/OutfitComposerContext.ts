@@ -1,11 +1,11 @@
 import { createContext, useContext } from 'react'
 import type {
-  ClothingCategory,
   OutfitPreview,
   Season,
   WardrobeItem,
 } from '@closet/types'
 import type { OutfitLayer } from '../types'
+import type { OutfitSelectionCategory } from '../utils/outfitSelection'
 
 export type OutfitComposerStep =
   | 'start'
@@ -30,7 +30,8 @@ export interface OutfitComposerState {
   layers: OutfitLayer[]
   originItemIds: string[]
   compositionRevision: number
-  targetCategory: ClothingCategory | null
+  /** 다음에 고를 종류. bag은 가방 전용 선택 단계이며 서버의 옷 분류에는 추가하지 않는다. */
+  targetCategory: OutfitSelectionCategory | null
   step: OutfitComposerStep
   returnStep: Extract<OutfitComposerStep, 'category' | 'items'>
   preview: OutfitPreviewState
@@ -40,7 +41,7 @@ export type OutfitComposerAction =
   | { type: 'HYDRATE'; layers: OutfitLayer[]; originItemIds: string[] }
   | { type: 'ADD_ITEM'; layer: OutfitLayer }
   | { type: 'REMOVE_ITEM'; itemId: string }
-  | { type: 'SELECT_CATEGORY'; category: ClothingCategory }
+  | { type: 'SELECT_CATEGORY'; category: OutfitSelectionCategory }
   | { type: 'OPEN_CATEGORY_PICKER' }
   | { type: 'OPEN_SAVE' }
   | { type: 'OPEN_PREVIEW' }
@@ -238,16 +239,17 @@ export interface OutfitComposerSession {
   items: WardrobeItem[]
   selectedIds: string[]
   selectedItems: WardrobeItem[]
-  targetCategory: ClothingCategory | null
-  targetOptions: ClothingCategory[]
-  recommendedCategory: ClothingCategory | null
+  targetCategory: OutfitSelectionCategory | null
+  targetOptions: OutfitSelectionCategory[]
+  recommendedCategory: OutfitSelectionCategory | null
   step: Exclude<OutfitComposerStep, 'save'>
   isSaveOpen: boolean
-  hasPreviousStep: boolean
   preview: OutfitPreviewState
   toggleItem: (item: WardrobeItem) => void
-  selectTargetCategory: (category: ClothingCategory) => void
+  selectTargetCategory: (category: OutfitSelectionCategory) => void
   goBackStep: () => void
+  /** 저장 전 편집 화면을 닫도록 요청한다. 선택한 옷이 있으면 종료 확인을 먼저 보여준다. */
+  requestClose: () => void
   reset: () => void
   generatePreview: (forceNew?: boolean) => void
   addPreviewToLookbook: () => void
@@ -257,7 +259,10 @@ export interface OutfitComposerSession {
   outfitSeasons: Season[]
   styleOptions: Array<{ label: string; value: string }>
   includesPreview: boolean
+  /** 최근 착용 확인부터 실제 저장 요청까지 중복 저장과 닫기를 막는 상태. */
   isSaving: boolean
+  /** 실제 코디 저장 요청이 진행 중일 때 true. 착용 기록 확인 중에는 false다. */
+  isPersisting: boolean
   setOutfitName: (name: string) => void
   setOutfitStyle: (style: string) => void
   setOutfitSeasons: (seasons: Season[]) => void

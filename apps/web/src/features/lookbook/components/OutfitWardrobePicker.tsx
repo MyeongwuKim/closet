@@ -8,6 +8,7 @@ import { ClosetItemVisual } from '../../closet/components/ClosetItemVisual'
 import { closetCategoryLabels } from '../../closet/constants'
 import { getCenteredScrollTop } from '../utils/outfitPickerScroll'
 import type { OutfitSlot } from './outfitSlots'
+import { getOutfitSelectionCapacity } from '../utils/outfitSelection'
 
 interface OutfitWardrobePickerProps {
   slot: OutfitSlot
@@ -35,7 +36,7 @@ export function OutfitWardrobePicker({
         .filter((subcategory): subcategory is string => Boolean(subcategory)),
     ),
   ]
-  const selectionLimit = slot.limit ?? 1
+  const selectionLimit = getOutfitSelectionCapacity(slot.id, selectedItems)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const itemButtonRefs = useRef(new Map<string, HTMLButtonElement>())
   const initialSelectedItemIdRef = useRef(
@@ -124,7 +125,11 @@ export function OutfitWardrobePicker({
               {slot.label} 고르기
             </h1>
             <p className="mt-0.5 text-xs text-muted">
-              {selectionLimit > 1
+              {selectionLimit === 0
+                ? '코디에 8개가 들어있어요. 다른 아이템을 빼고 골라주세요.'
+                : slot.id === 'bag'
+                ? '코디에 함께 들 가방을 하나 골라주세요.'
+                : selectionLimit > 1
                 ? `최대 ${selectionLimit}개까지 선택할 수 있어요.`
                 : '한 개를 선택할 수 있어요.'}
             </p>
@@ -191,8 +196,9 @@ export function OutfitWardrobePicker({
                       else itemButtonRefs.current.delete(item.id)
                     }}
                     type="button"
+                    disabled={!isSelected && selectionLimit === 0}
                     onClick={() => toggleItem(item.id)}
-                    className={`relative overflow-hidden rounded-3xl bg-surface p-2 text-left transition ${
+                    className={`relative overflow-hidden rounded-3xl bg-surface p-2 text-left transition disabled:opacity-50 ${
                       isSelected
                         ? 'ring-2 ring-accent ring-offset-2 ring-offset-canvas'
                         : 'shadow-[inset_0_0_0_1px_#dedad1] hover:shadow-sm'
@@ -214,9 +220,11 @@ export function OutfitWardrobePicker({
                         {item.name}
                       </strong>
                       <span className="mt-1 block truncate text-xs text-muted">
-                        {item.category
-                          ? closetCategoryLabels[item.category]
-                          : '미분류'}
+                        {slot.id === 'bag'
+                          ? '소품'
+                          : item.category
+                            ? closetCategoryLabels[item.category]
+                            : '미분류'}
                         {item.subcategory ? ` · ${item.subcategory}` : ''}
                         {item.colorName ? ` · ${item.colorName}` : ''}
                       </span>

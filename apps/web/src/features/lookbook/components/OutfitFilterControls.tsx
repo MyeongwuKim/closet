@@ -1,6 +1,6 @@
 import type { Season } from '@closet/types'
-import { Search, X } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
+import { CatalogSearchField } from '../../../components/CatalogSearchField'
 import { ColorFilter } from '../../../components/ColorFilter'
 import {
   DateSortButton,
@@ -23,8 +23,11 @@ interface OutfitFilterControlsProps {
   onColorChange?: (color: string | null) => void
   onSearchChange: (query: string) => void
   onSortOrderChange?: (order: DateSortOrder) => void
+  /** 정렬·색상 버튼 오른쪽에 표시할 목록 보기 전환 UI. 주간 플래너에서는 생략한다. */
+  viewControl?: ReactNode
 }
 
+/** 코디 검색·계절·정렬·색상·스타일 선택을 부모에 전달한다. viewControl이 있으면 정렬·색상과 같은 줄 오른쪽에 표시한다. */
 export function OutfitFilterControls({
   activeSeason,
   activeStyle,
@@ -39,6 +42,7 @@ export function OutfitFilterControls({
   onColorChange,
   onSearchChange,
   onSortOrderChange,
+  viewControl,
 }: OutfitFilterControlsProps) {
   const styleScrollContainerRef = useRef<HTMLDivElement>(null)
   const activeStyleButtonRef = useRef<HTMLButtonElement>(null)
@@ -70,33 +74,13 @@ export function OutfitFilterControls({
 
   return (
     <>
-      {isSearchOpen && (
-        <div className="relative mt-5">
-          <Search
-            size={18}
-            className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-muted"
-          />
-          <input
-            type="search"
-            value={searchQuery}
-            onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="코디명, 옷 이름, 색상으로 검색"
-            className="h-12 w-full rounded-2xl border border-line bg-surface pr-12 pl-11 text-sm outline-none transition placeholder:text-muted/70 focus:border-ink"
-            aria-label="코디 검색어"
-            autoFocus
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => onSearchChange('')}
-              className="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-muted transition hover:bg-canvas hover:text-ink"
-              aria-label="검색어 지우기"
-            >
-              <X size={15} />
-            </button>
-          )}
-        </div>
-      )}
+      <CatalogSearchField
+        isOpen={isSearchOpen}
+        value={searchQuery}
+        onChange={onSearchChange}
+        label="코디 검색어"
+        placeholder="코디명, 옷 이름, 색상으로 검색"
+      />
 
       <SeasonFilter
         className="mt-6"
@@ -104,29 +88,32 @@ export function OutfitFilterControls({
         onChange={onSeasonChange}
       />
 
-      <div className="mt-3 flex items-center gap-2">
-        {sortOrder && onSortOrderChange && (
-          <DateSortButton value={sortOrder} onChange={onSortOrderChange} />
-        )}
-        {onColorChange && colorOptions.length > 1 && (
-          <ColorFilter
-            value={activeColor}
-            options={colorOptions}
-            onChange={onColorChange}
-          />
-        )}
+      <div className="mt-2 flex min-h-9 items-center gap-2">
+        <div className="scrollbar-hidden flex min-w-0 items-center gap-2 overflow-x-auto">
+          {sortOrder && onSortOrderChange && (
+            <DateSortButton value={sortOrder} onChange={onSortOrderChange} />
+          )}
+          {onColorChange && colorOptions.length > 1 && (
+            <ColorFilter
+              value={activeColor}
+              options={colorOptions}
+              onChange={onColorChange}
+            />
+          )}
+        </div>
+        {viewControl && <div className="ml-auto shrink-0">{viewControl}</div>}
       </div>
 
       <div
         ref={styleScrollContainerRef}
-        className="scrollbar-hidden mt-2 flex gap-2 overflow-x-auto pb-2"
+        className="scrollbar-hidden mt-1 flex gap-2 overflow-x-auto pb-1"
         aria-label="코디 스타일 필터"
       >
         <button
           ref={activeStyle === 'all' ? activeStyleButtonRef : undefined}
           type="button"
           onClick={() => onStyleChange('all')}
-          className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold ${
+          className={`flex h-9 shrink-0 items-center rounded-full px-4 text-sm font-medium ${
             activeStyle === 'all'
               ? 'bg-ink text-white'
               : 'border border-line bg-surface text-muted'
@@ -141,7 +128,7 @@ export function OutfitFilterControls({
             }
             type="button"
             onClick={() => onStyleChange(option.value)}
-            className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold ${
+            className={`flex h-9 shrink-0 items-center rounded-full px-4 text-sm font-medium ${
               activeStyle === option.value
                 ? 'bg-ink text-white'
                 : 'border border-line bg-surface text-muted'

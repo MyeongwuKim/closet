@@ -12,7 +12,7 @@ interface ClosetPageHeaderProps {
   addButtonRef?: Ref<HTMLButtonElement>
 }
 
-/** 옷장에 등록한 옷 개수와 검색·추가 버튼을 표시한다. 분석 중에는 추가 동작을 실행하지 않는다. */
+/** 옷장 제목과 추가 버튼을 표시하고, 등록된 옷이 있으면 검색 버튼도 표시한다. 분석 중에는 추가 동작을 실행하지 않는다. */
 export function ClosetPageHeader({
   itemCount,
   analyzingCount,
@@ -24,8 +24,6 @@ export function ClosetPageHeader({
   return (
     <CollectionHeading
       title="내 옷장"
-      label="My dressing room"
-      description={`하나씩 모아둔 나의 취향 · ${itemCount}개의 옷`}
       actions={<>
         {itemCount > 0 && (
           <button

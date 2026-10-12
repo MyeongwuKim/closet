@@ -395,6 +395,24 @@ export const wardrobeService = {
     )
   },
 
+  /** 같은 사용자에게 저장된 브랜드의 대소문자·공백·유니코드 표기를 함께 해제한다. 보관한 옷도 브랜드만 null로 바꾸며 변경한 옷 개수를 반환한다. */
+  async deleteBrand(userId: string, brandName: string) {
+    const brand = normalizeBrandName(brandName)
+    if (!brand) {
+      throw new ServiceError('삭제할 브랜드를 선택해주세요.', 'INVALID_WARDROBE_BRAND')
+    }
+    const key = brand.toLocaleLowerCase('ko-KR')
+    const rows = await wardrobeRepository.findBrandNames(userId, true)
+    const matchingNames = [...new Set(rows.flatMap((row) =>
+      row.brandName && normalizeBrandName(row.brandName)?.toLocaleLowerCase('ko-KR') === key
+        ? [row.brandName]
+        : [],
+    ))]
+    if (matchingNames.length === 0) return 0
+    const result = await wardrobeRepository.clearBrandName(userId, matchingNames)
+    return result.count
+  },
+
   async create(userId: string, input: CreateWardrobeItemInput) {
     const name = input.name.trim()
     if (!name) {

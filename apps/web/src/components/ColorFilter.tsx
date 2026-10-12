@@ -57,7 +57,7 @@ export function ColorFilter({
         onClick={open}
         aria-haspopup="dialog"
         aria-expanded={isOpen}
-        className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-bold transition ${
+        className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-2 text-xs font-medium transition sm:px-3 sm:text-sm ${
           value
             ? 'border-ink bg-ink text-white'
             : 'border-line bg-surface text-muted hover:border-ink hover:text-ink'

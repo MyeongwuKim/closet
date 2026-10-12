@@ -1,37 +1,31 @@
-import { ChevronLeft, RotateCcw } from 'lucide-react'
+import { RotateCcw, X } from 'lucide-react'
 import { PageTitle } from '../../../components/PageTitle'
 import { useOutfitComposer } from '../contexts/OutfitComposerContext'
 
+/** 코디 편집 화면의 선택 개수를 보여주고, 종료 확인과 전체 아이템 해제를 제공한다. */
 export function OutfitComposerHeader() {
   const {
     selectedItems,
-    hasPreviousStep,
-    goBackStep,
+    requestClose,
     reset,
   } = useOutfitComposer()
   const selectedCount = selectedItems.length
-  const baseItemName = selectedItems[0]?.name
-
   return (
     <header className="shrink-0 border-b border-line bg-canvas pt-[env(safe-area-inset-top)]">
-      <div className="mx-auto flex min-h-16 max-w-7xl items-center gap-3 px-4 sm:min-h-18 sm:px-6">
+      <div className="mx-auto flex min-h-16 max-w-7xl items-center gap-3 px-3 sm:min-h-18 sm:px-6">
         <button
           type="button"
-          onClick={goBackStep}
-          className="flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-surface"
-          aria-label={hasPreviousStep ? '이전 단계로 돌아가기' : '코디 만들기 닫기'}
-          title={hasPreviousStep ? '이전 단계' : '닫기'}
+          onClick={requestClose}
+          className="flex size-11 shrink-0 items-center justify-center rounded-full text-ink transition-colors hover:bg-surface"
+          aria-label="Look 만들기 닫기"
+          title="닫기"
         >
-          <ChevronLeft size={22} />
+          <X size={21} strokeWidth={1.8} />
         </button>
         <div className="min-w-0 flex-1">
           <PageTitle
-            title="코디 맞춰보기"
-            description={
-              baseItemName
-                ? `${baseItemName} 중심 · ${selectedCount}개 아이템`
-                : '기준 아이템부터 골라보세요.'
-            }
+            title="새 Look 만들기"
+            description={`선택한 아이템 ${selectedCount}개`}
             compact
           />
         </div>
@@ -39,11 +33,11 @@ export function OutfitComposerHeader() {
           type="button"
           onClick={reset}
           disabled={selectedCount === 0}
-          className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-surface hover:text-ink disabled:opacity-35"
-          aria-label="코디 선택 처음부터 다시"
-          title="처음부터 다시"
+          className="flex size-11 shrink-0 items-center justify-center rounded-full border border-line bg-surface text-muted transition-colors hover:border-accent/40 hover:text-ink disabled:cursor-not-allowed disabled:opacity-35"
+          aria-label="선택한 아이템 모두 해제"
+          title="아이템 모두 해제"
         >
-          <RotateCcw size={18} />
+          <RotateCcw size={17} strokeWidth={1.8} />
         </button>
       </div>
     </header>

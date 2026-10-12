@@ -1,3 +1,5 @@
+export { isBagItem, MAX_OUTFIT_ITEMS } from './outfitItems.js'
+
 export type ClothingCategory =
   | 'top'
   | 'bottom'

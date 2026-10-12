@@ -4,7 +4,7 @@
  *
  * 구조:
  * 공통으로 열린 옷장을 사용하고 옷장은 흔들리는 옷걸이,
- * 코디북은 겹쳐지는 코디 카드로 내부 장면만 다르게 표현한다.
+ * 코디북은 선반에 놓인 코디 카드로 내부 장면만 다르게 표현한다.
  */
 interface WardrobeEmptyStateIllustrationProps {
   className?: string
@@ -45,7 +45,7 @@ export function WardrobeEmptyStateIllustration({
           strokeWidth="2.5"
         />
         <path
-          d="M59 51h62"
+          d={variant === 'closet' ? 'M59 51h62' : 'M53 112h74'}
           fill="none"
           stroke="var(--color-ink)"
           strokeLinecap="round"

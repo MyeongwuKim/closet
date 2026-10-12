@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "웨어룸",
+    "name": "wearroom",
     "slug": "closet",
     "owner": "myeongwukim",
     "version": "0.1.0",
@@ -20,8 +20,8 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#F5F4ED",
-          "image": "./assets/splash-wardrobe-closed-transparent.png",
+          "backgroundColor": "#f8f5ef",
+          "image": "./assets/wardrobe-closed-matched.png",
           "imageWidth": 280,
           "resizeMode": "contain"
         }
@@ -56,7 +56,7 @@
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/app-icon.png",
-        "backgroundColor": "#F5F4ED"
+        "backgroundColor": "#f8f5ef"
       },
       "edgeToEdgeEnabled": true
     }

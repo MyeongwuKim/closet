@@ -16,8 +16,8 @@ interface AppHeaderProps {
 export function AppHeader({ actions }: AppHeaderProps) {
   return (
     <header className="bg-canvas text-ink">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-8 md:h-20">
-        <NavLink to="/plan" className="font-editorial text-[28px] tracking-[-0.06em]" aria-label="웨어룸 플래너">wearroom<span className="text-accent">.</span></NavLink>
+      <div className="app-header-content mx-auto flex max-w-6xl items-center justify-between px-4 sm:px-8">
+        <NavLink to="/plan" className="font-editorial text-[28px] tracking-[-0.06em]" aria-label="wearroom 플래너">wearroom<span className="text-accent">.</span></NavLink>
         <div className="flex items-center gap-4">
           <nav
             className="hidden items-center gap-2 text-sm font-medium md:flex"

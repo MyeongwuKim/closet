@@ -124,11 +124,19 @@ export const wardrobeRepository = {
     })
   },
 
-  /** 보관 처리하지 않은 옷에서 사용자가 저장한 브랜드명만 조회한다. */
-  findBrandNames(userId: string) {
+  /** 사용자가 저장한 브랜드명만 조회한다. 브랜드 삭제에서는 includeArchived로 보관한 옷의 이름도 확인한다. */
+  findBrandNames(userId: string, includeArchived = false) {
     return prisma.wardrobeItem.findMany({
-      where: { userId, ...activeWardrobeItemFilter },
+      where: { userId, ...(!includeArchived ? activeWardrobeItemFilter : {}) },
       select: { brandName: true },
+    })
+  },
+
+  /** 해당 사용자의 옷에서 전달받은 원래 브랜드명과 일치하는 브랜드 정보만 비운다. 보관 여부와 옷 분류·이미지·코디 연결은 변경하지 않는다. */
+  clearBrandName(userId: string, brandNames: string[]) {
+    return prisma.wardrobeItem.updateMany({
+      where: { userId, brandName: { in: brandNames } },
+      data: { brandName: null },
     })
   },
 

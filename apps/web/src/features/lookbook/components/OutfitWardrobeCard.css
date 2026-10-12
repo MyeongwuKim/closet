@@ -1,0 +1,51 @@
+/* 옷장 화면의 사진 집게와 행별 봉을 좁은 편집 시트에도 두 열로 유지한다. */
+.outfit-wardrobe-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 16px;
+  row-gap: 42px;
+  padding: 30px 2px 12px;
+}
+
+.outfit-wardrobe-grid > .collection-clipped-card::before {
+  position: absolute;
+  z-index: 1;
+  top: -24px;
+  left: -1px;
+  display: none;
+  width: calc(200% + 20px);
+  height: 3px;
+  content: '';
+  border-radius: 2px;
+  background: linear-gradient(180deg, #b8afa1, #918778);
+  box-shadow: 0 2px 2px rgb(67 57 47 / 10%);
+  pointer-events: none;
+}
+
+.outfit-wardrobe-grid > .collection-clipped-card:nth-of-type(2n + 1)::before {
+  display: block;
+}
+
+.outfit-wardrobe-card__add {
+  position: absolute;
+  z-index: 2;
+  top: 17px;
+  right: 17px;
+  display: flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-line);
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-muted);
+  transition: border-color .2s, color .2s, background .2s;
+}
+
+.collection-clipped-card:hover .outfit-wardrobe-card__add,
+.collection-clipped-card:focus-visible .outfit-wardrobe-card__add {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: white;
+}

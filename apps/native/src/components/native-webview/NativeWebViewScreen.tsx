@@ -118,6 +118,8 @@ export function NativeWebViewScreen({
         hideKeyboardAccessoryView
         bounces={false}
         overScrollMode="never"
+        showsHorizontalScrollIndicator={false}
+        showsVerticalScrollIndicator={false}
         setBuiltInZoomControls={false}
         setDisplayZoomControls={false}
         scalesPageToFit={false}

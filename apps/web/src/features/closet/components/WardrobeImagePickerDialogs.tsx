@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from 'react'
+import { useId } from 'react'
 import {
   Camera,
   Images,
@@ -8,6 +8,7 @@ import {
   X,
 } from 'lucide-react'
 import { createPortal } from 'react-dom'
+import { useWardrobeImageDialog } from '../hooks/useWardrobeImageDialog'
 
 interface WardrobeImageSourceDialogProps {
   isCapturing: boolean
@@ -23,74 +24,6 @@ interface WardrobePhotoReviewDialogProps {
   onCancel: () => void
 }
 
-function useCentralDialog(
-  onClose: () => void,
-  options: { dismissible?: boolean } = {},
-) {
-  const { dismissible = true } = options
-  const dialogRef = useRef<HTMLElement>(null)
-
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && dismissible) {
-        event.preventDefault()
-        event.stopPropagation()
-        onClose()
-        return
-      }
-
-      if (event.key !== 'Tab' || !dialogRef.current) return
-
-      const focusableElements = Array.from(
-        dialogRef.current.querySelectorAll<HTMLElement>(
-          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-        ),
-      ).filter((element) => element.getClientRects().length > 0)
-
-      if (focusableElements.length === 0) {
-        event.preventDefault()
-        dialogRef.current.focus()
-        return
-      }
-
-      const firstElement = focusableElements[0]
-      const lastElement = focusableElements.at(-1)!
-      const activeElement = document.activeElement
-      const focusIsOutside = !dialogRef.current.contains(activeElement)
-
-      if (event.shiftKey && (activeElement === firstElement || focusIsOutside)) {
-        event.preventDefault()
-        lastElement.focus()
-      } else if (
-        !event.shiftKey &&
-        (activeElement === lastElement || focusIsOutside)
-      ) {
-        event.preventDefault()
-        firstElement.focus()
-      }
-    }
-
-    const focusTimer = window.requestAnimationFrame(() => {
-      if (!dialogRef.current?.contains(document.activeElement)) {
-        dialogRef.current
-          ?.querySelector<HTMLElement>('button:not([disabled])')
-          ?.focus()
-      }
-    })
-    document.addEventListener('keydown', handleKeyDown, true)
-    return () => {
-      window.cancelAnimationFrame(focusTimer)
-      document.body.style.overflow = previousOverflow
-      document.removeEventListener('keydown', handleKeyDown, true)
-    }
-  }, [dismissible, onClose])
-
-  return dialogRef
-}
-
 export function WardrobeImageSourceDialog({
   isCapturing,
   onCapture,
@@ -99,7 +32,7 @@ export function WardrobeImageSourceDialog({
 }: WardrobeImageSourceDialogProps) {
   const titleId = useId()
   const descriptionId = useId()
-  const dialogRef = useCentralDialog(onCancel, {
+  const dialogRef = useWardrobeImageDialog(onCancel, {
     dismissible: !isCapturing,
   })
 
@@ -210,7 +143,7 @@ export function WardrobePhotoReviewDialog({
 }: WardrobePhotoReviewDialogProps) {
   const titleId = useId()
   const descriptionId = useId()
-  const dialogRef = useCentralDialog(onCancel)
+  const dialogRef = useWardrobeImageDialog(onCancel)
 
   return createPortal(
     <div

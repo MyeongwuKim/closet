@@ -27,26 +27,48 @@ import type {
   NativeAuthProvider,
   NativeTestLoginInput,
 } from '../../auth/nativeAuthTypes'
-import { WardrobeProgressHero } from './WardrobeProgressHero'
+import { WearroomWordmark } from '../branding/WearroomWordmark'
+import { WardrobeProgressHero } from '../wardrobe/WardrobeProgressHero'
 
 interface NativeLoginScreenProps {
   isPreparing: boolean
+  /** 닫힌 옷장을 화면 중앙에 배치한 첫 프레임이 준비되면 호출한다. */
+  onInitialFrameReady?: () => void
   onTestLogin: (input: NativeTestLoginInput) => Promise<void>
 }
 
 export function NativeLoginScreen({
   isPreparing,
+  onInitialFrameReady,
   onTestLogin,
 }: NativeLoginScreenProps) {
   const { height: screenHeight } = useWindowDimensions()
-  const [viewportHeight, setViewportHeight] = useState(screenHeight)
+  const viewportRef = useRef<View>(null)
+  /** 화면 창 기준 ScrollView의 시작 y좌표. 첫 측정 전에는 정적 스플래시를 유지한다. */
+  const [viewportTop, setViewportTop] = useState<number | null>(null)
+  /** 첫 닫힌 이미지가 실제로 로드됐는지 확인해 빈 프레임에서 스플래시를 닫지 않는다. */
+  const [isClosedImageLoaded, setIsClosedImageLoaded] = useState(false)
   const entrance = useRef(new Animated.Value(0)).current
+  /** 준비 중에는 닫힌 상태(0)를 유지하고, 준비 완료 후 문 열림을 1까지 전환한다. */
   const progress = useRef(new Animated.Value(0)).current
   const [loginId, setLoginId] = useState('native_test')
   const [password, setPassword] = useState('1234')
   const [displayName, setDisplayName] = useState('네이티브 테스트')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  /** SafeAreaView 내부 상대 좌표 대신 화면 창의 실제 y좌표를 측정해 옷장 중심을 맞춘다. */
+  const handleViewportLayout = () => {
+    viewportRef.current?.measureInWindow((_x, y) => setViewportTop(y))
+  }
+
+  useEffect(() => {
+    if (viewportTop === null || !isClosedImageLoaded) return
+
+    // 이미지와 측정값이 렌더링된 다음 프레임에 정적 스플래시를 닫는다.
+    const frame = requestAnimationFrame(() => onInitialFrameReady?.())
+    return () => cancelAnimationFrame(frame)
+  }, [isClosedImageLoaded, onInitialFrameReady, viewportTop])
 
   useEffect(() => {
     if (isPreparing) {
@@ -58,8 +80,8 @@ export function NativeLoginScreen({
     const completionAnimation = Animated.sequence([
       Animated.timing(progress, {
         toValue: 1,
-        duration: 420,
-        easing: Easing.out(Easing.back(1.45)),
+        duration: 900,
+        easing: Easing.inOut(Easing.quad),
         useNativeDriver: true,
       }),
       Animated.delay(180),
@@ -109,191 +131,179 @@ export function NativeLoginScreen({
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      onLayout={({ nativeEvent }) => setViewportHeight(nativeEvent.layout.height)}
-      style={styles.screen}
-    >
-      <ScrollView
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
+    <View onLayout={handleViewportLayout} ref={viewportRef} style={styles.screen}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.screen}
       >
-        <Animated.View
-          pointerEvents={isPreparing ? 'none' : 'auto'}
-          style={[
-            styles.hero,
-            {
-              transform: [
-                {
-                  translateY: entrance.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [Math.max(0, viewportHeight / 2 - 118), 0],
-                  }),
-                },
-                {
-                  scale: entrance.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [1, 0.62],
-                  }),
-                },
-              ],
-            },
-          ]}
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
         >
-          <WardrobeProgressHero progress={progress} />
-        </Animated.View>
-
-        <Animated.View
-          pointerEvents={isPreparing ? 'none' : 'auto'}
-          style={[
-            styles.loginContent,
-            {
-              opacity: entrance.interpolate({
-                inputRange: [0, 0.42, 1],
-                outputRange: [0, 0, 1],
-              }),
-              transform: [
-                {
-                  translateY: entrance.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [18, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <Text accessibilityRole="header" style={styles.brand}>wearroom<Text style={styles.brandDot}>.</Text></Text>
-          <Text style={styles.tagline}>어디서든 여는 내 작은 옷장</Text>
-
-          <View style={styles.providerGroup}>
-            {Platform.OS === 'ios' ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => void handleProviderLogin('apple')}
-                style={({ pressed }) => [
-                  styles.providerButton,
-                  styles.appleButton,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Text style={styles.appleIcon}></Text>
-                <Text style={styles.appleButtonText}>Apple로 계속하기</Text>
-              </Pressable>
-            ) : null}
-
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => void handleProviderLogin('google')}
-              style={({ pressed }) => [
-                styles.providerButton,
-                styles.googleButton,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text style={styles.googleIcon}>G</Text>
-              <Text style={styles.googleButtonText}>Google로 계속하기</Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.dividerRow}>
-            <View style={styles.divider} />
-            <Text style={styles.dividerText}>테스트 계정</Text>
-            <View style={styles.divider} />
-          </View>
-
-          <View style={styles.testPanel}>
-            <Text style={styles.testPanelTitle}>개발용 빠른 로그인</Text>
-            <Text style={styles.testPanelDescription}>
-              처음 사용하는 ID는 테스트 계정으로 자동 생성됩니다.
-            </Text>
-
-            <TextInput
-              autoCapitalize="none"
-              autoCorrect={false}
-              maxLength={30}
-              onChangeText={setLoginId}
-              placeholder="테스트 ID"
-              placeholderTextColor={wearroomColors.muted}
-              style={styles.input}
-              value={loginId}
-            />
-            <TextInput
-              autoCapitalize="none"
-              maxLength={72}
-              onChangeText={setPassword}
-              placeholder="비밀번호"
-              placeholderTextColor={wearroomColors.muted}
-              secureTextEntry
-              style={styles.input}
-              value={password}
-            />
-            <TextInput
-              maxLength={30}
-              onChangeText={setDisplayName}
-              placeholder="표시 이름 (선택)"
-              placeholderTextColor={wearroomColors.muted}
-              style={styles.input}
-              value={displayName}
-            />
-
-            {errorMessage ? (
-              <Text accessibilityRole="alert" style={styles.errorMessage}>
-                {errorMessage}
-              </Text>
-            ) : null}
-
-            <Pressable
-              accessibilityRole="button"
-              disabled={isSubmitting}
-              onPress={() => void handleTestLogin()}
-              style={({ pressed }) => [
-                styles.testLoginButton,
-                pressed && styles.pressed,
-                isSubmitting && styles.disabled,
-              ]}
-            >
-              <Text style={styles.testLoginButtonText}>
-                {isSubmitting ? '로그인 중...' : '테스트 계정으로 로그인'}
-              </Text>
-            </Pressable>
-          </View>
-        </Animated.View>
-      </ScrollView>
-
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.loadingStatus,
-          {
-            opacity: entrance.interpolate({
-              inputRange: [0, 0.34],
-              outputRange: [1, 0],
-              extrapolate: 'clamp',
-            }),
-          },
-        ]}
-      >
-        <Text style={styles.loadingLogo}>웨어룸</Text>
-        <View style={styles.progressTrack}>
           <Animated.View
+            pointerEvents={isPreparing ? 'none' : 'auto'}
             style={[
-              styles.progressFill,
+              styles.hero,
               {
                 transform: [
                   {
-                    translateX: progress.interpolate({
+                    translateY: entrance.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [-132, 0],
+                      outputRange: [Math.max(0, screenHeight / 2 - (viewportTop ?? 0) - 126), 0],
+                    }),
+                  },
+                  {
+                    scale: entrance.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [1, 0.62],
                     }),
                   },
                 ],
               },
             ]}
-          />
-        </View>
-      </Animated.View>
-    </KeyboardAvoidingView>
+          >
+            <WardrobeProgressHero
+              onClosedImageLoad={() => setIsClosedImageLoaded(true)}
+              progress={progress}
+            />
+          </Animated.View>
+
+          <Animated.View
+            pointerEvents={isPreparing ? 'none' : 'auto'}
+            style={[
+              styles.loginContent,
+              {
+                opacity: entrance.interpolate({
+                  inputRange: [0, 0.42, 1],
+                  outputRange: [0, 0, 1],
+                }),
+                transform: [
+                  {
+                    translateY: entrance.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [18, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <WearroomWordmark accessibilityRole="header" width={220} />
+            <Text style={styles.tagline}>어디서든 여는 내 작은 옷장</Text>
+
+            <View style={styles.providerGroup}>
+              {Platform.OS === 'ios' ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => void handleProviderLogin('apple')}
+                  style={({ pressed }) => [
+                    styles.providerButton,
+                    styles.appleButton,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text style={styles.appleIcon}></Text>
+                  <Text style={styles.appleButtonText}>Apple로 계속하기</Text>
+                </Pressable>
+              ) : null}
+
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => void handleProviderLogin('google')}
+                style={({ pressed }) => [
+                  styles.providerButton,
+                  styles.googleButton,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={styles.googleIcon}>G</Text>
+                <Text style={styles.googleButtonText}>Google로 계속하기</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.dividerRow}>
+              <View style={styles.divider} />
+              <Text style={styles.dividerText}>테스트 계정</Text>
+              <View style={styles.divider} />
+            </View>
+
+            <View style={styles.testPanel}>
+              <Text style={styles.testPanelTitle}>개발용 빠른 로그인</Text>
+              <Text style={styles.testPanelDescription}>
+                처음 사용하는 ID는 테스트 계정으로 자동 생성됩니다.
+              </Text>
+
+              <TextInput
+                autoCapitalize="none"
+                autoCorrect={false}
+                maxLength={30}
+                onChangeText={setLoginId}
+                placeholder="테스트 ID"
+                placeholderTextColor={wearroomColors.muted}
+                style={styles.input}
+                value={loginId}
+              />
+              <TextInput
+                autoCapitalize="none"
+                maxLength={72}
+                onChangeText={setPassword}
+                placeholder="비밀번호"
+                placeholderTextColor={wearroomColors.muted}
+                secureTextEntry
+                style={styles.input}
+                value={password}
+              />
+              <TextInput
+                maxLength={30}
+                onChangeText={setDisplayName}
+                placeholder="표시 이름 (선택)"
+                placeholderTextColor={wearroomColors.muted}
+                style={styles.input}
+                value={displayName}
+              />
+
+              {errorMessage ? (
+                <Text accessibilityRole="alert" style={styles.errorMessage}>
+                  {errorMessage}
+                </Text>
+              ) : null}
+
+              <Pressable
+                accessibilityRole="button"
+                disabled={isSubmitting}
+                onPress={() => void handleTestLogin()}
+                style={({ pressed }) => [
+                  styles.testLoginButton,
+                  pressed && styles.pressed,
+                  isSubmitting && styles.disabled,
+                ]}
+              >
+                <Text style={styles.testLoginButtonText}>
+                  {isSubmitting ? '로그인 중...' : '테스트 계정으로 로그인'}
+                </Text>
+              </Pressable>
+            </View>
+          </Animated.View>
+        </ScrollView>
+
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.loadingStatus,
+            {
+              opacity: entrance.interpolate({
+                inputRange: [0, 0.34],
+                outputRange: [1, 0],
+                extrapolate: 'clamp',
+              }),
+            },
+          ]}
+        >
+          <WearroomWordmark width={236} />
+          <Text accessibilityLiveRegion="polite" style={styles.loadingCaption}>내 옷장을 준비하는 중</Text>
+        </Animated.View>
+      </KeyboardAvoidingView>
+    </View>
   )
 }
 
@@ -331,35 +341,11 @@ const styles = StyleSheet.create({
     left: 0,
     alignItems: 'center',
   },
-  loadingLogo: {
-    color: wearroomColors.ink,
-    fontSize: 22,
-    fontWeight: '600',
-    letterSpacing: -0.8,
-  },
-  progressTrack: {
-    overflow: 'hidden',
-    width: 132,
-    height: 5,
-    marginTop: 16,
-    borderRadius: 3,
-    backgroundColor: wearroomColors.line,
-  },
-  progressFill: {
-    width: 132,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: wearroomColors.accent,
-  },
-  brand: {
-    color: wearroomColors.ink,
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-    fontSize: 24,
-    letterSpacing: -1,
-    textAlign: 'center',
-  },
-  brandDot: {
-    color: wearroomColors.accent,
+  loadingCaption: {
+    marginTop: 8,
+    color: wearroomColors.muted,
+    fontSize: 13,
+    letterSpacing: -0.2,
   },
   tagline: {
     marginTop: 12,

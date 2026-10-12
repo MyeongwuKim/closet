@@ -1,0 +1,164 @@
+.outfit-styling-layout {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
+  background: var(--color-canvas);
+}
+
+.outfit-styling-layout__stage {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding: 12px 18px 16px;
+}
+
+.outfit-styling-layout__stage-inner {
+  width: min(100%, 560px);
+  margin: 0 auto;
+}
+
+.outfit-styling-layout .composer-look-canvas__masthead,
+.outfit-styling-layout .composer-look-canvas__heading,
+.outfit-styling-layout .composer-look-canvas__footnote,
+.outfit-styling-layout .composer-look-canvas__stage-note,
+.outfit-styling-layout .composer-look-canvas__stage-rule,
+.outfit-styling-layout .composer-look-canvas__selected-label,
+.outfit-styling-layout .composer-look-canvas__empty-note {
+  display: none;
+}
+
+.outfit-styling-layout .composer-look-canvas__composition {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 6 / 5;
+}
+
+.outfit-styling-layout__wardrobe {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border-top: 1px solid var(--color-line);
+  border-radius: 20px 20px 0 0;
+  background: var(--color-canvas);
+  box-shadow: 0 -9px 28px -20px rgb(67 57 47 / 32%);
+}
+
+.outfit-styling-layout__drawer-toolbar {
+  display: flex;
+  min-height: 52px;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 4px 18px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.outfit-styling-layout__drawer-action {
+  min-width: 0;
+  margin-right: auto;
+}
+
+.outfit-styling-layout__drawer-toggle {
+  display: inline-flex;
+  min-height: 44px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.outfit-styling-layout__wardrobe-content {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.outfit-styling-layout--expanded .outfit-styling-layout__wardrobe-content {
+  visibility: visible;
+  pointer-events: auto;
+}
+
+@media (max-width: 767px) {
+  .outfit-styling-layout:not(.outfit-styling-layout--expanded) .outfit-styling-layout__wardrobe {
+    display: none;
+  }
+
+  .outfit-styling-layout--expanded {
+    grid-template-rows: max-content minmax(0, 1fr);
+  }
+
+  .outfit-styling-layout--expanded .outfit-styling-layout__stage {
+    overflow: visible;
+  }
+
+  .outfit-styling-layout--expanded .composer-look-canvas__selected {
+    display: none;
+  }
+
+  .outfit-styling-layout--expanded .outfit-styling-layout__wardrobe {
+    border-radius: 20px 20px 0 0;
+  }
+}
+
+@media (min-width: 768px) {
+  .outfit-styling-layout {
+    max-width: 1240px;
+    grid-template-columns: minmax(0, 1fr) minmax(370px, 460px);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 22px;
+    margin: 0 auto;
+    padding: 22px;
+  }
+
+  .outfit-styling-layout__stage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .outfit-styling-layout .composer-look-canvas__composition {
+    height: clamp(340px, 46vh, 440px);
+    aspect-ratio: auto;
+  }
+
+  .outfit-styling-layout__wardrobe {
+    border: 1px solid var(--color-line);
+    border-radius: 3px;
+    box-shadow: 0 9px 28px -22px rgb(67 57 47 / 28%);
+  }
+
+  .outfit-styling-layout__drawer-toolbar:not(.outfit-styling-layout__drawer-toolbar--has-action) {
+    display: none;
+  }
+
+  .outfit-styling-layout__drawer-toggle {
+    display: none;
+  }
+
+  .outfit-styling-layout__wardrobe-content {
+    visibility: visible;
+    pointer-events: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .outfit-styling-layout,
+  .outfit-styling-layout__wardrobe {
+    transition: none;
+  }
+}

@@ -1,9 +1,10 @@
-import type { ClothingCategory, WardrobeItem } from '@closet/types'
+import { isBagItem, type ClothingCategory, type WardrobeItem } from '@closet/types'
+import type { OutfitSelectionCategory } from '../utils/outfitSelection'
 
 export interface OutfitSlot {
-  id: string
+  id: Exclude<OutfitSelectionCategory, 'dress' | 'other'>
   label: string
-  iconCategory: ClothingCategory
+  iconCategory: ClothingCategory | 'bag'
   matches: (item: WardrobeItem) => boolean
   position: string
   limit?: number
@@ -31,9 +32,17 @@ export const outfitSlots: OutfitSlot[] = [
     label: '액세서리',
     iconCategory: 'accessory',
     matches: (item) =>
-      item.category === 'accessory' || item.category === 'other',
+      (item.category === 'accessory' || item.category === 'other') && !isBagItem(item),
     position: 'col-start-3 row-start-1',
     limit: 4,
+  },
+  {
+    id: 'bag',
+    label: '가방',
+    iconCategory: 'bag',
+    matches: isBagItem,
+    position: 'col-start-3 row-start-4',
+    limit: 1,
   },
   {
     id: 'midlayer',

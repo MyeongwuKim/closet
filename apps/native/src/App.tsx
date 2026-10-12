@@ -9,8 +9,9 @@
  * 하단 탭과 자연스럽게 이어지는 기기 세이프 영역으로 구성되어 있다.
  */
 import { wearroomColors } from './theme/wearroomTheme'
+import * as SplashScreen from 'expo-splash-screen'
 import { StatusBar } from 'expo-status-bar'
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { SafeAreaView, StyleSheet, View } from 'react-native'
 import { useNativeAuth } from './auth/useNativeAuth'
 import { NativeConnectionErrorScreen } from './components/native-auth/NativeConnectionErrorScreen'
@@ -20,8 +21,14 @@ import { NativeWebViewScreen } from './components/native-webview/NativeWebViewSc
 import { usePushRegistration } from './notifications/usePushRegistration'
 import { useNotificationNavigation } from './notifications/useNotificationNavigation'
 
+// 첫 닫힌 옷장이 실제 화면 위치에 그려질 때까지 네이티브 스플래시를 유지한다.
+const splashHold = SplashScreen.preventAutoHideAsync().catch(() => {})
+const SPLASH_SETTLE_DELAY_MS = 400
+
 export default function App() {
   const auth = useNativeAuth()
+  const splashReleaseStarted = useRef(false)
+  const [isSplashHidden, setIsSplashHidden] = useState(false)
   const [notificationPath, setNotificationPath] = useState<string | null>(null)
   useNotificationNavigation(setNotificationPath)
   usePushRegistration(auth.status === 'signed-in' ? auth.session?.accessToken : undefined)
@@ -34,12 +41,25 @@ export default function App() {
     setNotificationPath(null)
   }, [])
 
+  /** 닫힌 옷장의 크기·화면 좌표가 준비되면 네이티브 스플래시를 한 번만 닫는다. */
+  const releaseSplash = useCallback(() => {
+    if (splashReleaseStarted.current) return
+    splashReleaseStarted.current = true
+
+    void splashHold
+      .then(() => SplashScreen.hideAsync())
+      .catch(() => {})
+      // iOS의 시작 화면 제거가 실제 프레임에 반영된 뒤 문 열림을 시작한다.
+      .finally(() => setTimeout(() => setIsSplashHidden(true), SPLASH_SETTLE_DELAY_MS))
+  }, [])
+
   if (!isPermissionFlowComplete || auth.status === 'checking') {
     return (
       <SafeAreaView style={styles.screen}>
         <StatusBar style="dark" />
         <NativeLoginScreen
           isPreparing
+          onInitialFrameReady={releaseSplash}
           onTestLogin={auth.loginWithTestAccount}
         />
         {!isPermissionFlowComplete ? (
@@ -51,7 +71,7 @@ export default function App() {
 
   if (auth.status === 'connection-error') {
     return (
-      <SafeAreaView style={styles.screen}>
+      <SafeAreaView onLayout={releaseSplash} style={styles.screen}>
         <StatusBar style="dark" />
         <NativeConnectionErrorScreen onRetry={auth.retrySessionCheck} />
       </SafeAreaView>
@@ -63,7 +83,8 @@ export default function App() {
       <SafeAreaView style={styles.screen}>
         <StatusBar style="dark" />
         <NativeLoginScreen
-          isPreparing={false}
+          isPreparing={!isSplashHidden}
+          onInitialFrameReady={releaseSplash}
           onTestLogin={auth.loginWithTestAccount}
         />
       </SafeAreaView>
@@ -71,7 +92,7 @@ export default function App() {
   }
 
   return (
-    <SafeAreaView style={styles.signedInScreen}>
+    <SafeAreaView onLayout={releaseSplash} style={styles.signedInScreen}>
       <View pointerEvents="none" style={styles.topSafeAreaBackground} />
       <StatusBar style="dark" />
       <NativeWebViewScreen

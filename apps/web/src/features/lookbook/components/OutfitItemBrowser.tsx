@@ -1,26 +1,19 @@
-/**
- * 사용 위치: 직접 코디 맞추기 → 상의·하의 등 아이템 목록
- *
- * 용도:
- * 선택할 수 있는 옷을 검색하거나 계절·색상으로 좁혀서 보여준다.
- *
- * 구조:
- * 목록 제목과 검색·필터 도구, 가로 아이템 목록, 빈 상태로 구성되어 있다.
- */
 import { useMemo, useState } from 'react'
-import type { ClothingCategory, Season, WardrobeItem } from '@closet/types'
+import type { Season, WardrobeItem } from '@closet/types'
 import { Search, SlidersHorizontal, X } from 'lucide-react'
 import { seasonOptions } from '../../../constants/seasons'
 import { ClothingCategoryIcon } from '../../../components/ClothingCategoryIcon'
-import { ClosetItemVisual } from '../../closet/components/ClosetItemVisual'
-import { closetCategoryLabels } from '../../closet/constants'
+import { OutfitWardrobeCard } from './OutfitWardrobeCard'
+import { outfitSelectionLabels, type OutfitSelectionCategory } from '../utils/outfitSelection'
 import {
   filterOutfitItems,
   getOutfitItemFilterOptions,
 } from '../utils/outfitItemFilters'
 
 interface OutfitItemBrowserProps {
-  category: ClothingCategory
+  category: OutfitSelectionCategory
+  /** 상의 칸에서 원피스도 함께 고를 수 있을 때 목록 제목과 검색 이름에 사용한다. */
+  categoryLabel?: string
   items: WardrobeItem[]
   onSelect: (item: WardrobeItem) => void
   onOpenCloset: () => void
@@ -51,31 +44,10 @@ function FilterChip({
   )
 }
 
-function OutfitChoiceCard({
-  item,
-  onClick,
-}: {
-  item: WardrobeItem
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="relative min-w-0 rounded-2xl bg-surface p-1.5 text-left shadow-[inset_0_0_0_1px_#dedad1] transition hover:-translate-y-0.5"
-    >
-      <span className="flex aspect-square items-center justify-center overflow-hidden rounded-xl bg-canvas">
-        <ClosetItemVisual item={item} compact />
-      </span>
-      <span className="mt-1.5 block truncate px-1 pb-0.5 text-[11px] font-bold">
-        {item.name}
-      </span>
-    </button>
-  )
-}
-
+/** 코디 편집에서 선택한 종류의 보유 옷을 검색·계절·색상으로 좁혀 격자로 보여준다. 아이템 선택과 옷장 이동은 부모에 맡긴다. */
 export function OutfitItemBrowser({
   category,
+  categoryLabel: categoryLabelOverride,
   items,
   onSelect,
   onOpenCloset,
@@ -92,7 +64,7 @@ export function OutfitItemBrowser({
   )
   const activeFilterCount = Number(Boolean(season)) + Number(Boolean(color))
   const hasActiveConditions = Boolean(query.trim() || activeFilterCount)
-  const categoryLabel = closetCategoryLabels[category]
+  const categoryLabel = categoryLabelOverride ?? outfitSelectionLabels[category]
 
   const clearConditions = () => {
     setQuery('')
@@ -123,19 +95,19 @@ export function OutfitItemBrowser({
                 return !current
               })
             }}
-            className={`flex size-8 items-center justify-center rounded-full border transition ${
+            className={`flex size-11 items-center justify-center rounded-full border transition ${
               isSearchOpen || query
                 ? 'border-ink bg-ink text-white'
                 : 'border-line bg-surface text-muted'
             }`}
             aria-label={isSearchOpen ? '검색 닫기' : `${categoryLabel} 검색`}
           >
-            {isSearchOpen ? <X size={14} /> : <Search size={14} />}
+            {isSearchOpen ? <X size={16} /> : <Search size={16} />}
           </button>
           <button
             type="button"
             onClick={() => setIsFilterOpen((current) => !current)}
-            className={`relative flex size-8 items-center justify-center rounded-full border transition ${
+            className={`relative flex size-11 items-center justify-center rounded-full border transition ${
               isFilterOpen || activeFilterCount > 0
                 ? 'border-ink bg-ink text-white'
                 : 'border-line bg-surface text-muted'
@@ -143,7 +115,7 @@ export function OutfitItemBrowser({
             aria-label={`${categoryLabel} 필터`}
             aria-expanded={isFilterOpen}
           >
-            <SlidersHorizontal size={14} />
+            <SlidersHorizontal size={16} />
             {activeFilterCount > 0 && (
               <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-accent text-[9px] font-black text-white">
                 {activeFilterCount}
@@ -164,7 +136,7 @@ export function OutfitItemBrowser({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="이름, 종류, 색상, 태그 검색"
-            className="h-10 w-full rounded-xl border border-line bg-surface pr-10 pl-9 text-xs outline-none transition placeholder:text-muted/70 focus:border-ink"
+            className="h-11 w-full rounded-xl border border-line bg-surface pr-10 pl-9 text-xs outline-none transition placeholder:text-muted/70 focus:border-ink"
             aria-label={`${categoryLabel} 검색어`}
             autoFocus
           />
@@ -251,7 +223,7 @@ export function OutfitItemBrowser({
             <ClothingCategoryIcon category={category} size={22} />
           </span>
           <strong className="mt-3 text-sm font-black">
-            옷장에 {categoryLabel}가 없어요
+            옷장에 {categoryLabel} 아이템이 없어요
           </strong>
           <button
             type="button"
@@ -262,11 +234,11 @@ export function OutfitItemBrowser({
           </button>
         </div>
       ) : visibleItems.length > 0 ? (
-        <div className="scrollbar-hidden -mx-5 mt-3 grid auto-cols-[8rem] grid-flow-col gap-3 overflow-x-auto px-5 pb-3">
+        <div className="outfit-wardrobe-grid mt-3 pb-3">
           {visibleItems.map((item) => (
-            <OutfitChoiceCard
+            <OutfitWardrobeCard
               item={item}
-              onClick={() => onSelect(item)}
+              onSelect={onSelect}
               key={item.id}
             />
           ))}

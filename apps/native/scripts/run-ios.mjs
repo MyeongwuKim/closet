@@ -10,7 +10,7 @@ const expoCli = require.resolve('expo/bin/cli')
 const { variant, env, envFile } = loadBuildEnvironment(process.argv[2])
 const device = process.argv.slice(3).includes('--device')
 const isRelease = variant.environment !== 'local'
-console.log(`웨어룸 빌드: ${variant.name} / ${envFile} / ${isRelease ? 'Release' : 'Debug'}`)
+console.log(`wearroom 빌드: ${variant.name} / ${envFile} / ${isRelease ? 'Release' : 'Debug'}`)
 
 /** 현재 Node와 선택한 환경을 자식 작업에 전달하며 실패한 빌드 단계에서 즉시 중단한다. */
 function run(script, args = [], refreshProvisioning = false) {

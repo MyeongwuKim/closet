@@ -19,9 +19,9 @@ test('선택한 환경 파일만 네이티브와 웹 빌드에 전달하고 다�
   const root = createFixture(t)
   const inherited = { PATH: process.env.PATH, EXPO_PUBLIC_API_URL: 'https://old.example.com', EXPO_PUBLIC_OLD_ONLY: 'stale', VITE_API_URL: 'https://wrong.example.com' }
   const cases = [
-    ['local', '.env', 'http://localhost:4000', '웨어룸(L)'],
-    ['development', '.env.development', 'https://dev.example.com', '웨어룸(T)'],
-    ['production', '.env.production', 'https://api.example.com', '웨어룸'],
+    ['local', '.env', 'http://localhost:4000', 'wearroom(L)'],
+    ['development', '.env.development', 'https://dev.example.com', 'wearroom(T)'],
+    ['production', '.env.production', 'https://api.example.com', 'wearroom'],
   ]
   for (const [environment, file, apiUrl, name] of cases) {
     const { env, envFile, variant } = loadBuildEnvironment(environment, { root, inherited })

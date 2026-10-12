@@ -11,7 +11,7 @@ interface PlanTodayCardProps {
   isToday: boolean
 }
 
-/** 플래너 → 오늘 보기. 실제 코디 또는 빈 상태 안내와 선택 동작을 한 카드에 표시한다. 카드 전체가 하나의 링크이며 해당 날짜의 코디 편집 화면으로 이동한다. */
+/** 플래너 → 하루 보기. 실제 코디 또는 빈 상태 안내와 선택 동작을 한 카드에 표시한다. 카드 전체가 하나의 링크이며 해당 날짜의 코디 편집 화면으로 이동한다. */
 export function PlanTodayCard({ entry, items, isToday }: PlanTodayCardProps) {
   const date = new Date(`${entry.date}T00:00:00`)
   const formattedDate = new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' }).format(date)

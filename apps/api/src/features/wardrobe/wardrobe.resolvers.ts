@@ -62,6 +62,18 @@ export const wardrobeResolvers = {
     },
   },
   Mutation: {
+    deleteWardrobeBrand: async (
+      _parent: unknown,
+      { brandName }: { brandName: string },
+      context: GraphQLContext,
+    ) => {
+      try {
+        const viewer = await context.getViewer()
+        return wardrobeService.deleteBrand(viewer.id, brandName)
+      } catch (error) {
+        throw toGraphQLError(error, '브랜드를 삭제하지 못했습니다.', 'WARDROBE_BRAND_DELETE_FAILED')
+      }
+    },
     createWardrobeItem: async (
       _parent: unknown,
       { input }: { input: CreateWardrobeItemInput },

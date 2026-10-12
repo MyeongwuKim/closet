@@ -1,6 +1,6 @@
 import type { ClothingCategory } from '@closet/types'
 import type { ReactNode } from 'react'
-import { Footprints, Shirt, Tags, Watch } from 'lucide-react'
+import { Footprints, Shirt, ShoppingBag, Tags, Watch } from 'lucide-react'
 
 interface ClothingCategoryIconProps {
   category: ClothingCategory | string
@@ -88,9 +88,11 @@ export function ClothingCategoryIcon({
       ? Shirt
       : category === 'shoes'
         ? Footprints
-        : category === 'accessory'
-          ? Watch
-          : Tags
+        : category === 'bag'
+          ? ShoppingBag
+          : category === 'accessory'
+            ? Watch
+            : Tags
 
   return (
     <Icon

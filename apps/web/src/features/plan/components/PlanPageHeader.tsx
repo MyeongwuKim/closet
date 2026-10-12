@@ -6,7 +6,7 @@
  * 제목 옆의 작은 날씨 배지에서 오늘의 기온을 보여주고 자세한 날씨를 열 수 있다.
  *
  * 구조:
- * 오늘·주간·월간 모두 같은 제목과 조작을 제공한다. 주간 편집을 열 기준 날짜는 부모 화면에서 정한다.
+ * 하루·주간·월간 모두 같은 제목과 조작을 제공한다. 주간 편집을 열 기준 날짜는 부모 화면에서 정한다.
  */
 import { CalendarDays } from 'lucide-react'
 import { CollectionHeading } from '../../../components/CollectionHeading'
@@ -25,8 +25,6 @@ export function PlanPageHeader({
     <div>
       <CollectionHeading
         title="플래너"
-        label="My outfit planner"
-        description="미리 골라두는 나의 옷차림"
         titleAccessory={<PlanTodayWeather date={today} />}
         actions={
           <button

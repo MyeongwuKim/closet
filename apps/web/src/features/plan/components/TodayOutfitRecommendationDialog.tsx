@@ -69,7 +69,7 @@ function createPreviewState(
   }
 }
 
-/** AI 추천 썸네일·설명에서 연 코디 구성을 추천 시트와 같은 높이로 표시한다. 슬롯 영역은 내부에서 스크롤하며 옷 교체·룩북 생성·일정 적용은 기존 편집 흐름에 맡긴다. */
+/** AI 추천 썸네일·설명에서 연 코디 구성을 전체화면으로 표시한다. 뒤로가기와 하단 버튼을 고정하고 슬롯 영역만 스크롤하며 옷 교체·룩북 생성·일정 적용은 기존 편집 흐름에 맡긴다. */
 export function TodayOutfitRecommendationDialog({
   viewerId,
   date,
@@ -228,21 +228,20 @@ export function TodayOutfitRecommendationDialog({
 
   return createPortal(
     <div
-      className="option-picker-backdrop fixed inset-0 z-[80] flex items-end justify-center bg-ink/20"
+      className="fixed inset-0 z-[80] bg-canvas"
       onMouseDown={(event) => {
         event.stopPropagation()
         if (event.target === event.currentTarget) onClose()
       }}
     >
       <section
-        className="ai-recommendation-sheet flex w-full max-w-xl flex-col overflow-hidden rounded-t-[1.75rem] border border-line border-b-0 bg-surface"
+        className="classification-page-enter flex h-dvh w-full flex-col overflow-hidden bg-canvas"
         role="dialog"
         aria-modal="true"
         aria-label="오늘의 추천 코디 상세"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <span className="mx-auto mt-2.5 h-1 w-9 shrink-0 rounded-full bg-line" aria-hidden="true" />
-        <header className="shrink-0 border-b border-line bg-surface">
+        <header className="shrink-0 border-b border-line bg-canvas pt-[env(safe-area-inset-top)]">
           <div className="mx-auto flex min-h-16 max-w-3xl items-center gap-2 px-3 py-2 sm:min-h-18 sm:px-5">
             <button
               type="button"
@@ -291,7 +290,7 @@ export function TodayOutfitRecommendationDialog({
           </div>
         </div>
 
-        <footer className="shrink-0 border-t border-line bg-surface px-4 py-3">
+        <footer className="shrink-0 border-t border-line bg-canvas px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
           <div className="mx-auto max-w-3xl">
             {completionMessage && (
               <p className="mb-2 text-center text-xs font-bold text-muted">

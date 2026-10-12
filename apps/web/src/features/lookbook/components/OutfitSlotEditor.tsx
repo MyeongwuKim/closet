@@ -11,6 +11,7 @@ interface OutfitSlotEditorProps {
   className?: string
 }
 
+/** 코디북·플래너의 구성 편집에서 가방과 착용 액세서리를 각각 고른다. 선택 완료 시 해당 칸의 아이템만 교체하고 변경된 코디를 부모에 전달한다. */
 export function OutfitSlotEditor({
   items,
   selectedItems,
@@ -23,6 +24,7 @@ export function OutfitSlotEditor({
     order,
   }))
 
+  /** 현재 선택 칸만 교체한다. 원피스와 하의의 충돌은 정리하며 다른 칸의 소품은 유지한다. */
   const confirmSlotItems = (selectedItemIds: string[]) => {
     if (!pickerSlot) return
 

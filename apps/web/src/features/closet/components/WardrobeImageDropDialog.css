@@ -1,0 +1,16 @@
+.wardrobe-drop-dialog { max-height: calc(100dvh - 4rem); }
+.wardrobe-drop-zone { background: var(--color-canvas); transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease, transform 220ms ease; }
+.wardrobe-drop-zone:hover { border-color: var(--color-accent); background: var(--color-sage); }
+.wardrobe-drop-zone[data-dragging='true'] { border-color: var(--color-accent); border-style: solid; background: var(--color-sage); box-shadow: inset 0 0 0 2px var(--color-accent); transform: scale(1.008); }
+.wardrobe-drop-photos { position: relative; display: block; width: 126px; height: 104px; pointer-events: none; }
+.wardrobe-drop-photo { position: absolute; display: flex; align-items: center; justify-content: center; width: 77px; height: 91px; border: 1px solid var(--color-line); border-radius: 13px; background: var(--color-surface); color: var(--color-accent); box-shadow: 0 5px 14px rgb(59 48 37 / 8%); transition: transform 220ms ease; }
+.wardrobe-drop-photo-back { left: 7px; top: 1px; transform: rotate(-12deg); color: var(--color-muted); }
+.wardrobe-drop-photo-front { left: 39px; top: 8px; transform: rotate(9deg); }
+.wardrobe-drop-upload { position: absolute; bottom: 0; right: 0; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: 3px solid var(--color-canvas); border-radius: 50%; background: var(--color-accent); color: white; transition: transform 220ms ease; }
+.wardrobe-drop-zone[data-dragging='true'] .wardrobe-drop-photo-back { transform: translateX(-5px) rotate(-16deg); }
+.wardrobe-drop-zone[data-dragging='true'] .wardrobe-drop-photo-front { transform: translateY(-4px) rotate(5deg); }
+.wardrobe-drop-zone[data-dragging='true'] .wardrobe-drop-upload { transform: translateY(-3px); }
+@media (prefers-reduced-motion: reduce) {
+  .wardrobe-drop-zone, .wardrobe-drop-photo, .wardrobe-drop-upload { transition: none; }
+  .wardrobe-drop-zone[data-dragging='true'] { transform: none; }
+}

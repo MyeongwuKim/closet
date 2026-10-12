@@ -415,7 +415,7 @@ export function SettingsPage() {
 
   return (
     <section className="settings-page mx-auto max-w-2xl">
-      <CollectionHeading title="설정" label="My room" description="나의 취향과 드레스룸 설정을 모아두었어요." />
+      <CollectionHeading title="설정" />
 
       <SettingsDrawerList />
 

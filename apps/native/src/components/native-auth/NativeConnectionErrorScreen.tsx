@@ -6,6 +6,7 @@
  */
 import { wearroomColors } from '../../theme/wearroomTheme'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { WearroomWordmark } from '../branding/WearroomWordmark'
 
 interface NativeConnectionErrorScreenProps {
   onRetry: () => Promise<void> | void
@@ -16,7 +17,9 @@ export function NativeConnectionErrorScreen({
 }: NativeConnectionErrorScreenProps) {
   return (
     <View style={styles.screen}>
-      <Text style={styles.brand}>wearroom.</Text>
+      <View style={styles.brand}>
+        <WearroomWordmark width={185} />
+      </View>
       <View style={styles.icon}>
         <Text style={styles.iconText}>!</Text>
       </View>
@@ -91,9 +94,6 @@ const styles = StyleSheet.create({
     opacity: 0.78,
   },
   brand: {
-    color: wearroomColors.accent,
-    fontSize: 18,
-    letterSpacing: -0.6,
     marginBottom: 28,
   },
 })

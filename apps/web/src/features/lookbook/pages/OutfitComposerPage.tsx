@@ -8,14 +8,15 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import type {
-  ClothingCategory,
   Season,
   WardrobeItem,
 } from '@closet/types'
+import { MAX_OUTFIT_ITEMS } from '@closet/types'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { outfitStyleOptions } from '../../../constants/styleOptions'
 import { allSeasons } from '../../../constants/seasons'
 import { useUiStore } from '../../../stores/useUiStore'
+import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { useClosetStore } from '../../closet/stores/useClosetStore'
 import { formatDateOnly } from '../../plan/data/weeklyPlan'
 import { useRecentWearReminder } from '../../plan/hooks/useRecentWearReminder'
@@ -54,64 +55,14 @@ import {
   getOutfitPreviewCompositionKey,
   readCachedOutfitPreview,
 } from '../utils/outfitPreviewCache'
-
-const targetCategoryOrder: ClothingCategory[] = [
-  'top',
-  'bottom',
-  'outer',
-  'shoes',
-  'midlayer',
-  'accessory',
-  'dress',
-]
-
-const categoryFlowByStart: Record<ClothingCategory, ClothingCategory[]> = {
-  top: ['bottom', 'outer', 'shoes', 'midlayer', 'accessory'],
-  bottom: ['top', 'outer', 'shoes', 'midlayer', 'accessory'],
-  outer: ['top', 'bottom', 'shoes', 'accessory', 'midlayer'],
-  midlayer: ['top', 'bottom', 'outer', 'shoes', 'accessory'],
-  dress: ['outer', 'shoes', 'accessory', 'midlayer'],
-  shoes: ['bottom', 'top', 'outer', 'accessory', 'midlayer'],
-  accessory: ['top', 'bottom', 'outer', 'shoes', 'midlayer'],
-  other: ['top', 'bottom', 'outer', 'shoes', 'midlayer'],
-}
-
-function getSlotId(item: Pick<WardrobeItem, 'category'> | ClothingCategory) {
-  const category = typeof item === 'string' ? item : item.category
-  if (category === 'dress') return 'top'
-  if (category === 'other') return 'accessory'
-  return category
-}
-
-function getDefaultTargetCategory(
-  selectedItems: WardrobeItem[],
-  targetOptions: ClothingCategory[],
-) {
-  const startCategory = selectedItems[0]?.category
-  const preferredOrder = startCategory
-    ? categoryFlowByStart[startCategory]
-    : targetCategoryOrder
-  return (
-    preferredOrder.find((category) => targetOptions.includes(category)) ??
-    targetOptions[0] ??
-    null
-  )
-}
-
-function getRecommendedTargetCategory(
-  selectedItems: WardrobeItem[],
-  targetOptions: ClothingCategory[],
-) {
-  const hasUpper = selectedItems.some(
-    (item) => item.category === 'top' || item.category === 'dress',
-  )
-  const hasLower = selectedItems.some(
-    (item) => item.category === 'bottom' || item.category === 'dress',
-  )
-
-  if (hasUpper && hasLower && targetOptions.includes('shoes')) return 'shoes'
-  return getDefaultTargetCategory(selectedItems, targetOptions)
-}
+import {
+  getOutfitSelectionCategory,
+  getOutfitSelectionCapacity,
+  getOutfitSlotId,
+  getRecommendedTargetCategory,
+  outfitSelectionOrder,
+  type OutfitSelectionCategory,
+} from '../utils/outfitSelection'
 
 function getDefaultOutfitName(
   selectedItems: WardrobeItem[],
@@ -133,7 +84,7 @@ function getCommonSeasons(items: WardrobeItem[]) {
   )
 }
 
-/** 옷장·코디북 → 코디 맞춰보기. 기준 옷부터 종류별로 조합을 만들며 선택 단계·옷 레이어·미리보기 상태를 관리한다. 저장·AI 이미지 생성은 mutation에 요청하고, 최상위 전체 화면에서 원래 진입 화면으로 복귀한다. */
+/** 옷장·코디북 → 새 Look 만들기. 옷장 아이템을 선택해 조합 보드에 놓고 확인 화면까지 이어지는 편집 상태를 관리한다. 저장·AI 이미지 생성은 기존 mutation에 요청한다. */
 export function OutfitComposerPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -195,6 +146,7 @@ export function OutfitComposerPage() {
     getDefaultOutfitName(initialItems, outfits.length),
   )
   const [isSavedLookbookOpen, setIsSavedLookbookOpen] = useState(false)
+  const [isExitConfirmOpen, setIsExitConfirmOpen] = useState(false)
   const { layers, targetCategory, step } = composerState
   const availableStyleOptions = useMemo(() => {
     const defaultValues = new Set<string>(
@@ -236,6 +188,15 @@ export function OutfitComposerPage() {
     }
     dispatch({ type: 'GO_BACK' })
   }, [backPath, isSavedLookbookOpen, navigate, shouldReturnToOrigin])
+
+  /** 선택한 옷이 남아 있으면 종료 확인을 띄우고, 빈 Look이면 진입 화면으로 돌아간다. */
+  const requestClose = useCallback(() => {
+    if (composerState.layers.length > 0) {
+      setIsExitConfirmOpen(true)
+      return
+    }
+    navigate(backPath, { replace: true })
+  }, [backPath, composerState.layers.length, navigate])
 
   useEffect(() => {
     if (initializedFromQueryRef.current || items.length === 0) return
@@ -361,6 +322,10 @@ export function OutfitComposerPage() {
         event.key === 'Escape' &&
         !useUiStore.getState().recentWearConfirmation
       ) {
+        if (isExitConfirmOpen) {
+          setIsExitConfirmOpen(false)
+          return
+        }
         goBackStep()
       }
     }
@@ -371,7 +336,7 @@ export function OutfitComposerPage() {
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [goBackStep])
+  }, [goBackStep, isExitConfirmOpen])
 
   const selectedItems = selectedIds.flatMap((itemId) => {
     const item = items.find((candidate) => candidate.id === itemId)
@@ -388,7 +353,7 @@ export function OutfitComposerPage() {
   )
   const selectedSlotCounts = selectedItems.reduce<Record<string, number>>(
     (counts, item) => {
-      const slotId = getSlotId(item)
+      const slotId = getOutfitSlotId(item)
       if (slotId) counts[slotId] = (counts[slotId] ?? 0) + 1
       return counts
     },
@@ -396,23 +361,22 @@ export function OutfitComposerPage() {
   )
   const hasDress = selectedItems.some((item) => item.category === 'dress')
   const hasBottom = selectedItems.some((item) => item.category === 'bottom')
-  const targetOptions = targetCategoryOrder.filter((category) => {
+  const targetOptions = outfitSelectionOrder.filter((category) => {
     if (hasDress && ['top', 'bottom', 'dress'].includes(category)) return false
     if (hasBottom && category === 'dress') return false
-    const slotId = getSlotId(category)
-    const slotLimit = category === 'midlayer' ? 2 : 1
+    const slotId = getOutfitSlotId(category)
+    const slotLimit = getOutfitSelectionCapacity(category, selectedItems)
     return (selectedSlotCounts[slotId ?? category] ?? 0) < slotLimit
   })
   const recommendedTargetCategory = getRecommendedTargetCategory(
     selectedItems,
     targetOptions,
   )
+  // 첫 아이템을 고르기 전에도 빈 보드 슬롯에서 해당 종류의 옷장을 열 수 있다.
   const activeTargetCategory =
-    selectedIds.length === 0
-      ? null
-      : targetCategory && targetOptions.includes(targetCategory)
-        ? targetCategory
-        : null
+    targetCategory && targetOptions.includes(targetCategory)
+      ? targetCategory
+      : null
 
   useEffect(() => {
     if (!initializedFromQueryRef.current) return
@@ -480,15 +444,24 @@ export function OutfitComposerPage() {
       )
       .filter(
         (selectedItem) =>
-          selectedItem && getSlotId(selectedItem) === getSlotId(item),
+          selectedItem && getOutfitSlotId(selectedItem) === getOutfitSlotId(item),
       )
-    const slotLimit = item.category === 'midlayer' ? 2 : 1
+    const selectionCategory = getOutfitSelectionCategory(item)
+    const slotLimit = selectionCategory
+      ? getOutfitSelectionCapacity(selectionCategory, selectedItems)
+      : 1
 
     if (sameSlotItems.length >= slotLimit) {
       pushToast(
-        item.category === 'midlayer'
-          ? '중간 아우터는 두 개까지 선택할 수 있어요.'
-          : '같은 위치의 아이템은 한 개만 선택할 수 있어요.',
+        selectedItems.length >= MAX_OUTFIT_ITEMS
+          ? `코디에는 최대 ${MAX_OUTFIT_ITEMS}개까지 넣을 수 있어요. 다른 아이템을 빼고 골라주세요.`
+          : selectionCategory === 'accessory'
+            ? '액세서리는 네 개까지 선택할 수 있어요.'
+            : selectionCategory === 'bag'
+              ? '가방은 한 개만 선택할 수 있어요.'
+              : item.category === 'midlayer'
+                ? '중간 아우터는 두 개까지 선택할 수 있어요.'
+                : '같은 위치의 아이템은 한 개만 선택할 수 있어요.',
         'error',
       )
       return
@@ -508,12 +481,8 @@ export function OutfitComposerPage() {
     pushToast('선택한 옷을 모두 해제했습니다.')
   }
 
-  const selectTargetCategory = (category: ClothingCategory) => {
+  const selectTargetCategory = (category: OutfitSelectionCategory) => {
     dispatch({ type: 'SELECT_CATEGORY', category })
-  }
-
-  const openCategoryPicker = () => {
-    dispatch({ type: 'OPEN_CATEGORY_PICKER' })
   }
 
   const openSaveStep = () => {
@@ -739,11 +708,11 @@ export function OutfitComposerPage() {
     recommendedCategory: recommendedTargetCategory,
     step: step === 'save' ? composerState.returnStep : step,
     isSaveOpen: isSaveStepOpen,
-    hasPreviousStep: !shouldReturnToOrigin,
     preview: composerState.preview,
     toggleItem,
     selectTargetCategory,
     goBackStep,
+    requestClose,
     reset: resetLayout,
     generatePreview,
     addPreviewToLookbook,
@@ -754,6 +723,7 @@ export function OutfitComposerPage() {
     styleOptions: availableStyleOptions,
     includesPreview: hasGeneratedPreview,
     isSaving: isCheckingRecentWear || createOutfit.isPending,
+    isPersisting: createOutfit.isPending,
     setOutfitName,
     setOutfitStyle: updateOutfitStyle,
     setOutfitSeasons,
@@ -791,31 +761,22 @@ export function OutfitComposerPage() {
                   />
                 )
               ) : activeTargetCategory ? (
-                <div className="grid gap-2">
-                  <button
-                    type="button"
-                    onClick={openCategoryPicker}
-                    className="rounded-xl border border-line bg-canvas px-3 py-3 text-xs font-bold text-ink"
-                  >
-                    다른 종류 고르기
-                  </button>
-                  {outfitCompletionMessage ? (
-                    <p className="text-center text-[11px] font-bold text-muted">
-                      {outfitCompletionMessage}
-                    </p>
-                  ) : (
-                    <OutfitCompletionActions
-                      duplicateMessage={duplicateMessage}
-                      hasAvailableLookbook={Boolean(
-                        canUseSavedLookbookPreview ||
-                          hasGeneratedPreview ||
-                          Boolean(cachedCurrentPreview),
-                      )}
-                      onOpenLookbook={openAiLookbook}
-                      onComplete={openSaveStep}
-                    />
-                  )}
-                </div>
+                outfitCompletionMessage ? (
+                  <p className="text-center text-[11px] font-bold text-muted">
+                    {outfitCompletionMessage}
+                  </p>
+                ) : (
+                  <OutfitCompletionActions
+                    duplicateMessage={duplicateMessage}
+                    hasAvailableLookbook={Boolean(
+                      canUseSavedLookbookPreview ||
+                        hasGeneratedPreview ||
+                        Boolean(cachedCurrentPreview),
+                    )}
+                    onOpenLookbook={openAiLookbook}
+                    onComplete={openSaveStep}
+                  />
+                )
               ) : null}
             </div>
           </footer>
@@ -832,6 +793,15 @@ export function OutfitComposerPage() {
             onClose={() => setIsSavedLookbookOpen(false)}
           />
           )}
+        {isExitConfirmOpen && (
+          <ConfirmDialog
+            title="Look 만들기를 닫을까요?"
+            description="저장하지 않은 아이템 조합은 사라져요."
+            confirmLabel="닫기"
+            onCancel={() => setIsExitConfirmOpen(false)}
+            onConfirm={() => navigate(backPath, { replace: true })}
+          />
+        )}
       </section>
     </OutfitComposerContext.Provider>,
     document.body,

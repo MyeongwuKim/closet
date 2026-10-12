@@ -22,10 +22,12 @@ interface UseWardrobeImagePickerOptions {
   onError: (message: string) => void
 }
 
+/** 옷장 사진 추가의 실행 환경과 선택 단계를 관리한다. 웹은 파일 선택·드롭 창을, 앱은 촬영·앨범 창을 사용하며 허용된 사진은 onImagesSelected의 분석 흐름에 전달한다. */
 export function useWardrobeImagePicker({
   onImagesSelected,
   onError,
 }: UseWardrobeImagePickerOptions) {
+  const isNativeApp = isNativeWebViewRuntime()
   const addButtonRef = useRef<HTMLButtonElement>(null)
   const albumInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
@@ -64,13 +66,16 @@ export function useWardrobeImagePicker({
     if (!albumInput || !cameraInput) return
 
     const handleCameraCancel = () => setPickerStep('source')
-    albumInput.addEventListener('cancel', restoreAddButtonFocus)
+    const handleAlbumCancel = () => {
+      if (isNativeApp) restoreAddButtonFocus()
+    }
+    albumInput.addEventListener('cancel', handleAlbumCancel)
     cameraInput.addEventListener('cancel', handleCameraCancel)
     return () => {
-      albumInput.removeEventListener('cancel', restoreAddButtonFocus)
+      albumInput.removeEventListener('cancel', handleAlbumCancel)
       cameraInput.removeEventListener('cancel', handleCameraCancel)
     }
-  }, [restoreAddButtonFocus])
+  }, [isNativeApp, restoreAddButtonFocus])
 
   const showCapturedPhoto = (file: File) => {
     clearCapturedPhoto()
@@ -125,7 +130,7 @@ export function useWardrobeImagePicker({
   }
 
   const startCameraCapture = () => {
-    if (isNativeWebViewRuntime()) {
+    if (isNativeApp) {
       void captureWithNativeBridge()
       return
     }
@@ -141,16 +146,25 @@ export function useWardrobeImagePicker({
     restoreAddButtonFocus()
   }
 
+  /** 앱에서는 기존 창을 닫고 앨범을 연다. 웹에서는 파일 선택을 취소하거나 검증에 실패해도 드롭 창을 유지한다. */
   const chooseAlbum = () => {
-    setPickerStep('closed')
+    if (isNativeApp) setPickerStep('closed')
     albumInputRef.current?.click()
+  }
+
+  /** 선택·드롭한 파일이 분석 흐름에 받아들여지면 추가창을 닫는다. 빈 선택이나 모두 허용되지 않은 파일이면 현재 창을 유지한다. */
+  const acceptImages = (files: File[]) => {
+    if (files.length === 0 || onImagesSelected(files) === false) return false
+    setPickerStep('closed')
+    restoreAddButtonFocus()
+    return true
   }
 
   const handleAlbumChange = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? [])
     event.target.value = ''
-    onImagesSelected(files)
-    restoreAddButtonFocus()
+    const accepted = acceptImages(files)
+    if (isNativeApp && !accepted) restoreAddButtonFocus()
   }
 
   const handleCameraChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -184,6 +198,7 @@ export function useWardrobeImagePicker({
   }
 
   return {
+    isNativeApp,
     addButtonRef,
     albumInputRef,
     cameraInputRef,
@@ -192,6 +207,7 @@ export function useWardrobeImagePicker({
     openPicker,
     closePicker,
     chooseAlbum,
+    acceptImages,
     startCameraCapture,
     handleAlbumChange,
     handleCameraChange,

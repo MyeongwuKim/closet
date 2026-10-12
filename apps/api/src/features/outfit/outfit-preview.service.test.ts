@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict'
 import test, { type TestContext } from 'node:test'
+import type { ClothingCategory } from '@closet/types'
 import { userRepository } from '../user/user.repository.js'
 import { wardrobeRepository } from '../wardrobe/wardrobe.repository.js'
 import {
   getLookbookBaseLayerGuide,
+  getLookbookBagGuide,
   getLookbookGenderConstraint,
   getLookbookHairGuide,
   getLookbookHemTarget,
@@ -139,7 +141,7 @@ test('구버전 아이템은 이름에서 코듀로이 질감을 보완한다', 
   assert.match(description, /texture=corduroy/)
 })
 
-function createPreviewItem(id: string, category: 'top' | 'bottom', fashionAttributes?: unknown) {
+function createPreviewItem(id: string, category: ClothingCategory, fashionAttributes?: unknown) {
   return {
     id,
     name: category === 'top' ? '그레이 니트' : '차콜 팬츠',
@@ -151,8 +153,8 @@ function createPreviewItem(id: string, category: 'top' | 'bottom', fashionAttrib
   }
 }
 
-async function requestMockPreview(t: TestContext, attributes?: unknown) {
-  const items = [createPreviewItem('top', 'top', attributes), createPreviewItem('bottom', 'bottom')]
+async function requestMockPreview(t: TestContext, attributes?: unknown, extraItems: ReturnType<typeof createPreviewItem>[] = []) {
+  const items = [createPreviewItem('top', 'top', attributes), createPreviewItem('bottom', 'bottom'), ...extraItems]
   t.mock.method(userRepository, 'findViewerById', async () => null)
   t.mock.method(wardrobeRepository, 'findManyOwnedWithImagesByIds', async () => [...items].reverse())
   const previousKey = process.env.OPENAI_API_KEY
@@ -174,10 +176,36 @@ async function requestMockPreview(t: TestContext, attributes?: unknown) {
     return Response.json({ data: [{ b64_json: Buffer.from('mock-preview').toString('base64') }] })
   })
 
-  await outfitPreviewService.generate('viewer', ['top', 'bottom'])
+  await outfitPreviewService.generate('viewer', items.map(item => item.id))
   assert.equal(requests.length, 1)
   return requests[0]!
 }
+
+test('백팩은 등에 메고 벨트·목도리는 착용 액세서리로 구분한다', () => {
+  const guide = getLookbookBagGuide([
+    {name: '셔츠', category: 'top', subcategory: '셔츠'},
+    {name: '레더 벨트', category: 'accessory', subcategory: '벨트'},
+    {name: '캔틴 백팩', category: 'accessory', subcategory: '가방'},
+    {name: '울 머플러', category: 'accessory', subcategory: '목도리'},
+  ])
+  assert.match(guide!, /Reference image 3 is a carried bag/)
+  assert.match(guide!, /Wear this backpack naturally on the back/)
+  assert.doesNotMatch(guide!, /Reference image [124] is a carried bag/)
+  assert.match(guide!, /Bags are separate from worn accessories/)
+  assert.equal(getLookbookBagGuide([{name: '벨트', category: 'accessory', subcategory: '벨트'}]), null)
+})
+
+test('가방의 사진을 AI 룩북 요청에 포함하고 손으로 드는 자세를 허용한다', async (t) => {
+  const bag = {...createPreviewItem('bag', 'accessory'), name: '데일리 캔버스 백', subcategory: '가방'}
+  const form = await requestMockPreview(t, undefined, [bag])
+  const prompt = String(form.get('prompt'))
+  assert.equal(form.getAll('image[]').length, 3)
+  assert.match(prompt, /Reference image 3 is a carried bag/)
+  assert.match(prompt, /Render each selected bag exactly once/)
+  assert.match(prompt, /Allow one hand to hold a referenced bag handle/)
+  assert.doesNotMatch(prompt, /No bag was selected/)
+  assert.doesNotMatch(prompt, /both hands completely outside every pocket and away from the garments/)
+})
 
 test('이미지 API가 성공 상태로 빈 결과를 주면 한 번 다시 요청한다', async (t) => {
   const items = [createPreviewItem('top', 'top'), createPreviewItem('bottom', 'bottom')]
