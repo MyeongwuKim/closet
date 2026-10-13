@@ -74,3 +74,20 @@ test('한 시간이 지난 임시 AI 룩북 캐시는 제거한다', () => {
     undefined,
   )
 })
+
+test('첫 스타일 선택 후에는 무스타일 캐시를 선택한 스타일 키로 옮긴다', () => {
+  const storage = createMemoryStorage()
+  const itemIds = ['top', 'bottom']
+  const previousKey = getOutfitPreviewCompositionKey(itemIds, '')
+  const nextKey = getOutfitPreviewCompositionKey(itemIds, 'casual')
+  cacheOutfitPreview('viewer-1', previousKey, preview, { storage, now: 1_000 })
+
+  cacheOutfitPreview('viewer-1', nextKey, preview, {
+    storage,
+    now: 1_100,
+    replacesCompositionKey: previousKey,
+  })
+
+  assert.equal(readCachedOutfitPreview('viewer-1', previousKey, { storage, now: 1_100 }), undefined)
+  assert.deepEqual(readCachedOutfitPreview('viewer-1', nextKey, { storage, now: 1_100 }), preview)
+})

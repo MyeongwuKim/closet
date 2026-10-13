@@ -12,26 +12,32 @@ import {
   wardrobeItemInclude,
   wardrobeRepository,
 } from '../wardrobe/wardrobe.repository.js'
+import { getFashionAttributes } from './outfit-style-rules.js'
+import { rankOutfitMatchCandidates } from './outfit-recommendation-matching.js'
 
 interface RecommendOutfitInput {
   selectedItemIds: string[]
   targetCategory: ClothingCategory
+  /** 생략하면 기존 호출자처럼 색과 옷을 함께 추천한다. */
+  mode?: 'colors' | 'items' | null
 }
 
 interface OpenAiRecommendation {
   headline: string
   summary: string
-  recommendedColors: Array<{
+  recommendedColors?: Array<{
     name: string
     reason: string
     role: 'safe' | 'harmony' | 'accent'
   }>
-  candidates: Array<{
+  candidates?: Array<{
     wardrobeItemId: string
     reason: string
     relation: OutfitMatchRelation
   }>
 }
+
+type RecommendationMode = 'colors' | 'items' | 'both'
 
 type WardrobeItemWithImages = Prisma.WardrobeItemGetPayload<{
   include: typeof wardrobeItemInclude
@@ -58,13 +64,6 @@ const COLOR_MATCHES: Record<string, string[]> = {
   올리브: ['크림', '베이지', '브라운', '블랙', '화이트'],
   퍼플: ['그레이', '크림', '블랙', '화이트', '네이비'],
   다색: ['블랙', '화이트', '크림', '베이지', '네이비'],
-}
-
-const RELATION_LABELS: Record<OutfitMatchRelation, string> = {
-  'clean-contrast': '깔끔한 대비',
-  'tone-on-tone': '톤온톤',
-  'soft-balance': '부드러운 균형',
-  accent: '포인트 조합',
 }
 
 const ACCENT_COLOR_BY_BASE: Record<string, string> = {
@@ -105,22 +104,15 @@ function getFallbackColorNames(selectedItems: WardrobeItem[]) {
   return [...new Set(colors)].slice(0, 5)
 }
 
-function relationForColor(colorName: string, recommendedColors: string[]) {
-  const index = recommendedColors.indexOf(colorName)
-  if (index === 0) return 'clean-contrast' as const
-  if (index === 1) return 'soft-balance' as const
-  if (index === 2) return 'tone-on-tone' as const
-  return 'accent' as const
-}
-
+/** AI를 사용할 수 없을 때 요청 모드에 필요한 색 또는 옷 후보만 구성한다. */
 function createFallbackRecommendation(
   selectedItems: WardrobeItem[],
   candidates: WardrobeItemWithImages[],
   targetCategory: ClothingCategory,
+  mode: RecommendationMode,
 ) {
   const recommendedColorNames = getFallbackColorNames(selectedItems)
-  const baseColorName = normalizeColorName(selectedItems[0]?.colorName ?? null)
-  const fallbackColorSuggestions = [
+  const fallbackColorSuggestions = mode === 'items' ? [] : [
     {
       name: recommendedColorNames[0],
       role: 'safe' as const,
@@ -132,27 +124,19 @@ function createFallbackRecommendation(
       reason: '고른 옷의 분위기를 부드럽게 이어주는 색이에요.',
     },
     {
-      name: ACCENT_COLOR_BY_BASE[baseColorName] ?? recommendedColorNames.at(-1),
+      name: ACCENT_COLOR_BY_BASE[normalizeColorName(selectedItems[0]?.colorName ?? null)] ?? recommendedColorNames.at(-1),
       role: 'accent' as const,
       reason: '무난한 조합에 선명한 포인트를 더해주는 색이에요.',
     },
   ]
   const selectedName = selectedItems[0]?.name ?? '고른 옷'
-  const sortedCandidates = [...candidates].sort((left, right) => {
-    const leftIndex = recommendedColorNames.indexOf(
-      normalizeColorName(left.colorName),
-    )
-    const rightIndex = recommendedColorNames.indexOf(
-      normalizeColorName(right.colorName),
-    )
-    return (leftIndex < 0 ? 99 : leftIndex) - (rightIndex < 0 ? 99 : rightIndex)
-  })
-
   return {
     targetCategory,
     headline: `${selectedName}에 어울리는 ${categoryLabels[targetCategory]}`,
-    summary: '지금 고른 색과 자연스럽게 이어지는 옷을 먼저 모았어요.',
-    recommendedColors: fallbackColorSuggestions.flatMap((suggestion) => {
+    summary: mode === 'colors'
+      ? '지금 고른 옷과 어울리는 색을 모았어요.'
+      : '지금 고른 옷과 어울리는 아이템을 모았어요.',
+    recommendedColors: mode === 'items' ? [] : fallbackColorSuggestions.flatMap((suggestion) => {
       if (!suggestion.name) return []
       const color = COLOR_BY_NAME.get(suggestion.name)
       return color
@@ -166,16 +150,12 @@ function createFallbackRecommendation(
           ]
         : []
     }),
-    candidates: sortedCandidates.slice(0, 5).map((item) => {
-      const colorName = normalizeColorName(item.colorName)
-      const relation = relationForColor(colorName, recommendedColorNames)
-      return {
-        item,
-        relation,
-        reason: `${colorName} 컬러로 ${RELATION_LABELS[relation]}을 만들기 좋아요.`,
-      }
-    }),
-    model: 'color-rules-v1',
+    candidates: mode === 'colors' ? [] : rankOutfitMatchCandidates(
+      selectedItems,
+      candidates,
+      recommendedColorNames,
+    ),
+    model: 'outfit-match-rules-v2',
     source: 'fallback',
   }
 }
@@ -220,7 +200,11 @@ function getResponseDiagnostics(payload: unknown) {
   })
 }
 
-function isOpenAiRecommendation(value: unknown): value is OpenAiRecommendation {
+/** 요청 모드에 필요한 배열과 값만 검증한다. 다른 모드의 배열은 응답 스키마에 포함하지 않는다. */
+function isOpenAiRecommendation(
+  value: unknown,
+  mode: RecommendationMode,
+): value is OpenAiRecommendation {
   if (!value || typeof value !== 'object') return false
   const candidate = value as Partial<OpenAiRecommendation>
   const recommendedColorRoles = new Set(
@@ -229,9 +213,7 @@ function isOpenAiRecommendation(value: unknown): value is OpenAiRecommendation {
   const recommendedColorNames = new Set(
     candidate.recommendedColors?.map((color) => color.name) ?? [],
   )
-  return (
-    typeof candidate.headline === 'string' &&
-    typeof candidate.summary === 'string' &&
+  const hasColors =
     Array.isArray(candidate.recommendedColors) &&
     candidate.recommendedColors.every(
       (color) =>
@@ -242,16 +224,32 @@ function isOpenAiRecommendation(value: unknown): value is OpenAiRecommendation {
         ['safe', 'harmony', 'accent'].includes(color.role),
     ) &&
     recommendedColorRoles.size === 3 &&
-    recommendedColorNames.size === 3 &&
-    Array.isArray(candidate.candidates)
+    recommendedColorNames.size === 3
+  const hasCandidates =
+    Array.isArray(candidate.candidates) &&
+    candidate.candidates.every(
+      (item) =>
+        item !== null &&
+        typeof item === 'object' &&
+        typeof item.wardrobeItemId === 'string' &&
+        typeof item.reason === 'string' &&
+        ['clean-contrast', 'tone-on-tone', 'soft-balance', 'accent', 'design-balance'].includes(item.relation),
+    )
+  return (
+    typeof candidate.headline === 'string' &&
+    typeof candidate.summary === 'string' &&
+    (mode === 'items' || hasColors) &&
+    (mode === 'colors' || hasCandidates)
   )
 }
 
+/** 선택 모드에 필요한 저장된 분류 속성만 AI에 전달한다. 키가 없으면 null을 반환한다. */
 async function requestOpenAiRecommendation(
   userId: string,
   selectedItems: WardrobeItem[],
   candidates: WardrobeItemWithImages[],
   targetCategory: ClothingCategory,
+  mode: RecommendationMode,
 ) {
   const apiKey = process.env.OPENAI_API_KEY?.trim()
   if (!apiKey) return null
@@ -259,6 +257,65 @@ async function requestOpenAiRecommendation(
   const model = process.env.OPENAI_MODEL?.trim() || 'gpt-5-mini'
   const candidateIds = candidates.map((item) => item.id)
   const colorNames = fashionColorLabels.map((color) => color.name)
+  const colorRules = [
+    '색은 colorName보다 실제 원단에서 분석한 colorDetailName, colorHex, colorRgb의 톤을 우선하세요. patterned 또는 multicolor는 패턴끼리 과하게 경쟁하지 않는지도 고려하세요.',
+    '추천 색상은 서로 달라야 하며 safe는 무난한 색, harmony는 자연스럽게 이어지는 색, accent는 확실한 포인트 색으로 각각 하나씩 제안하세요.',
+  ]
+  const itemRules = [
+    '옷 후보는 색뿐 아니라 subcategory와 fashionAttributes의 실루엣 균형, 패턴, 소재와 질감, 두께감, 격식도, 레이어 역할을 함께 비교하세요.',
+    'fashionAttributes의 unknown은 판단 근거에서 제외하고 confidence가 낮으면 그 속성을 확정적으로 설명하지 마세요. 모든 디자인 조합에 통하는 절대 규칙이나 패션 점수를 만들지 마세요.',
+    '후보마다 실제 입력으로 뒷받침되는 디자인 또는 색 조합 이유를 짧은 한국어 문장으로 쓰세요. 디자인 정보가 충분하면 색과 디자인을 함께 설명하세요.',
+    '후보의 주요 추천 이유가 디자인 균형이면 relation은 design-balance로 표시하세요.',
+  ]
+  const outputProperties = {
+    headline: { type: 'string' },
+    summary: { type: 'string' },
+    ...(mode === 'items' ? {} : {
+      recommendedColors: {
+        type: 'array',
+        minItems: 3,
+        maxItems: 3,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['name', 'reason', 'role'],
+          properties: {
+            name: { type: 'string', enum: colorNames },
+            reason: { type: 'string' },
+            role: { type: 'string', enum: ['safe', 'harmony', 'accent'] },
+          },
+        },
+      },
+    }),
+    ...(mode === 'colors' ? {} : {
+      candidates: {
+        type: 'array',
+        maxItems: candidateIds.length > 0 ? 5 : 0,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['wardrobeItemId', 'reason', 'relation'],
+          properties: {
+            wardrobeItemId:
+              candidateIds.length > 0
+                ? { type: 'string', enum: candidateIds }
+                : { type: 'string' },
+            reason: { type: 'string' },
+            relation: {
+              type: 'string',
+              enum: [
+                'clean-contrast',
+                'tone-on-tone',
+                'soft-balance',
+                'accent',
+                'design-balance',
+              ],
+            },
+          },
+        },
+      },
+    }),
+  }
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
     headers: {
@@ -273,8 +330,16 @@ async function requestOpenAiRecommendation(
       input: [
         {
           role: 'system',
-          content:
-            '당신은 일상복 컬러 조합을 돕는 스타일리스트입니다. 사용자가 이미 고른 옷과 목표 카테고리를 보고 컬러를 추천하세요. 선호 스타일이나 선호 핏을 가정하지 말고 이미 선택한 옷의 색과 패턴을 기준으로 추천하세요. colorName은 넓은 분류이고 colorDetailName, colorHex, colorRgb는 실제 원단에서 분석한 대표색이므로 상세 톤 판단에는 이 값을 우선하세요. solid는 대표색을 정밀하게 비교하고, patterned 또는 multicolor는 바탕색뿐 아니라 패턴끼리 과하게 경쟁하지 않는지도 고려하세요. 추천 색상은 서로 달라야 하며 safe는 무난한 색, harmony는 자연스럽게 이어지는 색, accent는 확실한 포인트 색으로 각각 하나씩 제안하세요. 옷장 후보가 없더라도 컬러 추천은 반드시 제공하고, 아이템은 제공된 후보 안에서만 추천하세요. 각 이유는 짧은 한국어 한 문장으로 쓰고 절대적인 패션 점수는 만들지 마세요.',
+          content: [
+            '당신은 일상복 조합을 돕는 스타일리스트입니다. 선호 스타일이나 선호 핏을 가정하지 마세요. 옷 사진은 전달되지 않으므로 입력에 없는 디자인 특징을 상상하지 마세요.',
+            ...(mode === 'items' ? [] : colorRules),
+            ...(mode === 'colors' ? [] : itemRules),
+            mode === 'colors'
+              ? '사용자가 고른 옷에 어울리는 컬러만 추천하세요. 옷장 후보와 아이템 추천은 만들지 마세요.'
+              : mode === 'items'
+                ? '제공된 옷장 후보 중 실제로 어울리는 옷만 추천하세요. 별도의 컬러 팔레트는 만들지 마세요.'
+                : '컬러와 실제 옷을 함께 추천하세요. 옷장 후보가 없더라도 컬러는 제안하고, 아이템은 제공된 후보 안에서만 추천하세요.',
+          ].join(' '),
         },
         {
           role: 'user',
@@ -283,16 +348,19 @@ async function requestOpenAiRecommendation(
               id: item.id,
               name: item.name,
               category: item.category,
-              subcategory: item.subcategory,
               colorName: item.colorName,
               colorDetailName: item.colorDetailName,
               colorHex: item.colorHex,
               colorRgb: colorHexToRgb(item.colorHex),
               colorMode: item.colorMode,
+              ...(mode === 'colors' ? {} : {
+                subcategory: item.subcategory,
+                fashionAttributes: getFashionAttributes(item),
+              }),
             })),
             targetCategory,
             targetCategoryLabel: categoryLabels[targetCategory],
-            wardrobeCandidates: candidates.map((item) => ({
+            ...(mode === 'colors' ? {} : { wardrobeCandidates: candidates.map((item) => ({
               id: item.id,
               name: item.name,
               subcategory: item.subcategory,
@@ -301,7 +369,8 @@ async function requestOpenAiRecommendation(
               colorHex: item.colorHex,
               colorRgb: colorHexToRgb(item.colorHex),
               colorMode: item.colorMode,
-            })),
+              fashionAttributes: getFashionAttributes(item),
+            })) }),
           }),
         },
       ],
@@ -309,7 +378,7 @@ async function requestOpenAiRecommendation(
       text: {
         format: {
           type: 'json_schema',
-          name: 'outfit_color_recommendation',
+          name: `outfit_${mode}_recommendation`,
           strict: true,
           schema: {
             type: 'object',
@@ -317,56 +386,10 @@ async function requestOpenAiRecommendation(
             required: [
               'headline',
               'summary',
-              'recommendedColors',
-              'candidates',
+              ...(mode === 'items' ? [] : ['recommendedColors']),
+              ...(mode === 'colors' ? [] : ['candidates']),
             ],
-            properties: {
-              headline: { type: 'string' },
-              summary: { type: 'string' },
-              recommendedColors: {
-                type: 'array',
-                minItems: 3,
-                maxItems: 3,
-                items: {
-                  type: 'object',
-                  additionalProperties: false,
-                  required: ['name', 'reason', 'role'],
-                  properties: {
-                    name: { type: 'string', enum: colorNames },
-                    reason: { type: 'string' },
-                    role: {
-                      type: 'string',
-                      enum: ['safe', 'harmony', 'accent'],
-                    },
-                  },
-                },
-              },
-              candidates: {
-                type: 'array',
-                maxItems: candidateIds.length > 0 ? 5 : 0,
-                items: {
-                  type: 'object',
-                  additionalProperties: false,
-                  required: ['wardrobeItemId', 'reason', 'relation'],
-                  properties: {
-                    wardrobeItemId:
-                      candidateIds.length > 0
-                        ? { type: 'string', enum: candidateIds }
-                        : { type: 'string' },
-                    reason: { type: 'string' },
-                    relation: {
-                      type: 'string',
-                      enum: [
-                        'clean-contrast',
-                        'tone-on-tone',
-                        'soft-balance',
-                        'accent',
-                      ],
-                    },
-                  },
-                },
-              },
-            },
+            properties: outputProperties,
           },
         },
       },
@@ -387,15 +410,17 @@ async function requestOpenAiRecommendation(
   }
 
   const parsed: unknown = JSON.parse(outputText)
-  if (!isOpenAiRecommendation(parsed)) {
+  if (!isOpenAiRecommendation(parsed, mode)) {
     throw new Error('OpenAI recommendation output is invalid')
   }
 
   return { model, recommendation: parsed }
 }
 
+/** 선택한 옷을 검증하고 요청 모드에 필요한 색 또는 옷 후보만 조회·분석한다. */
 export const outfitRecommendationService = {
   async recommend(userId: string, input: RecommendOutfitInput) {
+    const mode: RecommendationMode = input.mode ?? 'both'
     const selectedItemIds = [...new Set(input.selectedItemIds)]
     if (selectedItemIds.length === 0) {
       throw new ServiceError('기준이 될 옷을 하나 이상 골라주세요.', 'INVALID_OUTFIT_RECOMMENDATION')
@@ -421,31 +446,42 @@ export const outfitRecommendationService = {
       (itemId) => selectedItemById.get(itemId)!,
     )
     const selectedIdSet = new Set(selectedItemIds)
-    const candidates = (await wardrobeRepository.findMany(userId, {
-      category: input.targetCategory,
-    })).filter(
-      (item) =>
-        !selectedIdSet.has(item.id) && item.classificationStatus === 'classified',
-    ) as WardrobeItemWithImages[]
+    const candidates = mode === 'colors'
+      ? []
+      : (await wardrobeRepository.findMany(userId, {
+        category: input.targetCategory,
+      })).filter(
+        (item) =>
+          !selectedIdSet.has(item.id) && item.classificationStatus === 'classified',
+      ) as WardrobeItemWithImages[]
 
     const fallback = createFallbackRecommendation(
       selectedItems,
       candidates,
       input.targetCategory,
+      mode,
     )
 
     try {
       const aiResult = await requestOpenAiRecommendation(
         userId,
         selectedItems,
-        candidates.slice(0, 30),
+        mode === 'colors'
+          ? []
+          : rankOutfitMatchCandidates(
+            selectedItems,
+            candidates,
+            getFallbackColorNames(selectedItems),
+            30,
+          ).map(({ item }) => item),
         input.targetCategory,
+        mode,
       )
       if (!aiResult) return fallback
 
       const candidateById = new Map(candidates.map((item) => [item.id, item]))
       const seenCandidateIds = new Set<string>()
-      const recommendedCandidates = aiResult.recommendation.candidates.flatMap(
+      const recommendedCandidates = (aiResult.recommendation.candidates ?? []).flatMap(
         (candidate) => {
           const item = candidateById.get(candidate.wardrobeItemId)
           if (!item || seenCandidateIds.has(item.id)) return []
@@ -465,7 +501,7 @@ export const outfitRecommendationService = {
         headline: aiResult.recommendation.headline.trim(),
         summary: aiResult.recommendation.summary.trim(),
         recommendedColors:
-          aiResult.recommendation.recommendedColors.flatMap(
+          (mode === 'items' ? [] : aiResult.recommendation.recommendedColors ?? []).flatMap(
             ({ name, reason, role }) => {
               const color = COLOR_BY_NAME.get(name)
               return color
@@ -481,7 +517,7 @@ export const outfitRecommendationService = {
             },
           ),
         candidates:
-          recommendedCandidates.length > 0
+          mode !== 'colors' && recommendedCandidates.length > 0
             ? recommendedCandidates
             : fallback.candidates,
         model: aiResult.model,

@@ -63,6 +63,7 @@ import {
   outfitSelectionOrder,
   type OutfitSelectionCategory,
 } from '../utils/outfitSelection'
+import './OutfitComposerPage.css'
 
 function getDefaultOutfitName(
   selectedItems: WardrobeItem[],
@@ -147,6 +148,17 @@ export function OutfitComposerPage() {
   )
   const [isSavedLookbookOpen, setIsSavedLookbookOpen] = useState(false)
   const [isExitConfirmOpen, setIsExitConfirmOpen] = useState(false)
+  /** 모바일 옷장 시트가 열리면 하단 진행 버튼을 가리고, 보드가 시트 높이만큼 줄어든다. */
+  const [isWardrobeExpanded, setIsWardrobeExpanded] = useState(false)
+  /** 채운 Look 칸을 다시 열었을 때 새 후보와 맞바꿀 현재 아이템 ID. */
+  const [replacementItemId, setReplacementItemId] = useState<string | null>(null)
+  const composerRootRef = useRef<HTMLElement>(null)
+  const composerFooterRef = useRef<HTMLElement>(null)
+  /** 시트를 닫을 때 진행 버튼을 다시 보여주고, 다음 칸 선택에 교체 대상이 남지 않게 한다. */
+  const changeWardrobeExpanded = useCallback((expanded: boolean) => {
+    setIsWardrobeExpanded(expanded)
+    if (!expanded) setReplacementItemId(null)
+  }, [])
   const { layers, targetCategory, step } = composerState
   const availableStyleOptions = useMemo(() => {
     const defaultValues = new Set<string>(
@@ -173,8 +185,22 @@ export function OutfitComposerPage() {
         composerState.preview.mimeType &&
         composerState.preview.model,
     )
-  const isStepDecisionOpen = step === 'category'
   const isSaveStepOpen = step === 'save'
+
+  // 실제 버튼 영역 높이를 시트와 보드에 공유해 두 경계가 함께 움직이게 한다.
+  useEffect(() => {
+    const footer = composerFooterRef.current
+    const root = composerRootRef.current
+    if (!footer || !root) return
+
+    const updateFooterHeight = () => {
+      root.style.setProperty('--outfit-footer-height', `${footer.getBoundingClientRect().height}px`)
+    }
+    updateFooterHeight()
+    const observer = new ResizeObserver(updateFooterHeight)
+    observer.observe(footer)
+    return () => observer.disconnect()
+  }, [isSaveStepOpen])
   const shouldReturnToOrigin = shouldExitOutfitComposer(composerState)
 
   const goBackStep = useCallback(() => {
@@ -182,12 +208,17 @@ export function OutfitComposerPage() {
       setIsSavedLookbookOpen(false)
       return
     }
+    if (isWardrobeExpanded) {
+      changeWardrobeExpanded(false)
+      return
+    }
     if (shouldReturnToOrigin) {
       navigate(backPath, { replace: true })
       return
     }
+    setReplacementItemId(null)
     dispatch({ type: 'GO_BACK' })
-  }, [backPath, isSavedLookbookOpen, navigate, shouldReturnToOrigin])
+  }, [backPath, changeWardrobeExpanded, isSavedLookbookOpen, isWardrobeExpanded, navigate, shouldReturnToOrigin])
 
   /** 선택한 옷이 남아 있으면 종료 확인을 띄우고, 빈 Look이면 진입 화면으로 돌아간다. */
   const requestClose = useCallback(() => {
@@ -374,7 +405,7 @@ export function OutfitComposerPage() {
   )
   // 첫 아이템을 고르기 전에도 빈 보드 슬롯에서 해당 종류의 옷장을 열 수 있다.
   const activeTargetCategory =
-    targetCategory && targetOptions.includes(targetCategory)
+    targetCategory && (targetOptions.includes(targetCategory) || Boolean(replacementItemId))
       ? targetCategory
       : null
 
@@ -411,14 +442,59 @@ export function OutfitComposerPage() {
     setSearchParams(nextSearchParams, { replace: true })
   }
 
+  /** 선택 목록의 빼기는 현재 열린 교체 대상과 관계없이 해당 아이템만 제거한다. */
+  const removeItem = (item: (typeof items)[number]) => {
+    if (!selectedIds.includes(item.id)) return
+    invalidateStoredPreview()
+    dispatch({ type: 'REMOVE_ITEM', itemId: item.id })
+    changeWardrobeExpanded(false)
+  }
+
   const toggleItem = (item: (typeof items)[number]) => {
+    const replacingItem = replacementItemId
+      ? selectedItems.find((selectedItem) => selectedItem.id === replacementItemId)
+      : null
+
+    if (replacingItem) {
+      if (item.id === replacingItem.id) return
+      if (selectedIds.includes(item.id)) {
+        pushToast('이미 Look에 담긴 아이템이에요.', 'error')
+        return
+      }
+      if (getOutfitSlotId(item) !== getOutfitSlotId(replacingItem)) {
+        pushToast('같은 칸에 넣을 수 있는 아이템을 골라주세요.', 'error')
+        return
+      }
+
+      const otherSelectedItems = selectedItems.filter((selectedItem) => selectedItem.id !== replacingItem.id)
+      const hasOtherDress = otherSelectedItems.some((selectedItem) => selectedItem.category === 'dress')
+      const hasOtherTopOrBottom = otherSelectedItems.some((selectedItem) =>
+        selectedItem.category === 'top' || selectedItem.category === 'bottom',
+      )
+      if (
+        (item.category === 'dress' && hasOtherTopOrBottom) ||
+        (hasOtherDress && (item.category === 'top' || item.category === 'bottom'))
+      ) {
+        pushToast('원피스는 상의나 하의와 함께 선택할 수 없어요.', 'error')
+        return
+      }
+
+      invalidateStoredPreview()
+      dispatch({
+        type: 'REPLACE_ITEM',
+        oldItemId: replacingItem.id,
+        newItemId: item.id,
+      })
+      changeWardrobeExpanded(false)
+      return
+    }
+
     const isSelected = layers.some(
       (layer) => layer.wardrobeItemId === item.id,
     )
 
     if (isSelected) {
-      invalidateStoredPreview()
-      dispatch({ type: 'REMOVE_ITEM', itemId: item.id })
+      removeItem(item)
       return
     }
 
@@ -472,16 +548,26 @@ export function OutfitComposerPage() {
       type: 'ADD_ITEM',
       layer: createOutfitLayer(item, layers),
     })
+    changeWardrobeExpanded(false)
   }
 
   const resetLayout = () => {
     invalidateStoredPreview()
+    changeWardrobeExpanded(false)
     dispatch({ type: 'RESET' })
     setOutfitSeasons([])
     pushToast('선택한 옷을 모두 해제했습니다.')
   }
 
   const selectTargetCategory = (category: OutfitSelectionCategory) => {
+    setReplacementItemId(null)
+    dispatch({ type: 'SELECT_CATEGORY', category })
+  }
+
+  /** 이미 채운 칸에서 바꿀 아이템을 지정하고, 같은 종류의 옷장을 연다. */
+  const selectReplacementItem = (itemId: string, category: OutfitSelectionCategory) => {
+    if (!selectedIds.includes(itemId)) return
+    setReplacementItemId(itemId)
     dispatch({ type: 'SELECT_CATEGORY', category })
   }
 
@@ -510,7 +596,7 @@ export function OutfitComposerPage() {
     if (outfitSeasons.length === 0) {
       setOutfitSeasons(getCommonSeasons(selectedItems))
     }
-    dispatch({ type: 'CLOSE_PREVIEW' })
+    closePreview()
     dispatch({ type: 'OPEN_SAVE' })
   }
 
@@ -559,8 +645,9 @@ export function OutfitComposerPage() {
           wardrobeItemId: layer.wardrobeItemId,
           layerOrder: layer.order,
         })),
-        previewImageAssetId:
-          composerState.preview.assetId ?? undefined,
+        previewImageAssetId: hasGeneratedPreview
+          ? composerState.preview.assetId ?? undefined
+          : undefined,
         previewImage: hasGeneratedPreview && !composerState.preview.assetId
           ? {
               imageBase64: composerState.preview.imageBase64!,
@@ -685,9 +772,47 @@ export function OutfitComposerPage() {
 
   const updateOutfitStyle = (nextStyle: string) => {
     if (nextStyle === style) return
-    invalidateStoredPreview()
+
+    // 스타일 없이 만든 이미지는 첫 스타일 선택 때 그대로 저장할 수 있다.
+    // 이미 지정한 스타일을 바꾸면 이미지에 반영된 방향도 달라지므로 다시 만든다.
+    const keepPreview = !style && hasGeneratedPreview
+    const nextSearchParams = new URLSearchParams(searchParams)
+    if (nextStyle) nextSearchParams.set('style', nextStyle)
+    else nextSearchParams.delete('style')
+    nextSearchParams.delete('preview')
+
+    if (keepPreview) {
+      const nextCompositionKey = getOutfitPreviewCompositionKey(selectedIds, nextStyle)
+      dispatch({
+        type: 'REKEY_PREVIEW',
+        previousCompositionKey: currentPreviewCompositionKey,
+        compositionKey: nextCompositionKey,
+      })
+
+      const { assetId, imageUrl, mimeType, model } = composerState.preview
+      if (assetId) {
+        nextSearchParams.set('previewAssetId', assetId)
+        if (meQuery.data?.id && imageUrl && mimeType && model) {
+          cacheOutfitPreview(
+            meQuery.data.id,
+            nextCompositionKey,
+            { assetId, imageUrl, mimeType, model },
+            { replacesCompositionKey: currentPreviewCompositionKey },
+          )
+        }
+      } else {
+        nextSearchParams.delete('previewAssetId')
+      }
+    } else {
+      previewRequestVersionRef.current += 1
+      nextSearchParams.delete('previewAssetId')
+      dispatch({ type: 'INVALIDATE_PREVIEW' })
+    }
+
     setStyle(nextStyle)
-    dispatch({ type: 'INVALIDATE_PREVIEW' })
+    if (nextSearchParams.toString() !== searchParams.toString()) {
+      setSearchParams(nextSearchParams, { replace: true })
+    }
   }
 
   const closePreview = () => {
@@ -705,12 +830,15 @@ export function OutfitComposerPage() {
     selectedItems,
     targetCategory: activeTargetCategory,
     targetOptions,
+    replacementItemId,
     recommendedCategory: recommendedTargetCategory,
     step: step === 'save' ? composerState.returnStep : step,
     isSaveOpen: isSaveStepOpen,
     preview: composerState.preview,
     toggleItem,
+    removeItem,
     selectTargetCategory,
+    selectReplacementItem,
     goBackStep,
     requestClose,
     reset: resetLayout,
@@ -733,51 +861,28 @@ export function OutfitComposerPage() {
 
   return createPortal(
     <OutfitComposerContext.Provider value={composerSession}>
-      <section className="classification-page-enter fixed inset-0 z-[80] flex h-dvh flex-col overflow-hidden bg-canvas" role="dialog" aria-modal="true" aria-label="코디 맞춰보기">
+      <section ref={composerRootRef} className="classification-page-enter fixed inset-0 z-[80] flex h-dvh flex-col overflow-hidden bg-canvas" role="dialog" aria-modal="true" aria-label="코디 맞춰보기">
         <OutfitComposerHeader />
 
         <div className="min-h-0 flex-1 bg-canvas">
-          <OutfitMatchPanel />
+          <OutfitMatchPanel isWardrobeExpanded={isWardrobeExpanded} onWardrobeExpandedChange={changeWardrobeExpanded} />
         </div>
 
-        {!isSaveStepOpen && layers.length > 0 && (
-          <footer className="shrink-0 border-t border-line bg-surface px-5 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(27,27,24,0.06)]">
+        {!isSaveStepOpen && (
+          <footer ref={composerFooterRef} className={`outfit-composer__footer shrink-0 border-t border-line bg-surface px-5 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(27,27,24,0.06)]${isWardrobeExpanded ? ' outfit-composer__footer--covered' : ''}`}>
             <div className="mx-auto max-w-2xl">
-              {isStepDecisionOpen ? (
-                outfitCompletionMessage ? (
-                  <p className="rounded-xl bg-canvas px-4 py-3 text-center text-xs font-bold text-muted">
-                    {outfitCompletionMessage}
-                  </p>
-                ) : (
-                  <OutfitCompletionActions
-                    duplicateMessage={duplicateMessage}
-                    hasAvailableLookbook={Boolean(
-                      canUseSavedLookbookPreview ||
-                        hasGeneratedPreview ||
-                        Boolean(cachedCurrentPreview),
-                    )}
-                    onOpenLookbook={openAiLookbook}
-                    onComplete={openSaveStep}
-                  />
-                )
-              ) : activeTargetCategory ? (
-                outfitCompletionMessage ? (
-                  <p className="text-center text-[11px] font-bold text-muted">
-                    {outfitCompletionMessage}
-                  </p>
-                ) : (
-                  <OutfitCompletionActions
-                    duplicateMessage={duplicateMessage}
-                    hasAvailableLookbook={Boolean(
-                      canUseSavedLookbookPreview ||
-                        hasGeneratedPreview ||
-                        Boolean(cachedCurrentPreview),
-                    )}
-                    onOpenLookbook={openAiLookbook}
-                    onComplete={openSaveStep}
-                  />
-                )
-              ) : null}
+              <OutfitCompletionActions
+                completionMessage={outfitCompletionMessage}
+                isEmpty={selectedItems.length === 0}
+                duplicateMessage={duplicateMessage}
+                hasAvailableLookbook={Boolean(
+                  canUseSavedLookbookPreview ||
+                    hasGeneratedPreview ||
+                    Boolean(cachedCurrentPreview),
+                )}
+                onOpenLookbook={openAiLookbook}
+                onComplete={openSaveStep}
+              />
             </div>
           </footer>
         )}

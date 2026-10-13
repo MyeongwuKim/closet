@@ -41,11 +41,23 @@ export type OutfitComposerAction =
   | { type: 'HYDRATE'; layers: OutfitLayer[]; originItemIds: string[] }
   | { type: 'ADD_ITEM'; layer: OutfitLayer }
   | { type: 'REMOVE_ITEM'; itemId: string }
+  /** oldItemId의 기존 칸을 newItemId로 교체하고 다음 종류 선택 단계로 돌아간다. 미리보기는 초기화한다. */
+  | {
+      type: 'REPLACE_ITEM'
+      oldItemId: string
+      newItemId: string
+    }
   | { type: 'SELECT_CATEGORY'; category: OutfitSelectionCategory }
   | { type: 'OPEN_CATEGORY_PICKER' }
   | { type: 'OPEN_SAVE' }
   | { type: 'OPEN_PREVIEW' }
   | { type: 'REOPEN_PREVIEW' }
+  /** 스타일을 처음 지정할 때 이미 만든 AI 이미지의 조합 키만 바꾸고 이미지 데이터는 유지한다. */
+  | {
+      type: 'REKEY_PREVIEW'
+      previousCompositionKey: string
+      compositionKey: string
+    }
   | {
       type: 'PREVIEW_SUCCESS'
       imageUrl: string
@@ -127,6 +139,34 @@ export function outfitComposerReducer(
         preview: createPreviewState(),
       }
     }
+    case 'REPLACE_ITEM': {
+      if (
+        action.oldItemId === action.newItemId ||
+        !state.layers.some((layer) => layer.wardrobeItemId === action.oldItemId) ||
+        state.layers.some((layer) => layer.wardrobeItemId === action.newItemId)
+      ) {
+        return state
+      }
+
+      // 기존 layer의 위치와 order를 보존해 교체 전후의 조합 순서를 유지한다.
+      const layers = state.layers.map((layer) =>
+        layer.wardrobeItemId === action.oldItemId
+          ? { ...layer, wardrobeItemId: action.newItemId }
+          : layer,
+      )
+
+      return {
+        ...state,
+        layers,
+        compositionRevision: state.compositionRevision + 1,
+        originItemIds: state.originItemIds.includes(action.oldItemId)
+          ? []
+          : state.originItemIds,
+        targetCategory: null,
+        step: 'category',
+        preview: createPreviewState(),
+      }
+    }
     case 'SELECT_CATEGORY':
       return {
         ...state,
@@ -167,6 +207,17 @@ export function outfitComposerReducer(
       return {
         ...state,
         preview: { ...state.preview, isOpen: true },
+      }
+    case 'REKEY_PREVIEW':
+      if (
+        state.preview.status !== 'success' ||
+        state.preview.compositionKey !== action.previousCompositionKey
+      ) {
+        return state
+      }
+      return {
+        ...state,
+        preview: { ...state.preview, compositionKey: action.compositionKey },
       }
     case 'PREVIEW_SUCCESS':
       return {
@@ -241,12 +292,18 @@ export interface OutfitComposerSession {
   selectedItems: WardrobeItem[]
   targetCategory: OutfitSelectionCategory | null
   targetOptions: OutfitSelectionCategory[]
+  /** 채운 칸의 아이템을 바꾸는 중이면 기존 아이템 ID, 새 칸에 추가할 때는 null. */
+  replacementItemId: string | null
   recommendedCategory: OutfitSelectionCategory | null
   step: Exclude<OutfitComposerStep, 'save'>
   isSaveOpen: boolean
   preview: OutfitPreviewState
   toggleItem: (item: WardrobeItem) => void
+  /** 보드 아래 선택 목록에서 지정한 아이템을 제거한다. 교체 후보를 고르는 동작과 구분한다. */
+  removeItem: (item: WardrobeItem) => void
   selectTargetCategory: (category: OutfitSelectionCategory) => void
+  /** 선택된 itemId를 교체 대상으로 두고 category 옷장 후보를 연다. */
+  selectReplacementItem: (itemId: string, category: OutfitSelectionCategory) => void
   goBackStep: () => void
   /** 저장 전 편집 화면을 닫도록 요청한다. 선택한 옷이 있으면 종료 확인을 먼저 보여준다. */
   requestClose: () => void

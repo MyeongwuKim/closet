@@ -70,7 +70,7 @@ const unknownShapeAttributes = {
 
 function mockWardrobeCreate(t: TestContext) {
   t.mock.method(imageRepository, 'findOwnedByIds', async () => [
-    { id: 'display-image', uploadStatus: 'ready' },
+    { id: 'display-image', uploadStatus: 'ready', kind: 'wardrobeCutout', mimeType: 'image/png' },
   ])
   return t.mock.method(wardrobeRepository, 'create', async (data: CreateWardrobeItemData) => ({
     id: 'saved-item',
@@ -84,6 +84,18 @@ const createInput = {
   category: 'top' as const,
   seasons: ['autumn' as const],
 }
+
+test('새 옷은 배경 제거 PNG를 표시 자산으로 확인한 뒤에만 저장한다', async (t) => {
+  t.mock.method(imageRepository, 'findOwnedByIds', async () => [
+    { id: 'display-image', uploadStatus: 'ready', kind: 'wardrobeOriginal', mimeType: 'image/jpeg' },
+  ])
+  const create = t.mock.method(wardrobeRepository, 'create', async () => ({ id: 'saved-item' }) as never)
+
+  await assert.rejects(wardrobeService.create('viewer', createInput), (error: unknown) =>
+    error instanceof ServiceError && error.code === 'WARDROBE_CUTOUT_REQUIRED',
+  )
+  assert.equal(create.mock.callCount(), 0)
+})
 
 test('전체 골지와 독립적으로 세 부위의 시보리 판정을 저장한다', async (t) => {
   const create = mockWardrobeCreate(t)

@@ -67,6 +67,62 @@ test('검색어와 계절, 색상 조건을 함께 적용한다', () => {
   )
 })
 
+test('추천 색상 이름은 공백과 영문 대소문자를 정리해 옷장 색상과 비교한다', () => {
+  const wardrobeItems = [
+    createItem('베이지 바지', { category: 'bottom', colorName: ' Beige ' }),
+    createItem('검정 바지', { category: 'bottom', colorName: '블랙' }),
+  ]
+
+  assert.deepEqual(
+    filterOutfitItems(wardrobeItems, {
+      query: '',
+      season: null,
+      color: 'beige',
+    }).map((item) => item.id),
+    ['베이지 바지'],
+  )
+})
+
+test('추천 색 필터는 명확한 하위 색상만 포함하고 모호한 이름은 자동으로 묶지 않는다', () => {
+  const wardrobeItems = [
+    createItem('아이보리 상의', { colorName: '아이보리' }),
+    createItem('다크브라운 상의', { colorName: '다크브라운' }),
+    createItem('버건디 상의', { colorName: '버건디' }),
+    createItem('머드 상의', { colorName: '머드' }),
+  ]
+
+  assert.deepEqual(
+    filterOutfitItems(wardrobeItems, {
+      query: '', season: null, color: '크림', includeColorAliases: true,
+    }).map((item) => item.id),
+    ['아이보리 상의'],
+  )
+  assert.deepEqual(
+    filterOutfitItems(wardrobeItems, {
+      query: '', season: null, color: '브라운', includeColorAliases: true,
+    }).map((item) => item.id),
+    ['다크브라운 상의'],
+  )
+  assert.deepEqual(
+    filterOutfitItems(wardrobeItems, {
+      query: '', season: null, color: '레드', includeColorAliases: true,
+    }).map((item) => item.id),
+    ['버건디 상의'],
+  )
+  assert.deepEqual(
+    filterOutfitItems(wardrobeItems, {
+      query: '', season: null, color: '베이지', includeColorAliases: true,
+    }).map((item) => item.id),
+    [],
+  )
+  assert.deepEqual(
+    filterOutfitItems(wardrobeItems, {
+      query: '', season: null, color: '버건디', includeColorAliases: false,
+    }).map((item) => item.id),
+    ['버건디 상의'],
+  )
+})
+
 test('현재 목록에서 사용할 수 있는 계절과 색상만 만든다', () => {
   const options = getOutfitItemFilterOptions(items)
 

@@ -168,16 +168,25 @@ async function uploadImage(
   return uploadToCloudflare(blob, prepared)
 }
 
+/**
+ * 확인된 옷 후보의 투명 PNG 한 장을 wardrobeCutout 자산으로 업로드한 뒤 옷장 아이템을 생성한다.
+ * originalImageUrl 표식이 없으면 업로드 전에 거절하며, 원본 사진은 이 저장 요청에서 전송하지 않는다.
+ */
 export async function saveWardrobeItem(
   candidate: ClassificationCandidate,
   input: SaveWardrobeItemInput,
 ): Promise<WardrobeItem> {
+  if (!candidate.originalImageUrl) {
+    throw new WardrobeSaveError(
+      '사진의 배경 제거가 끝나지 않았어요. 사진을 다시 추가해 주세요.',
+      'WARDROBE_CUTOUT_REQUIRED',
+    )
+  }
   const originalFilename =
     candidate.originalFilename ?? `${input.name.replaceAll(' ', '_')}.png`
-  const hasSeparateOriginal = Boolean(candidate.originalImageUrl)
   const displayAsset = await uploadImage(
     candidate.imageUrl,
-    hasSeparateOriginal ? 'wardrobeCutout' : 'wardrobeOriginal',
+    'wardrobeCutout',
     originalFilename,
   )
 

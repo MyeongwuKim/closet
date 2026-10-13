@@ -17,6 +17,19 @@ import {
 
 export const classificationResolvers = {
   Mutation: {
+    /** 로그인한 사용자의 사진으로 컷아웃 PNG를 생성해 수동 옷 등록 후보에 전달한다. */
+    removeWardrobeImageBackground: async (
+      _parent: unknown,
+      { input }: { input: ClassifyWardrobeImageInput },
+      context: GraphQLContext,
+    ) => {
+      try {
+        await context.getViewer()
+        return await classificationService.createCutout(input)
+      } catch (error) {
+        throw toGraphQLError(error, '사진 배경을 제거하지 못했습니다.', 'BACKGROUND_REMOVAL_FAILED')
+      }
+    },
     classifyWardrobeImage: async (
       _parent: unknown,
       { input }: { input: ClassifyWardrobeImageInput },

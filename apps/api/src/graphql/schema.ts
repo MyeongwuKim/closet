@@ -475,6 +475,11 @@ export const typeDefs = `#graphql
     source: String!
   }
 
+  enum OutfitRecommendationMode {
+    items
+    colors
+  }
+
   type TodayOutfitRecommendation {
     date: String!
     season: Season!
@@ -552,6 +557,7 @@ export const typeDefs = `#graphql
   input OutfitRecommendationInput {
     selectedItemIds: [ID!]!
     targetCategory: ClothingCategory!
+    mode: OutfitRecommendationMode
   }
 
   input TodayOutfitRecommendationInput {
@@ -718,6 +724,11 @@ export const typeDefs = `#graphql
     cutoutMimeType: String
   }
 
+  type WardrobeImageCutout {
+    imageBase64: String!
+    mimeType: String!
+  }
+
   type GarmentSizeChartRow {
     sizeLabel: String!
     shoulderWidthCm: Float
@@ -836,6 +847,7 @@ export const typeDefs = `#graphql
     savePlannerOutfitToLookbook(outfitId: ID!, previewImage: OutfitPreviewImageInput): Outfit!
     clearPlannerEntry(weekStartsOn: String!, date: String!): PlannerWeek
     classifyWardrobeImage(input: ClassifyWardrobeImageInput!): ClothingClassification!
+    removeWardrobeImageBackground(input: ClassifyWardrobeImageInput!): WardrobeImageCutout!
     analyzeGarmentSizeChart(input: AnalyzeGarmentSizeChartInput!): GarmentSizeChartAnalysis!
   }
 `

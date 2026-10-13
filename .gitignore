@@ -18,3 +18,5 @@ coverage
 apps/web/public/og.png
 
 .playwright-mcp/
+playwright-report/
+test-results/

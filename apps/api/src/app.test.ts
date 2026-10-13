@@ -136,7 +136,7 @@ const legacyFashionAttributes = {
 test('GraphQL 옷 등록은 시보리 판정을 전달하고 구버전 입력은 unknown으로 저장한다', async (t) => {
   t.mock.method(authService, 'getViewer', async () => ({ id: 'viewer' }))
   t.mock.method(imageRepository, 'findOwnedByIds', async () => [
-    { id: 'display-image', uploadStatus: 'ready' },
+    { id: 'display-image', uploadStatus: 'ready', kind: 'wardrobeCutout', mimeType: 'image/png' },
   ])
   t.mock.method(wardrobeRepository, 'create', async (data: CreateWardrobeItemData) => ({
     id: 'saved-item',

@@ -19,12 +19,13 @@ export const queryKeys = {
     recommendation: (
       selectedItemIds: string[],
       targetCategory: ClothingCategory | null,
+      mode: 'items' | 'colors' | null,
     ) =>
       [
         'outfits',
         'recommendation',
-        'v4',
-        { selectedItemIds, targetCategory },
+        'v5',
+        { selectedItemIds, targetCategory, mode },
       ] as const,
   },
   planner: {

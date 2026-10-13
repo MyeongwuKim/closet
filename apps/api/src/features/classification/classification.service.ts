@@ -54,16 +54,45 @@ function decodeImage(input: ClassifyWardrobeImageInput) {
 }
 
 export const classificationService = {
+  /**
+   * 옷 분류가 실패해도 수동 입력에 사용할 투명 PNG를 따로 만든다.
+   * 배경 제거가 실패하면 한 번 더 시도하고, 두 번 모두 실패하면 원본 등록을 막을 수 있도록 오류를 돌려준다.
+   */
+  async createCutout(input: ClassifyWardrobeImageInput) {
+    const image = decodeImage(input)
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const cutout = await removeImageBackground(image, input.mimeType)
+        return { imageBase64: cutout.base64, mimeType: cutout.mimeType }
+      } catch {
+        if (attempt === 1) {
+          throw new ServiceError(
+            '사진의 배경을 제거하지 못했어요. 사진을 다시 추가해 주세요.',
+            'BACKGROUND_REMOVAL_FAILED',
+          )
+        }
+      }
+    }
+    throw new ServiceError('사진의 배경을 제거하지 못했어요.', 'BACKGROUND_REMOVAL_FAILED')
+  },
+
+  /**
+   * 옷 분류와 배경 제거를 함께 실행하고 둘 다 끝난 뒤 분류 결과를 반환한다.
+   * 분류가 실패하면 오류를 전파하며, 배경 제거만 실패하면 컷아웃 필드를 null로 돌려 별도 재요청을 허용한다.
+   */
   async classify(input: ClassifyWardrobeImageInput) {
     const image = decodeImage(input)
 
-    const [classification, cutout] = await Promise.all([
+    // 분류가 먼저 실패해도 배경 제거 작업이 끝난 뒤 오류를 전달해 같은 모델을 겹쳐 실행하지 않는다.
+    const [classificationResult, cutoutResult] = await Promise.allSettled([
       classifyWardrobeImageWithOpenAi(image, input.mimeType),
-      removeImageBackground(image, input.mimeType).catch(() => null),
+      removeImageBackground(image, input.mimeType),
     ])
+    if (classificationResult.status === 'rejected') throw classificationResult.reason
+    const cutout = cutoutResult.status === 'fulfilled' ? cutoutResult.value : null
 
     return {
-      ...classification,
+      ...classificationResult.value,
       cutoutImageBase64: cutout?.base64 ?? null,
       cutoutMimeType: cutout?.mimeType ?? null,
     }

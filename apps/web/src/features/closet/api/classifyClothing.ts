@@ -15,6 +15,11 @@ export interface ClothingAnalysisResult extends ClothingClassificationResult {
   cutoutMimeType: string | null
 }
 
+export interface WardrobeImageCutout {
+  imageBase64: string
+  mimeType: string
+}
+
 export class ClothingAnalysisError extends Error {
   readonly code?: string
 
@@ -100,6 +105,38 @@ export async function classifyClothing(
         : '이미지 분석을 완료하지 못했습니다.',
     )
   }
+}
+
+/** 분류 실패 또는 응답의 컷아웃 누락 시 같은 사진의 배경 제거를 요청하고 PNG base64를 돌려준다. */
+export async function removeClothingBackground(file: File): Promise<WardrobeImageCutout> {
+  const imageBase64 = await readFileAsDataUrl(file)
+  try {
+    const payload = await graphqlRequest<
+      { removeWardrobeImageBackground: WardrobeImageCutout },
+      { input: { imageBase64: string; mimeType: string; filename: string } }
+    >(
+      `
+        mutation RemoveWardrobeImageBackground($input: ClassifyWardrobeImageInput!) {
+          removeWardrobeImageBackground(input: $input) { imageBase64 mimeType }
+        }
+      `,
+      { input: { imageBase64, mimeType: file.type, filename: file.name } },
+    )
+    return payload.removeWardrobeImageBackground
+  } catch (error) {
+    if (error instanceof GraphqlRequestError) {
+      throw new ClothingAnalysisError(error.message, error.code)
+    }
+    throw new ClothingAnalysisError('사진 배경을 제거하지 못했습니다. 사진을 다시 추가해 주세요.')
+  }
+}
+
+/** 별도 컷아웃 요청을 분류와 같은 분석 대기 상태에 포함한다. */
+export function useRemoveClothingBackgroundMutation() {
+  return useMutation({
+    mutationKey: clothingAnalysisMutationKey,
+    mutationFn: removeClothingBackground,
+  })
 }
 
 export function useClassifyClothingMutation() {

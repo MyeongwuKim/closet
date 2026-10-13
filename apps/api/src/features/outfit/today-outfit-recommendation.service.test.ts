@@ -62,7 +62,7 @@ function createItem(
 
 function setupWardrobe(t: TestContext, items: WardrobeItem[]) {
   t.mock.method(userRepository, 'findViewerById', async () => null)
-  t.mock.method(wardrobeRepository, 'findMany', async (requestedUserId: string) => {
+  const wardrobeLookup = t.mock.method(wardrobeRepository, 'findMany', async (requestedUserId: string) => {
     assert.equal(requestedUserId, userId)
     return items
   })
@@ -72,6 +72,7 @@ function setupWardrobe(t: TestContext, items: WardrobeItem[]) {
     if (previousKey === undefined) delete process.env.OPENAI_API_KEY
     else process.env.OPENAI_API_KEY = previousKey
   })
+  return wardrobeLookup
 }
 
 test('재추천과 직전 아우터 제외에도 기준 아우터를 유지하며 나머지 옷을 바꾼다', async (t) => {
@@ -346,9 +347,19 @@ test('AI 설명에는 목표 스타일과 선호 핏 없이 선택된 옷의 관
 })
 
 
-test('수동 매칭의 색상 추천은 고른 옷 전체를 전달하며 선호 스타일·핏을 조회하지 않는다', async (t) => {
-  const selected = [createItem('top', 'top'), createItem('outer', 'outer')]
-  setupWardrobe(t, [createItem('bottom', 'bottom')])
+test('수동 매칭은 고른 옷과 후보의 디자인 속성을 전달하며 선호 스타일·핏을 조회하지 않는다', async (t) => {
+  const selected = [createItem('top', 'top', {
+    fashionAttributes: {
+      layerRole: 'base', silhouette: 'oversized', pattern: 'solid', material: 'cotton',
+      texture: 'smooth', warmth: 'light', formality: 0.2, confidence: 0.9,
+    },
+  }), createItem('outer', 'outer')]
+  setupWardrobe(t, [createItem('bottom', 'bottom', {
+    fashionAttributes: {
+      layerRole: 'single', silhouette: 'slim', pattern: 'solid', material: 'denim',
+      texture: 'twill', warmth: 'medium', formality: 0.3, confidence: 0.8,
+    },
+  })])
   t.mock.method(wardrobeRepository, 'findManyOwnedByIds', async () => selected)
   const profileRead = t.mock.method(userRepository, 'findViewerById', async () => {
     throw new Error('색상 추천은 스타일 프로필을 읽지 않아야 한다')
@@ -357,21 +368,123 @@ test('수동 매칭의 색상 추천은 고른 옷 전체를 전달하며 선호
   t.mock.method(globalThis, 'fetch', async (_url: unknown, options: RequestInit) => {
     const body = JSON.parse(String(options.body)) as { input: Array<{ role: string; content: string }> }
     const prompt = JSON.parse(body.input.find((message) => message.role === 'user')!.content)
+    const systemPrompt = body.input.find((message) => message.role === 'system')!.content
     assert.deepEqual(prompt.selectedItems.map((item: { id: string }) => item.id), ['top', 'outer'])
     assert.equal(prompt.targetCategory, 'bottom')
     assert.equal(prompt.styleProfile, undefined)
+    assert.equal(prompt.selectedItems[0].fashionAttributes.silhouette, 'oversized')
+    assert.equal(prompt.wardrobeCandidates[0].fashionAttributes.material, 'denim')
+    assert.match(systemPrompt, /실루엣 균형.*패턴.*소재/)
     return new Response(JSON.stringify({ output_text: JSON.stringify({
       headline: '고른 옷에 맞는 하의 색', summary: '두 옷의 대표색을 함께 비교했어요.',
       recommendedColors: [
         { name: '화이트', role: 'safe', reason: '색 대비를 만들어요.' },
         { name: '그레이', role: 'harmony', reason: '차분하게 연결해요.' },
         { name: '레드', role: 'accent', reason: '포인트를 더해요.' },
-      ], candidates: [],
+      ], candidates: [{
+        wardrobeItemId: 'bottom',
+        reason: '상의의 여유로운 실루엣과 하의의 슬림한 실루엣이 균형을 이뤄요.',
+        relation: 'design-balance',
+      }],
     }) }), { status: 200 })
   })
   const result = await outfitRecommendationService.recommend(userId, { selectedItemIds: ['top', 'outer'], targetCategory: 'bottom' })
   assert.equal(profileRead.mock.callCount(), 0)
   assert.equal(result.source, 'ai')
   assert.equal(result.recommendedColors.length, 3)
-  assert.ok(result.candidates.every((candidate) => candidate.item.id === 'bottom'))
+  assert.equal(result.candidates[0]?.item.id, 'bottom')
+  assert.equal(result.candidates[0]?.relation, 'design-balance')
+})
+
+test('컬러만 추천하면 옷장 후보를 조회하거나 옷 추천을 계산하지 않는다', async (t) => {
+  const wardrobeLookup = setupWardrobe(t, [createItem('bottom', 'bottom')])
+  t.mock.method(wardrobeRepository, 'findManyOwnedByIds', async () => [createItem('top', 'top')])
+
+  const result = await outfitRecommendationService.recommend(userId, {
+    selectedItemIds: ['top'], targetCategory: 'bottom', mode: 'colors',
+  })
+
+  assert.equal(wardrobeLookup.mock.callCount(), 0)
+  assert.equal(result.source, 'fallback')
+  assert.equal(result.recommendedColors.length, 3)
+  assert.deepEqual(result.candidates, [])
+})
+
+test('옷만 추천하면 옷장 후보를 조회하되 컬러 팔레트는 만들지 않는다', async (t) => {
+  const wardrobeLookup = setupWardrobe(t, [createItem('bottom', 'bottom')])
+  t.mock.method(wardrobeRepository, 'findManyOwnedByIds', async () => [createItem('top', 'top')])
+
+  const result = await outfitRecommendationService.recommend(userId, {
+    selectedItemIds: ['top'], targetCategory: 'bottom', mode: 'items',
+  })
+
+  assert.equal(wardrobeLookup.mock.callCount(), 1)
+  assert.equal(result.source, 'fallback')
+  assert.deepEqual(result.recommendedColors, [])
+  assert.equal(result.candidates[0]?.item.id, 'bottom')
+})
+
+test('컬러 AI 요청에는 옷장 후보와 아이템 결과 스키마가 없다', async (t) => {
+  const wardrobeLookup = setupWardrobe(t, [createItem('bottom', 'bottom')])
+  t.mock.method(wardrobeRepository, 'findManyOwnedByIds', async () => [createItem('top', 'top')])
+  process.env.OPENAI_API_KEY = 'test-key'
+  const aiRequest = t.mock.method(globalThis, 'fetch', async (_url: unknown, options: RequestInit) => {
+    const body = JSON.parse(String(options.body)) as {
+      input: Array<{ role: string; content: string }>
+      text: { format: { schema: { required: string[]; properties: Record<string, unknown> } } }
+    }
+    const prompt = JSON.parse(body.input.find((message) => message.role === 'user')!.content)
+    assert.equal(prompt.wardrobeCandidates, undefined)
+    assert.equal(prompt.selectedItems[0].fashionAttributes, undefined)
+    assert.deepEqual(body.text.format.schema.required, ['headline', 'summary', 'recommendedColors'])
+    assert.equal(body.text.format.schema.properties.candidates, undefined)
+    return new Response(JSON.stringify({ output_text: JSON.stringify({
+      headline: '어울리는 하의 컬러', summary: '선택한 옷의 톤을 비교했어요.',
+      recommendedColors: [
+        { name: '화이트', role: 'safe', reason: '밝게 이어져요.' },
+        { name: '그레이', role: 'harmony', reason: '차분하게 이어져요.' },
+        { name: '레드', role: 'accent', reason: '포인트를 줘요.' },
+      ],
+    }) }), { status: 200 })
+  })
+
+  const result = await outfitRecommendationService.recommend(userId, {
+    selectedItemIds: ['top'], targetCategory: 'bottom', mode: 'colors',
+  })
+
+  assert.equal(aiRequest.mock.callCount(), 1)
+  assert.equal(wardrobeLookup.mock.callCount(), 0)
+  assert.equal(result.source, 'ai')
+  assert.equal(result.recommendedColors.length, 3)
+  assert.deepEqual(result.candidates, [])
+})
+
+test('옷 AI 요청에는 옷장 후보가 있고 컬러 결과 스키마가 없다', async (t) => {
+  setupWardrobe(t, [createItem('bottom', 'bottom')])
+  t.mock.method(wardrobeRepository, 'findManyOwnedByIds', async () => [createItem('top', 'top')])
+  process.env.OPENAI_API_KEY = 'test-key'
+  const aiRequest = t.mock.method(globalThis, 'fetch', async (_url: unknown, options: RequestInit) => {
+    const body = JSON.parse(String(options.body)) as {
+      input: Array<{ role: string; content: string }>
+      text: { format: { schema: { required: string[]; properties: Record<string, unknown> } } }
+    }
+    const prompt = JSON.parse(body.input.find((message) => message.role === 'user')!.content)
+    assert.equal(prompt.wardrobeCandidates[0].id, 'bottom')
+    assert.ok(prompt.selectedItems[0].fashionAttributes)
+    assert.deepEqual(body.text.format.schema.required, ['headline', 'summary', 'candidates'])
+    assert.equal(body.text.format.schema.properties.recommendedColors, undefined)
+    return new Response(JSON.stringify({ output_text: JSON.stringify({
+      headline: '어울리는 하의', summary: '옷장 후보를 비교했어요.',
+      candidates: [{ wardrobeItemId: 'bottom', reason: '핏이 이어져요.', relation: 'design-balance' }],
+    }) }), { status: 200 })
+  })
+
+  const result = await outfitRecommendationService.recommend(userId, {
+    selectedItemIds: ['top'], targetCategory: 'bottom', mode: 'items',
+  })
+
+  assert.equal(aiRequest.mock.callCount(), 1)
+  assert.equal(result.source, 'ai')
+  assert.deepEqual(result.recommendedColors, [])
+  assert.equal(result.candidates[0]?.item.id, 'bottom')
 })

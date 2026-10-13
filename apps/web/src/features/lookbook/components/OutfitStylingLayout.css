@@ -19,6 +19,10 @@
   margin: 0 auto;
 }
 
+.outfit-styling-layout__sheet-space {
+  display: none;
+}
+
 .outfit-styling-layout .composer-look-canvas__masthead,
 .outfit-styling-layout .composer-look-canvas__heading,
 .outfit-styling-layout .composer-look-canvas__footnote,
@@ -93,20 +97,127 @@
 }
 
 @media (max-width: 767px) {
-  .outfit-styling-layout:not(.outfit-styling-layout--expanded) .outfit-styling-layout__wardrobe {
-    display: none;
+  .outfit-styling-layout {
+    --outfit-sheet-height: min(56dvh, calc(100dvh - 320px));
+    display: flex;
+    flex-direction: column;
   }
 
-  .outfit-styling-layout--expanded {
-    grid-template-rows: max-content minmax(0, 1fr);
+  .outfit-styling-layout__stage {
+    flex: 1;
+    overflow-y: auto;
   }
 
-  .outfit-styling-layout--expanded .outfit-styling-layout__stage {
-    overflow: visible;
+  .outfit-styling-layout__sheet-space {
+    display: block;
+    height: 0;
+    flex: none;
+    transition: height .34s cubic-bezier(.22, .75, .3, 1);
+  }
+
+  .outfit-styling-layout--expanded .outfit-styling-layout__sheet-space {
+    height: max(0px, calc(var(--outfit-sheet-height) - var(--outfit-footer-height, 0px)));
+  }
+
+  .outfit-styling-layout__stage-inner,
+  .outfit-styling-layout .composer-look-canvas {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .outfit-styling-layout__stage-inner {
+    min-height: 268px;
+  }
+
+  .outfit-styling-layout .composer-look-canvas {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .outfit-styling-layout .composer-look-canvas__paper {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+    flex-direction: column;
+  }
+
+  .outfit-styling-layout .composer-look-canvas__composition {
+    min-height: 0;
+    flex: 1;
+    aspect-ratio: auto;
+    container-type: size;
+  }
+
+  /* 보드가 시트 높이에 따라 변할 때 슬롯 안의 아이콘·이미지 여백도 함께 조절한다. */
+  .outfit-styling-layout .composer-look-canvas__empty-mark svg {
+    width: clamp(20px, 6cqh, 42px);
+    height: clamp(20px, 6cqh, 42px);
+  }
+
+  .outfit-styling-layout .composer-look-canvas__visual-item img {
+    padding: clamp(3px, 1.35cqh, 10px);
+  }
+
+  .outfit-styling-layout .composer-look-canvas__visual-item > svg {
+    width: min(84%, clamp(44px, 15cqh, 110px));
+    height: auto;
+  }
+
+  .outfit-styling-layout .composer-look-canvas__visual-item > span {
+    width: min(72%, clamp(34px, 11cqh, 72px));
+    height: min(84%, clamp(50px, 16cqh, 116px));
+  }
+
+  .outfit-styling-layout .composer-look-canvas__slot-caption {
+    height: clamp(19px, 3.5cqh, 25px);
+    font-size: clamp(9px, 1.8cqh, 12px);
+  }
+
+  .outfit-styling-layout .composer-look-canvas__slot-visual {
+    padding-bottom: clamp(18px, 3.5cqh, 24px);
+  }
+
+  /* 선택 목록도 보드와 같은 속도로 접어, 시트를 닫을 때 보드 높이가 갑자기 바뀌지 않게 한다. */
+  .outfit-styling-layout .composer-look-canvas__selected {
+    max-height: 46px;
+    overflow: hidden;
+    opacity: 1;
+    transition: max-height .34s cubic-bezier(.22, .75, .3, 1), margin-top .34s cubic-bezier(.22, .75, .3, 1), opacity .2s ease;
+  }
+
+  .outfit-styling-layout__wardrobe {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 30;
+    height: var(--outfit-footer-height, 0px);
+    border-top-width: 0;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: height .34s cubic-bezier(.22, .75, .3, 1), opacity .2s ease, visibility .34s ease;
+  }
+
+  .outfit-styling-layout__wardrobe-content,
+  .outfit-styling-layout--expanded .outfit-styling-layout__wardrobe-content {
+    visibility: inherit;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .outfit-styling-layout--expanded .outfit-styling-layout__wardrobe {
+    height: var(--outfit-sheet-height);
+    border-top-width: 1px;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
   }
 
   .outfit-styling-layout--expanded .composer-look-canvas__selected {
-    display: none;
+    max-height: 0;
+    margin-top: 0;
+    opacity: 0;
+    pointer-events: none;
   }
 
   .outfit-styling-layout--expanded .outfit-styling-layout__wardrobe {
@@ -156,9 +267,21 @@
   }
 }
 
+@media (max-width: 767px) and (max-height: 700px) {
+  .outfit-styling-layout {
+    --outfit-sheet-height: 52dvh;
+  }
+
+  .outfit-styling-layout__stage-inner {
+    min-height: 230px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .outfit-styling-layout,
-  .outfit-styling-layout__wardrobe {
+  .outfit-styling-layout__sheet-space,
+  .outfit-styling-layout__wardrobe,
+  .outfit-styling-layout .composer-look-canvas__selected {
     transition: none;
   }
 }

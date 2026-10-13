@@ -120,22 +120,23 @@ export function useOutfitsQuery(enabled = true, filter?: { style?: string; wardr
   })
 }
 
+/** 선택한 스타일 제안 탭만 조회한다. 탭별 키로 결과와 로딩·오류 상태를 분리하고 같은 탭 재방문 시 캐시를 재사용한다. */
 export function useOutfitRecommendationQuery(
   selectedItemIds: string[],
   targetCategory: ClothingCategory | null,
-  enabled = true,
+  mode: 'items' | 'colors' | null,
 ) {
   return useQuery({
     queryKey: queryKeys.outfits.recommendation(
       selectedItemIds,
       targetCategory,
+      mode,
     ),
-    enabled:
-      enabled && selectedItemIds.length > 0 && targetCategory !== null,
+    enabled: mode !== null && selectedItemIds.length > 0 && targetCategory !== null,
     staleTime: 5 * 60 * 1000,
     queryFn: async ({ signal }): Promise<OutfitRecommendation> => {
-      if (!targetCategory) {
-        throw new Error('추천받을 옷 종류를 선택해주세요.')
+      if (!targetCategory || !mode) {
+        throw new Error('추천 종류와 옷 종류를 선택해주세요.')
       }
 
       const data = await graphqlRequest<
@@ -144,6 +145,7 @@ export function useOutfitRecommendationQuery(
           input: {
             selectedItemIds: string[]
             targetCategory: ClothingCategory
+            mode: 'items' | 'colors'
           }
         }
       >(
@@ -159,7 +161,7 @@ export function useOutfitRecommendationQuery(
             }
           }
         `,
-        { input: { selectedItemIds, targetCategory } },
+        { input: { selectedItemIds, targetCategory, mode } },
         signal,
       )
       const recommendation = data.outfitRecommendation

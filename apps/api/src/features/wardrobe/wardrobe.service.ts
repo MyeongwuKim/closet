@@ -413,6 +413,10 @@ export const wardrobeService = {
     return result.count
   },
 
+  /**
+   * 새 옷을 저장하기 전에 이름·치수와 사용자 소유 이미지의 업로드 완료 여부를 확인한다.
+   * 표시 자산은 wardrobeCutout PNG여야 하며, 조건을 만족하면 저장소에 아이템을 생성한다.
+   */
   async create(userId: string, input: CreateWardrobeItemInput) {
     const name = input.name.trim()
     if (!name) {
@@ -434,6 +438,14 @@ export const wardrobeService = {
       throw new ServiceError(
         'Cloudflare 이미지 업로드 확인이 완료되지 않았습니다.',
         'IMAGE_UPLOAD_NOT_READY',
+      )
+    }
+
+    const displayAsset = assets.find((asset) => asset.id === input.displayImageAssetId)
+    if (displayAsset?.kind !== 'wardrobeCutout' || displayAsset.mimeType !== 'image/png') {
+      throw new ServiceError(
+        '배경이 제거된 PNG 사진으로 다시 등록해 주세요.',
+        'WARDROBE_CUTOUT_REQUIRED',
       )
     }
 

@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
 import type { WardrobeItem } from '@closet/types'
-import { ChevronDown } from 'lucide-react'
 import type { OutfitSelectionCategory } from '../utils/outfitSelection'
 import { ComposerLookCanvas } from './ComposerLookCanvas'
+import { OutfitWardrobeSheet } from './OutfitWardrobeSheet'
 import './OutfitStylingLayout.css'
 
 interface OutfitStylingLayoutProps {
@@ -42,33 +42,20 @@ export function OutfitStylingLayout({
           <ComposerLookCanvas
             selectedItems={selectedItems}
             selectableCategories={selectableCategories}
+            isSelectedListInert={isWardrobeExpanded}
             onSlotSelect={onSlotSelect}
             onItemRemove={onItemRemove}
           />
         </div>
       </div>
-
-      <aside className="outfit-styling-layout__wardrobe" aria-label="Look에 추가할 옷 고르기">
-        <div className={`outfit-styling-layout__drawer-toolbar${wardrobeAction ? ' outfit-styling-layout__drawer-toolbar--has-action' : ''}`}>
-          {wardrobeAction && (
-            <div className="outfit-styling-layout__drawer-action">{wardrobeAction}</div>
-          )}
-          <button
-            type="button"
-            className="outfit-styling-layout__drawer-toggle"
-            onClick={() => onWardrobeExpandedChange(false)}
-            aria-controls="outfit-styling-wardrobe-content"
-            aria-expanded={isWardrobeExpanded}
-            aria-label="옷장 닫기"
-          >
-            <span>닫기</span>
-            <ChevronDown size={15} aria-hidden="true" />
-          </button>
-        </div>
-        <div id="outfit-styling-wardrobe-content" className="outfit-styling-layout__wardrobe-content">
-          {children}
-        </div>
-      </aside>
+      <div className="outfit-styling-layout__sheet-space" aria-hidden="true" />
+      <OutfitWardrobeSheet
+        isOpen={isWardrobeExpanded}
+        onClose={() => onWardrobeExpandedChange(false)}
+        action={wardrobeAction}
+      >
+        {children}
+      </OutfitWardrobeSheet>
     </section>
   )
 }

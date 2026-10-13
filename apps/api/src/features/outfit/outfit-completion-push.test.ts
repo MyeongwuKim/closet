@@ -133,6 +133,34 @@ test('코디 추천과 AI 이미지 생성 완료도 각각 알린다', async (t
   assert.match(previewPushData?.path ?? '', /^\/lookbook\/new\?/)
 })
 
+test('GraphQL 코디 추천 모드를 그대로 서비스에 전달한다', async (t) => {
+  mockViewer(t)
+  const recommend = t.mock.method(
+    outfitRecommendationService,
+    'recommend',
+    async (requestedUserId: string, input: { mode?: 'items' | 'colors' | null }) => {
+      assert.equal(requestedUserId, 'user-one')
+      assert.equal(input.mode, 'colors')
+      return { source: 'fallback' } as Awaited<ReturnType<typeof outfitRecommendationService.recommend>>
+    },
+  )
+  t.mock.method(pushService, 'sendCompletion', async () => true)
+  const app = await buildApp()
+  t.after(() => app.close())
+
+  const response = await app.inject({
+    method: 'POST',
+    url: '/graphql',
+    headers: { authorization: 'Bearer session-secret' },
+    payload: {
+      query: 'query { outfitRecommendation(input: { selectedItemIds: ["item-1"], targetCategory: shoes, mode: colors }) { source } }',
+    },
+  })
+
+  assert.equal(response.json().data?.outfitRecommendation?.source, 'fallback')
+  assert.equal(recommend.mock.callCount(), 1)
+})
+
 test('완료 알림 전송 실패는 추천 결과를 실패로 바꾸지 않는다', async (t) => {
   mockViewer(t)
   t.mock.method(

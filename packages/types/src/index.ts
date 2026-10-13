@@ -206,6 +206,7 @@ export type OutfitMatchRelation =
   | 'tone-on-tone'
   | 'soft-balance'
   | 'accent'
+  | 'design-balance'
 
 export interface OutfitRecommendationColor {
   name: string

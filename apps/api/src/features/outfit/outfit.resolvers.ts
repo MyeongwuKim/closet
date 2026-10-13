@@ -75,6 +75,7 @@ export const outfitResolvers = {
         input: {
           selectedItemIds: string[]
           targetCategory: ClothingCategory
+          mode?: 'items' | 'colors' | null
         }
       },
       context: GraphQLContext,

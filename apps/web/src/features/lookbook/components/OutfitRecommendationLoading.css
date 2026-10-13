@@ -1,0 +1,150 @@
+.outfit-recommendation-loading {
+  display: flex;
+  flex: 1;
+  min-height: 196px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 8px 16px;
+  text-align: center;
+}
+
+.outfit-recommendation-loading__art {
+  position: relative;
+  width: 160px;
+  height: 92px;
+  margin-bottom: 13px;
+}
+
+.outfit-recommendation-loading__art::before {
+  position: absolute;
+  inset: 4px 17px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-sage) 60%, transparent);
+  content: '';
+}
+
+.outfit-recommendation-loading__closet,
+.outfit-recommendation-loading__palette {
+  position: absolute;
+  inset: 0;
+}
+
+.outfit-recommendation-loading__garment {
+  position: absolute;
+  top: 11px;
+  display: grid;
+  width: 43px;
+  height: 57px;
+  place-items: center;
+  border: 1px solid var(--color-line);
+  border-radius: 9px;
+  background: var(--color-surface);
+  box-shadow: 0 7px 13px -11px rgb(67 57 47 / 55%);
+  color: var(--color-muted);
+  animation: outfit-wardrobe-search 2.4s ease-in-out infinite;
+}
+
+.outfit-recommendation-loading__garment--one { left: 15px; animation-delay: 0s; }
+.outfit-recommendation-loading__garment--two { left: 58px; animation-delay: .3s; }
+.outfit-recommendation-loading__garment--three { left: 101px; animation-delay: .6s; }
+
+.outfit-recommendation-loading__search-marker,
+.outfit-recommendation-loading__palette-marker {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 26%, var(--color-surface));
+  border-radius: 50%;
+  background: var(--color-surface);
+  box-shadow: 0 6px 14px -9px rgb(67 57 47 / 50%);
+  color: var(--color-accent);
+}
+
+.outfit-recommendation-loading__search-marker {
+  top: 51px;
+  left: 15px;
+  animation: outfit-wardrobe-scan 2.4s ease-in-out infinite;
+}
+
+.outfit-recommendation-loading__swatch {
+  position: absolute;
+  top: 13px;
+  width: 56px;
+  height: 56px;
+  border: 3px solid var(--color-surface);
+  border-radius: 50%;
+  box-shadow: 0 5px 12px -9px rgb(67 57 47 / 55%);
+  animation: outfit-color-search 2.4s ease-in-out infinite;
+}
+
+.outfit-recommendation-loading__swatch--one {
+  left: 16px;
+  background: #6f796b;
+  animation-delay: 0s;
+}
+
+.outfit-recommendation-loading__swatch--two {
+  z-index: 1;
+  left: 52px;
+  background: #c6a784;
+  animation-delay: .3s;
+}
+
+.outfit-recommendation-loading__swatch--three {
+  left: 88px;
+  background: #9f7465;
+  animation-delay: .6s;
+}
+
+.outfit-recommendation-loading__palette-marker {
+  top: 52px;
+  left: 61px;
+  animation: outfit-palette-bob 2.4s ease-in-out infinite;
+}
+
+.outfit-recommendation-loading__title {
+  color: var(--color-ink);
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.4;
+}
+
+.outfit-recommendation-loading__description {
+  margin-top: 4px;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@keyframes outfit-wardrobe-search {
+  0%, 25%, 100% { border-color: var(--color-line); color: var(--color-muted); transform: translateY(0); }
+  12% { border-color: var(--color-accent); color: var(--color-accent); transform: translateY(-5px); }
+}
+
+@keyframes outfit-wardrobe-scan {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(85px); }
+}
+
+@keyframes outfit-color-search {
+  0%, 26%, 100% { filter: saturate(.82); transform: scale(1); }
+  13% { filter: saturate(1.18); transform: scale(1.16); }
+}
+
+@keyframes outfit-palette-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .outfit-recommendation-loading__garment,
+  .outfit-recommendation-loading__search-marker,
+  .outfit-recommendation-loading__swatch,
+  .outfit-recommendation-loading__palette-marker {
+    animation: none;
+  }
+}

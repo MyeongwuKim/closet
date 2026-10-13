@@ -15,6 +15,8 @@ interface ComposerLookCanvasProps {
   lookName?: string
   /** 빈 칸 또는 채워진 칸에서 아이템을 더 고를 수 있는 종류. 생략하면 모든 종류를 선택할 수 있다. */
   selectableCategories?: OutfitSelectionCategory[]
+  /** 모바일 옷장 시트가 열린 동안 접힌 선택 목록의 제거 버튼을 Tab 순서에서 뺀다. */
+  isSelectedListInert?: boolean
   className?: string
   /** 칸을 누르면 해당 종류의 옷장을 열도록 부모에 전달한다. 선택된 옷의 교체나 저장은 여기서 수행하지 않는다. */
   onSlotSelect?: (category: OutfitSelectionCategory) => void
@@ -74,7 +76,7 @@ function ComposerLookSlot({
           aria-label={
             isEmpty
               ? `${label} 아이템 고르기`
-              : `${itemNames}, ${label} 종류 보기`
+              : `${itemNames}, ${label} 아이템 바꾸기`
           }
         />
       )}
@@ -92,6 +94,7 @@ export function ComposerLookCanvas({
   lookLabel = 'NEW LOOK',
   lookName,
   selectableCategories,
+  isSelectedListInert = false,
   className = '',
   onSlotSelect,
   onItemRemove,
@@ -127,7 +130,7 @@ export function ComposerLookCanvas({
             const slotCategory = slot.id === 'top' && slotItems[0]?.category === 'dress'
               ? 'dress'
               : slot.id
-            const canSelect = !selectableCategories || selectableCategories.includes(slotCategory)
+            const canSelect = slotItems.length > 0 || !selectableCategories || selectableCategories.includes(slotCategory)
 
             return (
               <ComposerLookSlot
@@ -153,7 +156,7 @@ export function ComposerLookCanvas({
       </div>
 
       {selectedItems.length > 0 ? (
-        <div className="composer-look-canvas__selected" aria-label="현재 코디에 담긴 아이템">
+        <div className="composer-look-canvas__selected" aria-label="현재 코디에 담긴 아이템" aria-hidden={isSelectedListInert} inert={isSelectedListInert}>
           <span className="composer-look-canvas__selected-label">IN THIS LOOK</span>
           <ul className="composer-look-canvas__selected-list">
             {selectedItems.map((item) => (

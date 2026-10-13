@@ -1,13 +1,16 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type {
   OutfitMatchRelation,
   OutfitRecommendation,
+  OutfitRecommendationColor,
   WardrobeItem,
 } from '@closet/types'
-import { ChevronLeft, LoaderCircle, Palette, RefreshCw, Shirt, Sparkles, X } from 'lucide-react'
+import { ChevronLeft, RefreshCw, Shirt, Sparkles } from 'lucide-react'
 import { ClosetItemVisual } from '../../closet/components/ClosetItemVisual'
 import { useOutfitRecommendationQuery } from '../api/lookbookQueries'
+import { OutfitRecommendationChoice } from './OutfitRecommendationChoice'
+import { OutfitRecommendationLoading } from './OutfitRecommendationLoading'
 import {
   matchesOutfitSelectionCategory,
   outfitSelectionLabels,
@@ -18,6 +21,7 @@ type RecommendationMode = 'items' | 'colors'
 
 interface MatchCandidatePreview {
   item: WardrobeItem
+  relation: OutfitMatchRelation
   label: string
   reason: string
 }
@@ -31,6 +35,8 @@ interface OutfitStyleSuggestionProps {
   hasClosetCandidates: boolean
   /** 후보 상세에서 추가를 누르면 부모의 composer 세션에 해당 옷을 전달한다. */
   onAddItem: (item: WardrobeItem) => void
+  /** 추천 색을 고르면 현재 종류의 옷장 목록에 색상 필터를 적용하도록 부모에 전달한다. */
+  onColorSelect: (color: Pick<OutfitRecommendationColor, 'name' | 'hex'>) => void
 }
 
 const relationLabels: Record<OutfitMatchRelation, string> = {
@@ -38,6 +44,7 @@ const relationLabels: Record<OutfitMatchRelation, string> = {
   'tone-on-tone': '톤온톤',
   'soft-balance': '부드러운 조합',
   accent: '포인트 조합',
+  'design-balance': '디자인 균형',
 }
 
 const colorRoleLabels = {
@@ -45,48 +52,6 @@ const colorRoleLabels = {
   harmony: '자연스럽게',
   accent: '포인트로',
 } as const
-
-/** 작은 선택창과 후보 상세에서 Tab 초점이 뒤쪽 옷장 컨트롤로 넘어가지 않게 한다. */
-function keepFocusWithinDialog(event: ReactKeyboardEvent<HTMLElement>) {
-  if (event.key !== 'Tab') return
-  const controls = event.currentTarget.querySelectorAll<HTMLElement>(
-    'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled])',
-  )
-  const first = controls[0]
-  const last = controls[controls.length - 1]
-  if (!first || !last) return
-
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault()
-    last.focus()
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault()
-    first.focus()
-  }
-}
-
-/** 추천을 처음 요청할 때 선택한 탭과 옷 종류에 맞는 진행 상태를 표시한다. */
-function RecommendationLoading({
-  category,
-  mode,
-}: {
-  category: OutfitSelectionCategory
-  mode: RecommendationMode
-}) {
-  return (
-    <div className="flex min-h-44 flex-col items-center justify-center text-center">
-      <span className="flex size-12 items-center justify-center rounded-2xl bg-sage">
-        <LoaderCircle className="animate-spin" size={22} aria-hidden="true" />
-      </span>
-      <strong className="mt-4 text-sm font-black">
-        {mode === 'colors'
-          ? '어울리는 컬러 조합을 찾고 있어요'
-          : `어울리는 ${outfitSelectionLabels[category]} 아이템을 찾고 있어요`}
-      </strong>
-      <span className="mt-1 text-xs text-muted">잠깐만 기다려주세요.</span>
-    </div>
-  )
-}
 
 /** 조회 결과를 탭별로 보여준다. 옷 후보를 누르면 상세를 열도록 값을 전달한다. */
 function RecommendationResults({
@@ -97,6 +62,7 @@ function RecommendationResults({
   recommendation,
   onRetry,
   onCandidateSelect,
+  onColorSelect,
 }: {
   category: OutfitSelectionCategory
   mode: RecommendationMode
@@ -105,6 +71,7 @@ function RecommendationResults({
   recommendation?: OutfitRecommendation
   onRetry: () => void
   onCandidateSelect: (candidate: MatchCandidatePreview) => void
+  onColorSelect: (color: Pick<OutfitRecommendationColor, 'name' | 'hex'>) => void
 }) {
   const categoryLabel = outfitSelectionLabels[category]
   const candidates = (recommendation?.candidates ?? []).filter((candidate) =>
@@ -128,14 +95,20 @@ function RecommendationResults({
   }
 
   if (isLoading || !recommendation) {
-    return <RecommendationLoading category={category} mode={mode} />
+    return <OutfitRecommendationLoading category={category} mode={mode} />
   }
 
   if (mode === 'colors') {
     return recommendedColors.length > 0 ? (
       <div className="space-y-3">
         {recommendedColors.slice(0, 3).map((color) => (
-          <div className="flex items-start gap-4 rounded-2xl border border-line bg-surface p-4" key={color.name}>
+          <button
+            type="button"
+            onClick={() => onColorSelect(color)}
+            className="flex w-full items-start gap-4 rounded-2xl border border-line bg-surface p-4 text-left transition hover:border-accent/50 focus-visible:outline-accent"
+            aria-label={`${color.name} 색상의 ${categoryLabel} 아이템 옷장에서 보기`}
+            key={color.name}
+          >
             <span
               className="mt-0.5 size-9 shrink-0 rounded-full border border-black/10 shadow-sm"
               style={{ backgroundColor: color.hex }}
@@ -147,8 +120,9 @@ function RecommendationResults({
               </span>
               <h3 className="mt-0.5 text-sm font-black">{color.name}</h3>
               <p className="mt-1 text-xs leading-5 text-muted">{color.reason}</p>
+              <span className="mt-2 block text-[11px] font-bold text-accent">내 옷장에서 보기 →</span>
             </div>
-          </div>
+          </button>
         ))}
       </div>
     ) : (
@@ -165,6 +139,7 @@ function RecommendationResults({
           type="button"
           onClick={() => onCandidateSelect({
             item: candidate.item,
+            relation: candidate.relation,
             label: relationLabels[candidate.relation],
             reason: candidate.reason,
           })}
@@ -175,11 +150,15 @@ function RecommendationResults({
             <ClosetItemVisual item={candidate.item} compact />
           </span>
           <span className="mt-2 flex items-center gap-1 px-1 text-[10px] font-bold text-accent">
-            <span
-              className="size-2 rounded-full border border-black/10"
-              style={{ backgroundColor: candidate.item.colorHex }}
-              aria-hidden="true"
-            />
+            {candidate.relation === 'design-balance' ? (
+              <Shirt size={11} aria-hidden="true" />
+            ) : (
+              <span
+                className="size-2 rounded-full border border-black/10"
+                style={{ backgroundColor: candidate.item.colorHex }}
+                aria-hidden="true"
+              />
+            )}
             {relationLabels[candidate.relation]}
           </span>
           <strong className="mt-1 block truncate px-1 text-xs">{candidate.item.name}</strong>
@@ -211,9 +190,8 @@ function RecommendationCandidateDetail({
     <section
       className="absolute inset-0 z-20 flex min-h-0 flex-col overflow-hidden bg-surface text-ink"
       role="dialog"
-      aria-modal="true"
       aria-labelledby="recommendation-item-title"
-      onKeyDown={keepFocusWithinDialog}
+      aria-modal="false"
     >
       <div className="flex min-h-14 shrink-0 items-center justify-between border-b border-line px-4">
         <button
@@ -234,11 +212,15 @@ function RecommendationCandidateDetail({
         </div>
         <div className="pt-4">
           <span className="flex items-center gap-1.5 text-[11px] font-bold text-accent">
-            <span
-              className="size-3 rounded-full border border-black/10"
-              style={{ backgroundColor: candidate.item.colorHex }}
-              aria-hidden="true"
-            />
+            {candidate.relation === 'design-balance' ? (
+              <Shirt size={13} aria-hidden="true" />
+            ) : (
+              <span
+                className="size-3 rounded-full border border-black/10"
+                style={{ backgroundColor: candidate.item.colorHex }}
+                aria-hidden="true"
+              />
+            )}
             {candidate.label}
           </span>
           <h2 id="recommendation-item-title" className="mt-1 text-lg font-black">
@@ -247,7 +229,7 @@ function RecommendationCandidateDetail({
           <p className="mt-2 text-sm leading-6 text-muted">{candidate.reason}</p>
         </div>
       </div>
-      <div className="grid shrink-0 grid-cols-[0.8fr_1.2fr] gap-2 border-t border-line bg-surface px-5 py-3">
+      <div className="grid shrink-0 grid-cols-[0.8fr_1.2fr] gap-2 border-t border-line bg-surface px-5 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
         <button
           type="button"
           onClick={onClose}
@@ -268,15 +250,16 @@ function RecommendationCandidateDetail({
 }
 
 /**
- * 옷장 헤더에서 추천 종류를 고르는 작은 선택창을 열고, 선택한 추천을 같은 옷장 시트에 표시한다.
- * 추천 조회는 종류를 고른 뒤에만 실행하며, 옷 후보를 추가하면 부모의 composer 선택 동작을 호출한다.
- * 옷장 목록은 덮개 아래에 그대로 두어 돌아왔을 때 기존 검색·필터·스크롤 상태를 유지한다.
+ * 옷장 헤더에서 추천 방식을 고르고 결과와 후보 상세를 같은 하단 시트 안에 표시한다.
+ * 추천 조회는 선택한 탭의 작업만 실행하며, 옷 후보를 추가하면 부모의 composer 선택 동작을 호출한다.
+ * 취소하면 덮개 아래의 옷장 목록을 유지하고, 추천 색을 누르면 부모가 해당 색 필터로 목록을 다시 연다.
  */
 export function OutfitStyleSuggestion({
   category,
   selectedItemIds,
   hasClosetCandidates,
   onAddItem,
+  onColorSelect,
 }: OutfitStyleSuggestionProps) {
   const [isChoiceOpen, setIsChoiceOpen] = useState(false)
   const [mode, setMode] = useState<RecommendationMode | null>(null)
@@ -288,20 +271,22 @@ export function OutfitStyleSuggestion({
   const recommendationQuery = useOutfitRecommendationQuery(
     selectedItemIds,
     category === 'bag' ? null : category,
-    mode !== null,
+    mode,
   )
   const categoryLabel = outfitSelectionLabels[category]
+  const isRecommendationPending = !recommendationQuery.isError &&
+    (recommendationQuery.isLoading || !recommendationQuery.data)
 
-  /** 선택창이나 추천 시트를 닫고 진입 버튼으로 초점을 되돌린다. 옷장 목록 상태는 변경하지 않는다. */
-  const closeSuggestion = useCallback(() => {
+  /** 추천 화면을 닫는다. 취소 시에만 계속 남는 옷장 헤더 버튼으로 초점을 되돌린다. */
+  const closeSuggestion = useCallback((restoreFocus = true) => {
     setSelectedCandidate(null)
     setMode(null)
     setIsChoiceOpen(false)
     setWardrobeContainer(null)
-    window.requestAnimationFrame(() => triggerRef.current?.focus())
+    if (restoreFocus) window.requestAnimationFrame(() => triggerRef.current?.focus())
   }, [])
 
-  /** 옷장 시트를 덮개 위치로 저장하고, 추천 조회 전 두 가지 도움 중 하나를 고르게 한다. */
+  /** 현재 옷장 시트를 덮을 위치를 저장하고, 추천 조회 전 두 가지 도움 중 하나를 고르게 한다. */
   const openSuggestion = () => {
     const container = triggerRef.current?.closest<HTMLElement>('.outfit-styling-layout__wardrobe')
     if (!container) return
@@ -334,8 +319,14 @@ export function OutfitStyleSuggestion({
   const confirmCandidate = () => {
     if (!selectedCandidate) return
     const item = selectedCandidate.item
-    closeSuggestion()
+    closeSuggestion(false)
     onAddItem(item)
+  }
+
+  /** 색상 결과를 누르면 추천 덮개를 닫고 해당 색으로 현재 옷장 목록을 좁힌다. */
+  const selectRecommendedColor = (color: Pick<OutfitRecommendationColor, 'name' | 'hex'>) => {
+    closeSuggestion(false)
+    onColorSelect(color)
   }
 
   useEffect(() => {
@@ -367,72 +358,13 @@ export function OutfitStyleSuggestion({
       </button>
 
       {wardrobeContainer && isChoiceOpen && createPortal(
-        <div
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-ink/35 p-4 backdrop-blur-[2px]"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) closeSuggestion()
-          }}
-          role="presentation"
-        >
-          <section
-            className="w-full max-w-sm rounded-[1.5rem] border border-line bg-surface p-5 text-ink shadow-xl"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="outfit-style-choice-title"
-            aria-describedby="outfit-style-choice-description"
-            onKeyDown={keepFocusWithinDialog}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <span className="text-[10px] font-black tracking-[0.12em] text-accent">STYLE ASSIST</span>
-                <h2 id="outfit-style-choice-title" className="mt-1 text-lg font-black tracking-[-0.03em]">
-                  어떤 도움을 받을까요?
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={closeSuggestion}
-                className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-canvas"
-                aria-label="스타일 제안 선택 닫기"
-              >
-                <X size={19} aria-hidden="true" />
-              </button>
-            </div>
-            <p id="outfit-style-choice-description" className="mt-1 text-xs leading-5 text-muted">
-              지금 만드는 Look에 어울리는 {categoryLabel} 아이템과 색을 살펴보세요.
-            </p>
-            <div className="mt-4 grid gap-2">
-              <button
-                type="button"
-                onClick={() => chooseMode('items')}
-                disabled={!hasClosetCandidates}
-                autoFocus={hasClosetCandidates}
-                className="flex min-h-16 items-center gap-3 rounded-xl border border-line bg-canvas px-4 text-left transition hover:border-accent/50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Shirt size={20} strokeWidth={1.5} aria-hidden="true" />
-                <span className="flex flex-col gap-0.5">
-                  <strong className="text-sm">내 옷 추천</strong>
-                  <span className="text-[11px] text-muted">
-                    {hasClosetCandidates ? '옷장에서 어울리는 아이템 찾기' : `더 고를 ${categoryLabel} 아이템이 없어요`}
-                  </span>
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => chooseMode('colors')}
-                autoFocus={!hasClosetCandidates}
-                className="flex min-h-16 items-center gap-3 rounded-xl border border-line bg-canvas px-4 text-left transition hover:border-accent/50"
-              >
-                <Palette size={20} strokeWidth={1.5} aria-hidden="true" />
-                <span className="flex flex-col gap-0.5">
-                  <strong className="text-sm">컬러 추천</strong>
-                  <span className="text-[11px] text-muted">함께 쓰기 좋은 색 조합 살펴보기</span>
-                </span>
-              </button>
-            </div>
-          </section>
-        </div>,
-        document.body,
+        <OutfitRecommendationChoice
+          categoryLabel={categoryLabel}
+          hasClosetCandidates={hasClosetCandidates}
+          onClose={() => closeSuggestion()}
+          onChooseMode={chooseMode}
+        />,
+        wardrobeContainer,
       )}
 
       {wardrobeContainer && mode && createPortal(
@@ -445,7 +377,7 @@ export function OutfitStyleSuggestion({
             <header className="flex min-h-14 shrink-0 items-center gap-3 border-b border-line bg-surface px-4">
               <button
                 type="button"
-                onClick={closeSuggestion}
+                onClick={() => closeSuggestion()}
                 className="flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-canvas"
                 aria-label="옷장으로 돌아가기"
                 autoFocus
@@ -474,7 +406,7 @@ export function OutfitStyleSuggestion({
                       : 'border-line bg-canvas text-ink'
                   }`}
                 >
-                  내 옷 추천
+                  내 옷장에서 찾기
                 </button>
                 <button
                   id="style-suggestion-colors-tab"
@@ -489,17 +421,17 @@ export function OutfitStyleSuggestion({
                       : 'border-line bg-canvas text-ink'
                   }`}
                 >
-                  컬러 추천
+                  어울리는 컬러 찾기
                 </button>
               </div>
               {!hasClosetCandidates && (
                 <p className="mt-2 text-[11px] leading-4 text-muted">
-                  더 고를 {categoryLabel} 아이템이 없어 내 옷 추천을 사용할 수 없어요.
+                  더 고를 {categoryLabel} 아이템이 없어 옷장에서 찾을 수 없어요.
                 </p>
               )}
               {mode === 'colors' && (
                 <p className="mt-2 text-[11px] leading-4 text-muted">
-                  컬러 조합은 참고용이에요. 마음에 드는 색의 옷은 옷장에서 직접 골라주세요.
+                  마음에 드는 색을 누르면 현재 종류의 옷장에서 해당 색 아이템을 볼 수 있어요.
                 </p>
               )}
             </div>
@@ -509,7 +441,9 @@ export function OutfitStyleSuggestion({
               role="tabpanel"
               aria-labelledby={mode === 'items' ? 'style-suggestion-items-tab' : 'style-suggestion-colors-tab'}
               aria-live="polite"
-              className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto px-4 py-4"
+              className={`scrollbar-hidden min-h-0 flex-1 overflow-y-auto px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] ${
+                isRecommendationPending ? 'flex flex-col' : ''
+              }`}
             >
               <RecommendationResults
                 category={category}
@@ -519,6 +453,7 @@ export function OutfitStyleSuggestion({
                 recommendation={recommendationQuery.data}
                 onRetry={() => void recommendationQuery.refetch()}
                 onCandidateSelect={openCandidateDetail}
+                onColorSelect={selectRecommendedColor}
               />
             </div>
           </div>

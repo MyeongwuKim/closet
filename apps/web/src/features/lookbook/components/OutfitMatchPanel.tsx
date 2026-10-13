@@ -7,12 +7,14 @@ import { closetCategoryLabels } from '../../closet/constants'
 import { ClosetCategoryFilter } from '../../closet/components/ClosetCategoryFilter'
 import { useUiStore } from '../../../stores/useUiStore'
 import { useOutfitComposer } from '../contexts/OutfitComposerContext'
-import { OutfitItemBrowser } from './OutfitItemBrowser'
+import { OutfitItemBrowser, type OutfitColorFilter } from './OutfitItemBrowser'
 import { OutfitWardrobeCard } from './OutfitWardrobeCard'
+import { OutfitReplacementPicker } from './OutfitReplacementPicker'
 import { OutfitStyleSuggestion } from './OutfitRecommendationSection'
 import { OutfitStylingLayout } from './OutfitStylingLayout'
 import {
   getOutfitSelectionCategory,
+  getOutfitSlotId,
   matchesOutfitSelectionCategory,
   outfitSelectionLabels,
   type OutfitSelectionCategory,
@@ -20,11 +22,17 @@ import {
 
 const FILTER_EXIT_DURATION = 170
 const FILTER_ENTER_DURATION = 280
+const SHEET_FOCUS_DELAY = 360
 
 type FilterTransitionPhase = 'idle' | 'leaving' | 'entering'
 
-/** 편집 중인 Look과 옷장 탐색을 연결한다. 아이템 추가·제거와 종류 선택은 composer 세션에 맡긴다. */
-export function OutfitMatchPanel() {
+interface OutfitMatchPanelProps {
+  isWardrobeExpanded: boolean
+  onWardrobeExpandedChange: (expanded: boolean) => void
+}
+
+/** 편집 중인 Look과 옷장 탐색을 연결한다. 시트 표시 상태는 하단 버튼과 함께 부모가 관리한다. */
+export function OutfitMatchPanel({ isWardrobeExpanded, onWardrobeExpandedChange }: OutfitMatchPanelProps) {
   const navigate = useNavigate()
   const pushToast = useUiStore((state) => state.pushToast)
   const {
@@ -33,19 +41,27 @@ export function OutfitMatchPanel() {
     selectedItems,
     targetCategory,
     targetOptions,
+    replacementItemId,
     recommendedCategory,
     step,
     toggleItem,
+    removeItem,
     selectTargetCategory,
+    selectReplacementItem,
   } = useOutfitComposer()
   const [startCategory, setStartCategory] =
     useState<ClothingCategory | null>(null)
-  /** 시작 단계와 다음 아이템 단계가 바뀌어도 모바일 옷장 시트 상태를 유지한다. */
-  const [isWardrobeExpanded, setIsWardrobeExpanded] = useState(false)
-  const previousSelectedCountRef = useRef(selectedIds.length)
+  const lastSlotTriggerRef = useRef<HTMLElement | null>(null)
+  const wasWardrobeExpandedRef = useRef(isWardrobeExpanded)
   const [startSubcategory, setStartSubcategory] = useState<string | null>(null)
   const [filterTransitionPhase, setFilterTransitionPhase] =
     useState<FilterTransitionPhase>('idle')
+  /** 여러 아이템이 들어간 칸이 꽉 찼을 때 교체할 아이템을 고르는 단계. */
+  const [replacementSlotCategory, setReplacementSlotCategory] = useState<OutfitSelectionCategory | null>(null)
+  /** 옷장 목록의 색상 필터. 추천 색과 옷장 필터 칩이 같은 값을 읽고 변경한다. */
+  const [colorFilter, setColorFilter] = useState<OutfitColorFilter | null>(null)
+  /** Look 칸 또는 추천 색을 고를 때 추천 덮개와 옷장 검색·계절 조건을 새로 여는 번호. */
+  const [wardrobeViewRevision, setWardrobeViewRevision] = useState(0)
   const filterTransitionTimersRef = useRef<number[]>([])
   const contentRef = useRef<HTMLDivElement>(null)
   const lastSelectedItem = selectedItems[selectedItems.length - 1]
@@ -72,7 +88,11 @@ export function OutfitMatchPanel() {
       (startSubcategory === null || item.subcategory === startSubcategory),
   )
   // 상의 칸은 원피스와 조합 위치를 공유한다. 원피스를 넣을 수 있을 때만 같은 옷장 목록에 표시한다.
-  const canChooseDressFromTop = targetCategory === 'top' && targetOptions.includes('dress')
+  const replacingItem = selectedItems.find((item) => item.id === replacementItemId) ?? null
+  const canChooseDressFromTop = targetCategory === 'top' && (
+    targetOptions.includes('dress') ||
+    (Boolean(replacingItem) && !selectedItems.some((item) => item.id !== replacingItem?.id && item.category === 'bottom'))
+  )
   const targetClosetItems = targetCategory
     ? classifiedItems.filter(
         (item) =>
@@ -80,6 +100,9 @@ export function OutfitMatchPanel() {
             (canChooseDressFromTop && matchesOutfitSelectionCategory(item, 'dress'))) &&
           !selectedIds.includes(item.id),
       )
+    : []
+  const currentTargetSlotItems = targetCategory
+    ? selectedItems.filter((item) => getOutfitSlotId(item) === getOutfitSlotId(targetCategory))
     : []
   const hasTargetClosetCandidates = targetCategory !== null && targetClosetItems.some(
     (item) => matchesOutfitSelectionCategory(item, targetCategory),
@@ -153,33 +176,74 @@ export function OutfitMatchPanel() {
     contentRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
   }, [selectedIds.length, step, targetCategory])
 
-  // 옷을 추가·제거하거나 전체 해제하면 시트를 닫아 변경된 Look의 모든 칸을 보여준다.
+  // 모바일에서 열림 전환이 끝나면 닫기 버튼으로, 닫으면 원래 누른 Look 칸으로 초점을 돌린다.
   useEffect(() => {
-    if (selectedIds.length !== previousSelectedCountRef.current) {
-      setIsWardrobeExpanded(false)
+    if (wasWardrobeExpandedRef.current === isWardrobeExpanded) return
+    wasWardrobeExpandedRef.current = isWardrobeExpanded
+    if (isWardrobeExpanded && !window.matchMedia('(max-width: 767px)').matches) return
+    const focusTimer = window.setTimeout(() => {
+      if (isWardrobeExpanded) {
+        document.querySelector<HTMLElement>('.outfit-styling-layout__drawer-toggle')?.focus({ preventScroll: true })
+      } else {
+        const trigger = lastSlotTriggerRef.current?.isConnected
+          ? lastSlotTriggerRef.current
+          : document.querySelector<HTMLElement>('.composer-look-canvas__slot-action')
+        trigger?.focus({ preventScroll: true })
+      }
+    }, isWardrobeExpanded && !window.matchMedia('(prefers-reduced-motion: reduce)').matches ? SHEET_FOCUS_DELAY : 0)
+    return () => window.clearTimeout(focusTimer)
+  }, [isWardrobeExpanded])
+
+  useEffect(() => {
+    const mobileViewport = window.matchMedia('(max-width: 767px)')
+    const closeWhenDesktop = () => {
+      if (!mobileViewport.matches) onWardrobeExpandedChange(false)
     }
-    previousSelectedCountRef.current = selectedIds.length
-  }, [selectedIds.length])
+    mobileViewport.addEventListener('change', closeWhenDesktop)
+    return () => mobileViewport.removeEventListener('change', closeWhenDesktop)
+  }, [onWardrobeExpandedChange])
 
   const selectCanvasSlot = (category: OutfitSelectionCategory) => {
-    if (!targetOptions.includes(category)) {
+    lastSlotTriggerRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
+    const slotCategory = category === 'dress' ? 'top' : category
+    const currentSlotItems = selectedItems.filter((item) => getOutfitSlotId(item) === getOutfitSlotId(slotCategory))
+    const canAdd = targetOptions.includes(category)
+    if (!canAdd && currentSlotItems.length === 0) {
       pushToast('이 종류의 옷을 바꾸려면 먼저 선택한 아이템을 빼주세요.')
       return
     }
-    setIsWardrobeExpanded(true)
-    selectTargetCategory(category)
+    setWardrobeViewRevision((current) => current + 1)
+    setColorFilter(null)
+    if (window.matchMedia('(max-width: 767px)').matches) {
+      onWardrobeExpandedChange(true)
+    }
+    if (!canAdd && currentSlotItems.length > 1) {
+      setReplacementSlotCategory(slotCategory)
+      return
+    }
+    setReplacementSlotCategory(null)
+    if (!canAdd) {
+      selectReplacementItem(currentSlotItems[0].id, slotCategory)
+    } else {
+      selectTargetCategory(category)
+    }
   }
 
-  if (step === 'start') {
-    return (
-      <OutfitStylingLayout
-        selectedItems={selectedItems}
-        selectableCategories={targetOptions}
-        isWardrobeExpanded={isWardrobeExpanded}
-        onWardrobeExpandedChange={setIsWardrobeExpanded}
-        onSlotSelect={selectCanvasSlot}
-        onItemRemove={toggleItem}
-      >
+  const changeWardrobeExpanded = (expanded: boolean) => {
+    onWardrobeExpandedChange(expanded)
+    if (!expanded) setReplacementSlotCategory(null)
+  }
+
+  /** 추천 색을 고르면 현재 종류의 옷장에 색 필터만 남기도록 목록을 새로 연다. */
+  const selectRecommendedColor = (color: OutfitColorFilter) => {
+    setColorFilter({ ...color, source: 'recommendation' })
+    setWardrobeViewRevision((current) => current + 1)
+    contentRef.current?.scrollTo({ top: 0, behavior: 'auto' })
+  }
+
+  const startContent = (
       <section className="flex h-full min-h-0 w-full flex-col bg-canvas">
         <div className="shrink-0 px-5 pt-2">
           <span className="text-[10px] font-black tracking-[0.12em] text-accent">MY CLOSET</span>
@@ -224,9 +288,7 @@ export function OutfitMatchPanel() {
           </div>
         </div>
       </section>
-      </OutfitStylingLayout>
-    )
-  }
+  )
 
   const lastSelectionCategory = lastSelectedItem
     ? getOutfitSelectionCategory(lastSelectedItem)
@@ -237,24 +299,34 @@ export function OutfitMatchPanel() {
   const stepAnimationKey = `${selectedIds.join('-')}-${step}-${targetCategory}`
 
   return (
-    <>
       <OutfitStylingLayout
         selectedItems={selectedItems}
         selectableCategories={targetOptions}
         isWardrobeExpanded={isWardrobeExpanded}
-        onWardrobeExpandedChange={setIsWardrobeExpanded}
+        onWardrobeExpandedChange={changeWardrobeExpanded}
         onSlotSelect={selectCanvasSlot}
-        onItemRemove={toggleItem}
-        wardrobeAction={step === 'items' && recommendationCategory && recommendationCategory !== 'bag' && selectedIds.length > 0 ? (
+        onItemRemove={removeItem}
+        wardrobeAction={!replacementSlotCategory && step === 'items' && recommendationCategory && recommendationCategory !== 'bag' && selectedIds.length > 0 ? (
           <OutfitStyleSuggestion
-            key={targetCategory}
+            key={`${targetCategory}-${wardrobeViewRevision}`}
             category={recommendationCategory}
             selectedItemIds={selectedIds}
             hasClosetCandidates={hasRecommendationCandidates}
             onAddItem={toggleItem}
+            onColorSelect={selectRecommendedColor}
           />
         ) : undefined}
       >
+      {replacementSlotCategory ? (
+        <OutfitReplacementPicker
+          category={replacementSlotCategory}
+          items={selectedItems.filter((item) => getOutfitSlotId(item) === getOutfitSlotId(replacementSlotCategory))}
+          onChoose={(item) => {
+            selectReplacementItem(item.id, replacementSlotCategory)
+            setReplacementSlotCategory(null)
+          }}
+        />
+      ) : step === 'start' ? startContent : (
       <section className="flex h-full min-h-0 w-full flex-col bg-canvas">
         <div
           className="outfit-step-enter flex min-h-0 flex-1 flex-col"
@@ -285,7 +357,11 @@ export function OutfitMatchPanel() {
                     return (
                       <button
                         type="button"
-                        onClick={() => selectTargetCategory(category)}
+                        onClick={() => {
+                          setColorFilter(null)
+                          setWardrobeViewRevision((current) => current + 1)
+                          selectTargetCategory(category)
+                        }}
                         className={`relative min-h-24 rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 ${
                           isRecommended
                             ? 'border-accent bg-accent/5'
@@ -335,9 +411,15 @@ export function OutfitMatchPanel() {
             ) : (
               <div>
                 <OutfitItemBrowser
+                  key={wardrobeViewRevision}
                   category={targetCategory}
                   categoryLabel={canChooseDressFromTop ? '상의·원피스' : undefined}
                   items={targetClosetItems}
+                  currentItems={currentTargetSlotItems}
+                  replacingItem={replacingItem}
+                  colorFilter={colorFilter}
+                  onColorFilterChange={setColorFilter}
+                  onReplaceItem={(item) => selectReplacementItem(item.id, targetCategory)}
                   onSelect={toggleItem}
                   onOpenCloset={() => navigate('/closet')}
                 />
@@ -346,8 +428,7 @@ export function OutfitMatchPanel() {
           </div>
         </div>
       </section>
+      )}
       </OutfitStylingLayout>
-
-    </>
   )
 }

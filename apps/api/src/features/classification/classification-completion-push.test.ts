@@ -58,3 +58,34 @@ test('계정이 없는 옷 분석 요청에는 푸시를 보내지 않는다', a
   assert.equal(response.json().data?.classifyWardrobeImage?.suggestedName, '테스트 옷')
   assert.equal(send.mock.callCount(), 0)
 })
+
+test('분류와 별도로 투명 옷 사진을 다시 요청할 수 있다', async (t) => {
+  t.mock.method(
+    authService,
+    'getViewer',
+    async () => ({ id: 'user-one' }) as Awaited<ReturnType<typeof authService.getViewer>>,
+  )
+  const createCutout = t.mock.method(
+    classificationService,
+    'createCutout',
+    async () => ({ imageBase64: 'cG5n', mimeType: 'image/png' }),
+  )
+  const app = await buildApp()
+  t.after(() => app.close())
+
+  const response = await app.inject({
+    method: 'POST',
+    url: '/graphql',
+    headers: { authorization: 'Bearer session-secret' },
+    payload: {
+      query: 'mutation { removeWardrobeImageBackground(input: { imageBase64: "dGVzdA==", mimeType: "image/jpeg" }) { imageBase64 mimeType } }',
+    },
+  })
+
+  assert.equal(response.json().errors, undefined)
+  assert.deepEqual(response.json().data?.removeWardrobeImageBackground, {
+    imageBase64: 'cG5n',
+    mimeType: 'image/png',
+  })
+  assert.equal(createCutout.mock.callCount(), 1)
+})
