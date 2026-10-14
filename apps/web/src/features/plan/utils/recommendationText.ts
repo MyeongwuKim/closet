@@ -3,7 +3,7 @@ import type { TodayOutfitRecommendation } from '@closet/types'
 /** 저장된 AI 설명에 코드·반복 기호가 붙었으면 그 지점 이후를 제외한다. 정상 문구는 보존하며 원본 기록을 수정하지 않는다. */
 export function cleanRecommendationText(value: string): string {
   const corruptionIndex = value.search(
-    /\b(?:java|javax)\.[a-z][\w.]*|(?:[\][}{();]\s*){6,}|```/iu,
+    /\b(?:java|javax)\.[a-z][\w.]*|(?:[\][}{();]\s*){6,}|(?:[}\]]\s*){2,}|[}\]]\s*$|```/iu,
   )
   if (corruptionIndex < 0) return value.trim()
 

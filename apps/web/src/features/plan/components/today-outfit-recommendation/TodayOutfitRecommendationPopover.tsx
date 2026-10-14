@@ -8,6 +8,7 @@ import { useUiStore } from '../../../../stores/useUiStore'
 import { useTodayOutfitRecommendationFlow } from '../../hooks/useTodayOutfitRecommendationFlow'
 import { RecommendationHistoryDialog } from './RecommendationHistoryDialog'
 import { RecommendationPlannerStatus } from './RecommendationPlannerStatus'
+import { RecommendationColorSchemeStep } from './steps/RecommendationColorSchemeStep'
 import { RecommendationIntroStep } from './steps/RecommendationIntroStep'
 import { RecommendationResultStep } from './steps/RecommendationResultStep'
 import { RecommendationSeasonStep } from './steps/RecommendationSeasonStep'
@@ -31,6 +32,7 @@ export function TodayOutfitRecommendationPopover({
   const {
     step,
     seasonChoice,
+    colorScheme,
     selectedSeason,
     meQuery,
     plannerWeekQuery,
@@ -75,6 +77,13 @@ export function TodayOutfitRecommendationPopover({
         onSelect={actions.selectSeason}
       />
     )
+  } else if (step === 'color-scheme' || !colorScheme) {
+    stepContent = (
+      <RecommendationColorSchemeStep
+        onBack={actions.showSeasons}
+        onSelect={actions.selectColorScheme}
+      />
+    )
   } else if (
     !meQuery.data || meQuery.isError ||
     (seasonChoice === 'current-weather' && (!locationWeather.weather || locationWeather.isLoading))
@@ -88,7 +97,8 @@ export function TodayOutfitRecommendationPopover({
           if (weatherError) locationWeather.actions.retry()
           else void meQuery.refetch()
         }}
-        onBack={actions.showSeasons}
+        onBack={actions.showColorSchemes}
+        backLabel="색감 다시 선택"
       />
     )
   } else if (plannerWeekQuery.isError || !plannerWeekQuery.data) {
@@ -105,13 +115,14 @@ export function TodayOutfitRecommendationPopover({
         viewerId={meQuery.data.id}
         date={date}
         season={selectedSeason}
+        colorScheme={colorScheme}
         hasTodayOutfit={hasTodayOutfit}
         baseItemId={baseItem?.id}
         weather={
           seasonChoice === 'current-weather' ? locationWeather.weather : null
         }
         onOpenCloset={openCloset}
-        onBack={actions.showSeasons}
+        onBack={actions.showColorSchemes}
       />
     )
   }
@@ -125,7 +136,7 @@ export function TodayOutfitRecommendationPopover({
     >
       <section
         ref={popoverRef}
-        className="ai-recommendation-sheet relative flex w-full max-w-xl flex-col overflow-hidden rounded-t-[1.75rem] border border-line border-b-0 bg-surface shadow-[0_-12px_48px_rgba(27,27,24,0.16)]"
+        className="ai-recommendation-sheet ai-recommendation-sheet--flow relative flex w-full max-w-xl flex-col overflow-hidden rounded-t-[1.75rem] border border-line border-b-0 bg-surface shadow-[0_-12px_48px_rgba(27,27,24,0.16)]"
         role="dialog"
         aria-modal="true"
         aria-label={baseItem ? '이 옷으로 AI 코디 추천' : '오늘의 AI 코디 추천'}

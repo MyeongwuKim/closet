@@ -167,7 +167,6 @@ header button:focus-visible {
 .plan-today-page > div:first-child { flex-shrink: 0; }
 .plan-today-page .plan-view-tabs { flex-shrink: 0; margin-top: 8px; }
 .plan-today-page .plan-period-header { flex-shrink: 0; margin-top: 8px; padding-bottom: 0; align-items: center; }
-.plan-today-page .plan-period-header h2 { font-size: 1rem; }
 .plan-today-card { margin-top: 8px; }
 .plan-today-card .dressing-board { height: auto; min-height: 0; flex: 1; border: 0; border-radius: 0; }
 @media (max-width: 767px) and (max-height: 640px) {
@@ -631,12 +630,17 @@ header button:focus-visible {
   animation: selection-bar-enter 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* AI 추천 단계·기록·설명을 같은 높이의 하단 시트로 표시한다. 작은 화면에서는 위쪽 여유를 남긴다. */
+/* AI 추천 시트의 기본 높이. 기록·설명 팝업은 이 높이를 사용하고 작은 화면에서는 위쪽 여유를 남긴다. */
 .ai-recommendation-sheet {
   height: min(calc(25rem + env(safe-area-inset-bottom)), 74dvh);
   max-height: calc(100dvh - 1.5rem);
   padding-bottom: env(safe-area-inset-bottom);
   animation: ai-recommendation-sheet-enter 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 소개·계절·색감·결과 단계는 한 높이를 사용하고 넘치는 내용만 시트 안에서 스크롤한다. */
+.ai-recommendation-sheet--flow {
+  height: min(calc(30rem + env(safe-area-inset-bottom)), 80dvh);
 }
 
 .ai-recommendation-chat-enter {

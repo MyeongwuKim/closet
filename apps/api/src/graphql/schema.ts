@@ -492,6 +492,7 @@ export const typeDefs = `#graphql
     profileSummary: [String!]!
     model: String!
     source: String!
+    colorSchemeApplied: Boolean!
     weather: WeatherSnapshot
   }
 
@@ -563,6 +564,7 @@ export const typeDefs = `#graphql
   input TodayOutfitRecommendationInput {
     date: String!
     season: Season!
+    colorScheme: String
     baseItemId: ID
     style: OutfitStyle
     variation: Int

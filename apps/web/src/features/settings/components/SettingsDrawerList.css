@@ -1,95 +1,178 @@
-/* 메뉴 목록에만 수납장의 프레임을 둔다. 제목 아래 간격은 다른 탭의 첫 필터와 맞춘다. */
-.settings-cabinet {
-  position: relative;
+.settings-menu {
   display: grid;
-  gap: 3px;
-  margin-top: 8px;
-  padding: 5px 6px 10px;
-  border: 1px solid color-mix(in srgb, var(--color-wood) 60%, var(--color-line));
-  border-radius: 9px;
-  background: linear-gradient(90deg, #d4c5b1, #e2d6c4 48%, #d4c5b1);
-  box-shadow: 0 12px 24px -20px rgb(67 57 47 / 32%);
+  gap: 28px;
+  width: min(100%, 680px);
+  margin-top: 22px;
 }
 
-.settings-drawer {
-  position: relative;
+/* 스타일 프로필은 단일 카드로 강조하고 얇은 나무색 선만 옷장 분위기로 남긴다. */
+.settings-profile-card {
   display: flex;
-  min-height: 86px;
+  min-height: 116px;
   align-items: center;
-  gap: 14px;
-  padding: 17px 15px 26px;
-  border-radius: 3px;
-  background: linear-gradient(180deg, #fffcf6, #f4efe6);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 85%), 0 1px 1px rgb(67 57 47 / 14%);
-  transition: transform 160ms ease-out, box-shadow 160ms ease-out;
+  gap: 17px;
+  padding: 20px 22px;
+  border: 1px solid var(--color-line);
+  border-top: 5px solid color-mix(in srgb, var(--color-wood) 70%, var(--color-line));
+  border-radius: 16px;
+  background: linear-gradient(145deg, var(--color-surface), #faf6ef);
+  box-shadow: 0 9px 24px -18px rgb(67 57 47 / 24%);
+  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
 }
 
-/* 서랍 면 아래에 얕은 손잡이 홈을 표현한다. */
-.settings-drawer::after {
-  position: absolute;
-  bottom: 10px;
-  left: 50%;
+.settings-profile-icon {
+  display: grid;
   width: 46px;
-  height: 3px;
-  content: '';
-  transform: translateX(-50%);
-  border-radius: 2px;
-  background: #b7a48c;
-  box-shadow: inset 0 1px 1px rgb(67 57 47 / 20%), 0 1px 0 rgb(255 255 255 / 80%);
+  height: 46px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-sage);
+  color: var(--color-accent);
 }
 
-.settings-drawer-icon {
+.settings-profile-copy {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 6px;
+}
+
+.settings-profile-copy strong {
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.settings-profile-copy span {
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.settings-menu-group {
+  min-width: 0;
+}
+
+.settings-menu-heading {
+  margin: 0 0 10px 2px;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -.015em;
+}
+
+.settings-menu-card {
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: 15px;
+  background: var(--color-surface);
+  box-shadow: 0 8px 22px -20px rgb(67 57 47 / 20%);
+}
+
+.settings-menu-row {
+  display: flex;
+  min-height: 64px;
+  align-items: center;
+  gap: 15px;
+  padding: 13px 20px;
+  color: var(--color-ink);
+  font-size: 14px;
+  font-weight: 600;
+  transition: background-color 160ms ease, transform 160ms ease;
+}
+
+.settings-menu-row + .settings-menu-row {
+  border-top: 1px solid var(--color-line);
+}
+
+.settings-menu-icon {
   flex-shrink: 0;
   color: var(--color-accent);
 }
 
-.settings-drawer-copy {
-  flex: 1;
-  min-width: 0;
+.settings-menu-arrow {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--color-muted);
 }
 
-.settings-drawer-copy > strong {
-  display: block;
+.settings-profile-card[data-opening='true'],
+.settings-menu-row[data-opening='true'] {
+  transform: translateY(2px);
+  background-color: var(--color-sage);
+}
+
+.settings-account {
+  width: min(100%, 680px);
+  margin-top: 32px;
+  border-top: 1px solid var(--color-line);
+  padding-top: 12px;
+}
+
+.settings-logout {
+  display: flex;
+  width: 100%;
+  min-height: 64px;
+  align-items: center;
+  gap: 15px;
+  padding: 10px 8px;
+  border-radius: 12px;
+  color: var(--color-ink);
+  text-align: left;
+  transition: background-color 160ms ease;
+}
+
+.settings-logout-icon {
+  flex-shrink: 0;
+  color: var(--color-accent);
+}
+
+.settings-logout-copy {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 2px;
+}
+
+.settings-logout-copy strong {
   font-size: 14px;
   font-weight: 600;
 }
 
-.settings-drawer-copy > span {
-  display: block;
-  margin-top: 5px;
+.settings-logout-copy span {
+  overflow: hidden;
   color: var(--color-muted);
-  font-size: 11px;
-  line-height: 1.6;
+  font-size: 12px;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.settings-drawer-arrow {
-  flex-shrink: 0;
-  color: #9f8e7b;
-}
-
-.settings-drawer[data-opening='true'] {
-  z-index: 1;
-  transform: translateY(2px) scale(1.012);
-  box-shadow: inset 0 1px 0 white, 0 5px 10px rgb(67 57 47 / 16%);
-}
-
-.settings-account {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-top: 24px;
-  padding: 4px 2px;
+.settings-logout:disabled {
+  cursor: default;
+  opacity: .55;
 }
 
 @media (hover: hover) {
-  .settings-drawer:hover {
+  .settings-profile-card:hover {
+    border-color: var(--color-wood);
     background: var(--color-surface);
+  }
+
+  .settings-menu-row:hover,
+  .settings-logout:not(:disabled):hover {
+    background: color-mix(in srgb, var(--color-sage) 45%, var(--color-surface));
   }
 }
 
+@media (max-width: 380px) {
+  .settings-profile-card { gap: 13px; padding-inline: 16px; }
+  .settings-menu-row { gap: 13px; padding-inline: 16px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .settings-drawer {
-    transition: none;
-  }
+  .settings-profile-card,
+  .settings-menu-row,
+  .settings-logout { transition: none; }
 }

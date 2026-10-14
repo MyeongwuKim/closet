@@ -8,6 +8,7 @@ import type {
   FashionPattern,
   FashionSilhouette,
   FashionTexture,
+  TodayOutfitColorScheme,
 } from '@closet/types'
 import { colorHexToRgb } from '../classification/color.js'
 
@@ -102,6 +103,71 @@ function colorHexToOklch(value: string | null): OklchColor | null {
 function getHueDistance(left: number, right: number) {
   const distance = Math.abs(left - right)
   return Math.min(distance, 360 - distance)
+}
+
+const COLOR_SCHEME_NEUTRAL_CHROMA_MAX = NEUTRAL_CHROMA_MAX
+const COLOR_SCHEME_ACCENT_SUPPORT_CHROMA_MAX = 0.08
+const COLOR_SCHEME_ACCENT_CHROMA_MIN = 0.13
+const mainColorCategories = new Set<ClothingCategory>([
+  'top', 'bottom', 'dress', 'outer', 'midlayer',
+])
+
+/**
+ * 주요 옷의 대표색과 확인된 신발·액세서리 색으로 요청한 색 조합이 성립하는지 판정한다.
+ * 주요 옷의 색이 없거나 다색·패턴이면 조합을 확정하지 않고, 색을 모르는 보조 아이템은 판정에서 제외한다.
+ */
+export function getColorSchemeFitScore(
+  items: StyleRuleItem[],
+  colorScheme: TodayOutfitColorScheme,
+): number {
+  if (colorScheme === 'auto') return 1
+  const mainItems = items.filter((item) => item.category && mainColorCategories.has(item.category))
+  if (mainItems.length === 0) return 0
+  const mainColors = mainItems.map((item) =>
+    item.colorMode === 'patterned' || item.colorMode === 'multicolor'
+      ? null
+      : colorHexToOklch(item.colorHex),
+  )
+  if (mainColors.some((color) => color === null)) return 0
+  const secondaryColors = items
+    .filter((item) => !item.category || !mainColorCategories.has(item.category))
+    .map((item) => colorHexToOklch(item.colorHex))
+    .filter((color): color is OklchColor => color !== null)
+  const knownColors = [...mainColors as OklchColor[], ...secondaryColors]
+  const chromaticColors = knownColors.filter(
+    (color) => color.chroma > COLOR_SCHEME_NEUTRAL_CHROMA_MAX,
+  )
+
+  if (colorScheme === 'achromatic') {
+    return chromaticColors.length === 0 ? 1 : 0
+  }
+  if (knownColors.length < 2) return 0
+  if (colorScheme === 'accent') {
+    const accents = knownColors.filter(
+      (color) => color.chroma >= COLOR_SCHEME_ACCENT_CHROMA_MIN,
+    )
+    return accents.length === 1 && knownColors.every(
+      (color) => color === accents[0] || color.chroma <= COLOR_SCHEME_ACCENT_SUPPORT_CHROMA_MAX,
+    ) ? 1 : 0
+  }
+  if (chromaticColors.length < 2) return 0
+
+  const pairs = chromaticColors.flatMap((left, index) =>
+    chromaticColors.slice(index + 1).map((right) => ({
+      hueDistance: getHueDistance(left.hue, right.hue),
+      lightnessDistance: Math.abs(left.lightness - right.lightness),
+      chromaDistance: Math.abs(left.chroma - right.chroma),
+    })),
+  )
+  if (colorScheme === 'tone-on-tone') {
+    return pairs.every((pair) => pair.hueDistance <= 25) &&
+      pairs.some((pair) => pair.lightnessDistance >= 0.08 && pair.lightnessDistance <= 0.5)
+      ? 1 : 0
+  }
+  return pairs.every((pair) =>
+    pair.lightnessDistance <= 0.14 && pair.chromaDistance <= 0.08,
+  ) && pairs.some((pair) => pair.hueDistance >= 25)
+    ? 1 : 0
 }
 
 function getColorNameScore(left: StyleRuleItem, right: StyleRuleItem) {
@@ -474,6 +540,7 @@ function scoreCombination<T extends StyleRuleItem>(
   items: T[],
   season: Season,
   apparentTemperatureC?: number,
+  colorScheme: TodayOutfitColorScheme = 'auto',
 ) {
   const pairs: Array<[T, T]> = []
   items.forEach((item, index) => {
@@ -514,7 +581,8 @@ function scoreCombination<T extends StyleRuleItem>(
     (hasShoes ? 2 : 0) +
     layerScore -
     patternPenalty -
-    summerWarmthPenalty
+    summerWarmthPenalty +
+    (colorScheme === 'auto' ? 0 : getColorSchemeFitScore(items, colorScheme) * 4)
   )
 }
 
@@ -522,11 +590,14 @@ function scoreCombination<T extends StyleRuleItem>(
  * 각 역할의 후보를 색 궁합과 최근 착용 기록으로 정렬해 최대 8개 남긴다.
  * 기준 옷이 있으면 그 옷과의 색 궁합을, 없으면 다른 종류 옷과의 평균 궁합을 비교한다.
  * 기준 옷은 점수와 무관하게 맨 앞에 두어 후보 제한으로 빠지지 않게 한다.
+ * 색감을 선택했다면 기본 순위 4개와 다른 역할의 옷과 색 조합을 이루는 후보 최대 4개를 함께 남긴다.
+ * 기준 옷이 있으면 제한된 후보 안에 그 옷과 색감이 맞는 옷을 먼저 포함한다.
  */
 function sortPool<T extends StyleRuleItem>(
   items: T[],
   wardrobeItems: T[],
   baseItemId?: string,
+  colorScheme: TodayOutfitColorScheme = 'auto',
 ) {
   const baseItem = wardrobeItems.find((item) => item.id === baseItemId)
   const scores = new Map(items.map((item) => {
@@ -538,12 +609,26 @@ function sortPool<T extends StyleRuleItem>(
       : 0
     return [item.id, colorScore + getRotationScore(item)]
   }))
-  return [...items]
+  const sorted = [...items]
     .sort((left, right) =>
       Number(right.id === baseItemId) - Number(left.id === baseItemId) ||
       scores.get(right.id)! - scores.get(left.id)!,
     )
-    .slice(0, 8)
+  if (colorScheme === 'auto') return sorted.slice(0, 8)
+
+  // 색감에 맞는 옷이 일반 색 궁합 순위에서 밀려도 역할별 후보 8개 안에 남긴다.
+  const baseline = sorted.slice(0, 4)
+  const baselineIds = new Set(baseline.map((item) => item.id))
+  const fitWithBase = (item: T) => baseItem && baseItem.category !== item.category
+    ? getColorSchemeFitScore([item, baseItem], colorScheme)
+    : 0
+  const matching = sorted.filter((item) => !baselineIds.has(item.id) && wardrobeItems.some(
+    (partner) => partner.id !== item.id &&
+      partner.category !== item.category &&
+      getColorSchemeFitScore([item, partner], colorScheme) > 0,
+  )).sort((left, right) => fitWithBase(right) - fitWithBase(left))
+  return [...new Map([...baseline, ...matching.slice(0, 4), ...sorted]
+    .map((item) => [item.id, item])).values()].slice(0, 8)
 }
 
 function selectDiverseCombinations<T extends StyleRuleItem>(
@@ -626,13 +711,15 @@ function selectDiverseCombinations<T extends StyleRuleItem>(
  * 이너와 하의 또는 원피스를 갖춘 옷장 조합을 만들고 색·핏 균형·레이어·착용 기록으로 정렬한다.
  * 계절은 겉옷과 두께 평가에 사용하고, 기온이 있으면 더운 날의 보온성 옷을 후보에서 제외한다.
  * baseItemId가 있으면 모든 결과에 포함하며 함께 입을 기본 구성이 없으면 빈 배열을 반환한다.
- * 스타일 이름이나 선호 핏으로 옷을 제한하지 않고 최대 18개의 서로 다른 조합을 반환한다.
+ * 색감을 선택하고 만족하는 조합이 있으면 그 조합에서 최대 18개를 반환한다.
+ * 만족하는 조합이 없으면 일반 추천으로 돌아가며, 스타일 이름이나 선호 핏으로 옷을 제한하지 않는다.
  */
 export function buildOutfitCombinations<T extends StyleRuleItem>(
   items: T[],
   season: Season,
   baseItemId?: string,
   apparentTemperatureC?: number,
+  colorScheme: TodayOutfitColorScheme = 'auto',
 ) {
   if (baseItemId !== undefined && !items.some((item) => item.id === baseItemId)) {
     return []
@@ -648,9 +735,10 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
     }),
     availableItems,
     baseItemId,
+    colorScheme,
   )
-  const bottoms = sortPool(availableItems.filter((item) => includesCategory(item, 'bottom')), availableItems, baseItemId)
-  const dresses = sortPool(availableItems.filter((item) => includesCategory(item, 'dress')), availableItems, baseItemId)
+  const bottoms = sortPool(availableItems.filter((item) => includesCategory(item, 'bottom')), availableItems, baseItemId, colorScheme)
+  const dresses = sortPool(availableItems.filter((item) => includesCategory(item, 'dress')), availableItems, baseItemId, colorScheme)
   const midlayers = sortPool(
     availableItems.filter(
       (item) =>
@@ -658,6 +746,7 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
     ),
     availableItems,
     baseItemId,
+    colorScheme,
   )
   const outers = sortPool(
     availableItems.filter(
@@ -666,12 +755,14 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
     ),
     availableItems,
     baseItemId,
+    colorScheme,
   )
-  const shoes = sortPool(availableItems.filter((item) => includesCategory(item, 'shoes')), availableItems, baseItemId)
+  const shoes = sortPool(availableItems.filter((item) => includesCategory(item, 'shoes')), availableItems, baseItemId, colorScheme)
   const accessories = sortPool(
     availableItems.filter((item) => includesCategory(item, 'accessory')),
     availableItems,
     baseItemId,
+    colorScheme,
   )
   const combinations = new Map<string, T[]>()
 
@@ -695,13 +786,28 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
 
   const withShoes = (core: T[]) => {
     if (shoes.length === 0) return [core]
-    return shoes.slice(0, 3).map((item) => [...core, item])
+    const rankedShoes = colorScheme === 'auto'
+      ? shoes
+      : [...shoes].sort((left, right) =>
+          Number(right.id === baseItemId) - Number(left.id === baseItemId) ||
+          getColorSchemeFitScore([...core, right], colorScheme) -
+            getColorSchemeFitScore([...core, left], colorScheme),
+        )
+    return rankedShoes.slice(0, 3).map((item) => [...core, item])
   }
 
   const pushCore = (core: T[]) => {
     withShoes(core).forEach((selected) => {
       push(selected)
-      if (selected.length < 5 && accessories[0]) push([...selected, accessories[0]])
+      if (selected.length >= 5 || accessories.length === 0) return
+      const accessory = colorScheme === 'auto'
+        ? accessories[0]
+        : [...accessories].sort((left, right) =>
+            Number(right.id === baseItemId) - Number(left.id === baseItemId) ||
+            getColorSchemeFitScore([...selected, right], colorScheme) -
+              getColorSchemeFitScore([...selected, left], colorScheme),
+          )[0]
+      if (accessory) push([...selected, accessory])
     })
   }
 
@@ -731,11 +837,21 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
         selectedItems,
         season,
         apparentTemperatureC,
+        colorScheme,
       ),
     }))
     .sort((left, right) => right.score - left.score)
 
-  return selectDiverseCombinations(scoredCombinations, 18)
+  const matchingCombinations = colorScheme === 'auto'
+    ? scoredCombinations
+    : scoredCombinations.filter((combination) =>
+        getColorSchemeFitScore(combination.items, colorScheme) > 0,
+      )
+  if (colorScheme !== 'auto' && matchingCombinations.length === 0) {
+    return buildOutfitCombinations(items, season, baseItemId, apparentTemperatureC)
+  }
+
+  return selectDiverseCombinations(matchingCombinations, 18)
     .map((combination, index) => ({
       ...combination,
       id: `combination-${index + 1}`,

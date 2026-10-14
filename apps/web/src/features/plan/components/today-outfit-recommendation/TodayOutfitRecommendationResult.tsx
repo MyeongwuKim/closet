@@ -12,6 +12,7 @@ import { useWardrobeItemsQuery } from '../../../closet/api/wardrobeQueries'
 import { ClosetItemVisual } from '../../../closet/components/ClosetItemVisual'
 import { useClosetStore } from '../../../closet/stores/useClosetStore'
 import { useTodayOutfitRecommendationResult } from '../../hooks/useTodayOutfitRecommendationResult'
+import { getColorSchemeLabel, type ColorScheme } from '../../data/colorSchemes'
 import { formatRecommendationHeadline } from '../../utils/todayOutfitRecommendation'
 import { TodayOutfitRecommendationDialog } from '../TodayOutfitRecommendationDialog'
 import { TodayOutfitRecommendationLoading } from '../TodayOutfitRecommendationLoading'
@@ -22,6 +23,7 @@ interface TodayOutfitRecommendationResultProps {
   viewerId: string
   date: string
   season: Season
+  colorScheme: ColorScheme
   baseItemId?: string
   weather?: WeatherSnapshot | null
   hasTodayOutfit: boolean
@@ -31,9 +33,11 @@ interface TodayOutfitRecommendationResultProps {
 function RecommendationRefreshLoading({
   items,
   season,
+  colorScheme,
 }: {
   items: WardrobeItem[]
   season: Season
+  colorScheme: ColorScheme
 }) {
   return (
     <div
@@ -65,7 +69,7 @@ function RecommendationRefreshLoading({
 
       <div className="min-w-0 flex-1">
         <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-1 text-[10px] font-black text-accent">
-          <Sparkles size={11} /> {seasonLabels[season]} · 옷장 추천
+          <Sparkles size={11} /> {seasonLabels[season]} · {colorScheme === 'auto' ? '옷장 추천' : getColorSchemeLabel(colorScheme)}
         </span>
         <h2 className="mt-2 text-sm leading-5 font-black tracking-[-0.02em]">
           다른 조합을 맞춰보고 있어요
@@ -83,11 +87,12 @@ function RecommendationRefreshLoading({
   )
 }
 
-/** 선택한 계절·기준 옷의 추천 조합을 조회해 썸네일과 설명을 나란히 표시한다. 내용은 내부에서 스크롤하고 재추천·오늘 일정 적용 버튼은 아래에 유지한다. 구성 수정과 긴 설명은 별도 팝업으로 연다. */
+/** 선택한 계절·색감·기준 옷의 추천 조합을 조회해 썸네일과 설명을 나란히 표시한다. 색감 조건을 적용하지 못한 결과에는 안내를 보여준다. 재추천·일정 적용은 아래에 유지하고 구성 수정과 긴 설명은 별도 팝업으로 연다. */
 export function TodayOutfitRecommendationResult({
   viewerId,
   date,
   season,
+  colorScheme,
   baseItemId,
   weather,
   hasTodayOutfit,
@@ -112,6 +117,7 @@ export function TodayOutfitRecommendationResult({
     viewerId,
     date,
     season,
+    colorScheme,
     baseItemId,
     weather,
     hasTodayOutfit,
@@ -178,6 +184,14 @@ export function TodayOutfitRecommendationResult({
     )
   }
 
+  const isColorSchemeFallback =
+    colorScheme !== 'auto' && recommendation.colorSchemeApplied === false
+  const recommendationLabel = isColorSchemeFallback
+    ? '기본 추천'
+    : colorScheme === 'auto'
+      ? '옷장 추천'
+      : getColorSchemeLabel(colorScheme)
+
   return (
     <>
       <section
@@ -193,14 +207,15 @@ export function TodayOutfitRecommendationResult({
                 : recommendation.items
             }
             season={season}
+            colorScheme={colorScheme}
           />
         ) : (
-          <div className="flex min-h-0 flex-1 items-center gap-3 overflow-y-auto pb-3">
+          <div className="flex min-h-0 flex-1 items-start gap-3 overflow-y-auto pb-3">
             <button
               type="button"
               onClick={() => setActiveOverlay('detail-result')}
               style={{ animationDelay: '140ms' }}
-              className="ai-recommendation-chat-enter group relative grid size-28 shrink-0 grid-cols-2 grid-rows-2 gap-1 rounded-xl bg-canvas p-1.5 text-left transition hover:ring-2 hover:ring-accent/30 focus-visible:outline-2 focus-visible:outline-accent"
+              className="ai-recommendation-chat-enter group relative my-auto grid size-28 shrink-0 grid-cols-2 grid-rows-2 gap-1 rounded-xl bg-canvas p-1.5 text-left transition hover:ring-2 hover:ring-accent/30 focus-visible:outline-2 focus-visible:outline-accent"
               aria-label="추천 코디 구성 변경하기"
             >
               {recommendation.items.slice(0, 4).map((item) => (
@@ -215,7 +230,7 @@ export function TodayOutfitRecommendationResult({
                 <ChevronRight size={13} />
               </span>
             </button>
-            <div className="min-w-0 flex-1">
+            <div className="my-auto min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span
                   className="ai-recommendation-chat-enter inline-flex min-w-0 items-center gap-1 rounded-full bg-accent/10 px-2 py-1 text-[10px] font-black text-accent"
@@ -223,7 +238,7 @@ export function TodayOutfitRecommendationResult({
                 >
                   <Sparkles className="shrink-0" size={11} />
                   <span className="truncate">
-                    {seasonLabels[season]} · 옷장 추천
+                    {seasonLabels[season]} · {recommendationLabel}
                   </span>
                 </span>
               </div>
@@ -239,6 +254,19 @@ export function TodayOutfitRecommendationResult({
               >
                 {recommendation.summary}
               </p>
+              {isColorSchemeFallback && (
+                <div
+                  className="mt-2 rounded-xl border border-accent/20 bg-accent/5 px-3 py-2 text-[11px] leading-4 text-ink"
+                  role="status"
+                >
+                  <strong className="block font-black">
+                    {getColorSchemeLabel(colorScheme)} 조합을 찾지 못했어요
+                  </strong>
+                  <span className="mt-0.5 block text-muted">
+                    이번에는 기본 추천을 보여드려요.
+                  </span>
+                </div>
+              )}
               {recommendation.weather && (
                 <WeatherSnapshotSummary weather={recommendation.weather} compact />
               )}
@@ -320,6 +348,8 @@ export function TodayOutfitRecommendationResult({
           reasons={recommendation.reasons}
           season={season}
           style={null}
+          colorScheme={colorScheme}
+          colorSchemeApplied={recommendation.colorSchemeApplied}
           items={recommendation.items}
           onClose={() => setActiveOverlay(null)}
           onOpenDetails={() => setActiveOverlay('detail-explanation')}

@@ -95,6 +95,7 @@ function createEntry(
       profileSummary: [],
       model: 'test',
       source: 'fallback',
+      colorSchemeApplied: true,
     },
   }
 }
@@ -104,7 +105,7 @@ test('기존 추천 기록의 깨진 설명을 복원할 때 제거하고 원본
     const entry = createEntry(1, 'autumn', null)
     storeTodayRecommendation('viewer-1', entry.date, entry.season, entry.style, entry.variation, entry.recommendation)
     entry.recommendation.summary = '상하의 색을 연결했어요. 」java.lang.String;}}}}}}'
-    entry.recommendation.reasons = ['여유로운 핏을 연결해요. }}}}}}}}', 'java.lang.String;}}}}}}']
+    entry.recommendation.reasons = ['여유로운 핏을 연결해요. }}}}}', 'java.lang.String;}}}}}}']
     const rawValue = JSON.stringify([entry])
     storage.setItem(storage.key(0)!, rawValue)
 
@@ -118,6 +119,8 @@ test('기존 추천 기록의 깨진 설명을 복원할 때 제거하고 원본
     }
     assert.equal(storage.getItem(storage.key(0)!), rawValue)
     assert.equal(cleanRecommendationText('그레이(멜란지)와 블랙을 연결해요.'), '그레이(멜란지)와 블랙을 연결해요.')
+    assert.equal(cleanRecommendationText('재킷의 비율을 정리합니다. }}}}}'), '재킷의 비율을 정리합니다.')
+    assert.equal(cleanRecommendationText('색을 연결해요. }'), '색을 연결해요.')
   })
 })
 
@@ -350,7 +353,10 @@ test('v8 일반 추천 기록을 유지하면서 기준 아이템 기록을 추�
     const legacyEntry = createEntry(1, 'autumn', 'casual')
     const legacyKey =
       'closet:today-outfit-recommendation:v8:viewer-1:2026-08-26:autumn:casual'
-    const legacyValue = JSON.stringify([legacyEntry])
+    const legacyValue = JSON.stringify([{
+      ...legacyEntry,
+      recommendation: { ...legacyEntry.recommendation, colorSchemeApplied: undefined },
+    }])
     storage.setItem(legacyKey, legacyValue)
 
     storeTodayRecommendation(
@@ -546,6 +552,7 @@ test('추천 쿼리 캐시는 일반 추천과 각 기준 아이템을 구분한
       'viewer-1',
       '2026-08-26',
       'autumn',
+      'auto',
       0,
       [],
       baseItemId,
@@ -567,6 +574,42 @@ test('추천 쿼리 캐시는 일반 추천과 각 기준 아이템을 구분한
   } finally {
     client.clear()
   }
+})
+
+test('색감별 추천은 캐시와 기록을 분리하고 기존 자동 기록은 유지한다', () => {
+  const client = new QueryClient()
+  const entry = createEntry(1, 'autumn', null)
+  const autoKey = queryKeys.planner.todayRecommendation(
+    'viewer-1', entry.date, entry.season, 'auto', 0, [],
+  )
+  const accentKey = queryKeys.planner.todayRecommendation(
+    'viewer-1', entry.date, entry.season, 'accent', 0, [],
+  )
+
+  try {
+    client.setQueryData(autoKey, entry.recommendation)
+    assert.equal(client.getQueryData(accentKey), undefined)
+  } finally {
+    client.clear()
+  }
+
+  withStorage((storage) => {
+    storeTodayRecommendation(
+      'viewer-1', entry.date, entry.season, null, 0, entry.recommendation,
+    )
+    storeTodayRecommendation(
+      'viewer-1', entry.date, entry.season, null, 0,
+      { ...entry.recommendation, colorSchemeApplied: false },
+      undefined,
+      'accent',
+    )
+
+    assert.equal(storage.length, 2)
+    assert.equal(readTodayRecommendationHistory('viewer-1', entry.date, entry.season, null)[0].colorScheme, undefined)
+    assert.equal(readTodayRecommendationHistory('viewer-1', entry.date, entry.season, null, undefined, 'accent')[0].colorScheme, 'accent')
+    assert.equal(readTodayRecommendationHistory('viewer-1', entry.date, entry.season, null, undefined, 'accent')[0].recommendation.colorSchemeApplied, false)
+    assert.equal(readAllRecentTodayRecommendationHistory('viewer-1', entry.date).length, 2)
+  })
 })
 
 

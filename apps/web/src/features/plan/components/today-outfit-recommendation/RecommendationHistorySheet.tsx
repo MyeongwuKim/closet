@@ -6,6 +6,7 @@ import {
   type OutfitStyle,
 } from '../../../../constants/styleOptions'
 import { seasonLabels } from '../../../../constants/seasons'
+import { getColorSchemeLabel } from '../../data/colorSchemes'
 import { ClosetItemVisual } from '../../../closet/components/ClosetItemVisual'
 import type { TodayRecommendationHistoryEntry } from '../../api/todayOutfitQueries'
 import { formatRecommendationHeadline } from '../../utils/todayOutfitRecommendation'
@@ -63,7 +64,11 @@ function RecommendationHistoryCard({
         <span className="flex flex-wrap items-center gap-x-1.5 text-[10px] font-bold text-muted">
           <span>
             {seasonLabels[recommendation.season]} ·{' '}
-            {recommendation.style ? getOutfitStyleLabel(recommendation.style as OutfitStyle) : '옷장 추천'}
+            {recommendation.style
+              ? getOutfitStyleLabel(recommendation.style as OutfitStyle)
+              : entry.colorScheme && entry.colorScheme !== 'auto'
+                ? getColorSchemeLabel(entry.colorScheme)
+                : '옷장 추천'}
           </span>
           <span aria-hidden="true">·</span>
           <span>{formatStoredAt(entry.createdAt)}</span>
@@ -196,7 +201,7 @@ export function RecommendationHistorySheet({
           ) : (
             entries.map((entry) => (
               <RecommendationHistoryCard
-                key={`${entry.baseItemId ?? 'all'}:${entry.season}:${entry.style}:${entry.id}`}
+                key={`${entry.baseItemId ?? 'all'}:${entry.season}:${entry.style}:${entry.colorScheme ?? 'auto'}:${entry.id}`}
                 entry={entry}
                 onSelect={onSelect}
               />

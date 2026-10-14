@@ -73,7 +73,8 @@ test('AI 분류가 실패해도 컷아웃이 있으면 옷 정보를 직접 입�
 
   const classificationDialog = page.getByRole('dialog', { name: 'AI 분석 결과' })
   await expect(classificationDialog.getByText('옷 정보를 직접 확인해주세요')).toBeVisible()
-  await page.screenshot({ path: '/private/tmp/closet-new-registration-manual.png', animations: 'disabled' })
+  mkdirSync('.playwright-mcp', { recursive: true })
+  await page.screenshot({ path: '.playwright-mcp/registration-manual.png', animations: 'disabled' })
   await classificationDialog.getByRole('textbox', { name: '아이템 이름' }).fill('직접 등록한 셔츠')
   await classificationDialog.getByRole('button', { name: '카테고리' }).click()
   const categoryDialog = page.getByRole('dialog', { name: '카테고리 선택' })

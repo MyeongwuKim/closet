@@ -1,9 +1,9 @@
 /**
  * 용도:
- * 오늘의 코디 추천을 조회하고 기준 아이템·날씨별 캐시와 추천 기록을 관리한다.
+ * 오늘의 코디 추천을 조회하고 기준 아이템·색감·날씨별 캐시와 추천 기록을 관리한다.
  *
  * 동작 방식:
- * 계절과 선택한 날씨를 GraphQL에 전달하고
+ * 계절·색감과 선택한 날씨를 GraphQL에 전달하고
  * 기준 아이템을 포함한 유효한 결과만 변환해 로컬 추천 기록에 저장한다.
  */
 import { useQuery } from '@tanstack/react-query'
@@ -14,6 +14,7 @@ import type {
 } from '@closet/types'
 import { graphqlRequest } from '../../../lib/graphql'
 import { queryKeys } from '../../../lib/queryKeys'
+import type { ColorScheme } from '../data/colorSchemes'
 import { normalizeRecommendationText } from '../utils/recommendationText'
 import {
   toWardrobeItem,
@@ -70,6 +71,7 @@ export function useTodayOutfitRecommendationQuery(
   viewerId: string,
   date: string,
   season: Season,
+  colorScheme: ColorScheme,
   variation: number,
   excludedOuterItemIds: string[],
   {
@@ -84,6 +86,7 @@ export function useTodayOutfitRecommendationQuery(
       viewerId,
       date,
       season,
+      colorScheme,
       variation,
       excludedOuterItemIds,
       baseItemId,
@@ -95,9 +98,10 @@ export function useTodayOutfitRecommendationQuery(
       !matchesTodayRecommendationBaseItem(initialData, baseItemId)
         ? undefined
         : initialData,
-    meta: { baseItemId },
+    meta: { baseItemId, colorScheme },
     placeholderData: (previousData, previousQuery) =>
       previousQuery?.meta?.baseItemId === baseItemId &&
+      previousQuery?.meta?.colorScheme === colorScheme &&
       (!previousData?.ready ||
         matchesTodayRecommendationBaseItem(previousData, baseItemId))
         ? previousData
@@ -112,6 +116,7 @@ export function useTodayOutfitRecommendationQuery(
           input: {
             date: string
             season: Season
+            colorScheme: ColorScheme
             variation: number
             excludedOuterItemIds: string[]
             baseItemId?: string
@@ -124,7 +129,7 @@ export function useTodayOutfitRecommendationQuery(
             $input: TodayOutfitRecommendationInput!
           ) {
             todayOutfitRecommendation(input: $input) {
-              date season ready headline summary style reasons
+              date season ready headline summary style reasons colorSchemeApplied
               profileSummary model source
               weather {
                 date temperatureC minTemperatureC maxTemperatureC
@@ -139,6 +144,7 @@ export function useTodayOutfitRecommendationQuery(
           input: {
             date,
             season,
+            colorScheme,
             variation,
             excludedOuterItemIds,
             ...(baseItemId !== undefined ? { baseItemId } : {}),
@@ -164,6 +170,7 @@ export function useTodayOutfitRecommendationQuery(
           variation,
           recommendation,
           baseItemId,
+          colorScheme,
         )
       }
       return recommendation

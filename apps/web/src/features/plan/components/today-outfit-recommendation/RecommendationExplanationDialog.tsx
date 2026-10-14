@@ -7,6 +7,7 @@ import {
   type OutfitStyle,
 } from '../../../../constants/styleOptions'
 import { seasonLabels } from '../../../../constants/seasons'
+import { getColorSchemeLabel, type ColorScheme } from '../../data/colorSchemes'
 import { ClosetItemVisual } from '../../../closet/components/ClosetItemVisual'
 import { formatRecommendationHeadline } from '../../utils/todayOutfitRecommendation'
 
@@ -16,6 +17,9 @@ interface RecommendationExplanationDialogProps {
   reasons: string[]
   season: Season
   style: OutfitStyle | null
+  colorScheme?: ColorScheme
+  /** false이면 요청한 색감 대신 기본 조합으로 추천한 이유를 알린다. */
+  colorSchemeApplied?: boolean
   items: WardrobeItem[]
   closeLabel?: string
   backLabel?: string
@@ -30,12 +34,24 @@ export function RecommendationExplanationDialog({
   reasons,
   season,
   style,
+  colorScheme = 'auto',
+  colorSchemeApplied = true,
   items,
   closeLabel = '추천 설명 닫기',
   backLabel,
   onClose,
   onOpenDetails,
 }: RecommendationExplanationDialogProps) {
+  const isColorSchemeFallback =
+    colorScheme !== 'auto' && !colorSchemeApplied
+  const recommendationLabel = style
+    ? getOutfitStyleLabel(style)
+    : isColorSchemeFallback
+      ? '기본 추천'
+      : colorScheme === 'auto'
+        ? '옷장 추천'
+        : getColorSchemeLabel(colorScheme)
+
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
@@ -110,13 +126,25 @@ export function RecommendationExplanationDialog({
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
           <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2.5 py-1.5 text-[11px] font-black text-accent">
-            <Sparkles size={12} /> {seasonLabels[season]} ·{' '}
-            {style ? getOutfitStyleLabel(style) : '옷장 추천'}
+            <Sparkles size={12} /> {seasonLabels[season]} · {recommendationLabel}
           </span>
           <h3 className="mt-3 text-lg leading-7 font-black tracking-[-0.025em]">
             {formatRecommendationHeadline(headline)}
           </h3>
           <p className="mt-3 text-sm leading-6 text-muted">{summary}</p>
+          {isColorSchemeFallback && (
+            <div
+              className="mt-3 rounded-xl border border-accent/20 bg-accent/5 px-3 py-2.5 text-xs leading-5 text-ink"
+              role="status"
+            >
+              <strong className="block font-black">
+                {getColorSchemeLabel(colorScheme)} 조합을 찾지 못했어요
+              </strong>
+              <span className="block text-muted">
+                이번에는 기본 추천을 보여드려요.
+              </span>
+            </div>
+          )}
 
           {reasons.length > 0 && (
             <div className="mt-5 border-t border-line pt-4">

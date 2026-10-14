@@ -4,6 +4,7 @@ import type { ClothingCategory } from '@prisma/client'
 import {
   buildOutfitCombinations,
   excludeOuterItems,
+  getColorSchemeFitScore,
   getColorHarmonyScore,
   type StyleRuleItem,
 } from './outfit-style-rules.js'
@@ -96,6 +97,115 @@ test('세부 중립색도 colorHex로 인식해 색상명 미인식보다 높게
     getColorHarmonyScore(withHex, blue) >
       getColorHarmonyScore(withoutHex, blue),
   )
+})
+
+test('색감 기준은 주요 옷의 실제 색을 비교하고 신발의 중립색은 제외한다', () => {
+  const darkBlue = createItem('dark-blue', 'top', '니트', { colorHex: '#254F82' })
+  const lightBlue = createItem('light-blue', 'bottom', '바지', { colorHex: '#82ACE0' })
+  const pink = createItem('pink', 'top', '셔츠', { colorHex: '#D77C7C' })
+  const mutedBlue = createItem('muted-blue', 'bottom', '바지', { colorHex: '#6B96C6' })
+  const black = createItem('black', 'top', '상의', { colorHex: '#242424' })
+  const white = createItem('white', 'bottom', '하의', { colorHex: '#F2F1EC' })
+  const red = createItem('red', 'top', '상의', { colorHex: '#E43C45' })
+  const whiteShoes = createItem('shoes', 'shoes', '신발', { colorHex: '#F2F1EC' })
+
+  assert.equal(getColorSchemeFitScore([darkBlue, lightBlue, whiteShoes], 'tone-on-tone'), 1)
+  assert.equal(getColorSchemeFitScore([pink, mutedBlue], 'tone-in-tone'), 1)
+  assert.equal(getColorSchemeFitScore([black, white], 'achromatic'), 1)
+  assert.equal(getColorSchemeFitScore([red, white], 'accent'), 1)
+  assert.equal(getColorSchemeFitScore([darkBlue, lightBlue], 'tone-in-tone'), 0)
+  assert.equal(getColorSchemeFitScore([black, white], 'tone-on-tone'), 0)
+  assert.equal(getColorSchemeFitScore([
+    { ...red, colorMode: 'patterned' }, white,
+  ], 'accent'), 0)
+})
+
+test('원피스는 무채색 단품으로 인정하고 다른 색감은 신발과 두 색을 이룰 때만 인정한다', () => {
+  const blackDress = createItem('black-dress', 'dress', '원피스', { colorHex: '#242424' })
+  const blueDress = createItem('blue-dress', 'dress', '원피스', { colorHex: '#254F82' })
+  const pinkDress = createItem('pink-dress', 'dress', '원피스', { colorHex: '#D77C7C' })
+  const whiteDress = createItem('white-dress', 'dress', '원피스', { colorHex: '#F2F1EC' })
+  const whiteShoes = createItem('white-shoes', 'shoes', '신발', { colorHex: '#F2F1EC' })
+  const lightBlueShoes = createItem('light-blue-shoes', 'shoes', '신발', { colorHex: '#82ACE0' })
+  const mutedBlueShoes = createItem('muted-blue-shoes', 'shoes', '신발', { colorHex: '#6B96C6' })
+  const redShoes = createItem('red-shoes', 'shoes', '신발', { colorHex: '#E43C45' })
+
+  assert.equal(getColorSchemeFitScore([blackDress], 'achromatic'), 1)
+  assert.equal(getColorSchemeFitScore([blackDress, whiteShoes], 'achromatic'), 1)
+  assert.equal(getColorSchemeFitScore([blueDress, lightBlueShoes], 'tone-on-tone'), 1)
+  assert.equal(getColorSchemeFitScore([pinkDress, mutedBlueShoes], 'tone-in-tone'), 1)
+  assert.equal(getColorSchemeFitScore([whiteDress, redShoes], 'accent'), 1)
+  for (const scheme of ['tone-on-tone', 'tone-in-tone', 'accent'] as const) {
+    assert.equal(getColorSchemeFitScore([blackDress], scheme), 0)
+  }
+})
+
+test('신발과 액세서리의 확인된 색이 선택한 색감과 충돌하면 적용하지 않는다', () => {
+  const darkBlue = createItem('dark-blue', 'top', '상의', { colorHex: '#254F82' })
+  const lightBlue = createItem('light-blue', 'bottom', '하의', { colorHex: '#82ACE0' })
+  const pink = createItem('pink', 'top', '상의', { colorHex: '#D77C7C' })
+  const mutedBlue = createItem('muted-blue', 'bottom', '하의', { colorHex: '#6B96C6' })
+  const red = createItem('red', 'top', '상의', { colorHex: '#E43C45' })
+  const white = createItem('white', 'bottom', '하의', { colorHex: '#F2F1EC' })
+  const blackDress = createItem('black-dress', 'dress', '원피스', { colorHex: '#242424' })
+  const redShoes = createItem('red-shoes', 'shoes', '신발', { colorHex: '#E43C45' })
+  const yellowShoes = createItem('yellow-shoes', 'shoes', '신발', { colorHex: '#FFEE00' })
+  const blueAccessory = createItem('blue-accessory', 'accessory', '가방', { colorHex: '#0055FF' })
+
+  assert.equal(getColorSchemeFitScore([blackDress, redShoes], 'achromatic'), 0)
+  assert.equal(getColorSchemeFitScore([darkBlue, lightBlue, redShoes], 'tone-on-tone'), 0)
+  assert.equal(getColorSchemeFitScore([pink, mutedBlue, yellowShoes], 'tone-in-tone'), 0)
+  assert.equal(getColorSchemeFitScore([red, white, blueAccessory], 'accent'), 0)
+  assert.equal(getColorSchemeFitScore([
+    blackDress,
+    { ...redShoes, colorHex: null },
+  ], 'achromatic'), 1)
+  assert.equal(getColorSchemeFitScore([
+    { ...blackDress, colorHex: null },
+    redShoes,
+  ], 'accent'), 0)
+})
+
+test('색감에 맞는 신발·액세서리가 기본 후보 뒤에 있어도 제한된 조합 안에 남긴다', () => {
+  const whiteDress = createItem('white-dress', 'dress', '원피스', { colorHex: '#F2F1EC' })
+  const whiteTop = createItem('white-top', 'top', '상의', { colorHex: '#F2F1EC' })
+  const whiteBottom = createItem('white-bottom', 'bottom', '하의', { colorHex: '#F2F1EC' })
+  const neutralShoes = Array.from({ length: 9 }, (_, index) =>
+    createItem(`neutral-shoes-${index}`, 'shoes', '신발', { colorHex: '#242424' }),
+  )
+  const redShoes = createItem('red-shoes', 'shoes', '신발', { colorHex: '#E43C45' })
+  const neutralAccessories = Array.from({ length: 9 }, (_, index) =>
+    createItem(`neutral-accessory-${index}`, 'accessory', '가방', { colorHex: '#242424' }),
+  )
+  const redAccessory = createItem('red-accessory', 'accessory', '가방', { colorHex: '#E43C45' })
+
+  const withRedShoes = buildOutfitCombinations(
+    [whiteDress, ...neutralShoes, redShoes], 'autumn', whiteDress.id, undefined, 'accent',
+  )
+  assert.ok(withRedShoes.length > 0)
+  assert.ok(withRedShoes.every(({ items }) => items.some((item) => item.id === redShoes.id)))
+
+  const withRedAccessory = buildOutfitCombinations(
+    [whiteTop, whiteBottom, neutralShoes[0], ...neutralAccessories, redAccessory],
+    'autumn', undefined, undefined, 'accent',
+  )
+  assert.ok(withRedAccessory.length > 0)
+  assert.ok(withRedAccessory.every(({ items }) => items.some((item) => item.id === redAccessory.id)))
+})
+
+test('색감 후보가 일반 순위 8개 밖에 있어도 조합에 남긴다', () => {
+  const blackTops = Array.from({ length: 9 }, (_, index) =>
+    createItem(`black-${index}`, 'top', '상의', { colorHex: '#242424' }),
+  )
+  const blueTop = createItem('blue-top', 'top', '상의', { colorHex: '#254F82' })
+  const blueBottom = createItem('blue-bottom', 'bottom', '하의', { colorHex: '#82ACE0' })
+
+  const combinations = buildOutfitCombinations(
+    [...blackTops, blueTop, blueBottom], 'autumn', undefined, undefined, 'tone-on-tone',
+  )
+  assert.ok(combinations.length > 0)
+  assert.ok(combinations.every(({ items }) => items.some((item) => item.id === blueTop.id)))
+  assert.ok(combinations.every(({ items }) => getColorSchemeFitScore(items, 'tone-on-tone') === 1))
 })
 
 test('아우터와 하의만으로는 완성 코디 후보를 만들지 않는다', () => {

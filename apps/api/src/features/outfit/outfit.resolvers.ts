@@ -43,6 +43,7 @@ export const outfitResolvers = {
         input: {
           date: string
           season: Season
+          colorScheme?: string | null
           baseItemId?: string | null
           style?: OutfitStyle | null
           variation?: number | null

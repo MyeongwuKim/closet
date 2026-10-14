@@ -231,6 +231,14 @@ export interface OutfitRecommendation {
   source: 'ai' | 'fallback'
 }
 
+/** 오늘의 코디에서 계절 선택 다음에 고르는 색 조합 기준이다. */
+export type TodayOutfitColorScheme =
+  | 'auto'
+  | 'tone-on-tone'
+  | 'tone-in-tone'
+  | 'achromatic'
+  | 'accent'
+
 export interface TodayOutfitRecommendation {
   date: string
   season: Season
@@ -244,6 +252,8 @@ export interface TodayOutfitRecommendation {
   profileSummary: string[]
   model: string
   source: 'ai' | 'fallback'
+  /** 요청한 색 조합을 실제 추천 옷의 대표색으로 확인할 수 있을 때 true다. */
+  colorSchemeApplied: boolean
   weather?: WeatherSnapshot | null
 }
 

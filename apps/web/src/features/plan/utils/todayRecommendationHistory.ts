@@ -1,5 +1,6 @@
 import type { Season, TodayOutfitRecommendation } from '@closet/types'
 import type { OutfitStyle } from '../../../constants/styleOptions'
+import { isColorScheme, type ColorScheme } from '../data/colorSchemes'
 import { normalizeRecommendationText } from './recommendationText'
 
 export interface TodayRecommendationHistoryEntry {
@@ -9,6 +10,8 @@ export interface TodayRecommendationHistoryEntry {
   season: Season
   /** 새 추천은 null이며, 이전 기록의 스타일 이름은 표시·룩북 재열기·일정 저장에 보존하고 새 추천 조건에는 사용하지 않는다. */
   style: OutfitStyle | null
+  /** 계절 다음에 선택한 색 조합. 필드가 없는 이전 기록은 자동으로 취급한다. */
+  colorScheme?: ColorScheme
   variation: number
   baseItemId?: string
   recommendation: TodayOutfitRecommendation
@@ -18,17 +21,20 @@ const MAX_TODAY_RECOMMENDATION_HISTORY = 10
 const TODAY_RECOMMENDATION_STORAGE_PREFIX =
   'closet:today-outfit-recommendation:v8'
 
+/** 자동 색감은 이전 v8 저장 키를 유지하고, 다른 색감은 별도 구간을 붙여 기록을 분리한다. */
 function getStorageKey(
   viewerId: string,
   date: string,
   season: Season,
   style: OutfitStyle | null,
+  colorScheme: ColorScheme,
   baseItemId?: string,
 ) {
+  const colorScope = colorScheme === 'auto' ? '' : `:scheme:${colorScheme}`
   const scope = baseItemId !== undefined
     ? `:base:${encodeURIComponent(baseItemId)}`
     : ''
-  return `${TODAY_RECOMMENDATION_STORAGE_PREFIX}:${viewerId}:${date}:${season}:${style ?? 'wardrobe'}${scope}`
+  return `${TODAY_RECOMMENDATION_STORAGE_PREFIX}:${viewerId}:${date}:${season}:${style ?? 'wardrobe'}${colorScope}${scope}`
 }
 
 export function matchesTodayRecommendationBaseItem(
@@ -56,6 +62,7 @@ function isHistoryEntry(
   date: string,
   season: Season,
   style: OutfitStyle | null,
+  colorScheme: ColorScheme,
   baseItemId?: string,
 ): value is TodayRecommendationHistoryEntry {
   if (!value || typeof value !== 'object') return false
@@ -67,6 +74,7 @@ function isHistoryEntry(
     entry.date === date &&
     entry.season === season &&
     entry.style === style &&
+    (entry.colorScheme ?? 'auto') === colorScheme &&
     entry.baseItemId === baseItemId &&
     Number.isInteger(entry.variation) &&
     Boolean(entry.recommendation) &&
@@ -74,6 +82,10 @@ function isHistoryEntry(
     entry.recommendation.season === season &&
     entry.recommendation.style === style &&
     entry.recommendation.ready === true &&
+    (colorScheme === 'auto'
+      ? entry.recommendation.colorSchemeApplied === undefined ||
+        typeof entry.recommendation.colorSchemeApplied === 'boolean'
+      : typeof entry.recommendation.colorSchemeApplied === 'boolean') &&
     typeof entry.recommendation.headline === 'string' &&
     typeof entry.recommendation.summary === 'string' &&
     Array.isArray(entry.recommendation.reasons) &&
@@ -89,16 +101,18 @@ function isHistoryEntry(
   )
 }
 
+/** 같은 날짜·계절·스타일·기준 옷·색감의 유효한 추천을 읽는다. 오래된 자동 기록은 누락된 적용 여부를 true로 보완한다. */
 export function readTodayRecommendationHistory(
   viewerId: string,
   date: string,
   season: Season,
   style: OutfitStyle | null,
   baseItemId?: string,
+  colorScheme: ColorScheme = 'auto',
 ): TodayRecommendationHistoryEntry[] {
   try {
     const rawValue = window.localStorage.getItem(
-      getStorageKey(viewerId, date, season, style, baseItemId),
+      getStorageKey(viewerId, date, season, style, colorScheme, baseItemId),
     )
     if (!rawValue) return []
 
@@ -107,12 +121,15 @@ export function readTodayRecommendationHistory(
 
     return stored
       .filter((entry) =>
-        isHistoryEntry(entry, date, season, style, baseItemId),
+        isHistoryEntry(entry, date, season, style, colorScheme, baseItemId),
       )
       .slice(0, MAX_TODAY_RECOMMENDATION_HISTORY)
       .map((entry) => ({
         ...entry,
-        recommendation: normalizeRecommendationText(entry.recommendation),
+        recommendation: normalizeRecommendationText({
+          ...entry.recommendation,
+          colorSchemeApplied: entry.recommendation.colorSchemeApplied ?? true,
+        }),
       }))
   } catch {
     return []
@@ -147,6 +164,7 @@ function readRecentRecommendationHistory(
         if (
           typeof entry.season !== 'string' ||
           (entry.style !== null && typeof entry.style !== 'string') ||
+          (entry.colorScheme !== undefined && !isColorScheme(entry.colorScheme)) ||
           (entry.baseItemId !== undefined && typeof entry.baseItemId !== 'string') ||
           (scope !== undefined && entry.baseItemId !== scope.baseItemId) ||
           !isHistoryEntry(
@@ -154,6 +172,7 @@ function readRecentRecommendationHistory(
             date,
             entry.season as Season,
             entry.style as OutfitStyle | null,
+            entry.colorScheme ?? 'auto',
             entry.baseItemId,
           )
         ) {
@@ -166,6 +185,7 @@ function readRecentRecommendationHistory(
             date,
             value.season,
             value.style,
+            value.colorScheme ?? 'auto',
             value.baseItemId,
           )
           if (key !== expectedKey) return
@@ -175,7 +195,10 @@ function readRecentRecommendationHistory(
 
         entries.push({
           ...value,
-          recommendation: normalizeRecommendationText(value.recommendation),
+          recommendation: normalizeRecommendationText({
+            ...value.recommendation,
+            colorSchemeApplied: value.recommendation.colorSchemeApplied ?? true,
+          }),
         })
       })
     }
@@ -207,6 +230,7 @@ export function readAllRecentTodayRecommendationHistory(
   return readRecentRecommendationHistory(viewerId, date)
 }
 
+/** 추천 조합을 색감별 최근 기록에 저장하고, 같은 색감의 동일 아이템 조합은 최신 설명으로 교체한다. */
 export function storeTodayRecommendation(
   viewerId: string,
   date: string,
@@ -215,6 +239,7 @@ export function storeTodayRecommendation(
   variation: number,
   recommendation: TodayOutfitRecommendation,
   baseItemId?: string,
+  colorScheme: ColorScheme = 'auto',
 ) {
   const history = readTodayRecommendationHistory(
     viewerId,
@@ -222,6 +247,7 @@ export function storeTodayRecommendation(
     season,
     style,
     baseItemId,
+    colorScheme,
   )
   if (
     !recommendation.ready ||
@@ -246,6 +272,7 @@ export function storeTodayRecommendation(
     date,
     season,
     style,
+    ...(colorScheme !== 'auto' ? { colorScheme } : {}),
     variation,
     ...(baseItemId !== undefined ? { baseItemId } : {}),
     recommendation: normalizeRecommendationText(recommendation),
@@ -260,7 +287,7 @@ export function storeTodayRecommendation(
 
   try {
     window.localStorage.setItem(
-      getStorageKey(viewerId, date, season, style, baseItemId),
+      getStorageKey(viewerId, date, season, style, colorScheme, baseItemId),
       JSON.stringify(nextHistory),
     )
     return nextHistory

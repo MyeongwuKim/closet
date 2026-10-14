@@ -36,6 +36,7 @@ function StatisticsOutfitDetail({ id, onClose }: { id: string; onClose: () => vo
   return <OutfitDetailModal outfit={query.data.outfit} items={items} onClose={onClose} backLabel="통계로 돌아가기" />
 }
 
+/** 플래너 기록에서 자주 입은 옷과 코디의 상위 순위를 전환하고, 코디 선택 시 상세 화면을 연다. */
 export function WearStatistics({ data }: { data: WardrobeStatistics }) {
   const sectionId = useId()
   const [activeTab, setActiveTab] = useState<(typeof wearTabs)[number]['id']>('item')
@@ -75,7 +76,6 @@ export function WearStatistics({ data }: { data: WardrobeStatistics }) {
             key: item.id, label: item.name, count: item.wearCount, imageUrl: item.imageUrl,
             href: `/closet/${item.id}?from=${encodeURIComponent('/settings/statistics')}`,
           }))} />
-        {data.totalItems > 0 && <p className="mt-3 rounded-xl bg-canvas px-3 py-2 text-xs leading-5 text-muted">아직 착용 기록이 없는 옷은 {data.unwornCount}개예요.</p>}
       </div>
       <div id={`${sectionId}-outfit-panel`} role="tabpanel" aria-labelledby={`${sectionId}-outfit-tab`} hidden={activeTab !== 'outfit'} tabIndex={0} className="mt-3 rounded-xl focus-visible:outline-2 focus-visible:outline-accent">
         <p className="text-xs leading-5 text-muted">코디북에 저장된 코디 기준 · 상위 5개<br />같은 코디는 하루에 한 번으로 계산해요.</p>
@@ -84,7 +84,6 @@ export function WearStatistics({ data }: { data: WardrobeStatistics }) {
             key: outfit.id, label: outfit.name, count: outfit.wearCount, imageUrl: outfit.imageUrl,
             imageUrls: outfit.itemImageUrls, onSelect: () => setSelectedOutfitId(outfit.id),
           }))} />
-        {data.totalOutfits > 0 && <p className="mt-3 rounded-xl bg-canvas px-3 py-2 text-xs leading-5 text-muted">아직 착용 기록이 없는 코디는 {data.unwornOutfitCount}개예요.</p>}
       </div>
       {selectedOutfitId && <StatisticsOutfitDetail id={selectedOutfitId} onClose={() => setSelectedOutfitId(null)} />}
     </section>

@@ -24,7 +24,7 @@ interface RecommendationHistoryOptions {
 }
 
 function getHistoryEntryKey(entry: TodayRecommendationHistoryEntry) {
-  return `${entry.baseItemId ?? 'all'}:${entry.season}:${entry.style}:${entry.id}`
+  return `${entry.baseItemId ?? 'all'}:${entry.season}:${entry.style}:${entry.colorScheme ?? 'auto'}:${entry.id}`
 }
 
 export function useRecommendationHistory({

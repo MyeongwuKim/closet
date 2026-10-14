@@ -13,6 +13,7 @@ interface RecommendationSeasonStepProps {
   onSelect: (choice: SeasonChoice) => void
 }
 
+/** 추천 시작 다음에 현재 날씨 또는 옷에 등록된 계절을 고른다. 선택값은 부모의 추천 흐름으로 전달한다. */
 export function RecommendationSeasonStep({
   availableSeasons,
   onBack,
@@ -40,12 +41,14 @@ export function RecommendationSeasonStep({
 
           <div className="ml-10 flex flex-wrap justify-end gap-2">
             {!availableSeasons && (
-              <RecommendationQuickReply
-                delayMs={80}
-                onClick={() => onSelect('current-weather')}
-              >
-                현재 날씨로 받기
-              </RecommendationQuickReply>
+              <div className="flex w-full justify-end sm:w-auto">
+                <RecommendationQuickReply
+                  delayMs={80}
+                  onClick={() => onSelect('current-weather')}
+                >
+                  현재 날씨로 받기
+                </RecommendationQuickReply>
+              </div>
             )}
             {options.map((option, index) => (
               <RecommendationQuickReply

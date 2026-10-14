@@ -1,5 +1,5 @@
 import type { ClosetFilter } from '../features/closet/constants'
-import type { ClothingCategory, Season } from '@closet/types'
+import type { ClothingCategory, Season, TodayOutfitColorScheme } from '@closet/types'
 
 export const queryKeys = {
   me: ['me'] as const,
@@ -34,6 +34,7 @@ export const queryKeys = {
       viewerId: string,
       date: string,
       season: Season,
+      colorScheme: TodayOutfitColorScheme,
       variation: number,
       excludedOuterItemIds: string[],
       baseItemId?: string,
@@ -42,10 +43,11 @@ export const queryKeys = {
       [
         'planner',
         'today-recommendation',
-        'v6',
+        'v7',
         viewerId,
         date,
         season,
+        colorScheme,
         variation,
         excludedOuterItemIds,
         baseItemId ?? null,

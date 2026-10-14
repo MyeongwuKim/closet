@@ -123,6 +123,13 @@ async function inlineCssAssetUrls(css, stylesheetPath) {
   return result
 }
 
+/** 지연 로딩 CSS의 글꼴·이미지를 포함하고, Vite가 .css 파일로 인식하도록 주소 끝을 유지한다. */
+async function toInlineStylesheetDataUrl(stylesheetPath) {
+  const css = await readFile(toDistPath(stylesheetPath), 'utf8')
+  const inlinedCss = await inlineCssAssetUrls(css, stylesheetPath)
+  return `data:text/css;base64,${Buffer.from(inlinedCss).toString('base64')}#.css`
+}
+
 async function inlineStylesheets(html) {
   let result = html
   const matches = [
@@ -226,6 +233,18 @@ function rewriteJsImports(source, assetPath) {
     )
 }
 
+/** data: 모듈에서 상대 CSS 주소를 해석할 수 없으므로 빌드된 스타일시트를 인라인 주소로 치환한다. */
+function rewriteJsStylesheetPaths(source, assetPath, stylesheetDataUrls) {
+  return source.replace(
+    /(["'`])((?:\.{1,2}\/|\/)[^"'`]+?\.css(?:[?#][^"'`]*)?)\1/g,
+    (reference, quote, stylesheetPath) => {
+      const resolvedPath = resolveAssetPath(stylesheetPath, assetPath)
+      const dataUrl = stylesheetDataUrls.get(resolvedPath)
+      return dataUrl ? `${quote}${dataUrl}${quote}` : reference
+    },
+  )
+}
+
 async function rewriteJsAssets(source, assetPaths) {
   let result = source
 
@@ -245,15 +264,29 @@ async function rewriteJsAssets(source, assetPaths) {
 async function createNativeModuleScripts(entryScriptPaths) {
   const distFiles = await collectDistFiles(webDist)
   const jsFiles = distFiles.filter((file) => file.endsWith('.js')).sort()
+  const cssFiles = distFiles.filter((file) => file.endsWith('.css'))
   const staticAssetFiles = distFiles.filter(
     (file) => !/\.(?:html|css|js)$/i.test(file),
   )
+  const stylesheetDataUrls = new Map()
   const imports = {}
+
+  for (const stylesheetPath of cssFiles) {
+    stylesheetDataUrls.set(
+      stylesheetPath,
+      await toInlineStylesheetDataUrl(stylesheetPath),
+    )
+  }
 
   for (const assetPath of jsFiles) {
     const source = await readFile(toDistPath(assetPath), 'utf8')
     const withAssets = await rewriteJsAssets(source, staticAssetFiles)
-    const rewrittenSource = rewriteJsImports(withAssets, assetPath)
+    const withStylesheets = rewriteJsStylesheetPaths(
+      withAssets,
+      assetPath,
+      stylesheetDataUrls,
+    )
+    const rewrittenSource = rewriteJsImports(withStylesheets, assetPath)
 
     imports[toModuleSpecifier(assetPath)] =
       `data:text/javascript;base64,${Buffer.from(rewrittenSource).toString('base64')}`

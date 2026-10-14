@@ -5,11 +5,12 @@
  * 계정에서 관리할 수 있는 설정 메뉴를 보여주고 스타일 프로필을 편집한다.
  *
  * 구조:
- * 설정 메뉴 목록과 계정 영역, 스타일 프로필 입력 화면으로 구성되어 있다.
+ * 스타일 프로필 카드, 옷장·앱 설정 메뉴, 계정 영역과 스타일 프로필 입력 화면으로 구성되어 있다.
  */
 import { useState } from 'react'
 import {
   ChevronLeft,
+  ChevronRight,
   LogOut,
   Ruler,
   Save,
@@ -412,20 +413,15 @@ export function SettingsPage() {
   const navigate = useNavigate()
   const meQuery = useMeQuery()
   const logout = useLogoutMutation()
+  const accountName = meQuery.data?.displayName || meQuery.data?.email
 
   return (
-    <section className="settings-page mx-auto max-w-2xl">
+    <section className="settings-page">
       <CollectionHeading title="설정" />
 
       <SettingsDrawerList />
 
       <div className="settings-account">
-        <div className="min-w-0">
-          <p className="text-xs font-bold text-muted">로그인 계정</p>
-          <p className="mt-0.5 truncate text-sm font-semibold">
-            {meQuery.data?.displayName ?? '테스트 사용자'}
-          </p>
-        </div>
         <button
           type="button"
           onClick={() =>
@@ -434,9 +430,14 @@ export function SettingsPage() {
             })
           }
           disabled={logout.isPending}
-          className="flex shrink-0 items-center gap-1.5 rounded-full border border-line px-3 py-2 text-xs font-bold text-muted hover:border-ink hover:text-ink"
+          className="settings-logout"
         >
-          <LogOut size={14} /> 로그아웃
+          <LogOut className="settings-logout-icon" size={22} strokeWidth={1.6} aria-hidden="true" />
+          <span className="settings-logout-copy">
+            <strong>{logout.isPending ? '로그아웃 중...' : '로그아웃'}</strong>
+            {accountName && <span>{accountName}</span>}
+          </span>
+          <ChevronRight className="settings-menu-arrow" size={19} strokeWidth={1.6} aria-hidden="true" />
         </button>
       </div>
     </section>

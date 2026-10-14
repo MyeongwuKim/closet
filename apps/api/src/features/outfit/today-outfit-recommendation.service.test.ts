@@ -158,6 +158,63 @@ test('기준 옷과 조합할 수 없으면 다른 완성 코디가 있어도 �
   assert.match(result.summary, /코디를 완성할 옷이 부족해요/)
 })
 
+test('선택한 색감 조합이 있으면 그 조합을 추천하고 충족 여부를 표시한다', async (t) => {
+  setupWardrobe(t, [
+    createItem('black-top', 'top', { colorHex: '#242424' }),
+    createItem('blue-top', 'top', { colorHex: '#254F82' }),
+    createItem('blue-bottom', 'bottom', { colorHex: '#82ACE0' }),
+  ])
+  const result = await todayOutfitRecommendationService.recommend(userId, {
+    ...input,
+    colorScheme: 'tone-on-tone',
+  })
+
+  assert.equal(result.ready, true)
+  assert.equal(result.colorSchemeApplied, true)
+  assert.ok(result.items.some((item) => item.id === 'blue-top'))
+  assert.ok(result.items.some((item) => item.id === 'blue-bottom'))
+})
+
+test('색감 조합이 없으면 기준 옷을 유지하고 일반 추천으로 돌아간다', async (t) => {
+  setupWardrobe(t, [
+    createItem('base-black-top', 'top', { colorHex: '#242424' }),
+    createItem('white-bottom', 'bottom', { colorHex: '#F2F1EC' }),
+  ])
+  const result = await todayOutfitRecommendationService.recommend(userId, {
+    ...input,
+    baseItemId: 'base-black-top',
+    colorScheme: 'tone-on-tone',
+  })
+
+  assert.equal(result.ready, true)
+  assert.equal(result.colorSchemeApplied, false)
+  assert.ok(result.items.some((item) => item.id === 'base-black-top'))
+  assert.doesNotMatch(result.summary, /톤온톤/)
+})
+
+test('지원하지 않는 색감 값은 거절한다', async (t) => {
+  setupWardrobe(t, [createItem('top', 'top'), createItem('bottom', 'bottom')])
+  await assert.rejects(
+    todayOutfitRecommendationService.recommend(userId, {
+      ...input,
+      colorScheme: 'neon',
+    }),
+    (error: unknown) => error instanceof ServiceError && error.code === 'INVALID_COLOR_SCHEME',
+  )
+})
+
+test('색감 선택을 생략하거나 자동으로 고르면 기존 추천과 같다', async (t) => {
+  setupWardrobe(t, [createItem('top', 'top'), createItem('bottom', 'bottom')])
+  const original = await todayOutfitRecommendationService.recommend(userId, input)
+  const automatic = await todayOutfitRecommendationService.recommend(userId, {
+    ...input,
+    colorScheme: 'auto',
+  })
+
+  assert.deepEqual(automatic, original)
+  assert.equal(automatic.colorSchemeApplied, true)
+})
+
 test('AI 설명에 기준 아이템을 전달하고 응답에도 같은 기준 옷을 유지한다', async (t) => {
   const baseItem = createItem('base-outer', 'outer')
   setupWardrobe(t, [baseItem, createItem('top', 'top'), createItem('bottom', 'bottom')])
@@ -196,6 +253,8 @@ test('AI 설명에 코드·반복 기호·과도한 길이가 있으면 옷 구�
   const invalidReasons = [
     '기본 핏을 연결해요. 」java.lang.String;}}}}}}}}',
     '기본 핏을 연결해요. }}}}}}}}',
+    '재킷의 비율을 정리합니다. }}}}}',
+    '색을 연결해요. }',
     '색'.repeat(161),
   ]
   let reason = invalidReasons[0]

@@ -63,6 +63,8 @@ export function RecommendationHistoryDialog({
         reasons={history.selectedEntry.recommendation.reasons}
         season={history.selectedEntry.season}
         style={history.selectedEntry.style}
+        colorScheme={history.selectedEntry.colorScheme ?? 'auto'}
+        colorSchemeApplied={history.selectedEntry.recommendation.colorSchemeApplied}
         items={history.selectedEntry.recommendation.items}
         backLabel="추천 기록으로 돌아가기"
         onClose={history.actions.showList}

@@ -122,6 +122,33 @@ test('기준 아이템 검증 실패를 GraphQL 오류 코드와 함께 전달�
   assert.match(result.errors[0].message, /내 옷장 아이템만/)
 })
 
+test('오늘의 코디 GraphQL 요청에서 색감 선택과 충족 여부를 전달한다', async (t) => {
+  t.mock.method(authService, 'getViewer', async () => ({ id: 'viewer' }))
+  t.mock.method(todayOutfitRecommendationService, 'recommend', async (
+    userId: string,
+    input: { colorScheme?: string | null },
+  ) => {
+    assert.equal(userId, 'viewer')
+    assert.equal(input.colorScheme, 'tone-on-tone')
+    return { ready: false, colorSchemeApplied: false } as Awaited<ReturnType<typeof todayOutfitRecommendationService.recommend>>
+  })
+  const app = await buildApp()
+  t.after(() => app.close())
+
+  const response = await app.inject({
+    method: 'POST',
+    url: '/graphql',
+    payload: {
+      query: `query {
+        todayOutfitRecommendation(input: {
+          date: "2026-08-28", season: autumn, colorScheme: "tone-on-tone"
+        }) { colorSchemeApplied }
+      }`,
+    },
+  })
+  assert.equal(response.json().data?.todayOutfitRecommendation?.colorSchemeApplied, false)
+})
+
 const legacyFashionAttributes = {
   layerRole: 'base',
   silhouette: 'relaxed',

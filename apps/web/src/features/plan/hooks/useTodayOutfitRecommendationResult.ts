@@ -3,7 +3,7 @@
  * 오늘의 코디 추천 조회, 재추천, 최근 착용 확인과 플래너 저장을 관리한다.
  *
  * 동작 방식:
- * 날씨를 포함해 추천을 요청하고 사용자가 확정하면
+ * 계절·색감·날씨를 포함해 추천을 요청하고 사용자가 확정하면
  * 선택한 아이템과 추천 당시 기온을 플래너에 함께 저장한다.
  */
 import { useState } from 'react'
@@ -22,6 +22,7 @@ import {
 } from '../api/todayOutfitQueries'
 import { getCurrentWeekStart } from '../data/weeklyPlan'
 import { usePlanStore } from '../stores/usePlanStore'
+import type { ColorScheme } from '../data/colorSchemes'
 import { useRecentWearReminder } from './useRecentWearReminder'
 import {
   formatRecommendationHeadline,
@@ -32,6 +33,7 @@ interface UseTodayOutfitRecommendationResultOptions {
   viewerId: string
   date: string
   season: Season
+  colorScheme: ColorScheme
   baseItemId?: string
   hasTodayOutfit: boolean
   weather?: WeatherSnapshot | null
@@ -41,6 +43,7 @@ export function useTodayOutfitRecommendationResult({
   viewerId,
   date,
   season,
+  colorScheme,
   baseItemId,
   hasTodayOutfit,
   weather,
@@ -48,7 +51,7 @@ export function useTodayOutfitRecommendationResult({
   const pushToast = useUiStore((state) => state.pushToast)
   const hydrateEntries = usePlanStore((state) => state.hydrateEntries)
   const [initialHistory] = useState(() =>
-    readTodayRecommendationHistory(viewerId, date, season, null, baseItemId),
+    readTodayRecommendationHistory(viewerId, date, season, null, baseItemId, colorScheme),
   )
   const storedRecommendation = initialHistory[0] ?? null
   const [variation, setVariation] = useState(
@@ -60,6 +63,7 @@ export function useTodayOutfitRecommendationResult({
     viewerId,
     date,
     season,
+    colorScheme,
     variation,
     excludedOuterItemIds,
     {

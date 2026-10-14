@@ -1,13 +1,15 @@
 /**
  * 용도:
- * 사용자의 옷장, 계절과 선택한 날씨를 기준으로 오늘의 코디를 추천한다.
+ * 사용자의 옷장, 계절·날씨·선택한 색감을 기준으로 오늘의 코디를 추천한다.
  *
  * 동작 방식:
- * 선호 스타일·핏을 읽지 않고 기준 옷·계절·기온을 유지하는 조합을 고른 뒤 AI 설명을 시도하고,
+ * 선호 스타일·핏을 읽지 않고 기준 옷·계절·기온을 유지하면서 색감에 맞는 조합을 고른 뒤 AI 설명을 시도한다.
+ * 색감에 맞는 조합이 없으면 일반 추천으로 돌아가고 colorSchemeApplied로 그 결과를 구분한다.
  * AI를 사용할 수 없을 때도 같은 조합과 날씨 맥락을 포함한 결과를 반환한다.
  * 완성할 조합이 없으면 ready=false와 부족한 구성 설명을 반환한다.
  */
 import { createHash } from 'node:crypto'
+import type { TodayOutfitColorScheme } from '@closet/types'
 import type {
   OutfitStyle,
   Prisma,
@@ -27,6 +29,7 @@ import {
 import {
   buildOutfitCombinations,
   excludeOuterItems,
+  getColorSchemeFitScore,
   getFashionAttributes,
   type OutfitCombination,
 } from './outfit-style-rules.js'
@@ -34,6 +37,7 @@ import {
 interface TodayOutfitRecommendationInput {
   date: string
   season: Season
+  colorScheme?: string | null
   baseItemId?: string | null
   /** 이전 클라이언트의 요청을 받아도 추천에는 반영하지 않는 호환 필드다. */
   style?: OutfitStyle | null
@@ -57,6 +61,20 @@ const seasonLabels: Record<Season, string> = {
   summer: '여름',
   autumn: '가을',
   winter: '겨울',
+}
+
+const colorSchemeLabels: Record<TodayOutfitColorScheme, string> = {
+  auto: '기본',
+  'tone-on-tone': '톤온톤',
+  'tone-in-tone': '톤인톤',
+  achromatic: '모노톤',
+  accent: '포인트 컬러',
+}
+
+function parseColorScheme(value: string | null | undefined): TodayOutfitColorScheme {
+  if (value === null || value === undefined) return 'auto'
+  if (Object.hasOwn(colorSchemeLabels, value)) return value as TodayOutfitColorScheme
+  throw new ServiceError('올바른 색감 선택이 필요합니다.', 'INVALID_COLOR_SCHEME')
 }
 
 const categoryLabels: Record<
@@ -168,7 +186,7 @@ function isRecommendationText(value: unknown, maxLength: number): value is strin
     typeof value === 'string' &&
     value.trim().length > 0 &&
     value.length <= maxLength &&
-    !/\b(?:java|javax)\.[a-z][\w.]*|(?:[\][}{();]\s*){6,}|```/iu.test(value)
+    !/\b(?:java|javax)\.[a-z][\w.]*|(?:[\][}{();]\s*){6,}|(?:[}\]]\s*){2,}|[}\]]\s*$|```/iu.test(value)
   )
 }
 
@@ -385,6 +403,7 @@ function createEmptyRecommendation(
     profileSummary: [],
     model: 'wardrobe-combination-rules-v3',
     source: 'fallback',
+    colorSchemeApplied: false,
     weather: weather ?? null,
   }
 }
@@ -475,6 +494,7 @@ function normalizeWeatherSnapshot(
 export const todayOutfitRecommendationService = {
   async recommend(userId: string, input: TodayOutfitRecommendationInput) {
     parseDateOnly(input.date, '추천 날짜')
+    const colorScheme = parseColorScheme(input.colorScheme)
     const weather = normalizeWeatherSnapshot(input.weather, input.date)
     const variation = Math.max(0, Math.min(Math.trunc(input.variation ?? 0), 20))
     const season = input.season
@@ -508,6 +528,7 @@ export const todayOutfitRecommendationService = {
       season,
       baseItemId,
       weather?.apparentTemperatureC,
+      colorScheme,
     )
     if (combinations.length === 0) {
       return createEmptyRecommendation(
@@ -520,6 +541,10 @@ export const todayOutfitRecommendationService = {
     }
 
     const selectedCombination = combinations[variation % combinations.length]!
+    const colorSchemeApplied = getColorSchemeFitScore(
+      selectedCombination.items,
+      colorScheme,
+    ) > 0
     const fallback = {
       date: input.date,
       season,
@@ -527,13 +552,14 @@ export const todayOutfitRecommendationService = {
       headline: baseItem
         ? `${baseItem.name} 중심으로 골랐어요`
         : '오늘은 이 조합으로 입어보세요',
-      summary: `내 옷장에서 ${seasonLabels[season]}에 함께 입을 구성을 고르고 색과 핏 균형을 비교했어요.`,
+      summary: `내 옷장에서 ${seasonLabels[season]}에 함께 입을 구성을 고르고 ${colorSchemeApplied && colorScheme !== 'auto' ? `${colorSchemeLabels[colorScheme]} 색감과 ` : '색과 '}핏 균형을 비교했어요.`,
       style: null,
       items: selectedCombination.items,
       reasons: describeSelectedCombination(selectedCombination.items, weather),
       profileSummary: [],
       model: 'wardrobe-combination-rules-v3',
       source: 'fallback',
+      colorSchemeApplied,
       weather,
     }
 
@@ -563,6 +589,7 @@ export const todayOutfitRecommendationService = {
         profileSummary: [],
         model: aiResult.model,
         source: 'ai',
+        colorSchemeApplied,
         weather,
       }
     } catch (error) {

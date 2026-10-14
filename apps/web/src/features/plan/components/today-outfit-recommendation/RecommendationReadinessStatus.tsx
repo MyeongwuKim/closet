@@ -5,14 +5,16 @@ interface RecommendationReadinessStatusProps {
   errorMessage: string | null
   onRetry: () => void
   onBack: () => void
+  backLabel?: string
 }
 
-/** 계정·현재 날씨 조회를 기다리고, 실패하면 재시도하거나 계절 선택으로 돌아가게 한다. */
+/** 계정·현재 날씨 조회를 기다리고, 실패하면 재시도하거나 직전 선택 단계로 돌아가게 한다. */
 export function RecommendationReadinessStatus({
   isLoading,
   errorMessage,
   onRetry,
   onBack,
+  backLabel = '이전 단계로 돌아가기',
 }: RecommendationReadinessStatusProps) {
   return (
     <section className="flex h-full flex-col items-center justify-center gap-3 rounded-2xl border border-line bg-surface p-5 text-center">
@@ -35,7 +37,7 @@ export function RecommendationReadinessStatus({
         onClick={onBack}
         className="inline-flex items-center gap-1 text-xs font-bold text-muted"
       >
-        <ChevronLeft size={13} /> 계절 다시 선택
+        <ChevronLeft size={13} /> {backLabel}
       </button>
     </section>
   )
