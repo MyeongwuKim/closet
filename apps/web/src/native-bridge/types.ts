@@ -47,6 +47,8 @@ export type CurrentLocationResult =
   | { status: 'error'; code?: string; message: string }
 
 export interface ClosetNativeBridge {
+  showRewardedAd?: (sessionId: string) => Promise<{ status: 'earned' | 'cancelled' | 'unavailable'; sessionId: string; message?: string }>
+  openAdPrivacyOptions?: () => Promise<void>
   requestGraphql: (
     query: string,
     variables?: object,

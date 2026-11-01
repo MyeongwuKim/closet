@@ -232,6 +232,9 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
       api.plannerEntries = api.plannerEntries.filter((entry) => entry.date !== variables.date)
       return { clearPlannerEntry: { id: `planner-${variables.date}` } }
     }
+    case 'OutfitPreviewJobs': return { outfitPreviewJobs: [] }
+    case 'PreviewCredits': return { previewCredits: { freeRemaining: 5, rewardRemaining: 0, totalRemaining: 5, capacity: 5, nextRefillAt: null, serverNow: new Date().toISOString(), adRewardsRemaining: null, rewardMode: 'test', resetsAt: new Date(Date.now() + 86_400_000).toISOString(), pendingRewardSessionId: null } }
+    case 'AcknowledgeOutfitPreviewJob': return { acknowledgeOutfitPreviewJob: true }
     case 'Me': return { me: {
       id: 'e2e-user', displayName: 'E2E 사용자', email: null, isTemporary: true,
       styleProfile: { gender: null, bodyBuild: null, heightCm: null, weightKg: null, chestCircumferenceCm: null, waistCircumferenceCm: null, hipCircumferenceCm: null, shoulderWidthCm: null, inseamCm: null, preferredFit: 'regular', preferredStyles: [] },

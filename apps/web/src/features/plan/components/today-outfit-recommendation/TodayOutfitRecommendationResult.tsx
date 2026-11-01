@@ -1,3 +1,5 @@
+import { AiCreditActionButton } from '../../../lookbook/components/AiCreditActionButton'
+import { PreviewCreditSummary } from '../../../lookbook/components/PreviewCreditSummary'
 import { useState } from 'react'
 import type { Season, WardrobeItem, WeatherSnapshot } from '@closet/types'
 import {
@@ -110,6 +112,7 @@ export function TodayOutfitRecommendationResult({
     recommendation,
     recommendationQuery,
     refreshSourceItems,
+    hasOtherCombination,
     errorMessage,
     isSaving,
     actions,
@@ -135,6 +138,7 @@ export function TodayOutfitRecommendationResult({
             ? '이 옷에 맞는 코디를 불러오지 못했어요'
             : '오늘의 코디를 불러오지 못했어요'}
         </p>
+        <PreviewCreditSummary kind="recommendation" />
         <p className="mt-2 text-xs leading-5 text-muted" role="alert">
           {errorMessage}
         </p>
@@ -284,22 +288,24 @@ export function TodayOutfitRecommendationResult({
           </div>
         )}
 
+        <div className="shrink-0 pb-2"><PreviewCreditSummary kind="recommendation" /></div>
         <div
           className="ai-recommendation-chat-enter grid shrink-0 grid-cols-[0.85fr_1.15fr] gap-2 border-t border-line/70 pt-3"
           style={{ animationDelay: '360ms' }}
         >
-          <button
-            type="button"
+          <AiCreditActionButton
+            kind="recommendation"
+            label={hasOtherCombination ? '다른 추천' : '다른 조합 없음'}
+            adLabel="광고 보고 다른 추천"
             onClick={actions.requestAnotherRecommendation}
-            disabled={recommendationQuery.isFetching}
+            disabled={recommendationQuery.isFetching || !hasOtherCombination}
             className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3 py-3 text-xs font-bold disabled:opacity-50"
           >
             <RefreshCw
               className={recommendationQuery.isFetching ? 'animate-spin' : ''}
               size={15}
             />
-            다른 추천
-          </button>
+          </AiCreditActionButton>
           <button
             type="button"
             onClick={() => void actions.applyTodayOutfit()}

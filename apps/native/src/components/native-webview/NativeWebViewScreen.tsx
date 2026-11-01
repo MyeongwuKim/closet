@@ -63,6 +63,9 @@ export function NativeWebViewScreen({
 
   const flushPendingNavigation = useCallback(() => {
     webReadyRef.current = true
+    webViewRef.current?.injectJavaScript(
+      `window.dispatchEvent(new CustomEvent('closet:native-app-state', { detail: { isActive: ${AppState.currentState === 'active'} } })); true;`,
+    )
     const path = pendingWebPathRef.current
     if (!path) return
 
@@ -89,9 +92,10 @@ export function NativeWebViewScreen({
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
-      if (state !== 'active' || !webReadyRef.current) return
+      if (!webReadyRef.current) return
+      // 웹은 백그라운드에서 완료 팝업을 멈추고, 복귀하면 저장된 작업을 다시 확인한다.
       webViewRef.current?.injectJavaScript(
-        "window.dispatchEvent(new Event('closet:native-app-active')); true;",
+        `window.dispatchEvent(new CustomEvent('closet:native-app-state', { detail: { isActive: ${state === 'active'} } })); ${state === 'active' ? "window.dispatchEvent(new Event('closet:native-app-active'));" : ''} true;`,
       )
     })
     return () => subscription.remove()

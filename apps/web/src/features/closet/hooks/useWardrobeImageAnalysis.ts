@@ -16,6 +16,12 @@ const rejectedImageCodes = new Set([
   'FASHION_ITEM_NOT_DETECTED',
   'MULTIPLE_FASHION_ITEMS_DETECTED',
   'UNCLEAR_FASHION_IMAGE',
+  'AI_BUSY',
+  'AI_RATE_LIMITED',
+  'UNAUTHENTICATED',
+  'INVALID_IMAGE_TYPE',
+  'INVALID_IMAGE_SIZE',
+  'INVALID_IMAGE_DATA',
 ])
 
 /** 서버가 돌려준 컷아웃 바이트를 확인 모달에서 읽을 수 있는 임시 URL로 바꾼다. */

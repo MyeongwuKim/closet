@@ -1,3 +1,4 @@
+import { AiCreditActionButton } from '../../lookbook/components/AiCreditActionButton'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { OutfitPreview, WardrobeItem } from '@closet/types'
 import type { OutfitStyle } from '../../../constants/styleOptions'
@@ -11,6 +12,7 @@ import {
 import { createPortal } from 'react-dom'
 import { OutfitSlotEditor } from '../../lookbook/components/OutfitSlotEditor'
 import { OutfitPreviewDialogView } from '../../lookbook/components/OutfitPreviewDialog'
+import { PreviewCreditSummary } from '../../lookbook/components/PreviewCreditSummary'
 import { useGenerateOutfitPreviewMutation } from '../../lookbook/api/lookbookQueries'
 import type { OutfitPreviewState } from '../../lookbook/contexts/OutfitComposerContext'
 import { getOutfitCompletionMessage } from '../../lookbook/utils/outfitComposition'
@@ -46,7 +48,7 @@ function createPreviewState(
     return {
       isOpen: false,
       status: 'success',
-      imageUrl: `data:${cachedPreview.mimeType};base64,${cachedPreview.imageBase64}`,
+      imageUrl: cachedPreview.imageUrl ?? `data:${cachedPreview.mimeType};base64,${cachedPreview.imageBase64}`,
       imageBase64: cachedPreview.imageBase64,
       assetId: cachedPreview.assetId ?? null,
       compositionKey: null,
@@ -114,11 +116,13 @@ export function TodayOutfitRecommendationDialog({
   }).format(dateValue)
   const generatedPreview: OutfitPreview | undefined =
     preview.status === 'success' &&
-    preview.imageBase64 &&
+    (preview.assetId || preview.imageBase64) &&
     preview.mimeType &&
     preview.model
       ? {
-          imageBase64: preview.imageBase64,
+          imageBase64: preview.imageBase64 ?? '',
+          ...(preview.assetId ? { assetId: preview.assetId } : {}),
+          ...(preview.imageUrl ? { imageUrl: preview.imageUrl } : {}),
           mimeType: preview.mimeType,
           model: preview.model,
         }
@@ -158,7 +162,7 @@ export function TodayOutfitRecommendationDialog({
         setPreview({
           isOpen: true,
           status: 'success',
-          imageUrl: `data:${result.mimeType};base64,${result.imageBase64}`,
+          imageUrl: result.imageUrl ?? `data:${result.mimeType};base64,${result.imageBase64}`,
           imageBase64: result.imageBase64,
           assetId: result.assetId ?? null,
           compositionKey: null,
@@ -292,14 +296,17 @@ export function TodayOutfitRecommendationDialog({
 
         <footer className="shrink-0 border-t border-line bg-canvas px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
           <div className="mx-auto max-w-3xl">
+            <div className="mb-2"><PreviewCreditSummary /></div>
             {completionMessage && (
               <p className="mb-2 text-center text-xs font-bold text-muted">
                 {completionMessage}
               </p>
             )}
             <div className="grid grid-cols-[0.85fr_1.15fr] gap-2">
-              <button
-                type="button"
+              <AiCreditActionButton
+                requiresCredit={!(preview.status === 'success' && preview.imageUrl)}
+                label={preview.status === 'success' && preview.imageUrl ? 'AI 룩북 보기' : 'AI 룩북 만들기'}
+                adLabel="광고 보고 룩북 만들기"
                 onClick={openOrGeneratePreview}
                 disabled={Boolean(completionMessage)}
                 className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-canvas px-3 py-3.5 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40"
@@ -309,10 +316,7 @@ export function TodayOutfitRecommendationDialog({
                 ) : (
                   <ImagePlus size={16} />
                 )}
-                {preview.status === 'success' && preview.imageUrl
-                  ? 'AI 룩북 보기'
-                  : 'AI 룩북 만들기'}
-              </button>
+              </AiCreditActionButton>
               <button
                 type="button"
                 onClick={async () => {
@@ -339,6 +343,7 @@ export function TodayOutfitRecommendationDialog({
         </footer>
 
         <OutfitPreviewDialogView
+          creditSummary={<PreviewCreditSummary />}
           selectedItems={selectedItems}
           preview={preview}
           generatePreview={generatePreview}

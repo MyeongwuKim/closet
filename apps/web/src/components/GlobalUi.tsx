@@ -1,3 +1,4 @@
+import { OutfitPreviewJobDialog } from '../features/lookbook/components/OutfitPreviewJobDialog'
 import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import type {
@@ -16,6 +17,7 @@ import { useLookbookStore } from '../features/lookbook/stores/useLookbookStore'
 import { useUiStore } from '../stores/useUiStore'
 import type { GarmentSizeInput } from '../features/closet/utils/garmentSize'
 import { RecentWearReminderDialog } from '../features/plan/components/RecentWearReminderDialog'
+import { PreviewCreditDialog } from '../features/lookbook/components/PreviewCreditDialog'
 
 export function GlobalUi() {
   const { pathname } = useLocation()
@@ -85,6 +87,8 @@ export function GlobalUi() {
         />
       )}
       <RecentWearReminderDialog />
+      <PreviewCreditDialog />
+      <OutfitPreviewJobDialog />
       <ToastViewport />
     </>
   )

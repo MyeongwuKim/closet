@@ -158,3 +158,77 @@ for (const viewport of [
     }
   })
 }
+
+
+test('옷 정보를 바꾼 뒤 다시 추천받으면 이전 기록 대신 갱신된 옷으로 조회한다', async ({ page, mockApi }) => {
+  let recommendationCalls = 0
+  let canceledCalls = 0
+  page.on('requestfailed', (request) => {
+    if (request.postData()?.includes('query TodayOutfitRecommendation') && request.failure()?.errorText === 'net::ERR_ABORTED') canceledCalls += 1
+  })
+  await page.route('**/graphql', async (route) => {
+    const request = route.request().postDataJSON()
+    if (!request.query.includes('query TodayOutfitRecommendation')) {
+      await route.fallback()
+      return
+    }
+    recommendationCalls += 1
+    mockApi.operations.push('TodayOutfitRecommendation')
+    const input = request.variables.input
+    await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ data: { todayOutfitRecommendation: {
+      date: input.date, season: input.season, ready: true, style: null,
+      headline: `${mockApi.wardrobeItems[0].name} 중심 코디`, summary: '현재 옷장 정보로 추천했어요.',
+      colorSchemeApplied: true, items: mockApi.wardrobeItems, reasons: ['상하의를 함께 골랐어요.'], profileSummary: [], model: 'e2e-mock', source: 'fallback', weather: null,
+    } } }) })
+  })
+  const openRecommendation = async () => {
+    await page.getByRole('button', { name: 'AI 코디 추천', exact: true }).click()
+    await page.getByRole('button', { name: '추천받기', exact: true }).click()
+    await page.getByRole('button', { name: '봄', exact: true }).click()
+    await page.getByRole('button', { name: '자동', exact: true }).click()
+  }
+  await page.goto('/plan')
+  await openRecommendation()
+  await expect(page.getByRole('heading', { name: '테스트 셔츠 중심 코디', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'AI 코디 추천 닫기' }).click()
+  await page.getByRole('link', { name: '옷장', exact: true }).click()
+  await page.getByRole('button', { name: '테스트 셔츠 옷 상세 보기' }).click()
+  await page.getByRole('button', { name: '옷 정보 수정' }).click()
+  const edit = page.getByRole('dialog', { name: '옷 정보 수정' })
+  await edit.getByRole('textbox', { name: '아이템 이름' }).fill('바뀐 셔츠')
+  await edit.getByRole('button', { name: '변경사항 저장' }).click()
+  await expect(edit).toHaveCount(0)
+  await page.getByRole('button', { name: '내 옷장으로 돌아가기' }).click()
+  await page.getByRole('link', { name: '플래너', exact: true }).click()
+  await openRecommendation()
+  await expect(page.getByRole('heading', { name: '바뀐 셔츠 중심 코디', exact: true })).toBeVisible()
+  expect(recommendationCalls - canceledCalls).toBe(2)
+})
+
+
+for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
+  test(`${viewport.width}px: 가능한 조합이 하나면 불필요한 재추천을 막는다`, async ({ page, mockApi }) => {
+    await page.setViewportSize(viewport)
+    await page.route('**/graphql', async (route) => {
+      const request = route.request().postDataJSON()
+      if (!request.query.includes('query TodayOutfitRecommendation')) {
+        await route.fallback()
+        return
+      }
+      mockApi.operations.push('TodayOutfitRecommendation')
+      const input = request.variables.input
+      await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ data: { todayOutfitRecommendation: {
+        date: input.date, season: input.season, ready: true, combinationCount: 1, style: null,
+        headline: '함께 입을 수 있는 코디', summary: '지금 조건으로 고를 수 있는 조합이에요.',
+        colorSchemeApplied: true, items: mockApi.wardrobeItems, reasons: ['상하의를 함께 골랐어요.'], profileSummary: [], model: 'e2e-mock', source: 'fallback', weather: null,
+      } } }) })
+    })
+    await page.goto('/plan')
+    await page.getByRole('button', { name: 'AI 코디 추천', exact: true }).click()
+    await page.getByRole('button', { name: '추천받기', exact: true }).click()
+    await page.getByRole('button', { name: '봄', exact: true }).click()
+    await page.getByRole('button', { name: '자동', exact: true }).click()
+    await expect(page.getByRole('button', { name: '다른 조합 없음', exact: true })).toBeDisabled()
+    await expect(page.getByRole('button', { name: '오늘 일정에 담기', exact: true })).toBeEnabled()
+  })
+}

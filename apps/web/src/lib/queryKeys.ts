@@ -17,15 +17,16 @@ export const queryKeys = {
     list: (filter?: { style?: string; wardrobeItemIds?: string[] }) =>
       ['outfits', 'list', filter ?? {}] as const,
     recommendation: (
+      viewerId: string | null,
       selectedItemIds: string[],
       targetCategory: ClothingCategory | null,
-      mode: 'items' | 'colors' | null,
     ) =>
       [
         'outfits',
         'recommendation',
-        'v5',
-        { selectedItemIds, targetCategory, mode },
+        'combined-v1',
+        viewerId,
+        { selectedItemIds, targetCategory },
       ] as const,
   },
   planner: {

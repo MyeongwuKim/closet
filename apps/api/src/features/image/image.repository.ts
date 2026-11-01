@@ -8,6 +8,7 @@ import { prisma } from '../../lib/prisma.js'
 
 export interface CreateImageAssetData {
   userId: string
+  aiPreviewJobId?: string
   cloudflareImageId: string
   kind: ImageAssetKind
   deliveryVariant?: string
@@ -24,6 +25,11 @@ export interface CreateImageAssetData {
 export const imageRepository = {
   create(data: CreateImageAssetData) {
     return prisma.imageAsset.create({ data })
+  },
+
+  /** 업로드 저장 뒤 중단된 생성 작업에서 기존 이미지 자산을 찾아 재생성을 피한다. */
+  findByPreviewJob(userId: string, aiPreviewJobId: string) {
+    return prisma.imageAsset.findFirst({ where: { userId, aiPreviewJobId, uploadStatus: 'ready', OR: [{ retention: 'permanent' }, { retention: 'temporary', expiresAt: { gt: new Date() } }] } })
   },
 
   findOwnedById(userId: string, id: string) {

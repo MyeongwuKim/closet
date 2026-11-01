@@ -1,19 +1,24 @@
-import { ArrowUpRight, Shirt, X } from 'lucide-react'
+import { Shirt, Sparkles, X } from 'lucide-react'
+import { AiCreditActionButton } from './AiCreditActionButton'
+import { PreviewCreditSummary } from './PreviewCreditSummary'
 import './OutfitRecommendationChoice.css'
 
 interface OutfitRecommendationChoiceProps {
   categoryLabel: string
   hasClosetCandidates: boolean
   onClose: () => void
-  onChooseMode: (mode: 'items' | 'colors') => void
+  /** 완료 결과나 진행 중인 요청은 사용권을 다시 확인하지 않고 연다. */
+  hasExistingRequest: boolean
+  onRecommend: () => void
 }
 
-/** 현재 Look에 맞는 옷 또는 컬러를 고르는 두 경로를 시트의 같은 크기 영역에 표시한다. */
+/** 컬러·옷장 추천을 함께 받는 구성과 사용권 잔액을 실행 전에 보여준다. 0개일 때는 공통 충전 팝업을 연다. */
 export function OutfitRecommendationChoice({
   categoryLabel,
   hasClosetCandidates,
   onClose,
-  onChooseMode,
+  hasExistingRequest,
+  onRecommend,
 }: OutfitRecommendationChoiceProps) {
   return (
     <section
@@ -26,7 +31,7 @@ export function OutfitRecommendationChoice({
       <header className="outfit-recommendation-choice__header">
         <div className="outfit-recommendation-choice__heading">
           <span className="outfit-recommendation-choice__eyebrow">STYLE ASSIST</span>
-          <h2 id="outfit-style-choice-title">어떤 도움을 받을까요?</h2>
+          <h2 id="outfit-style-choice-title">컬러와 옷을 함께 추천해요</h2>
           <p id="outfit-style-choice-description">
             지금 만드는 Look에 어울리는 {categoryLabel} 아이템과 색을 찾아보세요.
           </p>
@@ -43,16 +48,11 @@ export function OutfitRecommendationChoice({
 
       <div className="outfit-recommendation-choice__body">
         <div className="outfit-recommendation-choice__cards">
-          <button
-            type="button"
-            onClick={() => onChooseMode('items')}
-            disabled={!hasClosetCandidates}
-            autoFocus={hasClosetCandidates}
+          <div
             className="outfit-recommendation-choice__card outfit-recommendation-choice__card--items"
           >
             <span className="outfit-recommendation-choice__card-top">
               <span className="outfit-recommendation-choice__card-index">01 / MY CLOSET</span>
-              <ArrowUpRight size={19} strokeWidth={1.6} aria-hidden="true" />
             </span>
             <span className="outfit-recommendation-choice__card-main">
               <span className="outfit-recommendation-choice__card-copy">
@@ -72,17 +72,13 @@ export function OutfitRecommendationChoice({
                 </span>
               </span>
             </span>
-          </button>
+          </div>
 
-          <button
-            type="button"
-            onClick={() => onChooseMode('colors')}
-            autoFocus={!hasClosetCandidates}
+          <div
             className="outfit-recommendation-choice__card outfit-recommendation-choice__card--colors"
           >
             <span className="outfit-recommendation-choice__card-top">
               <span className="outfit-recommendation-choice__card-index">02 / COLOR PALETTE</span>
-              <ArrowUpRight size={19} strokeWidth={1.6} aria-hidden="true" />
             </span>
             <span className="outfit-recommendation-choice__card-main">
               <span className="outfit-recommendation-choice__card-copy">
@@ -95,9 +91,26 @@ export function OutfitRecommendationChoice({
                 <span className="outfit-recommendation-choice__swatch outfit-recommendation-choice__swatch--three" />
               </span>
             </span>
-          </button>
+          </div>
         </div>
       </div>
+      <footer className="shrink-0 space-y-2 border-t border-line bg-surface px-4 pt-3 pb-[calc(.75rem+env(safe-area-inset-bottom))]">
+        <p className="text-center text-[11px] leading-4 text-muted">
+          {hasExistingRequest ? '받은 결과는 추가 사용 없이 다시 볼 수 있어요.' : 'AI 사용권 1개로 두 추천을 함께 받아요.'}
+        </p>
+        <PreviewCreditSummary kind="recommendation" />
+        <AiCreditActionButton
+          kind="recommendation"
+          requiresCredit={!hasExistingRequest}
+          label={hasExistingRequest ? '추천 결과 다시 보기' : '컬러·옷장 함께 추천받기'}
+          adLabel="광고 보고 사용권 얻기"
+          onClick={onRecommend}
+          autoFocus
+          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 text-xs font-black text-white disabled:opacity-60"
+        >
+          <Sparkles size={16} aria-hidden="true" />
+        </AiCreditActionButton>
+      </footer>
     </section>
   )
 }

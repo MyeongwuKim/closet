@@ -17,6 +17,17 @@ export interface NativeAppInfoRequest {
   id: string
 }
 
+export interface NativeRewardedAdRequest {
+  type: 'closet:native-rewarded-ad'
+  id: string
+  sessionId: string
+}
+
+export interface NativeAdPrivacyRequest {
+  type: 'closet:native-ad-privacy'
+  id: string
+}
+
 export interface NativeOpenAppSettingsRequest {
   type: 'closet:native-open-app-settings'
   id: string
@@ -78,6 +89,8 @@ export interface NativeCancelGraphqlRequest {
 }
 
 export type NativeBridgeRequest =
+  | NativeRewardedAdRequest
+  | NativeAdPrivacyRequest
   | NativeBridgeReadyMessage
   | NativeWebAppReadyMessage
   | NativeAppInfoRequest

@@ -1,3 +1,4 @@
+import { requestAiJson } from '../../lib/ai/ai-http.js'
 /**
  * 용도:
  * 옷장 아이템과 사용자 체형 정보를 바탕으로 착장형 룩북 이미지를 생성한다.
@@ -14,11 +15,11 @@ import type {
   PreferredFit,
 } from '@prisma/client'
 import type { FashionTrimPresence } from '@closet/types'
-import { isBagItem, MAX_OUTFIT_ITEMS } from '@closet/types/outfit-items'
+import { isBagItem } from '@closet/types/outfit-items'
 import { ServiceError } from '../../graphql/errors.js'
 import { userRepository } from '../user/user.repository.js'
 import { wardrobeRepository } from '../wardrobe/wardrobe.repository.js'
-import { hasCompleteOutfitBase } from './outfit-composition.js'
+import { getOutfitPreviewItems } from './outfit-preview-selection.js'
 import {
   describeLookbookFabric,
   lookbookFabricPreservationGuide,
@@ -103,19 +104,6 @@ export const lookbookGarmentLengthGuide = [
 
 interface OpenAiImageResponse {
   data?: Array<{ b64_json?: string }>
-  error?: { message?: string }
-}
-
-const OPENAI_IMAGE_ATTEMPTS = 2
-
-function describeOpenAiImageResponse(payload: OpenAiImageResponse | null) {
-  const firstImage = payload?.data?.[0]
-
-  return {
-    payloadKeys: payload ? Object.keys(payload) : [],
-    imageCount: Array.isArray(payload?.data) ? payload.data.length : null,
-    firstImageKeys: firstImage ? Object.keys(firstImage) : [],
-  }
 }
 
 function formatMeasurement(label: string, value?: number | null) {
@@ -352,6 +340,9 @@ function buildPrompt(
   const extraGarmentRule = baseLayerGuide
     ? 'Do not add any other extra garments beyond the single white base T-shirt explicitly allowed above.'
     : 'Do not add any extra garments.'
+  const footwearGuide = items.some((item) => item.category === 'shoes')
+    ? 'Use only the referenced footwear. Do not replace it with generic sneakers or add another pair.'
+    : 'No footwear was selected. Show the model barefoot, with natural bare feet visible. Do not invent shoes, sneakers, sandals or socks to complete the outfit.'
 
   return `Create a photorealistic fashion lookbook image using every garment from the reference images exactly once.
 
@@ -378,6 +369,8 @@ Garment length and natural hem rule: ${lookbookGarmentLengthGuide}
 
 Bag and worn accessories rule: ${bagGuide ?? 'No bag was selected. Do not invent or add a bag, backpack, handbag or carrying strap. Keep any referenced wearable accessories in their normal positions.'}
 
+Footwear rule: ${footwearGuide}
+
 Preserve each referenced garment's visible color, material, pattern, length, proportions, and distinctive details. Body chest, waist, and hip values are full circumferences, while garment chest, waist, and hip widths are flat measurements. When both are provided, use their relationship to depict plausible ease without treating the result as exact virtual fitting. Dress a single adult fashion model matching the body guide in the complete coordinated outfit.
 
 Show the model in a three-quarter front view like a clean apparel catalog photo. Keep the model centered, then rotate the torso, hips, knees, feet, neck, and implied gaze together about 20 to 30 degrees away from straight-on toward the left edge of the final image from the viewer's perspective (image-left). Keep this same image-left orientation in every generation. Never turn or mirror the pose toward image-right, and never alternate the pose direction. Do not use a full side profile. Keep the torso upright, shoulders level, legs uncrossed, and both feet flat with a small natural gap. Use a neutral standing-at-attention pose, not an editorial fashion pose. ${armsGuide}
@@ -386,7 +379,7 @@ Frame the complete outfit from the neck to the feet, keeping the model's face en
 }
 
 async function downloadReferenceImage(url: string, index: number) {
-  const response = await fetch(url)
+  const response = await fetch(url, { signal: AbortSignal.timeout(15_000) })
   if (!response.ok) {
     throw new ServiceError(
       `${index + 1}번째 옷 이미지를 불러오지 못했습니다.`,
@@ -395,7 +388,31 @@ async function downloadReferenceImage(url: string, index: number) {
   }
 
   const mimeType = response.headers.get('content-type')?.split(';')[0] ?? ''
-  const bytes = await response.arrayBuffer()
+  // Content-Length가 없어도 읽는 도중 크기를 제한한다.
+  const reader = response.body?.getReader()
+  if (!reader) throw new ServiceError('옷 이미지가 비어 있어요.', 'OUTFIT_PREVIEW_IMAGE_FAILED')
+  const chunks: Uint8Array[] = []
+  let total = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      total += value.byteLength
+      if (total > MAX_REFERENCE_IMAGE_BYTES) {
+        await reader.cancel()
+        throw new ServiceError('옷 이미지가 너무 큽니다.', 'OUTFIT_PREVIEW_IMAGE_FAILED')
+      }
+      chunks.push(value)
+    }
+  } finally {
+    reader.releaseLock()
+  }
+  const bytes = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
   if (
     !SUPPORTED_REFERENCE_TYPES.has(mimeType) ||
     bytes.byteLength === 0 ||
@@ -415,45 +432,12 @@ export const outfitPreviewService = {
     userId: string,
     selectedItemIds: string[],
     style?: string | null,
+    options: { onBeforeRequest?: () => Promise<void> } = {},
   ) {
-    const uniqueItemIds = [...new Set(selectedItemIds)]
-    if (uniqueItemIds.length < 2 || uniqueItemIds.length > MAX_OUTFIT_ITEMS) {
-      throw new ServiceError(
-        'AI 룩 미리보기는 2개에서 8개의 옷으로 만들 수 있습니다.',
-        'INVALID_OUTFIT_PREVIEW_ITEMS',
-      )
-    }
-
-    const [unorderedItems, profile] = await Promise.all([
-      wardrobeRepository.findManyOwnedWithImagesByIds(userId, uniqueItemIds),
+    const [items, profile] = await Promise.all([
+      getOutfitPreviewItems(userId, selectedItemIds),
       userRepository.findViewerById(userId),
     ])
-    if (
-      unorderedItems.length !== uniqueItemIds.length ||
-      unorderedItems.some(
-        (item) => !item.category || !item.displayImageAsset?.deliveryUrl,
-      )
-    ) {
-      throw new ServiceError(
-        '이미지가 있는 내 옷장 아이템만 미리보기에 사용할 수 있습니다.',
-        'INVALID_OUTFIT_PREVIEW_ITEMS',
-      )
-    }
-
-    const itemById = new Map(unorderedItems.map((item) => [item.id, item]))
-    const items = uniqueItemIds.map((itemId) => itemById.get(itemId)!)
-    if (!hasCompleteOutfitBase(items.map((item) => item.category!))) {
-      throw new ServiceError(
-        'AI 룩을 만들려면 상의나 아우터와 하의를 함께 선택해주세요.',
-        'INCOMPLETE_OUTFIT_PREVIEW_ITEMS',
-      )
-    }
-    const references = await Promise.all(
-      items.map((item, index) =>
-        downloadReferenceImage(item.displayImageAsset!.deliveryUrl!, index),
-      ),
-    )
-    const prompt = buildPrompt(items, profile, style)
     const apiKey = process.env.OPENAI_API_KEY?.trim()
     const model = process.env.OPENAI_IMAGE_MODEL?.trim() || 'gpt-image-2'
     if (!apiKey) {
@@ -462,6 +446,13 @@ export const outfitPreviewService = {
         'AI_CONFIGURATION_ERROR',
       )
     }
+
+    const references = await Promise.all(
+      items.map((item, index) =>
+        downloadReferenceImage(item.displayImageAsset!.deliveryUrl!, index),
+      ),
+    )
+    const prompt = buildPrompt(items, profile, style)
 
     const createForm = () => {
       const form = new FormData()
@@ -480,43 +471,13 @@ export const outfitPreviewService = {
       return form
     }
 
-    let imageBase64: string | undefined
-    for (let attempt = 1; attempt <= OPENAI_IMAGE_ATTEMPTS; attempt += 1) {
-      const response = await fetch('https://api.openai.com/v1/images/edits', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}` },
-        body: createForm(),
-      })
-      let payload: OpenAiImageResponse | null = null
-      let parseError: string | undefined
-      try {
-        payload = await response.json() as OpenAiImageResponse
-      } catch (error) {
-        parseError = error instanceof Error ? error.message : String(error)
-      }
-      imageBase64 = payload?.data?.[0]?.b64_json
-      if (response.ok && imageBase64) break
-
-      const retryable = response.status === 429 || response.status >= 500 || response.ok
-      const retrying = retryable && attempt < OPENAI_IMAGE_ATTEMPTS
-      console.error('[outfit-preview] OpenAI image generation failed', {
-        attempt,
-        retrying,
-        status: response.status,
-        requestId: response.headers.get('x-request-id'),
-        contentType: response.headers.get('content-type'),
-        message: payload?.error?.message,
-        parseError,
-        ...describeOpenAiImageResponse(payload),
-      })
-
-      if (!retrying) {
-        throw new ServiceError(
-          'AI 룩 이미지를 만들지 못했습니다. 잠시 후 다시 시도해주세요.',
-          'OUTFIT_PREVIEW_GENERATION_FAILED',
-        )
-      }
-    }
+    await options.onBeforeRequest?.()
+    const payload = await requestAiJson<OpenAiImageResponse>('https://api.openai.com/v1/images/edits', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: createForm(),
+    }, { timeoutMs: 120_000 })
+    const imageBase64 = payload.data?.[0]?.b64_json
 
     if (!imageBase64) {
       throw new ServiceError(

@@ -1,3 +1,5 @@
+import { PreviewCreditSummary } from '../components/PreviewCreditSummary'
+import { useRestorePreviewJob } from '../hooks/useRestorePreviewJob'
 import {
   useCallback,
   useEffect,
@@ -94,6 +96,7 @@ export function OutfitComposerPage() {
   const addOutfit = useLookbookStore((state) => state.addOutfit)
   const createOutfit = useCreateOutfitMutation()
   const previewMutation = useGenerateOutfitPreviewMutation()
+  useRestorePreviewJob(searchParams.get('previewJobId'))
   const previewAssetId = searchParams.get('previewAssetId')
   const previewRouteState = searchParams.get('preview')
   const shouldRestorePreview = previewRouteState === 'open'
@@ -871,6 +874,7 @@ export function OutfitComposerPage() {
         {!isSaveStepOpen && (
           <footer ref={composerFooterRef} className={`outfit-composer__footer shrink-0 border-t border-line bg-surface px-5 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(27,27,24,0.06)]${isWardrobeExpanded ? ' outfit-composer__footer--covered' : ''}`}>
             <div className="mx-auto max-w-2xl">
+              <div className="mb-2"><PreviewCreditSummary /></div>
               <OutfitCompletionActions
                 completionMessage={outfitCompletionMessage}
                 isEmpty={selectedItems.length === 0}
@@ -886,7 +890,7 @@ export function OutfitComposerPage() {
             </div>
           </footer>
         )}
-        <OutfitPreviewDialog isReadOnly={Boolean(duplicateOutfit)} />
+        <OutfitPreviewDialog isReadOnly={Boolean(duplicateOutfit)} creditSummary={<PreviewCreditSummary />} />
         <OutfitSaveDialog />
         {isSavedLookbookOpen &&
           canUseSavedLookbookPreview &&

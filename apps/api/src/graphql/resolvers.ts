@@ -9,9 +9,11 @@ import { pushResolvers } from '../features/push/push.resolvers.js'
 import { userResolvers } from '../features/user/user.resolvers.js'
 import { wardrobeResolvers } from '../features/wardrobe/wardrobe.resolvers.js'
 import { weatherResolvers } from '../features/weather/weather.resolvers.js'
+import { previewCreditResolvers } from '../features/preview-credits/preview-credit.resolvers.js'
 
 export const resolvers = {
   Query: {
+    ...previewCreditResolvers.Query,
     health: () => ({
       service: 'closet-api',
       status: 'ok',
@@ -25,6 +27,7 @@ export const resolvers = {
     ...weatherResolvers.Query,
   },
   Mutation: {
+    ...previewCreditResolvers.Mutation,
     ...authResolvers.Mutation,
     ...pushResolvers.Mutation,
     ...userResolvers.Mutation,

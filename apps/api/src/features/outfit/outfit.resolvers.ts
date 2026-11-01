@@ -1,3 +1,4 @@
+import { previewJobService, type StartPreviewInput } from './preview-job.service.js'
 /**
  * 용도:
  * 코디 조회·저장과 AI 추천·이미지 생성 요청을 GraphQL에 연결한다.
@@ -10,14 +11,13 @@ import type { ClothingCategory, OutfitStyle, Season } from '@prisma/client'
 import type { GraphQLContext } from '../../graphql/context.js'
 import { toGraphQLError } from '../../graphql/errors.js'
 import { imageService } from '../image/image.service.js'
-import { notifyCompletion, notifyFailure } from '../push/push.service.js'
+import { notifyCompletion } from '../push/push.service.js'
 import {
   outfitService,
   type CreateOutfitInput,
   type UpdateOutfitInput,
 } from './outfit.service.js'
 import { outfitRecommendationService } from './outfit-recommendation.service.js'
-import { outfitPreviewService } from './outfit-preview.service.js'
 import { todayOutfitRecommendationService } from './today-outfit-recommendation.service.js'
 import type { WeatherSnapshot } from '../weather/weather.service.js'
 
@@ -35,6 +35,22 @@ export const outfitResolvers = {
       generation.completedAt?.toISOString() ?? null,
   },
   Query: {
+    outfitPreviewJob: async (_parent: unknown, { id }: { id: string }, context: GraphQLContext) => {
+      try {
+        const viewer = await context.getViewer()
+        return await previewJobService.get(viewer.id, id)
+      } catch (error) {
+        throw toGraphQLError(error, 'AI 생성 상태를 불러오지 못했습니다.', 'AI_JOB_LOAD_FAILED')
+      }
+    },
+    outfitPreviewJobs: async (_parent: unknown, _args: unknown, context: GraphQLContext) => {
+      try {
+        const viewer = await context.getViewer()
+        return await previewJobService.list(viewer.id)
+      } catch (error) {
+        throw toGraphQLError(error, 'AI 생성 상태를 불러오지 못했습니다.', 'AI_JOB_LOAD_FAILED')
+      }
+    },
     todayOutfitRecommendation: async (
       _parent: unknown,
       {
@@ -143,58 +159,27 @@ export const outfitResolvers = {
       }: { input: { selectedItemIds: string[]; style?: string | null } },
       context: GraphQLContext,
     ) => {
-      let viewerId: string | null = null
       try {
         const viewer = await context.getViewer()
-        viewerId = viewer.id
-        const preview = await outfitPreviewService.generate(
-          viewer.id,
-          input.selectedItemIds,
-          input.style,
-        )
-        const imageAsset = await imageService.storeGeneratedImage(viewer.id, {
-          ...preview,
-          temporary: true,
-          metadata: {
-            purpose: 'outfitPreview',
-            selectedItemIds: input.selectedItemIds,
-            ...(input.style ? { style: input.style } : {}),
-          },
-        })
-        const storedPreview = await imageService.getGeneratedImage(
-          viewer.id,
-          imageAsset.id,
-        )
-        const searchParams = new URLSearchParams({
-          items: input.selectedItemIds.join(','),
-          from: '/lookbook',
-          previewAssetId: storedPreview.assetId,
-          preview: 'open',
-        })
-        if (input.style) searchParams.set('style', input.style)
-
-        notifyCompletion(viewer.id, 'outfit-preview', {
-          path: `/lookbook/new?${searchParams.toString()}`,
-          previewAssetId: storedPreview.assetId,
-        })
-        return { ...preview, ...storedPreview }
+        return await previewJobService.generateAndWait(viewer.id, input)
       } catch (error) {
-        if (viewerId) {
-          const searchParams = new URLSearchParams({
-            items: input.selectedItemIds.join(','),
-            from: '/lookbook',
-            preview: 'failed',
-          })
-          if (input.style) searchParams.set('style', input.style)
-          notifyFailure(viewerId, 'outfit-preview', {
-            path: `/lookbook/new?${searchParams.toString()}`,
-          })
-        }
-        throw toGraphQLError(
-          error,
-          'AI 룩 미리보기를 만들지 못했습니다.',
-          'OUTFIT_PREVIEW_GENERATION_FAILED',
-        )
+        throw toGraphQLError(error, 'AI 룩 미리보기를 만들지 못했습니다.', 'OUTFIT_PREVIEW_GENERATION_FAILED')
+      }
+    },
+    startOutfitPreview: async (_parent: unknown, { input }: { input: StartPreviewInput }, context: GraphQLContext) => {
+      try {
+        const viewer = await context.getViewer()
+        return await previewJobService.start(viewer.id, input)
+      } catch (error) {
+        throw toGraphQLError(error, 'AI 생성 요청을 저장하지 못했습니다.', 'AI_JOB_START_FAILED')
+      }
+    },
+    acknowledgeOutfitPreviewJob: async (_parent: unknown, { id }: { id: string }, context: GraphQLContext) => {
+      try {
+        const viewer = await context.getViewer()
+        return await previewJobService.acknowledge(viewer.id, id)
+      } catch (error) {
+        throw toGraphQLError(error, 'AI 생성 상태를 확인하지 못했습니다.', 'AI_JOB_LOAD_FAILED')
       }
     },
     createOutfit: async (

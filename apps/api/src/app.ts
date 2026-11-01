@@ -7,6 +7,7 @@ import Fastify from 'fastify'
 import { createGraphQLContext, type GraphQLContext } from './graphql/context.js'
 import { resolvers } from './graphql/resolvers.js'
 import { typeDefs } from './graphql/schema.js'
+import { registerAdmobRoutes } from './features/preview-credits/admob.routes.js'
 
 const GRAPHQL_BODY_LIMIT = 16 * 1024 * 1024
 
@@ -39,6 +40,8 @@ export async function buildApp() {
     csrfPrevention: true,
     plugins: [fastifyApolloDrainPlugin(app)],
   })
+
+  await registerAdmobRoutes(app)
 
   await apollo.start()
   await app.register(fastifyApollo(apollo), {

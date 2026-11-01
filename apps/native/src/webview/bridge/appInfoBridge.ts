@@ -1,5 +1,6 @@
 import * as Application from 'expo-application'
 import { Platform } from 'react-native'
+import { supportsRewardedAds } from '../../ads/rewardedAds'
 import { getNativePermissionStatuses } from './permissionBridge'
 import { postNativeBridgeResponse } from './responses'
 import type { NativeAppInfoRequest, WebViewRef } from './types'
@@ -19,6 +20,7 @@ export async function handleNativeAppInfoRequest(
       buildVersion: Application.nativeBuildVersion,
       permissions,
       capabilities: [
+        ...(supportsRewardedAds() ? ['rewarded-ad', 'ad-privacy'] : []),
         'app-info',
         'app-permissions',
         'notification-permission',

@@ -1,3 +1,4 @@
+import { AiCreditActionButton } from './AiCreditActionButton'
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { OutfitPreview, Season, WardrobeItem } from '@closet/types'
@@ -32,6 +33,7 @@ import {
 } from '../utils/outfitComposition'
 import { OutfitSlotEditor } from './OutfitSlotEditor'
 import { OutfitPreviewDialogView } from './OutfitPreviewDialog'
+import { PreviewCreditSummary } from './PreviewCreditSummary'
 import { OutfitStyleSelector } from './OutfitStyleSelector'
 import { SavedOutfitPreviewDialog } from './SavedOutfitPreviewDialog'
 import { useWardrobeItemsQuery } from '../../closet/api/wardrobeQueries'
@@ -227,7 +229,7 @@ export function OutfitDetailModal({
         setDraftPreview({
           isOpen: true,
           status: 'success',
-          imageUrl: `data:${result.mimeType};base64,${result.imageBase64}`,
+          imageUrl: result.imageUrl ?? `data:${result.mimeType};base64,${result.imageBase64}`,
           imageBase64: result.imageBase64,
           assetId: result.assetId ?? null,
           compositionKey: null,
@@ -256,14 +258,16 @@ export function OutfitDetailModal({
 
   const saveDraftPreview = async () => {
     if (
-      !draftPreview.imageBase64 ||
+      (!draftPreview.assetId && !draftPreview.imageBase64) ||
       !draftPreview.mimeType ||
       !draftPreview.model
     ) {
       return
     }
     const updated = await saveChanges({
-      imageBase64: draftPreview.imageBase64,
+      imageBase64: draftPreview.imageBase64 ?? '',
+      ...(draftPreview.assetId ? { assetId: draftPreview.assetId } : {}),
+      ...(draftPreview.imageUrl ? { imageUrl: draftPreview.imageUrl } : {}),
       mimeType: draftPreview.mimeType,
       model: draftPreview.model,
     })
@@ -340,8 +344,11 @@ export function OutfitDetailModal({
 
       <footer className="shrink-0 border-t border-line bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(27,27,24,0.06)]">
         <div className="mx-auto grid max-w-3xl grid-cols-[0.85fr_1.15fr] gap-2">
-          <button
-            type="button"
+          <div className="col-span-2"><PreviewCreditSummary /></div>
+          <AiCreditActionButton
+            requiresCredit={!(outfit.previewImageUrl && !itemsChanged)}
+            label={outfit.previewImageUrl && !itemsChanged ? 'AI 룩북 보기' : outfit.previewImageUrl ? '새 AI 룩 만들기' : 'AI 룩 만들기'}
+            adLabel="광고 보고 룩북 만들기"
             onClick={() => {
               if (outfit.previewImageUrl && !itemsChanged) {
                 setIsPreviewOpen(true)
@@ -365,12 +372,7 @@ export function OutfitDetailModal({
             ) : (
               <ImagePlus size={15} />
             )}
-            {outfit.previewImageUrl && !itemsChanged
-              ? 'AI 룩북 보기'
-              : outfit.previewImageUrl
-                ? '새 AI 룩 만들기'
-                : 'AI 룩 만들기'}
-          </button>
+          </AiCreditActionButton>
           <button
             type="button"
             onClick={() => void saveChanges()}
@@ -487,6 +489,7 @@ export function OutfitDetailModal({
         />
       )}
       <OutfitPreviewDialogView
+        creditSummary={<PreviewCreditSummary />}
         selectedItems={draftItems}
         preview={draftPreview}
         generatePreview={createDraftPreview}

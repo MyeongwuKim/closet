@@ -93,6 +93,7 @@ export const cloudflareImagesClient = {
         method: 'POST',
         headers: { Authorization: `Bearer ${apiToken}` },
         body: form,
+        signal: AbortSignal.timeout(30_000),
       },
     )
 
@@ -124,6 +125,7 @@ export const cloudflareImagesClient = {
         method: 'POST',
         headers: { Authorization: `Bearer ${apiToken}` },
         body: form,
+        signal: AbortSignal.timeout(30_000),
       },
     )
 
@@ -136,6 +138,7 @@ export const cloudflareImagesClient = {
       `https://api.cloudflare.com/client/v4/accounts/${accountId}/images/v1/${encodeURIComponent(cloudflareImageId)}`,
       {
         headers: { Authorization: `Bearer ${apiToken}` },
+        signal: AbortSignal.timeout(15_000),
       },
     )
 
@@ -149,6 +152,7 @@ export const cloudflareImagesClient = {
       {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${apiToken}` },
+        signal: AbortSignal.timeout(15_000),
       },
     )
 

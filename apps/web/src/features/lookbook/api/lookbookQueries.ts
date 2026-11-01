@@ -1,9 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
-  ClothingCategory,
-  OutfitMatchRelation,
   OutfitPreview,
-  OutfitRecommendation,
   Season,
   StoredOutfitPreview,
 } from '@closet/types'
@@ -32,25 +29,6 @@ export interface OutfitPayload {
     status: 'queued' | 'processing' | 'completed' | 'failed'
     imageAsset: { deliveryUrl: string | null } | null
   }>
-}
-
-interface OutfitRecommendationPayload {
-  targetCategory: ClothingCategory
-  headline: string
-  summary: string
-  recommendedColors: Array<{
-    name: string
-    hex: string
-    reason: string
-    role: 'safe' | 'harmony' | 'accent'
-  }>
-  candidates: Array<{
-    item: WardrobeItemPayload
-    reason: string
-    relation: OutfitMatchRelation
-  }>
-  model: string
-  source: OutfitRecommendation['source']
 }
 
 export interface CreateOutfitVariables {
@@ -116,62 +94,6 @@ export function useOutfitsQuery(enabled = true, filter?: { style?: string; wardr
         outfit.items.flatMap((item) => item.wardrobeItem ? [toWardrobeItem(item.wardrobeItem)] : []),
       ))
       return data.outfits.map(toSavedOutfit)
-    },
-  })
-}
-
-/** 선택한 스타일 제안 탭만 조회한다. 탭별 키로 결과와 로딩·오류 상태를 분리하고 같은 탭 재방문 시 캐시를 재사용한다. */
-export function useOutfitRecommendationQuery(
-  selectedItemIds: string[],
-  targetCategory: ClothingCategory | null,
-  mode: 'items' | 'colors' | null,
-) {
-  return useQuery({
-    queryKey: queryKeys.outfits.recommendation(
-      selectedItemIds,
-      targetCategory,
-      mode,
-    ),
-    enabled: mode !== null && selectedItemIds.length > 0 && targetCategory !== null,
-    staleTime: 5 * 60 * 1000,
-    queryFn: async ({ signal }): Promise<OutfitRecommendation> => {
-      if (!targetCategory || !mode) {
-        throw new Error('추천 종류와 옷 종류를 선택해주세요.')
-      }
-
-      const data = await graphqlRequest<
-        { outfitRecommendation: OutfitRecommendationPayload },
-        {
-          input: {
-            selectedItemIds: string[]
-            targetCategory: ClothingCategory
-            mode: 'items' | 'colors'
-          }
-        }
-      >(
-        `
-          query OutfitRecommendation($input: OutfitRecommendationInput!) {
-            outfitRecommendation(input: $input) {
-              targetCategory headline summary model source
-              recommendedColors { name hex reason role }
-              candidates {
-                reason relation
-                item { ${wardrobeItemFields} }
-              }
-            }
-          }
-        `,
-        { input: { selectedItemIds, targetCategory, mode } },
-        signal,
-      )
-      const recommendation = data.outfitRecommendation
-      return {
-        ...recommendation,
-        candidates: recommendation.candidates.map((candidate) => ({
-          ...candidate,
-          item: toWardrobeItem(candidate.item),
-        })),
-      }
     },
   })
 }
@@ -279,32 +201,8 @@ export function useDeleteOutfitMutation() {
   })
 }
 
-export function useGenerateOutfitPreviewMutation() {
-  return useMutation({
-    mutationFn: async ({
-      selectedItemIds,
-      style,
-    }: {
-      selectedItemIds: string[]
-      style?: string
-    }) => {
-      const data = await graphqlRequest<
-        { generateOutfitPreview: OutfitPreview },
-        { input: { selectedItemIds: string[]; style?: string } }
-      >(
-        `
-          mutation GenerateOutfitPreview($input: OutfitPreviewInput!) {
-            generateOutfitPreview(input: $input) {
-              imageBase64 mimeType model assetId imageUrl
-            }
-          }
-        `,
-        { input: { selectedItemIds, style } },
-      )
-      return data.generateOutfitPreview
-    },
-  })
-}
+/** 각 화면의 이미지 생성을 재연결 가능한 서버 작업에 맡긴다. */
+export { useGenerateOutfitPreviewJobMutation as useGenerateOutfitPreviewMutation } from './previewJobQueries'
 
 export function useOutfitPreviewAssetQuery(assetId?: string | null) {
   return useQuery({

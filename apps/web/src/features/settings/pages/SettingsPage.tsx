@@ -20,6 +20,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { PageTitle } from '../../../components/PageTitle'
 import { CollectionHeading } from '../../../components/CollectionHeading'
 import { SegmentedControl } from '../../../components/SegmentedControl'
+import { StyleProfileRouteSkeleton } from '../../../components/layout/TabRouteSkeleton'
 import { useUiStore } from '../../../stores/useUiStore'
 import {
   useMeQuery,
@@ -356,6 +357,12 @@ function StyleProfileForm({ initialProfile }: StyleProfileFormProps) {
 export function StyleProfilePage() {
   const localProfile = useStyleProfileStore((state) => state.profile)
   const meQuery = useMeQuery()
+
+  // 첫 조회가 끝난 뒤 폼을 만들고, 같은 사용자의 재조회에는 입력 중인 값을 유지한다.
+  if (meQuery.isPending) {
+    return <StyleProfileRouteSkeleton />
+  }
+
   const initialProfile: StyleProfile = meQuery.data
     ? {
         gender: meQuery.data.styleProfile.gender,
@@ -402,7 +409,7 @@ export function StyleProfilePage() {
       </header>
 
       <StyleProfileForm
-        key={meQuery.dataUpdatedAt || 'local'}
+        key={meQuery.data?.id ?? 'local'}
         initialProfile={initialProfile}
       />
     </section>

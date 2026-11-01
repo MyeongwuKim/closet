@@ -1,3 +1,4 @@
+import { ServiceError } from '../../graphql/errors.js'
 import {
   RawImage,
   env,
@@ -36,14 +37,33 @@ function getBackgroundRemover() {
   return backgroundRemoverPromise
 }
 
+let removalTail: Promise<unknown> = Promise.resolve()
+let queuedRemovals = 0
+
 /**
  * 로컬 모델로 사진 배경을 제거하고, 투명 영역과 남은 전경 영역이 모두 있을 때만 PNG base64를 반환한다.
+ * 공유 모델은 한 번에 하나의 사진을 처리하고 대기 작업이 8개면 새 요청을 거절한다.
  * 모델 로드가 실패하면 다음 호출에서 다시 로드할 수 있도록 캐시된 Promise를 초기화한다.
  */
 export async function removeImageBackground(
   imageBuffer: Buffer,
   mimeType: string,
 ) {
+  if (queuedRemovals >= 8) {
+    throw new ServiceError('사진 분석이 진행 중이에요. 잠시 후 다시 시도해 주세요.', 'AI_BUSY')
+  }
+  queuedRemovals += 1
+  const work = removalTail.then(() => performBackgroundRemoval(imageBuffer, mimeType))
+  removalTail = work.then(() => undefined, () => undefined)
+  try {
+    return await work
+  } finally {
+    queuedRemovals -= 1
+  }
+}
+
+/** 공유 모델을 사용하는 실제 추론. 호출 순서와 대기열 제한은 removeImageBackground가 담당한다. */
+async function performBackgroundRemoval(imageBuffer: Buffer, mimeType: string) {
   const remover = await getBackgroundRemover()
   const bytes = Uint8Array.from(imageBuffer)
   const image = await RawImage.fromBlob(new Blob([bytes], { type: mimeType }))

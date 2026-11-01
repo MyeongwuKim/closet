@@ -72,8 +72,8 @@
   display: grid;
   width: 100%;
   height: 100%;
-  min-height: 310px;
-  grid-template-rows: repeat(2, minmax(150px, 1fr));
+  min-height: 246px;
+  grid-template-rows: repeat(2, minmax(118px, 1fr));
   gap: 10px;
 }
 
@@ -87,10 +87,9 @@
   overflow: hidden;
   border: 1px solid var(--color-line);
   border-radius: 18px;
-  padding: 15px 17px 13px;
+  padding: 12px 14px;
   color: var(--color-ink);
   text-align: left;
-  transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
 }
 
 .outfit-recommendation-choice__card--items {
@@ -153,16 +152,16 @@
 .outfit-recommendation-choice__palette-art {
   position: relative;
   display: block;
-  width: 100px;
-  height: 78px;
+  width: 88px;
+  height: 60px;
   flex: none;
 }
 
 .outfit-recommendation-choice__garment {
   position: absolute;
   display: grid;
-  width: 58px;
-  height: 66px;
+  width: 45px;
+  height: 52px;
   place-items: center;
   border: 1px solid var(--color-line);
   border-radius: 8px;
@@ -178,8 +177,8 @@
 }
 
 .outfit-recommendation-choice__garment--front {
-  top: 10px;
-  left: 35px;
+  top: 7px;
+  left: 28px;
   transform: rotate(8deg);
   background: var(--color-surface);
   color: var(--color-accent);
@@ -187,51 +186,39 @@
 
 .outfit-recommendation-choice__swatch {
   position: absolute;
-  width: 53px;
-  height: 53px;
+  width: 44px;
+  height: 44px;
   border: 3px solid color-mix(in srgb, var(--color-sage) 66%, var(--color-surface));
   border-radius: 50%;
   box-shadow: 0 4px 9px -6px rgb(67 57 47 / 35%);
 }
 
 .outfit-recommendation-choice__swatch--one {
-  top: 19px;
-  left: 1px;
+  top: 16px;
+  left: 0;
   background: #6f796b;
 }
 
 .outfit-recommendation-choice__swatch--two {
   z-index: 1;
-  top: 3px;
-  left: 27px;
+  top: 0;
+  left: 22px;
   background: #c6a784;
 }
 
 .outfit-recommendation-choice__swatch--three {
   z-index: 2;
-  top: 20px;
-  left: 51px;
+  top: 16px;
+  left: 44px;
   background: #9f7465;
 }
 
-.outfit-recommendation-choice__card:disabled {
-  cursor: not-allowed;
-  opacity: .52;
-}
-
-.outfit-recommendation-choice__card:focus-visible,
 .outfit-recommendation-choice__close:focus-visible {
   outline: 3px solid var(--color-accent);
   outline-offset: -4px;
 }
 
 @media (hover: hover) {
-  .outfit-recommendation-choice__card:not(:disabled):hover {
-    border-color: var(--color-accent);
-    box-shadow: 0 8px 18px -15px rgb(67 57 47 / 55%);
-    transform: translateY(-1px);
-  }
-
   .outfit-recommendation-choice__close:hover {
     background: var(--color-canvas);
   }
@@ -245,11 +232,5 @@
   .outfit-recommendation-choice__wardrobe-art,
   .outfit-recommendation-choice__palette-art {
     margin-right: 8px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .outfit-recommendation-choice__card {
-    transition: none;
   }
 }

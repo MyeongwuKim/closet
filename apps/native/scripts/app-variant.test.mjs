@@ -33,6 +33,8 @@ test('Expo 설정은 iOS·Android·딥 링크를 함께 나누고 기존 EAS 연
       assert.equal(config.android.package, variant.identifier)
       assert.equal(config.scheme, variant.scheme)
       assert.equal(config.extra.appEnvironment, environment)
+      assert.equal(config.extra.allowTestAdRewards, environment !== 'production')
+      assert.equal(config.plugins.some((plugin) => Array.isArray(plugin) && plugin[0] === 'react-native-google-mobile-ads'), true)
       assert.equal(config.extra.eas.projectId, base.extra.eas.projectId)
     }
   } finally {

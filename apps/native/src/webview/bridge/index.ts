@@ -1,5 +1,6 @@
 import type { WebViewMessageEvent } from 'react-native-webview'
 import { handleNativeAppInfoRequest } from './appInfoBridge'
+import { handleNativeAdPrivacy, handleNativeRewardedAd } from './rewardedAdBridge'
 import { handleNativeOpenAppSettingsRequest } from './appSettingsBridge'
 import { handleNativeAuthSessionRequest } from './authSessionBridge'
 import { handleNativeCaptureWardrobePhoto } from './cameraBridge'
@@ -10,6 +11,8 @@ import { handleNativeRequestPermission } from './permissionBridge'
 import { CLOSET_WEBVIEW_BRIDGE_SCRIPT } from './injectedScript'
 import {
   isNativeAppInfoRequest,
+  isNativeRewardedAdRequest,
+  isNativeAdPrivacyRequest,
   isNativeAuthSessionRequest,
   isNativeBridgeReadyMessage,
   isNativeCancelGraphqlRequest,
@@ -42,6 +45,15 @@ export async function handleNativeBridgeMessage(
 ) {
   const request = parseNativeBridgeRequest(event.nativeEvent.data)
   if (!request) return
+
+  if (isNativeRewardedAdRequest(request)) {
+    await handleNativeRewardedAd(request, webViewRef, handlers.accessToken)
+    return
+  }
+  if (isNativeAdPrivacyRequest(request)) {
+    await handleNativeAdPrivacy(request, webViewRef)
+    return
+  }
 
   if (isNativeBridgeReadyMessage(request)) {
     handlers.onReady?.()

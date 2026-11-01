@@ -240,6 +240,8 @@ export type TodayOutfitColorScheme =
   | 'accent'
 
 export interface TodayOutfitRecommendation {
+  /** 현재 계절·날씨·제외 조건으로 추린 추천 후보 수. 이전 로컬 기록에는 없을 수 있다. */
+  combinationCount?: number
   date: string
   season: Season
   ready: boolean
@@ -287,6 +289,52 @@ export interface StoredOutfitPreview {
   imageUrl: string
   mimeType: OutfitPreview['mimeType']
   model: string
+}
+
+/** 서버에 보관한 AI 이미지 생성 작업. interrupted는 전송 후 결과를 확인하지 못해 자동 재생성을 멈춘 상태다. */
+export interface OutfitPreviewJob {
+  id: string
+  status: 'queued' | 'processing' | 'completed' | 'failed' | 'interrupted'
+  selectedItemIds: string[]
+  style: string | null
+  imageAssetId: string | null
+  model: string | null
+  errorCode: string | null
+  errorMessage: string | null
+  createdAt: string
+  /** 작업 상태·선택 옷·완료 이미지를 복원할 코디 편집 경로. */
+  path: string
+}
+
+/** 공통 AI 사용권을 이용하는 진입 기능을 구분한다. 추천과 이미지 생성은 같은 잔액을 사용한다. */
+export type AiCreditKind = 'preview' | 'recommendation'
+
+/** 이용권 잔액. 진행 중 예약은 이미 차감된 값이다. capacity가 있으면 시간 충전 지갑이고, 없으면 날짜별 이미지 생성권이다. */
+export interface PreviewCredits {
+  freeRemaining: number
+  rewardRemaining: number
+  totalRemaining: number
+  /** 오늘 추가로 받을 수 있는 광고 보상 횟수. null은 일일 지급 상한이 없다는 뜻이다. */
+  adRewardsRemaining: number | null
+  rewardMode: 'test' | 'production' | 'disabled'
+  resetsAt: string
+  pendingRewardSessionId: string | null
+  /** 시간 충전 지갑의 최대 보유량. 이전의 날짜별 생성권에는 값이 없다. */
+  capacity?: number | null
+  /** 다음 1개 충전 시각. 최대 보유 상태이면 null이다. */
+  nextRefillAt?: string | null
+  /** 잔액 계산에 사용한 서버 시각. 대기 시간 표시를 기기 시계와 구분할 때 사용한다. */
+  serverNow?: string | null
+}
+
+/** 서버가 발급한 광고 번호. watchedAt은 앱의 완료 보고이며 granted만 서버가 지급을 확정한 상태다. */
+export interface PreviewRewardSession {
+  id: string
+  mode: 'test' | 'production'
+  adUnitId: string
+  status: 'pending' | 'granted'
+  watchedAt: string | null
+  validUntil: string
 }
 
 export interface PlannerEntry {

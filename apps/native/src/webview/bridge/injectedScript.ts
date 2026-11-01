@@ -77,6 +77,12 @@ export const CLOSET_WEBVIEW_BRIDGE_SCRIPT = `
     };
 
     window.ClosetNative = {
+      showRewardedAd: function (sessionId) {
+        return request('closet:native-rewarded-ad', { sessionId: sessionId }, 420000);
+      },
+      openAdPrivacyOptions: function () {
+        return request('closet:native-ad-privacy', null, 120000);
+      },
       requestGraphql: function (query, variables, signal) {
         return request('closet:native-graphql', {
           query: query, variables: variables

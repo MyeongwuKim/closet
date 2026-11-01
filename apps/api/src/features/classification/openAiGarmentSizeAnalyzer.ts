@@ -1,3 +1,4 @@
+import { requestAiJson } from '../../lib/ai/ai-http.js'
 import type { ClothingCategory } from '@closet/types'
 import { ServiceError } from '../../graphql/errors.js'
 import { getOpenAiClassificationModel } from './openAiWardrobeClassifier.js'
@@ -119,7 +120,7 @@ export async function analyzeGarmentSizeChartWithOpenAi(
   }
 
   const model = getOpenAiClassificationModel()
-  const response = await fetch('https://api.openai.com/v1/responses', {
+  const payload = await requestAiJson('https://api.openai.com/v1/responses', {
     method: 'POST',
     headers: {
       authorization: `Bearer ${apiKey}`,
@@ -146,6 +147,7 @@ export async function analyzeGarmentSizeChartWithOpenAi(
             '각주나 측정법에 단면값의 X2 또는 둘레라고 적힌 경우에도 2로 나누어 단면으로 변환하세요.',
             '예를 들어 제품 실측표의 가슴둘레가 123이면 chestWidthCm은 61.5이고, 허리둘레가 85이면 waistWidthCm은 42.5입니다. 둘레값을 그대로 단면 필드에 반환하면 안 됩니다.',
             '둘레를 단면으로 변환했다면 어떤 원본 열과 값을 2로 나눴는지 notes에 남기세요.',
+            'notes는 완결된 한국어 문장으로 작성하세요. 각 항목은 160자 이내이며, 변환 값이 많으면 항목을 나누세요. 영어 열 이름은 필요한 부분만 짧게 인용하고 설명 전체를 영어로 쓰거나 문장을 중간에서 자르지 마세요.',
             '열 이름과 각주를 봐도 둘레인지 단면인지 불명확한 값은 추측하거나 변환하지 말고 null로 두세요.',
             '총장, 소매 길이, 밑위처럼 길이 자체인 항목은 명확할 때 그대로 사용하세요.',
             '이미지에 없는 항목과 의미가 애매한 항목은 반드시 null로 두세요.',
@@ -242,14 +244,8 @@ export async function analyzeGarmentSizeChartWithOpenAi(
         },
       },
     }),
-    signal: AbortSignal.timeout(45_000),
-  })
+  }, { timeoutMs: 45_000 })
 
-  if (!response.ok) {
-    throw new Error(`OpenAI garment size analysis failed with ${response.status}`)
-  }
-
-  const payload: unknown = await response.json()
   const outputText = getOutputText(payload)
   if (!outputText) {
     throw new Error('OpenAI garment size analysis output is empty')

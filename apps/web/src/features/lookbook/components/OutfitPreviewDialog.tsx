@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { AiCreditActionButton } from './AiCreditActionButton'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { WardrobeItem } from '@closet/types'
 import { AlertCircle, BookPlus, RefreshCw, Sparkles, X } from 'lucide-react'
 import { ClosetItemVisual } from '../../closet/components/ClosetItemVisual'
@@ -24,6 +25,8 @@ interface OutfitPreviewDialogViewProps {
   primaryLabel?: string
   primaryAction?: 'save' | 'close'
   isPrimaryPending?: boolean
+  /** 생성권 조회는 호출한 화면에서 수행하고 여기에는 잔액 안내 UI만 전달한다. */
+  creditSummary?: ReactNode
 }
 
 export function OutfitPreviewDialogView({
@@ -35,6 +38,7 @@ export function OutfitPreviewDialogView({
   primaryLabel = '코디북에 추가',
   primaryAction = 'save',
   isPrimaryPending = false,
+  creditSummary,
 }: OutfitPreviewDialogViewProps) {
   const [loadingStage, setLoadingStage] = useState(0)
 
@@ -59,6 +63,7 @@ export function OutfitPreviewDialogView({
       aria-modal="true"
       aria-labelledby="outfit-preview-title"
       aria-busy={isLoading}
+      data-ai-preview-asset-id={isSuccess ? preview.assetId ?? undefined : undefined}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) closePreview()
       }}
@@ -121,7 +126,7 @@ export function OutfitPreviewDialogView({
               </strong>
               <p className="mt-2 max-w-64 text-xs leading-5 text-muted">
                 {isNativeWebViewRuntime()
-                  ? '앱을 닫아도 생성은 계속돼요. 완료되면 푸시 알림으로 알려드릴게요.'
+                  ? '앱을 닫아도 생성은 계속돼요. 앱을 보고 있으면 완료 안내가 뜨고, 나가 있으면 푸시로 알려드려요.'
                   : '옷 사진과 입력한 실루엣 수치를 참고하고 있어요. 생성에는 시간이 조금 걸릴 수 있어요.'}
               </p>
 
@@ -173,13 +178,15 @@ export function OutfitPreviewDialogView({
 
         {!isLoading && (
           <footer className="grid shrink-0 grid-cols-2 gap-2 border-t border-line px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
-            <button
-              type="button"
+            {creditSummary && <div className="col-span-2">{creditSummary}</div>}
+            <AiCreditActionButton
+              label="다시 만들기"
+              adLabel="광고 보고 다시 만들기"
               onClick={() => generatePreview(true)}
               className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-canvas px-3 py-3 text-xs font-bold"
             >
-              <RefreshCw size={14} /> 다시 만들기
-            </button>
+              <RefreshCw size={14} />
+            </AiCreditActionButton>
             <button
               type="button"
               onClick={isSuccess ? onPrimary : closePreview}
@@ -210,10 +217,12 @@ export function OutfitPreviewDialogView({
 
 interface OutfitPreviewDialogProps {
   isReadOnly?: boolean
+  creditSummary?: ReactNode
 }
 
 export function OutfitPreviewDialog({
   isReadOnly = false,
+  creditSummary,
 }: OutfitPreviewDialogProps) {
   const {
     selectedItems,
@@ -225,6 +234,7 @@ export function OutfitPreviewDialog({
 
   return (
     <OutfitPreviewDialogView
+      creditSummary={creditSummary}
       selectedItems={selectedItems}
       preview={preview}
       generatePreview={generatePreview}

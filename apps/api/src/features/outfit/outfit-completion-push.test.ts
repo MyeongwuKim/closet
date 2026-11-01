@@ -2,9 +2,8 @@ import assert from 'node:assert/strict'
 import test, { type TestContext } from 'node:test'
 import { buildApp } from '../../app.js'
 import { authService } from '../auth/auth.service.js'
-import { imageService } from '../image/image.service.js'
 import { pushService, type CompletionPushKind } from '../push/push.service.js'
-import { outfitPreviewService } from './outfit-preview.service.js'
+import { previewJobService } from './preview-job.service.js'
 import { outfitRecommendationService } from './outfit-recommendation.service.js'
 import { todayOutfitRecommendationService } from './today-outfit-recommendation.service.js'
 
@@ -69,40 +68,24 @@ test('추천할 코디가 없으면 완료 알림을 보내지 않는다', async
   assert.equal(send.mock.callCount(), 0)
 })
 
-test('코디 추천과 AI 이미지 생성 완료도 각각 알린다', async (t) => {
+test('코디 추천 완료를 알리고 이전 이미지 API도 영속 작업의 결과를 반환한다', async (t) => {
   mockViewer(t)
   t.mock.method(
     outfitRecommendationService,
     'recommend',
     async () => ({ source: 'ai' }) as Awaited<ReturnType<typeof outfitRecommendationService.recommend>>,
   )
-  t.mock.method(
-    outfitPreviewService,
-    'generate',
-    async () => ({
-      imageBase64: 'generated-image',
-      mimeType: 'image/png',
-      model: 'image-model',
-    }),
-  )
-  t.mock.method(imageService, 'storeGeneratedImage', async () => ({ id: 'asset-1' }) as Awaited<ReturnType<typeof imageService.storeGeneratedImage>>)
-  t.mock.method(imageService, 'getGeneratedImage', async () => ({
-    assetId: 'asset-1',
-    imageUrl: 'https://images.example.test/asset-1',
-    mimeType: 'image/png',
-    model: 'image-model',
-    metadata: { model: 'image-model' },
+  t.mock.method(previewJobService, 'generateAndWait', async () => ({
+    imageBase64: '', assetId: 'asset-1', imageUrl: 'https://images.example.test/asset-1',
+    mimeType: 'image/png', model: 'image-model', metadata: { model: 'image-model' },
   }))
   const kinds: string[] = []
-  let previewPushData: Record<string, string> | undefined
   t.mock.method(pushService, 'sendCompletion', async (
     userId: string,
     kind: CompletionPushKind,
-    data?: Record<string, string>,
   ) => {
     assert.equal(userId, 'user-one')
     kinds.push(kind)
-    if (kind === 'outfit-preview') previewPushData = data
     return true
   })
   const app = await buildApp()
@@ -128,9 +111,7 @@ test('코디 추천과 AI 이미지 생성 완료도 각각 알린다', async (t
 
   assert.equal(recommendation.json().data?.outfitRecommendation?.source, 'ai')
   assert.equal(preview.json().data?.generateOutfitPreview?.mimeType, 'image/png')
-  assert.deepEqual(kinds, ['outfit-recommendation', 'outfit-preview'])
-  assert.equal(previewPushData?.previewAssetId, 'asset-1')
-  assert.match(previewPushData?.path ?? '', /^\/lookbook\/new\?/)
+  assert.deepEqual(kinds, ['outfit-recommendation'])
 })
 
 test('GraphQL 코디 추천 모드를 그대로 서비스에 전달한다', async (t) => {
@@ -188,36 +169,13 @@ test('완료 알림 전송 실패는 추천 결과를 실패로 바꾸지 않는
   assert.equal(response.json().errors, undefined)
 })
 
-test('AI 이미지 생성에 실패하면 다시 시도할 화면이 담긴 실패 알림을 보낸다', async (t) => {
+test('이전 이미지 API는 작업 서비스의 오류를 GraphQL에 전달한다', async (t) => {
   mockViewer(t)
-  t.mock.method(outfitPreviewService, 'generate', async () => {
-    throw new Error('image generation failed')
-  })
-  let failureData: Record<string, string> | undefined
-  const send = t.mock.method(
-    pushService,
-    'sendFailure',
-    async (userId: string, kind: string, data?: Record<string, string>) => {
-      assert.equal(userId, 'user-one')
-      assert.equal(kind, 'outfit-preview')
-      failureData = data
-      return true
-    },
-  )
+  t.mock.method(previewJobService, 'generateAndWait', async () => { throw new Error('image generation failed') })
   const app = await buildApp()
   t.after(() => app.close())
-
-  const response = await app.inject({
-    method: 'POST',
-    url: '/graphql',
-    headers: { authorization: 'Bearer session-secret' },
-    payload: {
-      query: 'mutation { generateOutfitPreview(input: { selectedItemIds: ["item-1", "item-2"] }) { mimeType } }',
-    },
-  })
-
-  assert.ok(response.json().errors)
-  assert.equal(send.mock.callCount(), 1)
-  assert.match(failureData?.path ?? '', /preview=failed/)
-  assert.match(failureData?.path ?? '', /items=item-1%2Citem-2/)
+  const response = await app.inject({ method: 'POST', url: '/graphql', headers: { authorization: 'Bearer session-secret' }, payload: {
+    query: 'mutation { generateOutfitPreview(input: { selectedItemIds: ["item-1", "item-2"] }) { mimeType } }',
+  } })
+  assert.equal(response.json().errors?.[0]?.extensions?.code, 'OUTFIT_PREVIEW_GENERATION_FAILED')
 })

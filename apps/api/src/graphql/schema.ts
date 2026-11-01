@@ -481,6 +481,7 @@ export const typeDefs = `#graphql
   }
 
   type TodayOutfitRecommendation {
+    combinationCount: Int!
     date: String!
     season: Season!
     ready: Boolean!
@@ -494,6 +495,52 @@ export const typeDefs = `#graphql
     source: String!
     colorSchemeApplied: Boolean!
     weather: WeatherSnapshot
+  }
+
+  enum AiCreditKind {
+    preview
+    recommendation
+  }
+
+  type PreviewCredits {
+    freeRemaining: Int!
+    rewardRemaining: Int!
+    totalRemaining: Int!
+    adRewardsRemaining: Int
+    rewardMode: String!
+    resetsAt: String!
+    pendingRewardSessionId: ID
+    capacity: Int
+    nextRefillAt: String
+    serverNow: String
+  }
+
+  type PreviewRewardSession {
+    id: ID!
+    mode: String!
+    adUnitId: String!
+    status: String!
+    watchedAt: String
+    validUntil: String!
+  }
+
+  type OutfitPreviewJob {
+    id: ID!
+    status: String!
+    selectedItemIds: [ID!]!
+    style: String
+    imageAssetId: ID
+    model: String
+    errorCode: String
+    errorMessage: String
+    createdAt: String!
+    path: String!
+  }
+
+  input StartOutfitPreviewInput {
+    selectedItemIds: [ID!]!
+    style: String
+    requestId: String!
   }
 
   type OutfitPreview {
@@ -804,6 +851,8 @@ export const typeDefs = `#graphql
   }
 
   type Query {
+    previewCredits(kind: AiCreditKind = preview): PreviewCredits!
+    previewRewardSession(id: ID!): PreviewRewardSession!
     wardrobePage(input: WardrobePageInput): WardrobePage!
     outfitPage(input: OutfitPageInput): OutfitPage!
     wardrobeFilterOptions(category: ClothingCategory, subcategory: String): WardrobeFilterOptions!
@@ -816,6 +865,8 @@ export const typeDefs = `#graphql
     wardrobeItem(id: ID!): WardrobeItem!
     outfits(style: String, wardrobeItemIds: [ID!]): [Outfit!]!
     outfit(id: ID!): Outfit!
+    outfitPreviewJobs: [OutfitPreviewJob!]!
+    outfitPreviewJob(id: ID!): OutfitPreviewJob!
     outfitPreviewAsset(id: ID!): StoredOutfitPreview!
     outfitRecommendation(input: OutfitRecommendationInput!): OutfitRecommendation!
     todayOutfitRecommendation(input: TodayOutfitRecommendationInput!): TodayOutfitRecommendation!
@@ -827,6 +878,9 @@ export const typeDefs = `#graphql
   }
 
   type Mutation {
+    startPreviewReward(kind: AiCreditKind = preview): PreviewRewardSession!
+    markPreviewRewardWatched(id: ID!): PreviewRewardSession!
+    completeTestPreviewReward(id: ID!): PreviewRewardSession!
     testLogin(input: TestLoginInput!): AuthPayload!
     logout: Boolean!
     registerMyPushToken(token: String!, platform: PushPlatform!): Boolean!
@@ -841,6 +895,8 @@ export const typeDefs = `#graphql
     deleteWardrobeBrand(brandName: String!): Int!
     createOutfit(input: CreateOutfitInput!): Outfit!
     updateOutfit(id: ID!, input: UpdateOutfitInput!): Outfit!
+    startOutfitPreview(input: StartOutfitPreviewInput!): OutfitPreviewJob!
+    acknowledgeOutfitPreviewJob(id: ID!): Boolean!
     generateOutfitPreview(input: OutfitPreviewInput!): OutfitPreview!
     deleteOutfit(id: ID!): Boolean!
     setPlannerEntry(input: SetPlannerEntryInput!): PlannerWeek!

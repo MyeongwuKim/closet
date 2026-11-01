@@ -1,3 +1,4 @@
+import { aiExecutor } from '../../lib/ai/ai-execution.js'
 /**
  * 용도:
  * 옷 이미지·사이즈표 분석 요청을 GraphQL에 연결한다.
@@ -24,8 +25,8 @@ export const classificationResolvers = {
       context: GraphQLContext,
     ) => {
       try {
-        await context.getViewer()
-        return await classificationService.createCutout(input)
+        const viewer = await context.getViewer()
+        return await aiExecutor.run(viewer.id, 'cutout', { image: input.imageBase64, mimeType: input.mimeType }, () => classificationService.createCutout(input))
       } catch (error) {
         throw toGraphQLError(error, '사진 배경을 제거하지 못했습니다.', 'BACKGROUND_REMOVAL_FAILED')
       }
@@ -36,10 +37,14 @@ export const classificationResolvers = {
       context: GraphQLContext,
     ) => {
       try {
-        const viewer = context.accessToken ? await context.getViewer() : null
-        const classification = await classificationService.classify(input)
-        if (viewer) notifyCompletion(viewer.id, 'wardrobe-classification')
-        return classification
+        const viewer = await context.getViewer()
+        return await aiExecutor.run(viewer.id, 'classification', {
+          image: input.imageBase64, mimeType: input.mimeType,
+        }, async () => {
+          const classification = await classificationService.classify(input)
+          notifyCompletion(viewer.id, 'wardrobe-classification')
+          return classification
+        }, 2 * 60_000)
       } catch (error) {
         throw toGraphQLError(
           error,
@@ -51,9 +56,11 @@ export const classificationResolvers = {
     analyzeGarmentSizeChart: async (
       _parent: unknown,
       { input }: { input: AnalyzeGarmentSizeChartInput },
+      context: GraphQLContext,
     ) => {
       try {
-        return await classificationService.analyzeSizeChart(input)
+        const viewer = await context.getViewer()
+        return await aiExecutor.run(viewer.id, 'size-chart', input, () => classificationService.analyzeSizeChart(input), 5 * 60_000)
       } catch (error) {
         throw toGraphQLError(
           error,

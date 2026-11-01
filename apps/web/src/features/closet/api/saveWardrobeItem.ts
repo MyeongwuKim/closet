@@ -271,6 +271,8 @@ export function useSaveWardrobeItemMutation() {
         ],
       )
       void queryClient.invalidateQueries({ queryKey: queryKeys.wardrobe.all })
+      void queryClient.invalidateQueries({ queryKey: ['planner', 'today-recommendation'] })
+      void queryClient.invalidateQueries({ queryKey: ['outfits', 'recommendation'] })
     },
   })
 }

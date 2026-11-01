@@ -7,7 +7,7 @@ const onePixelPng = Buffer.from(
   'base64',
 )
 
-async function selectWardrobePhoto(page: Page) {
+async function selectWardrobePhoto(page: Page, count = 1) {
   await page.getByRole('button', { name: '옷장에 옷 추가' }).click()
 
   const photoDialog = page.getByRole('dialog', { name: '옷 사진 추가' })
@@ -15,11 +15,11 @@ async function selectWardrobePhoto(page: Page) {
   const fileChooserPromise = page.waitForEvent('filechooser')
   await photoDialog.getByRole('button', { name: '옷 사진 선택, 끌어다 놓기 또는 붙여넣기' }).click()
   const fileChooser = await fileChooserPromise
-  await fileChooser.setFiles({
-    name: 'e2e-shirt.png',
+  await fileChooser.setFiles(Array.from({ length: count }, (_, index) => ({
+    name: `e2e-shirt-${index}.png`,
     mimeType: 'image/png',
     buffer: onePixelPng,
-  })
+  })))
 }
 
 test('사진 분석 결과를 확인해 옷을 등록하고 새로고침 후에도 조회한다', async ({ page, mockApi }) => {
@@ -137,4 +137,51 @@ test('컷아웃이 없는 저장 후보는 업로드 전에 거절한다', async
   expect(mockApi.operations).not.toContain('PrepareImageUpload')
   expect(mockApi.operations).not.toContain('CreateWardrobeItem')
   expect(mockApi.uploadKinds).toEqual([])
+})
+
+
+test('여러 사진을 골라도 분류 요청은 한 번에 하나씩 실행한다', async ({ page, mockApi }) => {
+  let active = 0
+  let peak = 0
+  let completed = 0
+  await page.route('**/graphql', async (route) => {
+    if (!route.request().postDataJSON().query.includes('mutation ClassifyWardrobeImage')) {
+      await route.fallback()
+      return
+    }
+    mockApi.operations.push('ClassifyWardrobeImage')
+    active += 1
+    peak = Math.max(peak, active)
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ data: { classifyWardrobeImage: {
+      category: 'top', categoryLabel: '상의', subcategory: 'shirt', subcategoryLabel: '셔츠',
+      suggestedName: '분석한 셔츠', colorName: '화이트', colorDetailName: '화이트', colorHex: '#ffffff', colorRgb: [255, 255, 255],
+      colorMode: 'solid', fashionAttributes: null, confidence: 0.9, model: 'e2e-mock', candidates: [],
+      cutoutImageBase64: onePixelPng.toString('base64'), cutoutMimeType: 'image/png',
+    } } }) })
+    active -= 1
+    completed += 1
+  })
+  await page.goto('/closet')
+  await selectWardrobePhoto(page, 3)
+  await expect.poll(() => completed).toBe(3)
+  expect(peak).toBe(1)
+  expect(mockApi.operations).not.toContain('RemoveWardrobeImageBackground')
+  await expect(page.getByRole('dialog', { name: 'AI 분석 결과' })).toBeVisible()
+})
+
+test('AI 사용량 제한 응답에는 추가 컷아웃 요청을 보내지 않는다', async ({ page, mockApi }) => {
+  await page.route('**/graphql', async (route) => {
+    if (!route.request().postDataJSON().query.includes('mutation ClassifyWardrobeImage')) {
+      await route.fallback()
+      return
+    }
+    mockApi.operations.push('ClassifyWardrobeImage')
+    await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ errors: [{ message: 'AI 사용 횟수 제한에 도달했어요.', extensions: { code: 'AI_RATE_LIMITED' } }] }) })
+  })
+  await page.goto('/closet')
+  await selectWardrobePhoto(page)
+  await expect(page.getByText('AI 사용 횟수 제한에 도달했어요.')).toBeVisible()
+  await expect(page.getByRole('dialog', { name: 'AI 분석 결과' })).toHaveCount(0)
+  expect(mockApi.operations).not.toContain('RemoveWardrobeImageBackground')
 })

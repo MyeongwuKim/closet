@@ -8,7 +8,8 @@ import type {
 } from '@closet/types'
 import { ChevronLeft, RefreshCw, Shirt, Sparkles } from 'lucide-react'
 import { ClosetItemVisual } from '../../closet/components/ClosetItemVisual'
-import { useOutfitRecommendationQuery } from '../api/lookbookQueries'
+import { useOutfitRecommendationQuery } from '../api/outfitRecommendationQueries'
+import { AiCreditActionButton } from './AiCreditActionButton'
 import { OutfitRecommendationChoice } from './OutfitRecommendationChoice'
 import { OutfitRecommendationLoading } from './OutfitRecommendationLoading'
 import {
@@ -83,13 +84,15 @@ function RecommendationResults({
     return (
       <div className="flex min-h-48 flex-col items-center justify-center rounded-2xl bg-surface px-4 text-center">
         <strong className="text-sm font-black">추천을 불러오지 못했어요</strong>
-        <button
-          type="button"
+        <AiCreditActionButton
+          kind="recommendation"
+          label="다시 추천받기"
+          adLabel="광고 보고 사용권 얻기"
           onClick={onRetry}
           className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-full bg-ink px-5 text-xs font-bold text-white"
         >
-          <RefreshCw size={15} aria-hidden="true" /> 다시 추천받기
-        </button>
+          <RefreshCw size={15} aria-hidden="true" />
+        </AiCreditActionButton>
       </div>
     )
   }
@@ -250,8 +253,8 @@ function RecommendationCandidateDetail({
 }
 
 /**
- * 옷장 헤더에서 추천 방식을 고르고 결과와 후보 상세를 같은 하단 시트 안에 표시한다.
- * 추천 조회는 선택한 탭의 작업만 실행하며, 옷 후보를 추가하면 부모의 composer 선택 동작을 호출한다.
+ * 옷장 헤더에서 사용권 안내를 열고 추천 결과와 후보 상세를 같은 하단 시트 안에 표시한다.
+ * 사용권 확인 뒤 컬러와 옷 추천을 한 번에 조회한다. 탭 전환·결과 재열기는 같은 응답을 사용한다.
  * 취소하면 덮개 아래의 옷장 목록을 유지하고, 추천 색을 누르면 부모가 해당 색 필터로 목록을 다시 연다.
  */
 export function OutfitStyleSuggestion({
@@ -271,7 +274,7 @@ export function OutfitStyleSuggestion({
   const recommendationQuery = useOutfitRecommendationQuery(
     selectedItemIds,
     category === 'bag' ? null : category,
-    mode,
+    mode !== null,
   )
   const categoryLabel = outfitSelectionLabels[category]
   const isRecommendationPending = !recommendationQuery.isError &&
@@ -286,7 +289,7 @@ export function OutfitStyleSuggestion({
     if (restoreFocus) window.requestAnimationFrame(() => triggerRef.current?.focus())
   }, [])
 
-  /** 현재 옷장 시트를 덮을 위치를 저장하고, 추천 조회 전 두 가지 도움 중 하나를 고르게 한다. */
+  /** 현재 옷장 시트를 덮을 위치를 저장하고, 공통 사용권 안내와 추천 시작 버튼을 연다. */
   const openSuggestion = () => {
     const container = triggerRef.current?.closest<HTMLElement>('.outfit-styling-layout__wardrobe')
     if (!container) return
@@ -295,9 +298,9 @@ export function OutfitStyleSuggestion({
     setIsChoiceOpen(true)
   }
 
-  /** 선택한 모드로 같은 시트 안의 추천 결과를 열며, 이때 조회를 활성화한다. */
-  const chooseMode = (nextMode: RecommendationMode) => {
-    setMode(nextMode)
+  /** 이미 받은 결과 또는 사용권 확인을 마친 새 추천을 연다. 처음 보여줄 탭만 정하고 조회는 하나를 공유한다. */
+  const startRecommendation = () => {
+    setMode(hasClosetCandidates ? 'items' : 'colors')
     setIsChoiceOpen(false)
   }
 
@@ -362,7 +365,8 @@ export function OutfitStyleSuggestion({
           categoryLabel={categoryLabel}
           hasClosetCandidates={hasClosetCandidates}
           onClose={() => closeSuggestion()}
-          onChooseMode={chooseMode}
+          hasExistingRequest={Boolean(recommendationQuery.data) || recommendationQuery.isFetching}
+          onRecommend={startRecommendation}
         />,
         wardrobeContainer,
       )}
@@ -424,6 +428,7 @@ export function OutfitStyleSuggestion({
                   어울리는 컬러 찾기
                 </button>
               </div>
+              {recommendationQuery.data && <p className="mt-2 text-[11px] leading-4 text-muted">받은 결과는 추가 사용 없이 자유롭게 전환할 수 있어요.</p>}
               {!hasClosetCandidates && (
                 <p className="mt-2 text-[11px] leading-4 text-muted">
                   더 고를 {categoryLabel} 아이템이 없어 옷장에서 찾을 수 없어요.

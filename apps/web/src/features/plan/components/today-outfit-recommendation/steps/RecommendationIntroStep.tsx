@@ -1,3 +1,5 @@
+import { AiCreditActionButton } from '../../../../lookbook/components/AiCreditActionButton'
+import { PreviewCreditSummary } from '../../../../lookbook/components/PreviewCreditSummary'
 import { Sparkles } from 'lucide-react'
 
 interface RecommendationIntroStepProps {
@@ -23,13 +25,16 @@ export function RecommendationIntroStep({
         <span className="rounded-full bg-canvas px-2.5 py-1">내 옷장</span>
         <span className="rounded-full bg-canvas px-2.5 py-1">계절·날씨</span>
       </div>
-      <button
-        type="button"
+      <div className="mt-3"><PreviewCreditSummary kind="recommendation" /></div>
+      <AiCreditActionButton
+        kind="recommendation"
+        label="추천받기"
+        adLabel="광고 보고 추천받기"
         onClick={onNext}
-        className="mt-5 flex w-full items-center justify-center gap-1.5 rounded-xl bg-accent px-4 py-3 text-sm font-bold text-white transition hover:bg-accent/90"
+        className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-accent px-4 py-3 text-sm font-bold text-white transition hover:bg-accent/90"
       >
-        <Sparkles size={17} /> 추천받기
-      </button>
+        <Sparkles size={17} />
+      </AiCreditActionButton>
     </section>
   )
 }

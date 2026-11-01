@@ -24,7 +24,7 @@ export class GraphqlRequestError extends Error {
   }
 }
 
-const apiBaseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000'
+const apiBaseUrl = import.meta.env?.VITE_API_URL ?? 'http://localhost:4000'
 
 export async function graphqlRequest<
   TData,

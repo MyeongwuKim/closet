@@ -90,6 +90,13 @@ test('일반 니트에는 옷장에 없는 이너를 추가하지 않는다', ()
   assert.equal(guide, null)
 })
 
+test('신발을 고르지 않은 룩북에는 임의의 운동화나 양말을 추가하지 않는다', async (t) => {
+  const form = await requestMockPreview(t)
+  assert.match(String(form.get('prompt')), /No footwear was selected/)
+  assert.match(String(form.get('prompt')), /Show the model barefoot/)
+  assert.match(String(form.get('prompt')), /Do not invent shoes, sneakers, sandals or socks/)
+})
+
 test('브이넥 니트와 다른 상의를 함께 선택했으면 추가 이너를 만들지 않는다', () => {
   const guide = getLookbookBaseLayerGuide([
     {
@@ -207,7 +214,7 @@ test('가방의 사진을 AI 룩북 요청에 포함하고 손으로 드는 자�
   assert.doesNotMatch(prompt, /both hands completely outside every pocket and away from the garments/)
 })
 
-test('이미지 API가 성공 상태로 빈 결과를 주면 한 번 다시 요청한다', async (t) => {
+test('이미지 API의 빈 성공 응답은 중복 과금을 피하도록 자동 재생성하지 않는다', async (t) => {
   const items = [createPreviewItem('top', 'top'), createPreviewItem('bottom', 'bottom')]
   t.mock.method(userRepository, 'findViewerById', async () => null)
   t.mock.method(wardrobeRepository, 'findManyOwnedWithImagesByIds', async () => [...items].reverse())
@@ -233,10 +240,8 @@ test('이미지 API가 성공 상태로 빈 결과를 주면 한 번 다시 요�
     })
   })
 
-  const preview = await outfitPreviewService.generate('viewer', ['top', 'bottom'])
-
-  assert.equal(openAiRequestCount, 2)
-  assert.equal(preview.imageBase64, Buffer.from('mock-preview').toString('base64'))
+  await assert.rejects(outfitPreviewService.generate('viewer', ['top', 'bottom']), /AI 룩 이미지를 만들지 못했습니다/)
+  assert.equal(openAiRequestCount, 1)
 })
 
 test('실제 이미지 편집 요청에 참조 이미지별 시보리 판정과 원형 보존 규칙을 전달한다', async (t) => {

@@ -89,6 +89,7 @@ export const imageService = {
       model: string
       metadata?: Prisma.InputJsonObject
       temporary?: boolean
+      jobId?: string
     },
   ) {
     const bytes = decodeGeneratedImage(input.imageBase64, input.mimeType)
@@ -113,6 +114,7 @@ export const imageService = {
     try {
       return await imageRepository.create({
         userId,
+        aiPreviewJobId: input.jobId,
         cloudflareImageId: uploaded.id,
         kind: 'outfitGenerated',
         uploadStatus: 'ready',

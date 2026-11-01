@@ -1,3 +1,4 @@
+import { AiCreditActionButton } from './AiCreditActionButton'
 import { ArrowRight, Sparkles } from 'lucide-react'
 
 interface OutfitCompletionActionsProps {
@@ -43,15 +44,16 @@ export function OutfitCompletionActions({
             : 'grid grid-cols-[0.88fr_1.12fr] gap-2'
         }
       >
-        <button
-          type="button"
+        <AiCreditActionButton
+          requiresCredit={!hasAvailableLookbook}
+          label={hasAvailableLookbook ? 'AI 룩 보기' : 'AI 룩 만들기'}
+          adLabel="광고 보고 룩북 만들기"
           onClick={onOpenLookbook}
           disabled={Boolean(completionMessage)}
           className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-2 text-xs font-semibold text-ink transition-colors hover:border-accent/40 hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-65"
         >
           <Sparkles size={16} strokeWidth={1.7} aria-hidden="true" />
-          {hasAvailableLookbook ? 'AI 룩 보기' : 'AI 룩 만들기'}
-        </button>
+        </AiCreditActionButton>
         {!duplicateMessage && (
           <button
             type="button"

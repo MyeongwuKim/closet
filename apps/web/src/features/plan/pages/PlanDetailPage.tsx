@@ -1,3 +1,4 @@
+import { AiCreditActionButton } from '../../lookbook/components/AiCreditActionButton'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { OutfitPreview } from '@closet/types'
@@ -16,6 +17,7 @@ import { useUiStore } from '../../../stores/useUiStore'
 import { useClosetStore } from '../../closet/stores/useClosetStore'
 import { useGenerateOutfitPreviewMutation } from '../../lookbook/api/lookbookQueries'
 import { OutfitSlotEditor } from '../../lookbook/components/OutfitSlotEditor'
+import { PreviewCreditSummary } from '../../lookbook/components/PreviewCreditSummary'
 import { SavedOutfitPreviewDialog } from '../../lookbook/components/SavedOutfitPreviewDialog'
 import { getOutfitCompletionMessage } from '../../lookbook/utils/outfitComposition'
 import {
@@ -115,7 +117,7 @@ export function PlanDetailPage() {
   const isEmpty = outfitItems.length === 0
   const outfitCompletionMessage = getOutfitCompletionMessage(outfitItems)
   const generatedPreviewUrl = generatedPreview
-    ? `data:${generatedPreview.mimeType};base64,${generatedPreview.imageBase64}`
+    ? generatedPreview.imageUrl ?? `data:${generatedPreview.mimeType};base64,${generatedPreview.imageBase64}`
     : null
   const previewImageUrl = generatedPreviewUrl ?? entry.previewImageUrl
   const isPlannerOnly = Boolean(
@@ -330,8 +332,11 @@ export function PlanDetailPage() {
 
       <footer className="shrink-0 border-t border-line bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(27,27,24,0.06)]">
         <div className="mx-auto grid max-w-3xl grid-cols-[0.95fr_1.05fr] gap-2">
-          <button
-            type="button"
+          <div className="col-span-2"><PreviewCreditSummary /></div>
+          <AiCreditActionButton
+            requiresCredit={!previewImageUrl}
+            label={generatePreview.isPending ? '만드는 중...' : previewImageUrl ? 'AI 룩북 보기' : 'AI 룩북 만들기'}
+            adLabel="광고 보고 룩북 만들기"
             onClick={() => void openAiLookbook()}
             disabled={isEmpty || generatePreview.isPending}
             className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-canvas px-3 py-3 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40"
@@ -343,12 +348,7 @@ export function PlanDetailPage() {
             ) : (
               <ImagePlus size={18} />
             )}
-            {generatePreview.isPending
-              ? '만드는 중...'
-              : previewImageUrl
-                ? 'AI 룩북 보기'
-                : 'AI 룩북 만들기'}
-          </button>
+          </AiCreditActionButton>
           <button
             type="button"
             onClick={() =>
@@ -396,6 +396,7 @@ export function PlanDetailPage() {
 
       {isLookbookOpen && previewImageUrl && (
         <SavedOutfitPreviewDialog
+          assetId={generatedPreview?.assetId}
           imageUrl={previewImageUrl}
           outfitName={entryTitle}
           isSaved={!generatedPreview}

@@ -1,5 +1,7 @@
 import type {
   NativeAppInfoRequest,
+  NativeRewardedAdRequest,
+  NativeAdPrivacyRequest,
   NativeAuthSessionRequest,
   NativeBridgeReadyMessage,
   NativeBridgeRequest,
@@ -19,6 +21,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function hasRequestId(value: Record<string, unknown>) {
   return typeof value.id === 'string' && value.id.length > 0
+}
+
+/** 광고 설정이나 URL은 받지 않고 서버가 발급한 세션 번호만 허용한다. */
+export function isNativeRewardedAdRequest(value: unknown): value is NativeRewardedAdRequest {
+  return isRecord(value) && value.type === 'closet:native-rewarded-ad' && hasRequestId(value) && typeof value.sessionId === 'string' && /^[\w-]{8,100}$/.test(value.sessionId)
+}
+
+export function isNativeAdPrivacyRequest(value: unknown): value is NativeAdPrivacyRequest {
+  return isRecord(value) && value.type === 'closet:native-ad-privacy' && hasRequestId(value)
 }
 
 export function isNativeBridgeReadyMessage(
@@ -116,6 +127,8 @@ export function parseNativeBridgeRequest(
     if (isNativeBridgeReadyMessage(value)) return value
     if (isNativeWebAppReadyMessage(value)) return value
     if (isNativeAppInfoRequest(value)) return value
+    if (isNativeRewardedAdRequest(value)) return value
+    if (isNativeAdPrivacyRequest(value)) return value
     if (isNativeOpenAppSettingsRequest(value)) return value
     if (isNativeRequestPermissionRequest(value)) return value
     if (isNativeCurrentLocationRequest(value)) return value

@@ -15,7 +15,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "test:ai:storage": "tsx src/cli/test-ai-storage.ts",
+    "evaluate:ai": "tsx src/cli/evaluate-ai.ts"
   },
   "dependencies": {
     "@apollo/server": "4.12.2",

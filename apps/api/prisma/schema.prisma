@@ -100,6 +100,14 @@ enum GenerationStatus {
   failed
 }
 
+enum AiTaskStatus {
+  queued
+  processing
+  completed
+  failed
+  interrupted
+}
+
 enum PushPlatform {
   ios
   android
@@ -238,6 +246,8 @@ model ImageAsset {
   width                 Int?
   height                Int?
   metadata              Json?
+  // 이미지 저장 직후 서버가 중단돼도 생성 작업의 결과를 다시 찾는다.
+  aiPreviewJobId        String?
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
   user                  User                @relation(fields: [userId], references: [id])
@@ -247,6 +257,130 @@ model ImageAsset {
 
   @@index([userId, kind])
   @@index([kind, retention, expiresAt])
+  @@index([userId, aiPreviewJobId])
+}
+
+// 입력 원문은 저장하지 않는다. 사용자·기능·입력 해시로 동시 작업과 짧은 결과 캐시를 공유한다.
+model AiExecution {
+  id           String       @id @map("_id")
+  userId       String
+  kind         String
+  status       AiTaskStatus
+  leaseToken   String
+  leaseUntil   DateTime
+  resultText   String?
+  errorCode    String?
+  errorMessage String?
+  cacheUntil   DateTime
+  expiresAt    DateTime
+  updatedAt    DateTime     @updatedAt
+
+  @@index([expiresAt])
+}
+
+// UTC 분·날짜별 횟수를 트랜잭션 안에서 갱신해 여러 API 서버가 같은 한도를 사용한다.
+model AiQuota {
+  id          String   @id @map("_id")
+  minuteStart DateTime
+  minuteCount Int
+  dayStart    DateTime
+  dayCount    Int
+  expiresAt   DateTime
+
+  @@index([expiresAt])
+}
+
+// global:0…과 user:<해시>:0… 슬롯을 함께 점유해 전체·사용자별 동시 실행을 제한한다.
+model AiLease {
+  id         String   @id @map("_id")
+  token      String
+  leaseUntil DateTime
+
+  @@index([leaseUntil])
+}
+
+// 앱의 HTTP 연결과 독립적으로 처리하는 이미지 생성 요청. 결과 바이트 대신 이미지 자산 ID를 보관한다.
+model AiPreviewJob {
+  id               String       @id @map("_id")
+  userId           String       @db.ObjectId
+  requestKeys      String[]
+  inputKey         String
+  fingerprint      String
+  selectedItemIds  String[]
+  style            String?
+  status           AiTaskStatus @default(queued)
+  leaseToken       String?
+  leaseUntil       DateTime?
+  requestStartedAt DateTime?
+  attempts         Int          @default(0)
+  imageAssetId     String?       @db.ObjectId
+  model            String?
+  errorCode        String?
+  errorMessage     String?
+  acknowledgedAt   DateTime?
+  // 예약 사용권. creditSource=wallet이면 creditDayId는 사용자 지갑 키, free/reward이면 이전 날짜 키다. 필드가 없는 이전 작업은 null이다.
+  creditDayId      String?
+  creditSource     String?
+  creditState      String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  expiresAt        DateTime
+
+  @@index([userId, status, createdAt])
+  @@index([requestKeys])
+  @@index([status, leaseUntil])
+  @@index([expiresAt])
+}
+
+// 시간 충전되는 AI 사용권. 가득 차면 refillStartedAt을 null로 저장해 충전을 멈춘다.
+model AiCreditWallet {
+  userId          String   @id @map("_id") @db.ObjectId
+  balance         Int      @default(5)
+  refillStartedAt DateTime?
+  updatedAt       DateTime @updatedAt
+}
+
+// 한국 시간 날짜·이용권 종류별 잔액. 종류는 해시 ID로 구분한다. used에는 진행 중 예약도 포함하며 실패 시 같은 날짜에서 돌려준다.
+model PreviewCreditDay {
+  id            String   @id @map("_id")
+  userId        String   @db.ObjectId
+  day           String
+  freeUsed      Int      @default(0)
+  rewardGranted Int      @default(0)
+  rewardUsed    Int      @default(0)
+  expiresAt     DateTime
+  updatedAt     DateTime @updatedAt
+
+  @@index([expiresAt])
+}
+
+// 광고 한 번에 대응하는 서버 발급 번호. 실제 계정 ID 대신 이 번호만 광고 SDK에 전달한다.
+model PreviewRewardSession {
+  id            String   @id @map("_id")
+  userId        String   @db.ObjectId
+  // 광고를 요청한 기능. 이전 세션은 null이며 보상은 종류와 관계없이 공통 지갑에 지급한다.
+  creditKind    String?
+  mode          String
+  adUnitId      String
+  status        String   @default("pending")
+  watchedAt     DateTime?
+  rewardedAt    DateTime?
+  createdAt     DateTime @default(now())
+  validUntil    DateTime
+  expiresAt     DateTime
+
+  @@index([userId, status, validUntil])
+  @@index([expiresAt])
+}
+
+// Google 거래 번호를 _id로 보관해 콜백 재전송·다른 세션을 이용한 중복 지급을 막는다.
+model PreviewRewardReceipt {
+  id        String   @id @map("_id")
+  sessionId String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([expiresAt])
 }
 
 model WardrobeItem {
@@ -377,4 +511,20 @@ model OutfitGeneration {
 
   @@index([userId, requestedAt])
   @@index([outfitId, status])
+}
+
+// 같은 날 같은 추천 입력은 예약·결과를 재사용한다. 만료된 예약은 다음 접근에서 반환한다.
+model RecommendationCreditUse {
+  id           String   @id @map("_id")
+  userId       String   @db.ObjectId
+  creditDayId  String
+  creditSource String
+  state        String
+  token        String
+  leaseUntil   DateTime
+  resultText   String?
+  expiresAt    DateTime
+
+  @@index([userId, state, leaseUntil])
+  @@index([expiresAt])
 }

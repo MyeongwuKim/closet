@@ -1,6 +1,8 @@
 import { RefreshCw, Sparkles, X } from 'lucide-react'
 
 interface SavedOutfitPreviewDialogProps {
+  /** 현재 열어 둔 생성 결과 번호. 같은 이미지의 완료 팝업을 겹쳐 띄우지 않을 때 사용한다. */
+  assetId?: string | null
   imageUrl: string
   outfitName: string
   isSaved?: boolean
@@ -9,6 +11,7 @@ interface SavedOutfitPreviewDialogProps {
 }
 
 export function SavedOutfitPreviewDialog({
+  assetId,
   imageUrl,
   outfitName,
   isSaved = true,
@@ -18,6 +21,7 @@ export function SavedOutfitPreviewDialog({
   return (
     <div
       className="classification-page-enter fixed inset-0 z-[130] flex items-center justify-center bg-black/45 p-3 backdrop-blur-[2px] sm:p-6"
+      data-ai-preview-asset-id={assetId ?? undefined}
       role="dialog"
       aria-modal="true"
       aria-labelledby="saved-lookbook-title"

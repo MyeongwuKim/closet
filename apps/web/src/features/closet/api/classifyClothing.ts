@@ -135,6 +135,8 @@ export async function removeClothingBackground(file: File): Promise<WardrobeImag
 export function useRemoveClothingBackgroundMutation() {
   return useMutation({
     mutationKey: clothingAnalysisMutationKey,
+    // 여러 사진과 별도 컷아웃 요청이 같은 분석 대기열을 사용한다.
+    scope: { id: 'wardrobe-image-analysis' },
     mutationFn: removeClothingBackground,
   })
 }
@@ -142,6 +144,8 @@ export function useRemoveClothingBackgroundMutation() {
 export function useClassifyClothingMutation() {
   return useMutation({
     mutationKey: clothingAnalysisMutationKey,
+    // 여러 사진과 별도 컷아웃 요청이 같은 분석 대기열을 사용한다.
+    scope: { id: 'wardrobe-image-analysis' },
     mutationFn: classifyClothing,
   })
 }

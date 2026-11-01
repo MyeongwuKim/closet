@@ -7,11 +7,21 @@ import { OutfitRecommendationActions } from '../../features/plan/components/Outf
 import { AppHeader } from './AppHeader'
 import { MobileTabBar } from './MobileTabBar'
 
-/** 주요 탭의 공통 헤더·추천 버튼·하단 탭을 표시한다. 날짜별 코디·옷 상세·코디 맞춰보기는 최상위 팝업으로 열리므로 해당 경로에서는 하단 탭을 숨긴다. */
+/** 주요 탭의 공통 헤더·추천 버튼·하단 탭을 표시한다. 전체 화면으로 열리는 코디·옷 상세와 설정 하위 화면에서는 하단 탭을 숨겨 입력·저장 영역을 가리지 않는다. */
 export function AppLayout() {
   const location = useLocation()
   const hasHeaderRecommendations = ['/plan', '/closet', '/lookbook'].includes(location.pathname)
-  const isDetailRoute = ['/plan/:date', '/plan/:date/item/:itemId', '/closet/:itemId', '/lookbook/new']
+  const isDetailRoute = [
+    '/plan/:date',
+    '/plan/:date/item/:itemId',
+    '/closet/:itemId',
+    '/lookbook/new',
+    '/settings/style-profile',
+    '/settings/statistics',
+    '/settings/wear-reminder',
+    '/settings/notifications-weather',
+    '/settings/app-info',
+  ]
     .some((pattern) => matchPath(pattern, location.pathname))
   const room = location.pathname.startsWith('/closet') || location.pathname.startsWith('/lookbook') ? 'wardrobe' : 'drawer'
   const disposeUploadedImages = useClosetStore(

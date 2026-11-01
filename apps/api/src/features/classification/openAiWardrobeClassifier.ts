@@ -1,3 +1,4 @@
+import { requestAiJson } from '../../lib/ai/ai-http.js'
 /**
  * 용도:
  * 옷 사진에서 카테고리와 색상, 추천과 유사도 비교에 사용할 관찰 속성을 추출한다.
@@ -334,7 +335,7 @@ export async function classifyWardrobeImageWithOpenAi(
     label: item.label,
     description: item.prompt,
   }))
-  const response = await fetch('https://api.openai.com/v1/responses', {
+  const payload = await requestAiJson('https://api.openai.com/v1/responses', {
     method: 'POST',
     headers: {
       authorization: `Bearer ${apiKey}`,
@@ -497,14 +498,8 @@ export async function classifyWardrobeImageWithOpenAi(
         },
       },
     }),
-    signal: AbortSignal.timeout(45_000),
-  })
+  }, { timeoutMs: 45_000 })
 
-  if (!response.ok) {
-    throw new Error(`OpenAI clothing classification failed with ${response.status}`)
-  }
-
-  const payload: unknown = await response.json()
   const outputText = getOutputText(payload)
   if (!outputText) {
     throw new Error('OpenAI clothing classification output is empty')

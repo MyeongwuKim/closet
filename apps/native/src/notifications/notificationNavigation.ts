@@ -16,3 +16,8 @@ export function getNotificationWebPath(data: Record<string, unknown>) {
   }
   return normalizeWebPath(data.path)
 }
+
+/** 실행 중 룩북 생성 알림은 웹의 완료 팝업에서 확인한다. 나머지 알림의 기존 이동 경로만 반환한다. */
+export function getForegroundNotificationWebPath(data: Record<string, unknown>) {
+  return data.kind === 'outfit-preview' ? null : getNotificationWebPath(data)
+}

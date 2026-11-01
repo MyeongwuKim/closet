@@ -91,6 +91,13 @@ export function AppInfoPage() {
     }
   }
 
+  /** iOS 광고 SDK의 개인정보 선택 화면을 다시 연다. 표시할 양식이 없는 지역에서는 설정을 바꾸지 않는다. */
+  const openAdPrivacy = async () => {
+    setError(null)
+    try { await window.ClosetNative?.openAdPrivacyOptions?.() }
+    catch { setError('광고 개인정보 설정을 열지 못했어요.') }
+  }
+
   const runtimeRows = [
     ['실행 환경', getPlatformLabel(appInfo?.platform, isNative)],
     ['앱 버전', appInfo?.appVersion ?? (isNative ? '확인 불가' : '해당 없음')],
@@ -149,6 +156,7 @@ export function AppInfoPage() {
 
           <section>
             <h2 className="px-1 text-sm font-black">도움말</h2>
+            {appInfo?.capabilities.includes('ad-privacy') && <button type="button" onClick={() => void openAdPrivacy()} className="mt-3 min-h-12 w-full rounded-2xl border border-line bg-surface px-5 py-3 text-left text-sm font-bold">광고 개인정보 설정</button>}
             <button
               type="button"
               onClick={() => void reportIssue()}

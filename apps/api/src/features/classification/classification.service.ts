@@ -41,6 +41,9 @@ function decodeImage(input: ClassifyWardrobeImageInput) {
   const base64Payload = input.imageBase64.includes(',')
     ? input.imageBase64.slice(input.imageBase64.indexOf(',') + 1)
     : input.imageBase64
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(base64Payload) || base64Payload.length % 4 !== 0) {
+    throw new ServiceError('이미지 데이터가 올바르지 않습니다.', 'INVALID_IMAGE_DATA')
+  }
   const image = Buffer.from(base64Payload, 'base64')
 
   if (image.byteLength === 0 || image.byteLength > MAX_IMAGE_SIZE) {
@@ -50,6 +53,12 @@ function decodeImage(input: ClassifyWardrobeImageInput) {
     )
   }
 
+  const validSignature = input.mimeType === 'image/png'
+    ? image.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+    : input.mimeType === 'image/jpeg'
+      ? image[0] === 0xff && image[1] === 0xd8 && image[2] === 0xff
+      : image.subarray(0, 4).toString('ascii') === 'RIFF' && image.subarray(8, 12).toString('ascii') === 'WEBP'
+  if (!validSignature) throw new ServiceError('이미지 형식과 데이터가 일치하지 않습니다.', 'INVALID_IMAGE_DATA')
   return image
 }
 
@@ -64,7 +73,8 @@ export const classificationService = {
       try {
         const cutout = await removeImageBackground(image, input.mimeType)
         return { imageBase64: cutout.base64, mimeType: cutout.mimeType }
-      } catch {
+      } catch (error) {
+        if (error instanceof ServiceError && error.code === 'AI_BUSY') throw error
         if (attempt === 1) {
           throw new ServiceError(
             '사진의 배경을 제거하지 못했어요. 사진을 다시 추가해 주세요.',
