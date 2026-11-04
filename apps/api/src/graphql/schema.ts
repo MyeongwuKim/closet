@@ -372,8 +372,20 @@ export const typeDefs = `#graphql
     classificationModel: String
     wearCount: Int!
     lastWornAt: String
+    archivedAt: String
     createdAt: String!
     updatedAt: String!
+  }
+
+  enum WardrobeRediscoveryReason { no_wear_record long_unworn }
+  type WardrobeRediscoveryItem {
+    item: WardrobeItem!
+    reason: WardrobeRediscoveryReason!
+    daysSinceLastWorn: Int
+  }
+  type WardrobeRediscovery {
+    day: String!
+    items: [WardrobeRediscoveryItem!]!
   }
 
   input CreateWardrobeItemInput {
@@ -480,6 +492,14 @@ export const typeDefs = `#graphql
     colors
   }
 
+  enum ThermalRecommendationDirection { warmer cooler neutral }
+  type ThermalRecommendationContext {
+    revision: String!
+    direction: ThermalRecommendationDirection!
+    strength: Float!
+    sampleCount: Int!
+  }
+
   type TodayOutfitRecommendation {
     combinationCount: Int!
     date: String!
@@ -495,6 +515,7 @@ export const typeDefs = `#graphql
     source: String!
     colorSchemeApplied: Boolean!
     weather: WeatherSnapshot
+    thermalContext: ThermalRecommendationContext
   }
 
   enum AiCreditKind {
@@ -503,6 +524,7 @@ export const typeDefs = `#graphql
   }
 
   type PreviewCredits {
+    testRefillAvailable: Boolean!
     freeRemaining: Int!
     rewardRemaining: Int!
     totalRemaining: Int!
@@ -558,6 +580,15 @@ export const typeDefs = `#graphql
     model: String!
   }
 
+  type CompletedOutfitPreview {
+    assetId: ID!
+    imageUrl: String!
+    mimeType: String!
+    model: String!
+    jobId: ID
+    createdAt: String!
+  }
+
   type Outfit {
     id: ID!
     name: String!
@@ -578,7 +609,8 @@ export const typeDefs = `#graphql
   }
 
   input OutfitPreviewImageInput {
-    imageBase64: String!
+    assetId: ID
+    imageBase64: String
     mimeType: String!
     model: String!
   }
@@ -617,6 +649,7 @@ export const typeDefs = `#graphql
     variation: Int
     excludedOuterItemIds: [ID!]
     weather: WeatherSnapshotInput
+    thermalContextRevision: String
   }
 
   input WeatherForecastInput {
@@ -629,6 +662,7 @@ export const typeDefs = `#graphql
     date: String!
     expiresAt: String
     temperatureC: Float!
+    meanTemperatureC: Float
     minTemperatureC: Float!
     maxTemperatureC: Float!
     apparentTemperatureC: Float!
@@ -645,6 +679,7 @@ export const typeDefs = `#graphql
     date: String!
     expiresAt: String
     temperatureC: Float!
+    meanTemperatureC: Float
     minTemperatureC: Float!
     maxTemperatureC: Float!
     apparentTemperatureC: Float!
@@ -662,6 +697,8 @@ export const typeDefs = `#graphql
     style: String
   }
 
+  enum WearFeeling { cold comfortable hot }
+
   type PlannerEntry {
     id: ID!
     date: String!
@@ -669,6 +706,8 @@ export const typeDefs = `#graphql
     occasion: String
     weatherSummary: String
     temperatureC: Float
+    wornAt: String
+    wearFeeling: WearFeeling
     outfit: Outfit
     createdAt: String!
     updatedAt: String!
@@ -683,6 +722,13 @@ export const typeDefs = `#graphql
   type OutfitWearRecord {
     outfitId: ID!
     date: String!
+    temperatureC: Float
+    wornAt: String
+  }
+
+  input WearWeatherLocationInput {
+    latitude: Float!
+    longitude: Float!
   }
 
   enum RecentWearConflictKind {
@@ -715,6 +761,21 @@ export const typeDefs = `#graphql
     occasion: String
     weatherSummary: String
     temperatureC: Float
+  }
+
+  input SetPlannerEntryWornInput {
+    weekStartsOn: String!
+    date: String!
+    outfitId: ID!
+    worn: Boolean!
+  }
+
+  input SetPlannerEntryWearFeelingInput {
+    weekStartsOn: String!
+    date: String!
+    outfitId: ID!
+    wornAt: String!
+    feeling: WearFeeling
   }
 
   input SetDirectPlannerEntryInput {
@@ -858,6 +919,7 @@ export const typeDefs = `#graphql
     wardrobeFilterOptions(category: ClothingCategory, subcategory: String): WardrobeFilterOptions!
     outfitFilterOptions: OutfitFilterOptions!
     wardrobeStatistics: WardrobeStatistics!
+    wardrobeRediscovery: WardrobeRediscovery!
     health: ApiHealth!
     me: Viewer!
     wardrobeItems(category: ClothingCategory, subcategory: String): [WardrobeItem!]!
@@ -868,8 +930,10 @@ export const typeDefs = `#graphql
     outfitPreviewJobs: [OutfitPreviewJob!]!
     outfitPreviewJob(id: ID!): OutfitPreviewJob!
     outfitPreviewAsset(id: ID!): StoredOutfitPreview!
+    outfitPreviewForItems(selectedItemIds: [ID!]!, style: String): CompletedOutfitPreview
     outfitRecommendation(input: OutfitRecommendationInput!): OutfitRecommendation!
     todayOutfitRecommendation(input: TodayOutfitRecommendationInput!): TodayOutfitRecommendation!
+    thermalRecommendationContext(date: String!, meanTemperatureC: Float!): ThermalRecommendationContext!
     plannerWeek(weekStartsOn: String!): PlannerWeek
     plannerEntries(from: String!, to: String!): [PlannerEntry!]!
     outfitWearHistory(outfitIds: [ID!]!): [OutfitWearRecord!]!
@@ -881,6 +945,7 @@ export const typeDefs = `#graphql
     startPreviewReward(kind: AiCreditKind = preview): PreviewRewardSession!
     markPreviewRewardWatched(id: ID!): PreviewRewardSession!
     completeTestPreviewReward(id: ID!): PreviewRewardSession!
+    refillTestAiCredits: PreviewCredits!
     testLogin(input: TestLoginInput!): AuthPayload!
     logout: Boolean!
     registerMyPushToken(token: String!, platform: PushPlatform!): Boolean!
@@ -892,6 +957,7 @@ export const typeDefs = `#graphql
     createWardrobeItem(input: CreateWardrobeItemInput!): WardrobeItem!
     updateWardrobeItem(id: ID!, input: UpdateWardrobeItemInput!): WardrobeItem!
     archiveWardrobeItem(id: ID!): WardrobeItem!
+    markWardrobeRediscoverySeen(day: String!, itemIds: [ID!]!): Boolean!
     deleteWardrobeBrand(brandName: String!): Int!
     createOutfit(input: CreateOutfitInput!): Outfit!
     updateOutfit(id: ID!, input: UpdateOutfitInput!): Outfit!
@@ -900,6 +966,9 @@ export const typeDefs = `#graphql
     generateOutfitPreview(input: OutfitPreviewInput!): OutfitPreview!
     deleteOutfit(id: ID!): Boolean!
     setPlannerEntry(input: SetPlannerEntryInput!): PlannerWeek!
+    setPlannerEntryWorn(input: SetPlannerEntryWornInput!): PlannerWeek!
+    setPlannerEntryWearFeeling(input: SetPlannerEntryWearFeelingInput!): PlannerWeek!
+    syncWearWeatherLocation(input: WearWeatherLocationInput): Boolean!
     setDirectPlannerEntry(input: SetDirectPlannerEntryInput!): PlannerWeek!
     movePlannerEntry(input: MovePlannerEntryInput!): PlannerWeek!
     savePlannerOutfitToLookbook(outfitId: ID!, previewImage: OutfitPreviewImageInput): Outfit!

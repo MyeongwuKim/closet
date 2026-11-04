@@ -98,7 +98,8 @@ export function ClassificationConfirmModal({
     document.body.style.overflow = 'hidden'
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') cancelClassification()
+      // 업로드·저장이 끝나기 전에는 현재 사진을 유지해 다음 등록 후보로 넘어가지 않는다.
+      if (event.key === 'Escape' && !isSaving) cancelClassification(candidate.itemId)
     }
 
     window.addEventListener('keydown', handleKeyDown)
@@ -107,11 +108,12 @@ export function ClassificationConfirmModal({
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [cancelClassification])
+  }, [cancelClassification, candidate.itemId, isSaving])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (
+      isSaving ||
       !name.trim() ||
       !category ||
       !subcategory.trim() ||
@@ -142,7 +144,7 @@ export function ClassificationConfirmModal({
         tags,
         ...toGarmentSizeInput(category, garmentSize),
       })
-      completeClassification()
+      completeClassification(candidate.itemId)
     } catch {
       setIsSaving(false)
     }
@@ -189,7 +191,8 @@ export function ClassificationConfirmModal({
         <div className="mx-auto flex min-h-16 max-w-3xl items-center gap-3 px-4 sm:min-h-18 sm:px-6">
           <button
             type="button"
-            onClick={cancelClassification}
+            onClick={() => cancelClassification(candidate.itemId)}
+            disabled={isSaving}
             className="flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-surface"
             aria-label="옷 추가 취소"
           >
@@ -419,7 +422,8 @@ export function ClassificationConfirmModal({
           <div className="mx-auto grid max-w-3xl grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={cancelClassification}
+              onClick={() => cancelClassification(candidate.itemId)}
+              disabled={isSaving}
               className="rounded-xl border border-line px-4 py-3 text-sm font-bold hover:border-ink"
             >
               취소

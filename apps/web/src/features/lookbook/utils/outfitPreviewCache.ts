@@ -103,3 +103,15 @@ export function cacheOutfitPreview(
   entries.push({ compositionKey, cachedAt: now, preview })
   writeEntries(viewerId, entries, storage)
 }
+
+/** 서버가 삭제를 확정한 이미지의 이전 URL만 해당 계정 캐시에서 제거한다. 다른 생성 결과는 보존한다. */
+export function removeCachedOutfitPreviewAsset(
+  viewerId: string,
+  assetId: string,
+  storage: Storage | null = getBrowserStorage(),
+) {
+  if (!storage) return
+  try {
+    writeEntries(viewerId, readEntries(viewerId, storage).filter((entry) => entry.preview.assetId !== assetId), storage)
+  } catch { /* 저장소를 사용할 수 없어도 서버의 삭제 판단은 유지한다. */ }
+}

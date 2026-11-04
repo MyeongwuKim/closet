@@ -36,6 +36,7 @@ test('오늘 날짜에는 현재 기온을 사용하고 출처를 함께 반환�
   })
 
   assert.equal(weather.temperatureC, 27.4)
+  assert.equal(weather.meanTemperatureC, 25)
   assert.equal(weather.apparentTemperatureC, 29.1)
   assert.equal(weather.summary, '구름 조금')
   assert.equal(weather.recommendedSeason, 'summer')
@@ -56,6 +57,7 @@ test('다른 날짜에는 일별 예보의 평균 기온과 날씨를 사용한�
   })
 
   assert.equal(weather.temperatureC, 19.2)
+  assert.equal(weather.meanTemperatureC, 19.2)
   assert.equal(weather.apparentTemperatureC, 18.1)
   assert.equal(weather.summary, '비')
   assert.equal(weather.precipitationProbability, 80)

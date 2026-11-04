@@ -23,6 +23,8 @@ import { getCurrentWeekStart } from '../data/weeklyPlan'
 import { usePlanStore } from '../stores/usePlanStore'
 import type { ColorScheme } from '../data/colorSchemes'
 import { useRecentWearReminder } from './useRecentWearReminder'
+import { useThermalRecommendationContextQuery } from '../api/thermalRecommendationQueries'
+import { getThermalRecommendationMean, matchesThermalRecommendationContext, matchesTodayRecommendationWeather } from '../utils/thermalRecommendationContext'
 import {
   formatRecommendationHeadline,
   getRefreshExcludedOuterItemIds,
@@ -52,13 +54,25 @@ export function useTodayOutfitRecommendationResult({
   const [initialHistory] = useState(() =>
     readTodayRecommendationHistory(viewerId, date, season, null, baseItemId, colorScheme),
   )
-  const storedRecommendation = initialHistory[0] ?? null
-  const [variation, setVariation] = useState(
-    storedRecommendation?.variation ?? 0,
-  )
-  const [excludedOuterItemIds, setExcludedOuterItemIds] = useState<string[]>([])
-  const [refreshSourceItems, setRefreshSourceItems] = useState<WardrobeItem[]>([])
-  const recommendationQuery = useTodayOutfitRecommendationQuery(
+  const thermalQuery = useThermalRecommendationContextQuery(viewerId, date, weather)
+  const requiresThermalContext = getThermalRecommendationMean(weather) !== null
+  const isThermalContextReady = !requiresThermalContext ||
+    (thermalQuery.isSuccess && thermalQuery.isFetchedAfterMount && !thermalQuery.isFetching)
+  const thermalContext = requiresThermalContext ? thermalQuery.data : undefined
+  const thermalRevision = thermalContext?.revision
+  const storedRecommendation = isThermalContextReady ? initialHistory.find((entry) =>
+    matchesTodayRecommendationWeather(entry.recommendation, weather) &&
+    matchesThermalRecommendationContext(entry.recommendation, thermalRevision),
+  ) ?? null : null
+  const scope = JSON.stringify([date, season, colorScheme, baseItemId, weather, thermalRevision])
+  /** 재추천 조건은 체감 근거별로 구분하며 새 근거에는 이전 아우터 제외 조건을 이어 붙이지 않는다. */
+  const [refresh, setRefresh] = useState<{
+    scope: string; variation: number; excludedOuterItemIds: string[]; sourceItems: WardrobeItem[]
+  } | null>(null)
+  const variation = refresh?.scope === scope ? refresh.variation : storedRecommendation?.variation ?? 0
+  const excludedOuterItemIds = refresh?.scope === scope ? refresh.excludedOuterItemIds : []
+  const refreshSourceItems = refresh?.scope === scope ? refresh.sourceItems : []
+  const query = useTodayOutfitRecommendationQuery(
     viewerId,
     date,
     season,
@@ -68,21 +82,37 @@ export function useTodayOutfitRecommendationResult({
     {
       baseItemId,
       weather,
+      thermalContext,
+      enabled: isThermalContextReady,
       initialData:
         storedRecommendation?.variation === variation &&
-        (weather
-          ? storedRecommendation.recommendation.weather?.date === weather.date &&
-            storedRecommendation.recommendation.weather.temperatureC ===
-              weather.temperatureC &&
-            storedRecommendation.recommendation.weather.apparentTemperatureC ===
-              weather.apparentTemperatureC &&
-            storedRecommendation.recommendation.weather.weatherCode ===
-              weather.weatherCode
-          : !storedRecommendation?.recommendation.weather)
+        matchesTodayRecommendationWeather(storedRecommendation.recommendation, weather)
           ? storedRecommendation.recommendation
           : undefined,
     },
   )
+  const hasContextError = requiresThermalContext && thermalQuery.isError
+  const isWaitingForContext = requiresThermalContext && !isThermalContextReady && !hasContextError
+  // 무료 근거 확인 중에는 이전 추천을 숨기고 기존 화면의 로딩·재시도 표시를 사용한다.
+  const recommendationQuery = {
+    ...query,
+    data: isThermalContextReady ? query.data : undefined,
+    error: hasContextError ? thermalQuery.error : query.error,
+    isError: hasContextError || (!isWaitingForContext && query.isError),
+    isPending: hasContextError ? false : isWaitingForContext || query.isPending,
+    isLoading: !hasContextError && (isWaitingForContext || query.isLoading),
+    isFetching: (requiresThermalContext && thermalQuery.isFetching) || query.isFetching,
+    isSuccess: isThermalContextReady && query.isSuccess,
+    status: hasContextError ? 'error' as const : isWaitingForContext ? 'pending' as const : query.status,
+    /** 재시도에서는 체감 근거부터 다시 읽고, 같은 버전일 때만 현재 추천을 재요청한다. 새 버전은 새 키가 자동 조회한다. */
+    refetch: async () => {
+      if (requiresThermalContext) {
+        const result = await thermalQuery.refetch()
+        if (!result.data || result.error || result.data.revision !== thermalRevision) return result
+      }
+      return query.refetch()
+    },
+  }
   const setDirectPlannerEntry = useSetDirectPlannerEntryMutation()
   const { confirmRecentWear, isCheckingRecentWear } =
     useRecentWearReminder()
@@ -109,11 +139,11 @@ export function useTodayOutfitRecommendationResult({
     if (recommendationQuery.isFetching || !hasOtherCombination) return
 
     const currentItems = recommendation?.items ?? []
-    setExcludedOuterItemIds(
-      getRefreshExcludedOuterItemIds(currentItems, baseItemId),
-    )
-    setRefreshSourceItems(currentItems)
-    setVariation((current) => (current + 1) % 21)
+    setRefresh({
+      scope, variation: (variation + 1) % 21,
+      excludedOuterItemIds: getRefreshExcludedOuterItemIds(currentItems, baseItemId),
+      sourceItems: currentItems,
+    })
   }
 
   const applyTodayOutfit = async (

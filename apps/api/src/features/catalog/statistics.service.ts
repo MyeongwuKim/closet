@@ -3,6 +3,8 @@ import { prisma } from '../../lib/prisma.js'
 import { getImageDeliveryUrl } from '../image/image.service.js'
 import { getKoreaTodayUtc, getWardrobeWearStats } from '../wardrobe/wardrobe.service.js'
 import { activeWardrobeWhere, categoryLabels, savedOutfitWhere, styleLabels } from './catalog.service.js'
+import { confirmedWearWhere } from '../planner/planner-wear.js'
+import { outfitCompositionKey } from '../outfit/outfit-composition.js'
 
 interface InventoryItem {
   id: string
@@ -13,13 +15,15 @@ interface InventoryItem {
 }
 interface WearRecord {
   date: Date
+  wornAt?: Date | null
   outfit: { id: string; style: string; items: Array<{ wardrobeItemId: string }> } | null
 }
-interface SavedOutfit { id: string; name: string }
+interface SavedOutfit { id: string; name: string; items: Array<{ wardrobeItemId: string }> }
 interface Bucket { key: string; label: string; count: number; color: string | null }
 
+/** 오늘까지 확인한 날짜별 복사본으로 전체 착용을 집계하고, 코디북 순위는 현재 옷 구성이 같은 착용 날짜만 연결한다. */
 export function summarizeWardrobe(items: InventoryItem[], records: WearRecord[], throughDate: Date, savedOutfits: SavedOutfit[] = []) {
-  const pastRecords = records.filter((record) => record.date <= throughDate && record.outfit)
+  const pastRecords = records.filter((record) => record.wornAt && Number.isFinite(record.wornAt.getTime()) && record.date <= throughDate && record.outfit)
   const wear = getWardrobeWearStats(pastRecords)
   const categories = new Map<string, Bucket>()
   const colors = new Map<string, Bucket>()
@@ -34,28 +38,34 @@ export function summarizeWardrobe(items: InventoryItem[], records: WearRecord[],
     add(colors, color, color, item.colorHex)
   }
   const wornOutfits = new Set<string>()
-  const outfitWearCounts = new Map<string, number>()
+  const compositionWearDates = new Map<string, Set<string>>()
   for (const record of pastRecords) {
     const outfit = record.outfit!
     const key = `${outfit.id}:${record.date.toISOString().slice(0, 10)}`
     if (wornOutfits.has(key)) continue
     wornOutfits.add(key)
-    outfitWearCounts.set(outfit.id, (outfitWearCounts.get(outfit.id) ?? 0) + 1)
+    const composition = outfitCompositionKey(outfit.items.map((item) => item.wardrobeItemId))
+    if (composition) {
+      const dates = compositionWearDates.get(composition) ?? new Set<string>()
+      dates.add(record.date.toISOString().slice(0, 10))
+      compositionWearDates.set(composition, dates)
+    }
     add(styles, outfit.style, styleLabels[outfit.style] ?? outfit.style)
   }
+  const savedWearCount = (outfit: SavedOutfit) => compositionWearDates.get(outfitCompositionKey(outfit.items.map((item) => item.wardrobeItemId)))?.size ?? 0
   const ranked = (map: Map<string, Bucket>) => [...map.values()]
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'ko'))
   return {
     totalItems: items.length,
     wearRecordCount: wornOutfits.size,
     unwornCount: items.filter((item) => !wear.has(item.id)).length,
-    unwornOutfitCount: savedOutfits.filter((outfit) => !outfitWearCounts.has(outfit.id)).length,
+    unwornOutfitCount: savedOutfits.filter((outfit) => savedWearCount(outfit) === 0).length,
     categories: ranked(categories), colors: ranked(colors), wornStyles: ranked(styles),
     mostWorn: items.map((item) => ({ id: item.id, name: item.name, wearCount: wear.get(item.id)?.wearCount ?? 0 }))
       .filter((item) => item.wearCount > 0)
       .sort((a, b) => b.wearCount - a.wearCount || a.name.localeCompare(b.name, 'ko') || a.id.localeCompare(b.id))
       .slice(0, 5),
-    mostWornOutfits: savedOutfits.map((outfit) => ({ ...outfit, wearCount: outfitWearCounts.get(outfit.id) ?? 0 }))
+    mostWornOutfits: savedOutfits.map((outfit) => ({ id: outfit.id, name: outfit.name, wearCount: savedWearCount(outfit) }))
       .filter((outfit) => outfit.wearCount > 0)
       .sort((a, b) => b.wearCount - a.wearCount || a.name.localeCompare(b.name, 'ko') || a.id.localeCompare(b.id))
       .slice(0, 5),
@@ -76,10 +86,10 @@ export const statisticsService = {
         select: { id: true, name: true, category: true, colorName: true, colorHex: true },
       }),
       prisma.plannerEntry.findMany({
-        where: { date: { lte: throughDate }, outfitId: { not: null }, plannerWeek: { is: { userId } } },
-        select: { date: true, outfit: { select: { id: true, style: true, items: { select: { wardrobeItemId: true } } } } },
+        where: { ...confirmedWearWhere, date: { lte: throughDate }, outfitId: { not: null }, plannerWeek: { is: { userId } } },
+        select: { date: true, wornAt: true, outfit: { select: { id: true, style: true, items: { select: { wardrobeItemId: true } } } } },
       }),
-      prisma.outfit.findMany({ where: { userId, ...savedOutfitWhere }, select: { id: true, name: true } }),
+      prisma.outfit.findMany({ where: { userId, ...savedOutfitWhere }, select: { id: true, name: true, items: { select: { wardrobeItemId: true } } } }),
     ])
     const summary = summarizeWardrobe(items, records, throughDate, savedOutfits)
     const [images, outfitImages] = await Promise.all([

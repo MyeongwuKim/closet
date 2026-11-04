@@ -44,3 +44,11 @@ export function cacheRecommendationPreview(
     recommendationPreviewCache.delete(oldestKey)
   }
 }
+
+/** 서버가 삭제를 확정한 이미지의 이전 추천 결과만 같은 계정에서 제거한다. */
+export function removeRecommendationPreviewAsset(viewerId: string, assetId: string) {
+  const viewerPrefix = `recommendation-preview:v1:${viewerId}:`
+  for (const [key, preview] of recommendationPreviewCache) {
+    if (key.startsWith(viewerPrefix) && preview.assetId === assetId) recommendationPreviewCache.delete(key)
+  }
+}

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { Season, WardrobeItem } from '@closet/types'
+import { OUTFIT_COLOR_RULES_VERSION } from '@closet/types/outfit-colors'
 import { QueryClient } from '@tanstack/react-query'
 import type { OutfitStyle } from '../src/constants/styleOptions'
 import { queryKeys } from '../src/lib/queryKeys'
@@ -104,6 +105,7 @@ test('기존 추천 기록의 깨진 설명을 복원할 때 제거하고 원본
   withStorage((storage) => {
     const entry = createEntry(1, 'autumn', null)
     storeTodayRecommendation('viewer-1', entry.date, entry.season, entry.style, entry.variation, entry.recommendation)
+    entry.colorRulesVersion = OUTFIT_COLOR_RULES_VERSION
     entry.recommendation.summary = '상하의 색을 연결했어요. 」java.lang.String;}}}}}}'
     entry.recommendation.reasons = ['여유로운 핏을 연결해요. }}}}}', 'java.lang.String;}}}}}}']
     const rawValue = JSON.stringify([entry])
@@ -278,7 +280,7 @@ test('같은 조합도 일반 추천과 기준 아이템별 기록을 따로 저
     assert.equal(storage.length, 3)
     assert.ok(
       storage.getItem(
-        'closet:today-outfit-recommendation:v8:viewer-1:2026-08-26:autumn:casual',
+        `closet:today-outfit-recommendation:v8:viewer-1:2026-08-26:autumn:casual:color-rules:${OUTFIT_COLOR_RULES_VERSION}`,
       ),
     )
 
@@ -348,7 +350,7 @@ test('추천 설명과 조합 이유를 기록에 저장하고 같은 조합의 
   })
 })
 
-test('v8 일반 추천 기록을 유지하면서 기준 아이템 기록을 추가한다', () => {
+test('이전 일반 추천은 기록에 보존하고 현재 버전의 초기 캐시로 재사용하지 않는다', () => {
   withStorage((storage) => {
     const legacyEntry = createEntry(1, 'autumn', 'casual')
     const legacyKey =
@@ -377,12 +379,30 @@ test('v8 일반 추천 기록을 유지하면서 기준 아이템 기록을 추�
         legacyEntry.season,
         legacyEntry.style,
       ),
-      [legacyEntry],
+      [],
     )
     assert.deepEqual(
       readRecentTodayRecommendationHistory('viewer-1', legacyEntry.date),
       [legacyEntry],
     )
+  })
+})
+
+test('직전 색 판정 버전의 기록을 보존하면서 새 버전의 초기 캐시를 따로 저장한다', () => {
+  withStorage((storage) => {
+    const previous = { ...createEntry(1, 'autumn', null), colorRulesVersion: 'oklch-v6' }
+    const key = `closet:today-outfit-recommendation:v8:viewer-1:${previous.date}:autumn:wardrobe:color-rules:oklch-v6`
+    const raw = JSON.stringify([previous])
+    storage.setItem(key, raw)
+
+    assert.deepEqual(readTodayRecommendationHistory('viewer-1', previous.date, 'autumn', null), [])
+    assert.deepEqual(readAllRecentTodayRecommendationHistory('viewer-1', previous.date), [previous])
+    storeTodayRecommendation('viewer-1', previous.date, 'autumn', null, 0, previous.recommendation)
+    const current = readTodayRecommendationHistory('viewer-1', previous.date, 'autumn', null)
+    assert.equal(current.length, 1)
+    assert.equal(current[0].colorRulesVersion, OUTFIT_COLOR_RULES_VERSION)
+    assert.equal(readAllRecentTodayRecommendationHistory('viewer-1', previous.date).length, 2)
+    assert.equal(storage.getItem(key), raw)
   })
 })
 
@@ -437,7 +457,7 @@ test('기준 정보나 실제 아이템이 일치하지 않는 캐시 기록은 
       'item-1',
     )
     const scopedKey = storage.key(0)!
-    const matchingEntry = { ...entry, baseItemId: 'item-1' }
+    const matchingEntry = { ...entry, baseItemId: 'item-1', colorRulesVersion: OUTFIT_COLOR_RULES_VERSION }
     const corruptEntries = [
       entry,
       {
@@ -627,5 +647,28 @@ test('스타일 없는 새 추천은 별도로 저장하고 이전 스타일 기
     assert.equal(all.length, 2)
     assert.ok(all.some((entry) => entry.style === 'vintage'))
     assert.ok(all.some((entry) => entry.style === null))
+  })
+})
+
+test('같은 옷 조합의 체감 근거가 바뀌어도 이전 결과는 기록으로 보존하고 최신 버전만 초기 캐시로 고른다', () => {
+  withStorage(() => {
+    const entry = createEntry(1, 'autumn', null)
+    const withContext = (revision: string) => ({
+      ...entry.recommendation,
+      thermalContext: { revision, direction: 'warmer' as const, strength: 0.5, sampleCount: 2 },
+    })
+    storeTodayRecommendation('viewer', entry.date, entry.season, null, 0, entry.recommendation)
+    storeTodayRecommendation('viewer', entry.date, entry.season, null, 0, withContext('v1'))
+    storeTodayRecommendation('viewer', entry.date, entry.season, null, 0, withContext('v2'))
+
+    const history = readAllRecentTodayRecommendationHistory('viewer', entry.date)
+    assert.equal(history.length, 3)
+    assert.ok(history.some((value) => value.recommendation.thermalContext === undefined))
+    assert.ok(history.some((value) => value.recommendation.thermalContext?.revision === 'v1'))
+    assert.equal(new Set(history.map((value) => value.id)).size, 3)
+    const current = readTodayRecommendationHistory('viewer', entry.date, entry.season, null, undefined, 'auto', 'v2')
+    assert.equal(current.length, 1)
+    assert.equal(current[0].recommendation.thermalContext?.revision, 'v2')
+    assert.deepEqual(readTodayRecommendationHistory('viewer', entry.date, entry.season, null, undefined, 'auto', 'unknown'), [])
   })
 })

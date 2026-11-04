@@ -18,7 +18,20 @@ test('MongoDB 공통 AI 사용권·시간 충전·광고 보상 통합 검증', 
   process.env.ADMOB_REWARD_MODE = 'test'
   t.after(async () => { if (previousMode === undefined) delete process.env.ADMOB_REWARD_MODE; else process.env.ADMOB_REWARD_MODE = previousMode; await prisma.$disconnect() })
   const user = () => randomBytes(12).toString('hex')
-  const enqueue = (userId: string, requestId = randomUUID(), fingerprint = 'same-input') => previewJobRepository.enqueue({ id: requestId, userId, requestKey: requestId, inputKey: fingerprint, fingerprint, selectedItemIds: ['top', 'pants'], style: null })
+  const itemIdsByUser = new Map<string, string[]>()
+  const enqueue = async (userId: string, requestId = randomUUID(), fingerprint = 'same-input') => {
+    let itemIds = itemIdsByUser.get(userId)
+    if (!itemIds) {
+      const items = await Promise.all([
+        prisma.wardrobeItem.create({ data: { userId, name: '사용권 검사 상의', category: 'top', classificationStatus: 'classified' } }),
+        prisma.wardrobeItem.create({ data: { userId, name: '사용권 검사 하의', category: 'bottom', classificationStatus: 'classified' } }),
+      ])
+      itemIds = items.map((item) => item.id)
+      itemIdsByUser.set(userId, itemIds)
+    }
+    return previewJobRepository.enqueue({ id: requestId, userId, requestKey: requestId, inputKey: fingerprint, fingerprint, selectedItemIds: itemIds, style: null })
+  }
+  t.after(() => prisma.wardrobeItem.deleteMany({ where: { id: { in: [...itemIdsByUser.values()].flat() } } }))
   const emptyWallet = (userId: string) => prisma.aiCreditWallet.create({ data: { userId, balance: 0, refillStartedAt: new Date() } })
 
   await t.test('추천과 이미지의 동시 예약을 합쳐 5개까지만 사용한다', async () => {
@@ -59,22 +72,24 @@ test('MongoDB 공통 AI 사용권·시간 충전·광고 보상 통합 검증', 
   await t.test('컬러·옷장 추천은 1개만 쓰고 잔액 0개에서도 같은 결과를 재사용하며 변경한 입력은 차감한다', async (t) => {
     const userId = user()
     await prisma.user.create({ data: { id: userId } })
-    const top = await prisma.wardrobeItem.create({ data: { userId, name: '테스트 상의', category: 'top', classificationStatus: 'classified', colorName: '네이비', colorHex: '#15203B' } })
-    const bottom = await prisma.wardrobeItem.create({ data: { userId, name: '테스트 하의', category: 'bottom', classificationStatus: 'classified', colorName: '그레이', colorHex: '#808080' } })
+    // 세 역할의 팔레트를 확인하는 입력은 단색임을 명시한다. 색 구성 미확인은 포인트를 확정하지 않는다.
+    const top = await prisma.wardrobeItem.create({ data: { userId, name: '테스트 상의', category: 'top', classificationStatus: 'classified', colorName: '네이비', colorHex: '#15203B', colorMode: 'solid' } })
+    const bottom = await prisma.wardrobeItem.create({ data: { userId, name: '테스트 하의', category: 'bottom', classificationStatus: 'classified', colorName: '그레이', colorHex: '#808080', colorMode: 'solid' } })
     await prisma.aiCreditWallet.create({ data: { userId, balance: 1, refillStartedAt: new Date() } })
     const previousKey = process.env.OPENAI_API_KEY
     process.env.OPENAI_API_KEY = 'fixture-key'
     t.after(() => { if (previousKey === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = previousKey })
     t.mock.method(aiExecutor, 'run', createAiExecutor().run)
-    const ai = t.mock.method(globalThis, 'fetch', async () => Response.json({ output_text: JSON.stringify({
-      headline: '함께 추천', summary: '옷과 색을 함께 골랐어요.',
-      recommendedColors: [
-        { name: '화이트', role: 'safe', reason: '밝게 연결해요.' },
-        { name: '그레이', role: 'harmony', reason: '차분하게 이어져요.' },
-        { name: '레드', role: 'accent', reason: '포인트가 돼요.' },
-      ],
-      candidates: [{ wardrobeItemId: bottom.id, reason: '차분한 색이 어울려요.', relation: 'tone-on-tone' }],
-    }) }))
+    const ai = t.mock.method(globalThis, 'fetch', async (_url: unknown, options: RequestInit) => {
+      const body = JSON.parse(String(options.body))
+      const prompt = JSON.parse(body.input.find((message: { role: string }) => message.role === 'user').content)
+      const grounded = prompt.groundedRecommendation
+      return Response.json({ output_text: JSON.stringify({
+        ...grounded,
+        recommendedColors: grounded.recommendedColors.map(({ name, role, reason }: { name: string; role: string; reason: string }) => ({ name, role, reason })),
+        candidates: grounded.candidates.slice(0, 5),
+      }) })
+    })
     const input = { selectedItemIds: [top.id], targetCategory: 'bottom' as const }
     const first = await outfitRecommendationService.recommend(userId, { ...input, mode: 'colors' })
     assert.equal(first.recommendedColors.length, 3)

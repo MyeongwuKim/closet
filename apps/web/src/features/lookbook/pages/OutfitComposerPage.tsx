@@ -95,7 +95,6 @@ export function OutfitComposerPage() {
   const outfits = useLookbookStore((state) => state.outfits)
   const addOutfit = useLookbookStore((state) => state.addOutfit)
   const createOutfit = useCreateOutfitMutation()
-  const previewMutation = useGenerateOutfitPreviewMutation()
   useRestorePreviewJob(searchParams.get('previewJobId'))
   const previewAssetId = searchParams.get('previewAssetId')
   const previewRouteState = searchParams.get('preview')
@@ -173,6 +172,7 @@ export function OutfitComposerPage() {
     return [...outfitStyleOptions, ...customStyles]
   }, [outfits])
   const selectedIds = layers.map((layer) => layer.wardrobeItemId)
+  const previewMutation = useGenerateOutfitPreviewMutation({ selectedItemIds: selectedIds, style })
   const currentPreviewCompositionKey = getOutfitPreviewCompositionKey(
     selectedIds,
     style,
@@ -698,7 +698,8 @@ export function OutfitComposerPage() {
       requestedStyle,
     )
 
-    if (!forceNew && cachedCurrentPreview) {
+    const restoreCompleted = !forceNew && Boolean(previewMutation.completedPreview || previewMutation.hasCompletedPreview || previewMutation.isCompletedLookupError)
+    if (!restoreCompleted && !forceNew && cachedCurrentPreview) {
       dispatch({
         type: 'PREVIEW_SUCCESS',
         imageUrl: cachedCurrentPreview.imageUrl,
@@ -712,10 +713,11 @@ export function OutfitComposerPage() {
     }
 
     dispatch({ type: 'OPEN_PREVIEW' })
-    if (previewMutation.isPending) return
+    if (!restoreCompleted && (previewMutation.isPending || previewMutation.isRestoringCompleted)) return
 
-    void previewMutation
-      .mutateAsync({ selectedItemIds: requestedItemIds, style: requestedStyle })
+    void (restoreCompleted
+      ? previewMutation.completedPreview ? Promise.resolve(previewMutation.completedPreview) : previewMutation.restoreCompletedAsync()
+      : previewMutation.mutateAsync({ selectedItemIds: requestedItemIds, style: requestedStyle }))
       .then((result) => {
         if (
           meQuery.data?.id &&
@@ -740,7 +742,7 @@ export function OutfitComposerPage() {
           compositionKey: requestedCompositionKey,
           mimeType: result.mimeType,
           model: result.model,
-          open: true,
+          open: restoreCompleted ? undefined : true,
         })
         if (result.assetId) {
           const nextSearchParams = new URLSearchParams(searchParams)
@@ -762,6 +764,10 @@ export function OutfitComposerPage() {
   }
 
   const openAiLookbook = () => {
+    if (previewMutation.completedPreview || previewMutation.hasCompletedPreview || previewMutation.isCompletedLookupError) {
+      generatePreview()
+      return
+    }
     if (hasGeneratedPreview && composerState.preview.imageUrl) {
       dispatch({ type: 'REOPEN_PREVIEW' })
       return
@@ -876,11 +882,15 @@ export function OutfitComposerPage() {
             <div className="mx-auto max-w-2xl">
               <div className="mb-2"><PreviewCreditSummary /></div>
               <OutfitCompletionActions
+                isPreviewPending={previewMutation.isPending || previewMutation.isRestoringCompleted}
+                canResumePreview={previewMutation.willResume || previewMutation.hasCompletedPreview || previewMutation.isCompletedLookupError}
                 completionMessage={outfitCompletionMessage}
                 isEmpty={selectedItems.length === 0}
                 duplicateMessage={duplicateMessage}
                 hasAvailableLookbook={Boolean(
                   canUseSavedLookbookPreview ||
+                    previewMutation.hasCompletedPreview ||
+                    previewMutation.isCompletedLookupError ||
                     hasGeneratedPreview ||
                     Boolean(cachedCurrentPreview),
                 )}

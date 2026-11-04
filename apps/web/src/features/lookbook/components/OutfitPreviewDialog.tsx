@@ -95,7 +95,7 @@ export function OutfitPreviewDialogView({
           </button>
         </header>
 
-        <div className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto p-4">
+        <div className={`scrollbar-hidden min-h-0 flex-1 overflow-y-auto p-4 ${isSuccess ? 'flex flex-col' : ''}`}>
           {isLoading ? (
             <div className="flex min-h-[31rem] flex-col items-center justify-center overflow-hidden rounded-3xl bg-canvas px-5 py-8 text-center shadow-[inset_0_0_0_1px_#dedad1]">
               <div className="relative flex size-40 items-center justify-center">
@@ -144,20 +144,19 @@ export function OutfitPreviewDialogView({
               </div>
             </div>
           ) : isSuccess ? (
-            <div>
-              <div className="relative aspect-[2/3] overflow-hidden rounded-3xl bg-canvas shadow-[inset_0_0_0_1px_#dedad1]">
+            <div className="flex min-h-0 flex-col">
+              <div className="relative aspect-[2/3] min-h-0 overflow-hidden rounded-3xl bg-canvas shadow-[inset_0_0_0_1px_#dedad1]">
                 <img
                   src={preview.imageUrl!}
                   alt="선택한 옷으로 생성한 AI 룩 미리보기"
-                  className="size-full object-cover"
+                  className="size-full object-contain"
                 />
                 <span className="absolute bottom-3 left-3 rounded-full bg-black/65 px-3 py-1.5 text-[10px] font-bold text-white backdrop-blur">
                   AI 예시 이미지
                 </span>
               </div>
-              <p className="mt-3 px-1 text-center text-[11px] leading-5 text-muted">
-                입력한 옷과 신체 수치를 참고한 예시이며 실제 착용 핏과 디테일은
-                다를 수 있어요.
+              <p className="mt-3 shrink-0 px-1 text-center text-[11px] leading-5 whitespace-nowrap text-muted">
+                AI 예시로 실제 핏·디테일은 다를 수 있어요.
               </p>
             </div>
           ) : (

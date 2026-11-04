@@ -77,8 +77,22 @@ export function NativePermissionPrompt({
               </View>
 
               <Text style={styles.roomLabel}>나의 드레스룸 준비하기</Text>
-              <Text style={styles.title}>{copy.title}</Text>
-              <Text style={styles.description}>{copy.description}</Text>
+              <View>
+                {/* 긴 위치 안내문의 실제 높이만 확보해 두 단계의 카드 크기를 맞춘다. */}
+                <View
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                  pointerEvents="none"
+                  style={styles.measuringCopy}
+                >
+                  <Text style={styles.title}>{permissionPromptCopy.location.title}</Text>
+                  <Text style={styles.description}>{permissionPromptCopy.location.description}</Text>
+                </View>
+                <View style={styles.visibleCopy}>
+                  <Text style={styles.title}>{copy.title}</Text>
+                  <Text style={styles.description}>{copy.description}</Text>
+                </View>
+              </View>
               <Text style={styles.optionalNote}>선택 권한 · 나중에 설정에서 변경할 수 있어요.</Text>
 
               {error ? (
@@ -190,6 +204,15 @@ const styles = StyleSheet.create({
     color: wearroomColors.accent,
     fontSize: 12,
     fontWeight: '500',
+  },
+  measuringCopy: {
+    opacity: 0,
+  },
+  visibleCopy: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    left: 0,
   },
   title: {
     marginTop: 8,

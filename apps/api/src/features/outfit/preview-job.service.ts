@@ -4,6 +4,7 @@ import type { AiPreviewJob } from '@prisma/client'
 import { aiInputKey } from '../../lib/ai/ai-execution.js'
 import { ServiceError } from '../../graphql/errors.js'
 import { imageService } from '../image/image.service.js'
+import { imageRepository } from '../image/image.repository.js'
 import { userRepository } from '../user/user.repository.js'
 import { getOutfitPreviewItems } from './outfit-preview-selection.js'
 import { previewJobRepository } from './preview-job.repository.js'
@@ -53,6 +54,22 @@ export const previewJobService = {
   /** 앱 상태 안내에서 이어 볼 수 있는 미확인 작업 목록을 반환한다. */
   async list(userId: string) {
     return (await previewJobRepository.listOwned(userId)).map(toPreviewJob)
+  },
+  /** 알림 확인·작업 TTL과 무관하게 같은 보유 옷·스타일의 최신 완료 이미지를 찾는다. 결과 부재·삭제에는 null이며 생성·사용권 차감은 하지 않는다. */
+  async latestForItems(userId: string, selectedItemIds: string[], style?: string | null) {
+    if ((style?.length ?? 0) > 100) throw new ServiceError('이미지 조회 조건이 올바르지 않습니다.', 'INVALID_OUTFIT_PREVIEW_REQUEST')
+    const items = await getOutfitPreviewItems(userId, selectedItemIds)
+    const asset = await imageRepository.findLatestGeneratedPreviewForItems(userId, items.map((item) => item.id), style?.trim() || null)
+    if (!asset) return null
+    try {
+      const image = await imageService.getGeneratedImage(userId, asset.id)
+      return { assetId: image.assetId, imageUrl: image.imageUrl, mimeType: image.mimeType, model: image.model,
+        jobId: asset.aiPreviewJobId ?? null, createdAt: asset.createdAt.toISOString() }
+    } catch (error) {
+      // 후보를 찾은 뒤 삭제되거나 사용할 수 없어진 이미지는 새 생성 없이 결과 없음으로 처리한다.
+      if (error instanceof ServiceError && ['OUTFIT_PREVIEW_NOT_FOUND', 'OUTFIT_PREVIEW_EXPIRED'].includes(error.code)) return null
+      throw error
+    }
   },
   /** 소유한 종료 작업을 확인 처리했을 때 true를 반환한다. 진행 작업은 숨기지 않는다. */
   async acknowledge(userId: string, id: string) {

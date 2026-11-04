@@ -430,7 +430,7 @@ export function NotificationWeatherPage() {
               <SettingRow
                 icon={CloudSun}
                 title="위치 기반 날씨"
-                description="현재 위치의 날씨를 플래너와 코디 추천에 사용해요."
+                description="현재 지역의 날씨를 코디 추천과 착용일 기온 기록에 사용해요."
                 permissionStatus={permissions.location}
                 toggle={{
                   checked: isNative
@@ -448,8 +448,8 @@ export function NotificationWeatherPage() {
           <div className="flex items-start gap-3 rounded-2xl bg-sage/70 px-4 py-3.5 text-xs leading-5 text-muted">
             <MapPin className="mt-0.5 shrink-0" size={17} aria-hidden="true" />
             <p>
-              위치는 날씨 조회에만 사용하며, 앱을 사용하지 않을 때는 위치를
-              추적하지 않아요.
+              날씨를 확인한 지역을 저장해, 날짜가 지난 착용 기록에 그날의 평균 기온을 남겨요.
+              앱을 사용하지 않을 때 새 위치를 수집하지 않아요.
             </p>
           </div>
 

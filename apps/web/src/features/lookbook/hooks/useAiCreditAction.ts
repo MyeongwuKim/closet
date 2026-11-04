@@ -7,11 +7,12 @@ import { usePreviewCreditsQuery } from '../api/previewCreditQueries'
 import { requireAiCredit } from '../api/requireAiCredit'
 
 /**
- * 만들기·추천 버튼에서 잔액 0회를 광고 동작으로 표시하고, 클릭 시 최신 잔액과 광고 지급을 확인한다.
- * requiresCredit이 false인 기존 결과 보기는 조회·광고 없이 실행한다. 잔액은 React Query에서 읽고 직접 복사하지 않는다.
+ * AI 버튼에 표시할 잔액을 읽고, 사용권이 필요한 버튼은 0회일 때 광고 동작으로 표시한다.
+ * 클릭 시 최신 잔액과 광고 지급을 확인하되, requiresCredit이 false인 기존 결과 보기는 확인을 기다리지 않고 실행한다.
+ * 잔액은 React Query에서 읽고 직접 복사하지 않는다.
  */
 export function useAiCreditAction(kind: AiCreditKind, requiresCredit = true) {
-  const credits = usePreviewCreditsQuery(requiresCredit, kind)
+  const credits = usePreviewCreditsQuery(true, kind)
   const me = useMeQuery()
   const client = useQueryClient()
   const pushToast = useUiStore((state) => state.pushToast)
@@ -40,6 +41,8 @@ export function useAiCreditAction(kind: AiCreditKind, requiresCredit = true) {
   }
 
   return {
+    remainingCredits: credits.data?.totalRemaining,
+    capacity: credits.data?.capacity,
     requiresAd: requiresCredit && credits.data?.totalRemaining === 0,
     usesWallet: Boolean(credits.data?.capacity),
     isChecking: requiresCredit && credits.isPending,

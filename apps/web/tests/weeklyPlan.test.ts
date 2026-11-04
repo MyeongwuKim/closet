@@ -29,7 +29,9 @@ test('빈 요일로 옮기면 코디만 이동하고 날짜 정보는 유지한�
           title: '월요일 코디',
           itemIds: ['coat', 'pants'],
           outfitId: 'outfit-monday',
-          plannerOnly: false,
+          plannerOnly: true,
+          previewImageAssetId: 'monday-image',
+          previewImageUrl: 'https://test.invalid/monday.png',
         }
       : {}),
   }))
@@ -42,6 +44,9 @@ test('빈 요일로 옮기면 코디만 이동하고 날짜 정보는 유지한�
   assert.equal(monday?.occasion, '출근')
   assert.equal(monday?.weather, '25° · 맑음')
   assert.equal(tuesday?.outfitId, 'outfit-monday')
+  assert.equal(tuesday?.previewImageAssetId, 'monday-image')
+  assert.equal(tuesday?.previewImageUrl, 'https://test.invalid/monday.png')
+  assert.equal(monday?.previewImageAssetId, undefined)
   assert.deepEqual(tuesday?.itemIds, ['coat', 'pants'])
   assert.equal(tuesday?.occasion, '약속')
   assert.equal(tuesday?.weather, '23° · 비')
@@ -119,4 +124,37 @@ test('서버에 없는 날짜를 합칠 때도 한 주 7일을 채운다', () =>
   assert.equal(merged.length, 7)
   assert.equal(merged[2]?.outfitId, 'outfit-wednesday')
   assert.deepEqual(merged[0]?.itemIds, [])
+})
+
+test('코디가 다른 날짜로 이동하면 착용 완료는 옮겨지지 않고 변경되지 않은 날짜만 유지한다', () => {
+  const entries = createEmptyWeeklyPlan('2026-08-24').map((entry, index) => ({
+    ...entry,
+    outfitId: `outfit-${index}`,
+    itemIds: [`item-${index}`],
+    wornAt: `2026-08-${24 + index}T12:00:00.000Z`,
+    wearFeeling: 'comfortable' as const,
+  }))
+  const moved = moveWeeklyPlanOutfits(entries, '2026-08-24', '2026-08-26')
+  assert.equal(moved[0].wornAt, null)
+  assert.equal(moved[1].wornAt, null)
+  assert.equal(moved[2].wornAt, null)
+  assert.equal(moved[0].wearFeeling, null)
+  assert.equal(moved[1].wearFeeling, null)
+  assert.equal(moved[2].wearFeeling, null)
+  assert.equal(moved[3].wornAt, entries[3].wornAt)
+  assert.equal(moved[3].wearFeeling, 'comfortable')
+  assert.equal(entries[0].wornAt, '2026-08-24T12:00:00.000Z')
+})
+
+test('날짜 슬롯 미리보기는 같은 코디의 확인을 유지하고 다른 코디면 비운다', () => {
+  const dateEntry = { ...createEmptyPlanEntry('2026-08-24'), outfitId: 'same', wornAt: '2026-08-24T12:00:00.000Z', wearFeeling: 'cold' as const }
+  assert.equal(placePlanOutfitInDate(dateEntry, { ...dateEntry }).wornAt, dateEntry.wornAt)
+  assert.equal(placePlanOutfitInDate(dateEntry, { ...dateEntry }).wearFeeling, 'cold')
+  assert.equal(placePlanOutfitInDate(dateEntry, { ...dateEntry, outfitId: 'other' }).wornAt, null)
+  assert.equal(placePlanOutfitInDate(dateEntry, { ...dateEntry, outfitId: 'other' }).wearFeeling, null)
+})
+
+test('착용 확인이 없는 슬롯에 남은 체감은 같은 코디 미리보기에도 가져오지 않는다', () => {
+  const entry = { ...createEmptyPlanEntry('2026-08-24'), outfitId: 'same', wornAt: null, wearFeeling: 'hot' as const }
+  assert.equal(placePlanOutfitInDate(entry, entry).wearFeeling, null)
 })

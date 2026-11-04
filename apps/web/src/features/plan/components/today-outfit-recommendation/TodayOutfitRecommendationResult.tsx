@@ -247,7 +247,7 @@ export function TodayOutfitRecommendationResult({
                 </span>
               </div>
               <h2
-                className="ai-recommendation-chat-enter mt-2 line-clamp-2 text-sm leading-5 font-black tracking-[-0.02em]"
+                className="ai-recommendation-chat-enter mt-2 line-clamp-2 break-keep text-sm leading-5 font-black tracking-[-0.02em] [overflow-wrap:anywhere]"
                 style={{ animationDelay: '210ms' }}
               >
                 {formatRecommendationHeadline(recommendation.headline)}

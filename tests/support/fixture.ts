@@ -11,6 +11,7 @@ type WardrobeItem = {
   name: string
   brandName: string | null
   createdAt: string
+  archivedAt: string | null
   category: string | null
   additionalCategories: string[]
   subcategory: string | null
@@ -46,35 +47,42 @@ type Outfit = {
   seasons: string[]
   createdAt: string
   items: Array<{ wardrobeItemId: string; layerOrder: number; wardrobeItem?: WardrobeItem }>
-  generations: Array<{ status: string; imageAsset: { deliveryUrl: string | null } | null }>
+  generations: Array<{ status: string; imageAsset: { id?: string; deliveryUrl: string | null } | null }>
 }
 
 type PlannerEntry = {
   date: string
+  wornAt?: string | null
+  wearFeeling?: 'cold' | 'comfortable' | 'hot' | null
   title: string | null
   occasion: string | null
   weatherSummary: string | null
   temperatureC: number | null
+  wearTemperatureC?: number | null
   outfit: {
     id: string
     name: string
     style: string
     plannerOnly: boolean
-    items: Array<{ wardrobeItemId: string }>
+    items: Array<{ wardrobeItemId: string; wardrobeItem?: WardrobeItem }>
     generations: Outfit['generations']
   } | null
 }
 
 type GraphqlRequest = { query: string; variables?: Record<string, any> }
-type MockApi = {
+export type MockApi = {
   wardrobeItems: WardrobeItem[]
   outfits: Outfit[]
   plannerEntries: PlannerEntry[]
+  rediscoveryItems: Array<{ item: WardrobeItem; reason: 'no_wear_record' | 'long_unworn'; daysSinceLastWorn: number | null }>
+  rediscoverySeenIds: string[]
   operations: string[]
   uploadKinds: string[]
   classificationFailureMessage: string | null
   cutoutFailureMessage: string | null
   unexpectedRequests: string[]
+  snapshotSequence: number
+  previewImages: Record<string, string>
 }
 
 /** Each test receives its own in-memory catalog. Reloads reuse it; other tests cannot see its mutations. */
@@ -82,6 +90,7 @@ export function createWardrobeItem(overrides: Partial<WardrobeItem> = {}): Wardr
   return {
     id: 'item-1', name: '테스트 셔츠', brandName: null,
     createdAt: '2026-01-10T00:00:00.000Z',
+    archivedAt: null,
     category: 'top', additionalCategories: [], subcategory: '셔츠',
     colorName: '네이비', colorDetailName: null, colorHex: '#24364a', colorMode: 'solid',
     fashionAttributes: null, seasons: ['spring'], tags: [],
@@ -116,17 +125,22 @@ function createMockApi(): MockApi {
     ],
     outfits: [createOutfit()],
     plannerEntries: [],
+    rediscoveryItems: [],
+    rediscoverySeenIds: [],
     operations: [],
     uploadKinds: [],
     classificationFailureMessage: null,
     cutoutFailureMessage: null,
     unexpectedRequests: [],
+    snapshotSequence: 1,
+    previewImages: {},
   }
 }
 
 function filterWardrobe(items: WardrobeItem[], input: Record<string, any> = {}) {
   const search = String(input.search ?? '').trim().toLocaleLowerCase()
   return items.filter((item) => {
+    if (item.archivedAt) return false
     if (input.category && item.category !== input.category && !item.additionalCategories.includes(input.category)) return false
     if (input.subcategory && item.subcategory !== input.subcategory) return false
     if (input.season && !item.seasons.includes(input.season)) return false
@@ -169,12 +183,55 @@ function filterOutfits(api: MockApi, input: Record<string, any> = {}) {
     : b.createdAt.localeCompare(a.createdAt))
 }
 
+/** 날짜별 코디는 코디북 객체와 배열을 공유하지 않는 별도 저장값으로 만든다. */
+function plannerSnapshot(api: MockApi, outfit: Pick<Outfit, 'name' | 'style' | 'items' | 'generations'>): NonNullable<PlannerEntry['outfit']> {
+  return structuredClone({
+    id: `900000000000000000${String(api.snapshotSequence++).padStart(6, '0')}`,
+    name: outfit.name, style: outfit.style, plannerOnly: true,
+    items: outfit.items.map((item) => ({ wardrobeItemId: item.wardrobeItemId })),
+    generations: outfit.generations,
+  })
+}
+
+function sameOutfitItems(left: Array<{ wardrobeItemId: string }>, right: Array<{ wardrobeItemId: string }>) {
+  const key = (items: Array<{ wardrobeItemId: string }>) => [...new Set(items.map((item) => item.wardrobeItemId))].sort().join('|')
+  return left.length > 0 && key(left) === key(right)
+}
+
+/** 옷장에서는 숨긴 옷도 날짜 코디의 관계 조회에는 남긴다. 새로고침마다 현재 보관 상태를 읽는다. */
+function withPlannerWardrobeItems(api: MockApi, entry: PlannerEntry): PlannerEntry {
+  return {
+    ...entry,
+    outfit: entry.outfit ? {
+      ...entry.outfit,
+      items: entry.outfit.items.map((item) => ({
+        ...item,
+        wardrobeItem: api.wardrobeItems.find((candidate) => candidate.id === item.wardrobeItemId),
+      })),
+    } : null,
+  }
+}
+
+function plannerWeekPayload(api: MockApi, weekStartsOn: string) {
+  const end = new Date(Date.parse(`${weekStartsOn}T00:00:00Z`) + 7 * 86_400_000).toISOString().slice(0, 10)
+  return { id: `week-${weekStartsOn}`, weekStartsOn, entries: api.plannerEntries.filter((entry) => entry.date >= weekStartsOn && entry.date < end).map((entry) => withPlannerWardrobeItems(api, entry)) }
+}
+
 function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest): Record<string, unknown> {
   const operation = query.match(/\b(?:query|mutation)\s+(\w+)/)?.[1] ?? 'unknown'
   api.operations.push(operation)
   const input = variables.input ?? {}
 
   switch (operation) {
+    case 'ThermalRecommendationContext': return { thermalRecommendationContext: { revision: 'fixture-thermal-neutral', direction: 'neutral', strength: 0, sampleCount: 0 } }
+    case 'WardrobeRediscovery': return { wardrobeRediscovery: {
+      day: new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date()),
+      items: api.rediscoveryItems.filter((entry) => api.wardrobeItems.some((item) => item.id === entry.item.id && !item.archivedAt)),
+    } }
+    case 'MarkWardrobeRediscoverySeen': {
+      api.rediscoverySeenIds.push(...variables.itemIds)
+      return { markWardrobeRediscoverySeen: true }
+    }
     case 'WardrobePage': {
       const items = filterWardrobe(api.wardrobeItems, input)
       return { wardrobePage: { items, totalCount: items.length, hasNextPage: false, nextCursor: null } }
@@ -182,16 +239,16 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
     case 'WardrobeFilterOptions': {
       const items = filterWardrobe(api.wardrobeItems, { category: variables.category, subcategory: variables.subcategory })
       return { wardrobeFilterOptions: {
-        totalCount: api.wardrobeItems.length,
-        categories: [...new Set(api.wardrobeItems.flatMap((item) => [item.category, ...item.additionalCategories]).filter(Boolean))],
+        totalCount: filterWardrobe(api.wardrobeItems).length,
+        categories: [...new Set(filterWardrobe(api.wardrobeItems).flatMap((item) => [item.category, ...item.additionalCategories]).filter(Boolean))],
         subcategories: [...new Set(items.map((item) => item.subcategory).filter(Boolean))],
         tags: [...new Set(items.flatMap((item) => item.tags))],
         colors: [...new Map(items.map((item) => [item.colorName, { name: item.colorName, hex: item.colorHex }])).values()],
       } }
     }
-    case 'WardrobeItems': return { wardrobeItems: api.wardrobeItems }
-    case 'WardrobeItem': return { wardrobeItem: api.wardrobeItems.find((item) => item.id === variables.id) ?? null }
-    case 'WardrobeBrandOptions': return { wardrobeBrandOptions: [...new Set(api.wardrobeItems.map((item) => item.brandName).filter(Boolean))] }
+    case 'WardrobeItems': return { wardrobeItems: filterWardrobe(api.wardrobeItems) }
+    case 'WardrobeItem': return { wardrobeItem: api.wardrobeItems.find((item) => item.id === variables.id && !item.archivedAt) ?? null }
+    case 'WardrobeBrandOptions': return { wardrobeBrandOptions: [...new Set(filterWardrobe(api.wardrobeItems).map((item) => item.brandName).filter(Boolean))] }
     case 'Outfits': return { outfits: filterOutfits(api, variables).map((outfit) => withWardrobeItems(api, outfit)) }
     case 'OutfitPage': {
       const outfits = filterOutfits(api, input)
@@ -202,37 +259,98 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
       styles: [...new Set(api.outfits.map((outfit) => outfit.style))],
       colors: [...new Map(api.wardrobeItems.map((item) => [item.colorName, { name: item.colorName, hex: item.colorHex }])).values()],
     } }
-    case 'OutfitWearHistory': return { outfitWearHistory: [] }
-    case 'PlannerWeek': return { plannerWeek: {
-      id: `week-${variables.weekStartsOn}`,
-      weekStartsOn: variables.weekStartsOn,
-      entries: api.plannerEntries.filter((entry) => entry.date >= variables.weekStartsOn && entry.date < new Date(new Date(`${variables.weekStartsOn}T00:00:00Z`).getTime() + 7 * 86_400_000).toISOString().slice(0, 10)),
-    } }
-    case 'PlannerEntries': return { plannerEntries: api.plannerEntries.filter((entry) => entry.date >= variables.from && entry.date <= variables.to) }
+    case 'OutfitWearHistory': return { outfitWearHistory: variables.outfitIds.flatMap((id: string) => {
+      const outfit = api.outfits.find((candidate) => candidate.id === id) ?? api.plannerEntries.find((entry) => entry.outfit?.id === id)?.outfit
+      if (!outfit) return []
+      return api.plannerEntries.flatMap((entry) => entry.outfit && sameOutfitItems(entry.outfit.items, outfit.items)
+        ? [{ outfitId: id, date: entry.date, wornAt: entry.wornAt ?? null, temperatureC: entry.wornAt ? entry.wearTemperatureC ?? null : null }] : [])
+    }) }
+    case 'SyncWearWeatherLocation': return { syncWearWeatherLocation: true }
+    case 'PlannerWeek': return { plannerWeek: plannerWeekPayload(api, variables.weekStartsOn) }
+    case 'PlannerEntries': return { plannerEntries: api.plannerEntries.filter((entry) => entry.date >= variables.from && entry.date <= variables.to).map((entry) => withPlannerWardrobeItems(api, entry)) }
     case 'SetPlannerEntry': {
       const outfit = api.outfits.find((candidate) => candidate.id === input.outfitId)
       if (!outfit) throw new Error(`Unknown outfit: ${input.outfitId}`)
+      const previous = api.plannerEntries.find((entry) => entry.date === input.date)
+      const sameItems = Boolean(previous?.outfit && sameOutfitItems(previous.outfit.items, outfit.items))
+      const sameSnapshot = sameItems && previous?.outfit?.name === outfit.name && previous.outfit.style === outfit.style
+        && JSON.stringify(previous.outfit.generations) === JSON.stringify(outfit.generations)
       api.plannerEntries = api.plannerEntries.filter((entry) => entry.date !== input.date)
       api.plannerEntries.push({
         date: input.date,
+        wornAt: sameItems ? previous?.wornAt ?? null : null,
+        wearFeeling: sameItems ? previous?.wearFeeling ?? null : null,
+        wearTemperatureC: sameItems ? previous?.wearTemperatureC ?? null : null,
         title: input.title ?? outfit.name,
-        occasion: input.occasion ?? null,
-        weatherSummary: null,
-        temperatureC: null,
-        outfit: {
-          id: outfit.id, name: outfit.name, style: outfit.style,
-          plannerOnly: false,
-          items: outfit.items.map((item) => ({ wardrobeItemId: item.wardrobeItemId })),
-          generations: outfit.generations,
-        },
+        occasion: input.occasion ?? null, weatherSummary: null, temperatureC: null,
+        outfit: sameSnapshot ? previous!.outfit : plannerSnapshot(api, outfit),
       })
-      return { setPlannerEntry: { id: `planner-${input.date}` } }
+      return { setPlannerEntry: plannerWeekPayload(api, input.weekStartsOn) }
+    }
+    case 'SetDirectPlannerEntry': {
+      const previous = api.plannerEntries.find((entry) => entry.date === input.date)
+      const items = input.itemIds.map((wardrobeItemId: string, layerOrder: number) => ({ wardrobeItemId, layerOrder }))
+      const sameItems = Boolean(previous?.outfit && sameOutfitItems(previous.outfit.items, items))
+      let generations = sameItems ? previous?.outfit?.generations ?? [] : []
+      if (input.previewImage?.assetId) {
+        const assetId = input.previewImage.assetId
+        const image = api.previewImages[assetId] ?? [...api.outfits.flatMap((outfit) => outfit.generations), ...api.plannerEntries.flatMap((entry) => entry.outfit?.generations ?? [])].find((generation) => generation.imageAsset?.id === assetId)?.imageAsset?.deliveryUrl
+        if (!image) throw new Error(`Unknown preview image: ${assetId}`)
+        generations = [{ status: 'completed', imageAsset: { id: assetId, deliveryUrl: image } }]
+      }
+      const outfit = plannerSnapshot(api, {
+        name: input.recommendationName ?? previous?.outfit?.name ?? '직접 고른 코디',
+        style: input.recommendationStyle ?? previous?.outfit?.style ?? '직접 구성',
+        items, generations,
+      })
+      api.plannerEntries = api.plannerEntries.filter((entry) => entry.date !== input.date)
+      api.plannerEntries.push({ date: input.date, title: outfit.name, occasion: null, weatherSummary: null, temperatureC: null,
+        wornAt: sameItems ? previous?.wornAt ?? null : null, wearFeeling: sameItems ? previous?.wearFeeling ?? null : null,
+        wearTemperatureC: sameItems ? previous?.wearTemperatureC ?? null : null, outfit })
+      return { setDirectPlannerEntry: plannerWeekPayload(api, input.weekStartsOn) }
+    }
+    case 'SavePlannerOutfitToLookbook': {
+      const source = api.plannerEntries.find((entry) => entry.outfit?.id === variables.outfitId)?.outfit
+      if (!source) throw new Error('저장할 날짜 코디가 없습니다.')
+      const existing = api.outfits.find((outfit) => sameOutfitItems(outfit.items, source.items))
+      if (existing) return { savePlannerOutfitToLookbook: { id: existing.id } }
+      const copy = createOutfit({ id: `800000000000000000${String(api.snapshotSequence++).padStart(6, '0')}`, name: source.name, style: source.style,
+        items: source.items.map((item, layerOrder) => ({ ...item, layerOrder })), generations: structuredClone(source.generations) })
+      api.outfits.push(copy)
+      return { savePlannerOutfitToLookbook: { id: copy.id } }
+    }
+    case 'SetPlannerEntryWorn': {
+      const entry = api.plannerEntries.find((entry) => entry.date === input.date && entry.outfit?.id === input.outfitId)
+      if (!entry) throw new Error('착용을 확인할 코디가 없습니다.')
+      if (!input.worn || !entry.wornAt) entry.wearFeeling = null
+      entry.wornAt = input.worn ? entry.wornAt ?? new Date().toISOString() : null
+      if (!input.worn) entry.wearTemperatureC = null
+      for (const item of api.wardrobeItems) {
+        const dates = api.plannerEntries.filter((record) => record.wornAt && record.outfit?.items.some((candidate) => candidate.wardrobeItemId === item.id)).map((record) => record.date)
+        item.wearCount = new Set(dates).size
+        item.lastWornAt = dates.sort().at(-1) ?? null
+      }
+      return { setPlannerEntryWorn: plannerWeekPayload(api, input.weekStartsOn) }
+    }
+    case 'SetPlannerEntryWearFeeling': {
+      const entry = api.plannerEntries.find((entry) => entry.date === input.date && entry.outfit?.id === input.outfitId)
+      if (!entry?.wornAt || entry.wornAt !== input.wornAt) throw new Error('현재 착용 완료 상태를 다시 확인해주세요.')
+      entry.wearFeeling = input.feeling ?? null
+      return { setPlannerEntryWearFeeling: plannerWeekPayload(api, input.weekStartsOn) }
     }
     case 'ClearPlannerEntry': {
       api.plannerEntries = api.plannerEntries.filter((entry) => entry.date !== variables.date)
       return { clearPlannerEntry: { id: `planner-${variables.date}` } }
     }
     case 'OutfitPreviewJobs': return { outfitPreviewJobs: [] }
+    case 'OutfitPreviewForItems': return { outfitPreviewForItems: null }
+    case 'OutfitPreviewAsset': {
+      const id = String(variables.id)
+      const generations = [...api.outfits.flatMap((outfit) => outfit.generations), ...api.plannerEntries.flatMap((entry) => entry.outfit?.generations ?? [])]
+      const imageUrl = api.previewImages[id] ?? generations.find((generation) => generation.imageAsset?.id === id)?.imageAsset?.deliveryUrl
+      if (!imageUrl) throw new Error(`Unknown preview asset: ${id}`)
+      return { outfitPreviewAsset: { assetId: id, imageUrl, mimeType: 'image/png', model: 'fixture-model' } }
+    }
     case 'PreviewCredits': return { previewCredits: { freeRemaining: 5, rewardRemaining: 0, totalRemaining: 5, capacity: 5, nextRefillAt: null, serverNow: new Date().toISOString(), adRewardsRemaining: null, rewardMode: 'test', resetsAt: new Date(Date.now() + 86_400_000).toISOString(), pendingRewardSessionId: null } }
     case 'AcknowledgeOutfitPreviewJob': return { acknowledgeOutfitPreviewJob: true }
     case 'Me': return { me: {
@@ -247,8 +365,10 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
       return { updateWardrobeItem: api.wardrobeItems[index] }
     }
     case 'ArchiveWardrobeItem': {
-      api.wardrobeItems = api.wardrobeItems.filter((item) => item.id !== variables.id)
-      return { archiveWardrobeItem: { id: variables.id } }
+      const item = api.wardrobeItems.find((item) => item.id === variables.id)
+      if (!item) throw new Error(`Unknown wardrobe item: ${variables.id}`)
+      item.archivedAt = new Date().toISOString()
+      return { archiveWardrobeItem: item }
     }
     case 'CreateWardrobeItem': {
       const item = createWardrobeItem({ ...input, id: `item-${api.wardrobeItems.length + 1}`, createdAt: new Date().toISOString(), displayImageAsset: { id: input.displayImageAssetId, deliveryUrl: null } })
@@ -283,7 +403,13 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
     case 'UpdateOutfit': {
       const index = api.outfits.findIndex((outfit) => outfit.id === variables.id)
       if (index < 0) throw new Error(`Unknown outfit: ${variables.id}`)
-      api.outfits[index] = { ...api.outfits[index], ...input }
+      const previous = api.outfits[index]
+      let generations = sameOutfitItems(previous.items, input.items) ? previous.generations : []
+      if (input.previewImage?.assetId) {
+        const id = input.previewImage.assetId
+        generations = [{ status: 'completed', imageAsset: { id, deliveryUrl: api.previewImages[id] ?? null } }]
+      }
+      api.outfits[index] = { ...previous, ...input, generations }
       return { updateOutfit: withWardrobeItems(api, api.outfits[index]) }
     }
     case 'DeleteOutfit': {
@@ -293,7 +419,7 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
     case 'CreateOutfit': {
       const outfit = createOutfit({ ...input, id: `outfit-${api.outfits.length + 1}`, createdAt: new Date().toISOString() })
       api.outfits = [outfit, ...api.outfits]
-      return { createOutfit: outfit }
+      return { createOutfit: withWardrobeItems(api, outfit) }
     }
     default:
       api.unexpectedRequests.push(`Unhandled GraphQL operation: ${operation}`)

@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { CalendarDays, Palette, Sparkles, Tag } from 'lucide-react'
+import { CalendarDays, ChevronLeft, Palette, Sparkles, Tag } from 'lucide-react'
 import {
-  Navigate,
   useNavigate,
   useParams,
   useSearchParams,
@@ -32,6 +31,7 @@ import {
 } from '../utils/fashionAttributes'
 import { useWardrobeItemQuery } from '../../../lib/catalogQueries'
 import { useOutfitsQuery } from '../../lookbook/api/lookbookQueries'
+import { GraphqlRequestError } from '../../../lib/graphql'
 
 /** 옷장·플래너 → 아이템 상세. 최상위 전체 화면에 옷 사진·매칭 코디·착용 기록·분류 정보를 표시한다. 매칭 코디 전체보기와 코디 상세는 아이템 위에 열어 뒤로가면 이전 화면과 스크롤을 유지하며, 옷 수정·삭제는 별도 확인 화면에서 처리한다. */
 export function ClosetDetailPage() {
@@ -100,7 +100,32 @@ export function ClosetDetailPage() {
   ])
 
   if (itemQuery.isPending) return createPortal(<div className="fixed inset-0 z-[60] grid place-items-center bg-canvas" role="status">옷을 불러오는 중...</div>, document.body)
-  if (!selectedItem) return <Navigate to="/closet" replace />
+  if (!selectedItem) {
+    const isMissing = itemQuery.error instanceof GraphqlRequestError && itemQuery.error.code === 'WARDROBE_ITEM_NOT_FOUND'
+    return createPortal(
+      <section className="fixed inset-0 z-[60] flex flex-col bg-canvas" role="dialog" aria-modal="true" aria-label="옷 상세 조회 오류">
+        <header className="shrink-0 border-b border-line px-4 py-3 sm:px-6">
+          <button type="button" onClick={() => navigate(backPath)} className="flex size-10 items-center justify-center rounded-full hover:bg-surface" aria-label={backLabel} autoFocus>
+            <ChevronLeft size={22} />
+          </button>
+        </header>
+        <div className="grid min-h-0 flex-1 place-items-center overflow-y-auto p-6">
+          <div className="w-full max-w-sm rounded-3xl border border-line bg-surface p-6 text-center">
+            <h1 className="text-lg font-black">{isMissing ? '옷을 찾을 수 없어요' : '옷을 불러오지 못했어요'}</h1>
+            <p className="mt-3 text-sm leading-6 text-muted">
+              {isMissing ? '삭제된 옷이거나 현재 계정에서 볼 수 없는 옷이에요.' : '서버 연결을 확인한 뒤 다시 시도해주세요. 저장된 옷이 삭제되었다는 뜻은 아니에요.'}
+            </p>
+            {!isMissing && (
+              <button type="button" onClick={() => void itemQuery.refetch()} disabled={itemQuery.isFetching} className="mt-5 rounded-xl bg-ink px-5 py-3 text-sm font-bold text-white disabled:opacity-50">
+                {itemQuery.isFetching ? '다시 불러오는 중...' : '다시 시도'}
+              </button>
+            )}
+          </div>
+        </div>
+      </section>,
+      document.body,
+    )
+  }
 
   const relatedOutfits = outfits
     .filter((outfit) =>

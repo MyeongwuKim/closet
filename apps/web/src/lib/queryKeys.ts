@@ -1,11 +1,13 @@
 import type { ClosetFilter } from '../features/closet/constants'
 import type { ClothingCategory, Season, TodayOutfitColorScheme } from '@closet/types'
+import { OUTFIT_COLOR_RULES_VERSION } from '@closet/types/outfit-colors'
 
 export const queryKeys = {
   me: ['me'] as const,
   wardrobe: {
     all: ['wardrobe'] as const,
     statistics: ['wardrobe', 'statistics'] as const,
+    rediscovery: (viewerId: string | null, day: string) => ['wardrobe', 'rediscovery', viewerId, day] as const,
     brandOptions: ['wardrobe', 'brand-options'] as const,
     list: (filter?: { category?: ClosetFilter; subcategory?: string }) =>
       ['wardrobe', 'list', filter ?? {}] as const,
@@ -24,7 +26,7 @@ export const queryKeys = {
       [
         'outfits',
         'recommendation',
-        'combined-v1',
+        OUTFIT_COLOR_RULES_VERSION,
         viewerId,
         { selectedItemIds, targetCategory },
       ] as const,
@@ -40,11 +42,12 @@ export const queryKeys = {
       excludedOuterItemIds: string[],
       baseItemId?: string,
       weatherKey?: string,
+      thermalContextRevision?: string,
     ) =>
       [
         'planner',
         'today-recommendation',
-        'v7',
+        OUTFIT_COLOR_RULES_VERSION,
         viewerId,
         date,
         season,
@@ -53,7 +56,10 @@ export const queryKeys = {
         excludedOuterItemIds,
         baseItemId ?? null,
         weatherKey ?? null,
+        ...(thermalContextRevision === undefined ? [] : [thermalContextRevision]),
       ] as const,
+    thermalContext: (viewerId: string, date: string, meanTemperatureC: number | null) =>
+      ['planner', 'thermal-context', viewerId, date, meanTemperatureC] as const,
     week: (weekStartsOn: string) =>
       ['planner', 'week', weekStartsOn] as const,
     entries: (from: string, to: string) =>

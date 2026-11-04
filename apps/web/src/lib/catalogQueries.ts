@@ -34,7 +34,7 @@ export function useInfiniteWardrobeQuery(filter: WardrobeFilters) {
   return query
 }
 
-/** 새 코디 조건의 조회 중에도 이전 목록을 유지한다. 임시 목록은 Store에 병합하지 않고 실제 응답만 반영한다. */
+/** 새 코디 조건의 조회 중에도 이전 목록을 유지한다. 옷 관계는 코디에 보관하고 활성 옷장 목록에는 병합하지 않는다. */
 export function useInfiniteOutfitsQuery(filter: OutfitFilters) {
   const query = useInfiniteQuery({
     queryKey: ['outfits', 'pages', filter],
@@ -51,9 +51,6 @@ export function useInfiniteOutfitsQuery(filter: OutfitFilters) {
         }`, { input: { ...filter, limit: 20, cursor: pageParam } }, signal)
       return {
         ...data.outfitPage, items: data.outfitPage.items.map(toSavedOutfit),
-        wardrobeItems: data.outfitPage.items.flatMap((outfit) => outfit.items.flatMap(
-          (item) => item.wardrobeItem ? [toWardrobeItem(item.wardrobeItem)] : [],
-        )),
       }
     },
     getNextPageParam: (page) => page.hasNextPage ? page.nextCursor : undefined,
@@ -61,7 +58,6 @@ export function useInfiniteOutfitsQuery(filter: OutfitFilters) {
   useEffect(() => {
     if (!query.data || query.isPlaceholderData) return
     useLookbookStore.getState().mergeOutfits(query.data.pages.flatMap((page) => page.items))
-    useClosetStore.getState().mergeItems(query.data.pages.flatMap((page) => page.wardrobeItems))
   }, [query.data, query.isPlaceholderData])
   return query
 }
@@ -140,7 +136,6 @@ export function useOutfitQuery(id?: string) {
   useEffect(() => {
     if (!query.data) return
     useLookbookStore.getState().mergeOutfits([query.data.outfit])
-    useClosetStore.getState().mergeItems(query.data.wardrobeItems)
   }, [query.data])
   return query
 }

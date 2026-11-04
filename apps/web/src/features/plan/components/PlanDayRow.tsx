@@ -1,5 +1,5 @@
 import type { WardrobeItem } from '@closet/types'
-import { ChevronRight, GripVertical } from 'lucide-react'
+import { Check, ChevronRight, GripVertical } from 'lucide-react'
 import { useCallback, useRef } from 'react'
 import { useDrag, useDrop } from 'react-dnd'
 import { Link } from 'react-router-dom'
@@ -9,6 +9,7 @@ import {
   type PlanEntry,
 } from '../data/weeklyPlan'
 import { PlanOutfitThumbnails } from './PlanOutfitThumbnails'
+import { getPlanEntryItems } from '../utils/plannerItems'
 
 const WEEKLY_PLAN_OUTFIT = 'weekly-plan-outfit'
 
@@ -72,6 +73,7 @@ export function PlanDayRowContent({
           {entry.dayLabel}
           <span className="hidden sm:inline">{isToday ? ' · 오늘' : ''}</span>
         </span>
+        {entry.wornAt && <span className="mt-1 inline-flex items-center rounded-full bg-sage px-1.5 py-0.5 text-[9px] font-bold text-accent" role="img" aria-label="착용 완료"><Check size={10} aria-hidden="true" /></span>}
       </span>
 
       <span className="hidden min-w-0 sm:block">
@@ -80,11 +82,11 @@ export function PlanDayRowContent({
         </strong>
         <span className="mt-1 block text-xs text-muted">
           {[entry.occasion, entry.weather].filter(Boolean).join(' · ') ||
-            '저장된 코디 없음'}
+            (entry.outfitId ? entry.wornAt ? '착용 완료' : '착용 확인 전' : '저장된 코디 없음')}
         </span>
       </span>
 
-      <PlanOutfitThumbnails items={items} />
+      <PlanOutfitThumbnails items={getPlanEntryItems(entry, items)} />
       <ChevronRight className="size-4 text-muted sm:size-[18px]" />
     </>
   )

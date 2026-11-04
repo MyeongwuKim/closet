@@ -22,10 +22,10 @@ test('여성 근육형은 근육과 넓은 어깨를 남성 모델로 재해석�
 
   assert.match(guide, /adult woman only/)
   assert.match(guide, /adult female anatomy and an adult female skeletal frame/)
+  assert.match(guide, /selected build is athletic/)
   assert.match(guide, /visible training and muscle definition on a woman/)
-  assert.match(guide, /shoulders proportional to the hips/)
-  assert.match(guide, /naturally defined waist/)
-  assert.match(guide, /Do not render a wide rectangular male torso/)
+  assert.match(guide, /A broad build alone does not imply muscle definition/)
+  assert.match(guide, /Explicit saved measurements take priority/)
   assert.match(guide, /Never reinterpret muscularity/)
   assert.match(guide, /missing body measurements/)
   assert.match(guide, /adult man or a male-presenting mannequin/)
@@ -47,17 +47,19 @@ test('저장된 총장을 키에 맞춰 유지하고 모든 상의를 자연스�
   assert.match(lookbookGarmentLengthGuide, /mandatory garment proportion/)
   assert.match(lookbookGarmentLengthGuide, /scale that length against the saved model heightCm/)
   assert.match(lookbookGarmentLengthGuide, /Keep every top fully untucked/)
-  assert.match(lookbookGarmentLengthGuide, /hang freely and naturally over the waistband/)
+  assert.match(lookbookGarmentLengthGuide, /hang freely and naturally at its measured shoulder-to-hem depth/)
+  assert.match(lookbookGarmentLengthGuide, /A closed-front outer may naturally cover an inner hem/)
+  assert.match(lookbookGarmentLengthGuide, /with an open front, show that hem inside the opening/)
   assert.match(lookbookGarmentLengthGuide, /Never use a full tuck, half tuck, French tuck/)
   assert.match(lookbookGarmentLengthGuide, /Do not invent a belt/)
 })
 
-test('키 165cm에 총장 68cm인 니트의 밑단을 허리가 아닌 하단 골반으로 안내한다', () => {
+test('키 165cm에 총장 68cm인 니트는 실측 비율을 전달하며 특정 골반 위치로 단정하지 않는다', () => {
   const target = getLookbookHemTarget('top', 68, 165)
 
-  assert.match(target!, /lower-hip area, approaching the upper thigh/)
+  assert.match(target!, /shoulderToHemCm=68/)
   assert.match(target!, /garmentLengthToModelHeight=41\.2%/)
-  assert.match(target!, /do not end this garment at the waistband/)
+  assert.match(target!, /without imposing a universal waist or hip cutoff/)
 })
 
 test('브이넥 니트에는 흰색 이너 티셔츠 레이어를 안내한다', () => {
@@ -160,9 +162,16 @@ function createPreviewItem(id: string, category: ClothingCategory, fashionAttrib
   }
 }
 
-async function requestMockPreview(t: TestContext, attributes?: unknown, extraItems: ReturnType<typeof createPreviewItem>[] = []) {
+async function requestMockPreview(
+  t: TestContext,
+  attributes?: unknown,
+  extraItems: ReturnType<typeof createPreviewItem>[] = [],
+  profile: Awaited<ReturnType<typeof userRepository.findViewerById>> = null,
+  measurements: Record<string, { totalLengthCm?: number; chestWidthCm?: number; shoulderWidthCm?: number; sleeveLengthCm?: number }> = {},
+) {
   const items = [createPreviewItem('top', 'top', attributes), createPreviewItem('bottom', 'bottom'), ...extraItems]
-  t.mock.method(userRepository, 'findViewerById', async () => null)
+    .map((item) => ({ ...item, ...measurements[item.id] }))
+  t.mock.method(userRepository, 'findViewerById', async () => profile)
   t.mock.method(wardrobeRepository, 'findManyOwnedWithImagesByIds', async () => [...items].reverse())
   const previousKey = process.env.OPENAI_API_KEY
   process.env.OPENAI_API_KEY = 'test-key'
@@ -187,6 +196,56 @@ async function requestMockPreview(t: TestContext, attributes?: unknown, extraIte
   assert.equal(requests.length, 1)
   return requests[0]!
 }
+
+test('실제 생성 요청에 최신 신체 수치·옷 여유·재킷과 이너의 상대 기장을 함께 전달한다', async (t) => {
+  const profile = {
+    styleProfile: {
+      gender: 'male', bodyBuild: 'athletic', heightCm: 180, weightKg: 85,
+      shoulderWidthCm: 48, chestCircumferenceCm: 104, waistCircumferenceCm: 82,
+      hipCircumferenceCm: 100, inseamCm: 82, preferredFit: 'wide',
+    },
+  } as Awaited<ReturnType<typeof userRepository.findViewerById>>
+  const jacket = { ...createPreviewItem('jacket', 'outer'), name: '짧은 재킷', subcategory: '재킷' }
+  const form = await requestMockPreview(t, undefined, [jacket], profile, {
+    top: { totalLengthCm: 74, chestWidthCm: 55, shoulderWidthCm: 50, sleeveLengthCm: 56 },
+    jacket: { totalLengthCm: 58, chestWidthCm: 60 },
+  })
+  const prompt = String(form.get('prompt'))
+  assert.match(prompt, /키 180cm, 몸무게 85kg, 어깨너비 48cm, 가슴둘레 104cm/)
+  assert.match(prompt, /허리둘레 82cm, 엉덩이둘레 100cm, 인심 82cm/)
+  assert.match(prompt, /naturally trained muscular build/)
+  assert.match(prompt, /참조 이미지 1.*총장 74cm/)
+  assert.match(prompt, /참조 이미지 1.*nominalChestEaseCm=6/)
+  assert.match(prompt, /참조 이미지 1.*bodyLengthCm=74; sleeveLengthCm=56; nominalBodyMinusSleeveLengthCm=18/)
+  assert.match(prompt, /Inner reference image 1 totalLengthCm=74; outer reference image 3 totalLengthCm=58/)
+  assert.match(prompt, /inner garment is nominally 16 cm longer/)
+  assert.match(prompt, /Garment measurements and visible garment proportions always take priority/)
+})
+
+test('앞이 열리는 코트에는 실측 보조 도식을 사진 뒤에 추가하고 이너 밑단을 바지 앞에 두도록 전달한다', async (t) => {
+  const coat = {
+    ...createPreviewItem('coat', 'outer', { frontOpeningStyle: 'buttons' }),
+    name: '롱 코트', subcategory: '코트',
+  }
+  const form = await requestMockPreview(t, undefined, [coat], null, {
+    top: { totalLengthCm: 70 }, coat: { totalLengthCm: 115 },
+  })
+  const prompt = String(form.get('prompt'))
+  const images = form.getAll('image[]') as Blob[]
+  assert.equal(images.length, 4)
+  assert.equal(form.get('quality'), 'medium')
+  assert.deepEqual(await Promise.all(images.slice(0, 3).map((image) => image.text())), [
+    'mock-reference-top', 'mock-reference-bottom', 'mock-reference-coat',
+  ])
+  assert.equal(images[3]!.type, 'image/png')
+  const diagram = Buffer.from(await images[3]!.arrayBuffer())
+  assert.ok(diagram.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])))
+  assert.match(prompt, /first 3 reference images exactly once/)
+  assert.match(prompt, /Supplementary image 4 is a measured layer layout, not another garment reference/)
+  assert.match(prompt, /Inner reference image 1 totalLengthCm=70; outer reference image 3 totalLengthCm=115/)
+  assert.match(prompt, /hanging in front of the trousers at its measured depth/)
+  assert.match(prompt, /No part of its front or sides may disappear into the trouser waistband/)
+})
 
 test('백팩은 등에 메고 벨트·목도리는 착용 액세서리로 구분한다', () => {
   const guide = getLookbookBagGuide([

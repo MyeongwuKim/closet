@@ -56,7 +56,7 @@ export function LoginPage() {
               onChange={(event) => setLoginId(event.target.value)}
               minLength={3}
               maxLength={30}
-              pattern="[A-Za-z0-9._-]+"
+              pattern="[A-Za-z0-9._\-]+"
               autoCapitalize="none"
               autoComplete="username"
               placeholder="예: closet_test"

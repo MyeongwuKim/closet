@@ -20,6 +20,7 @@ import {
 import { outfitRecommendationService } from './outfit-recommendation.service.js'
 import { todayOutfitRecommendationService } from './today-outfit-recommendation.service.js'
 import type { WeatherSnapshot } from '../weather/weather.service.js'
+import { getThermalRecommendationContext } from './thermal-recommendation.service.js'
 
 export const outfitResolvers = {
   Outfit: {
@@ -35,6 +36,17 @@ export const outfitResolvers = {
       generation.completedAt?.toISOString() ?? null,
   },
   Query: {
+    /** 같은 계정의 비슷한 실제 착용일 평균 기온으로 계산한 추천 보정과 근거 revision을 조회한다. */
+    thermalRecommendationContext: async (
+      _parent: unknown, { date, meanTemperatureC }: { date: string; meanTemperatureC: number }, context: GraphQLContext,
+    ) => {
+      try {
+        const viewer = await context.getViewer()
+        return await getThermalRecommendationContext(viewer.id, date, meanTemperatureC)
+      } catch (error) {
+        throw toGraphQLError(error, '체감 추천 기준을 불러오지 못했습니다.', 'THERMAL_RECOMMENDATION_CONTEXT_FAILED')
+      }
+    },
     outfitPreviewJob: async (_parent: unknown, { id }: { id: string }, context: GraphQLContext) => {
       try {
         const viewer = await context.getViewer()
@@ -51,6 +63,15 @@ export const outfitResolvers = {
         throw toGraphQLError(error, 'AI 생성 상태를 불러오지 못했습니다.', 'AI_JOB_LOAD_FAILED')
       }
     },
+    /** 내 옷 조합의 최신 완료 이미지를 영속 자산에서 조회한다. 알림 확인 여부와 작업 만료는 조회 조건에 넣지 않는다. */
+    outfitPreviewForItems: async (_parent: unknown, { selectedItemIds, style }: { selectedItemIds: string[]; style?: string | null }, context: GraphQLContext) => {
+      try {
+        const viewer = await context.getViewer()
+        return await previewJobService.latestForItems(viewer.id, selectedItemIds, style)
+      } catch (error) {
+        throw toGraphQLError(error, '완료된 AI 코디 이미지를 불러오지 못했습니다.', 'OUTFIT_PREVIEW_LOAD_FAILED')
+      }
+    },
     todayOutfitRecommendation: async (
       _parent: unknown,
       {
@@ -65,6 +86,7 @@ export const outfitResolvers = {
           variation?: number | null
           excludedOuterItemIds?: string[] | null
           weather?: WeatherSnapshot | null
+          thermalContextRevision?: string | null
         }
       },
       context: GraphQLContext,

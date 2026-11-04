@@ -4,12 +4,13 @@ import { ServiceError } from '../../graphql/errors.js'
 import { prisma } from '../../lib/prisma.js'
 import { aiTransaction, touchAiMutex } from '../../lib/ai/ai-storage.js'
 import { reservePreviewCredit, settlePreviewCredit } from '../preview-credits/preview-credit.repository.js'
+import { lockWardrobeItemsForReference } from '../wardrobe/wardrobe-image-lifecycle.js'
 
 export const PREVIEW_JOB_LEASE_MS = 90_000
 
 /** 생성 요청·진행 임대·결과 자산 ID를 MongoDB에 보관한다. 모든 상태 변경은 현재 작업 토큰을 확인한다. */
 export const previewJobRepository = {
-  /** 사용자 큐를 직렬화해 재전송 키를 재사용하고, 같은 입력의 진행 중 작업에는 요청 키만 추가한다. */
+  /** 재전송·진행 중 작업을 재사용한다. 새 작업은 옷 사진 정리와 같은 잠금을 잡은 뒤 사용권을 예약해 등록한다. */
   enqueue(input: { id: string; userId: string; requestKey: string; inputKey: string; fingerprint: string; selectedItemIds: string[]; style: string | null }) {
     return aiTransaction(async (tx) => {
       const now = new Date()
@@ -28,6 +29,7 @@ export const previewJobRepository = {
         await tx.aiPreviewJob.count({ where: { status: { in: ['queued', 'processing'] }, expiresAt: { gt: now } } }) >= 100) {
         throw new ServiceError('진행 중인 AI 작업이 많아요. 완료 후 다시 시도해 주세요.', 'AI_BUSY')
       }
+      await lockWardrobeItemsForReference(tx, input.userId, input.selectedItemIds)
       const credit = await reservePreviewCredit(tx, input.userId, now)
       return tx.aiPreviewJob.create({ data: {
         ...credit,
@@ -71,7 +73,7 @@ export const previewJobRepository = {
   markRequestStarted(id: string, leaseToken: string) {
     return prisma.aiPreviewJob.updateMany({ where: { id, leaseToken, status: 'processing', leaseUntil: { gt: new Date() } }, data: { requestStartedAt: new Date() } })
   },
-  /** 같은 처리 토큰에만 결과 자산을 연결한다. 복구 시에는 만료 임대만 바꾸며 임시 이미지의 만료 시각도 반영한다. */
+  /** 같은 처리 토큰에만 결과 자산을 연결하고 사용권을 정산한다. 작업 정리 기한과 생성 이미지의 영구 보관은 독립적이다. */
   complete(job: Pick<AiPreviewJob, 'id' | 'leaseToken'>, imageAssetId: string, model: string, expiredOnly = false, expiresAt?: Date) {
     return aiTransaction(async (tx) => {
       const current = await tx.aiPreviewJob.findUnique({ where: { id: job.id } })

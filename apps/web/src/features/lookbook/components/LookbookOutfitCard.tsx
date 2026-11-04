@@ -6,6 +6,7 @@ import type { OutfitWearSummary } from '../hooks/useOutfitWearSummaries'
 import type { LookbookViewMode, SavedOutfit } from '../types'
 import { OutfitCardVisual } from './OutfitCardVisual'
 import { OutfitWearStatus } from './OutfitWearStatus'
+import { getSavedOutfitItems } from '../utils/savedOutfitItems'
 
 interface LookbookOutfitCardProps {
   outfit: SavedOutfit
@@ -26,13 +27,14 @@ export function LookbookOutfitCard({
   viewMode = 'ai',
   order,
 }: LookbookOutfitCardProps) {
+  const hasArchivedItems = getSavedOutfitItems(outfit, items).some((item) => item.archivedAt)
   return (
     <button
       data-catalog-item
       type="button"
       onClick={() => onSelect(outfit.id)}
       className="lookbook-cover-card group flex h-full min-w-0 w-full flex-col text-left"
-      aria-label={`${outfit.name} 코디 상세 보기`}
+      aria-label={`${outfit.name} 코디 상세 보기${hasArchivedItems ? ', 삭제된 옷 포함' : ''}`}
     >
       <div className="lookbook-cover-masthead" aria-hidden="true">
         <span className="lookbook-cover-number">LOOK{order !== undefined && <span>{String(order).padStart(2, '0')}</span>}</span>

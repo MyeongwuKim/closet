@@ -16,6 +16,7 @@ import { useUiStore } from '../../../stores/useUiStore'
 import {
   useMeQuery,
   useUpdateWearReminderPreferencesMutation,
+  ViewerSessionChangedError,
   type WearReminderPreferences,
 } from '../api/profileQueries'
 
@@ -102,6 +103,7 @@ function WearReminderSettingsForm({
       })
       pushToast('최근 착용 리마인드 설정을 저장했습니다.', 'success')
     } catch (error) {
+      if (error instanceof ViewerSessionChangedError) return
       pushToast(
         error instanceof Error
           ? error.message

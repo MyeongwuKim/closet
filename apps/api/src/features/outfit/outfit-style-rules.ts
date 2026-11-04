@@ -9,8 +9,11 @@ import type {
   FashionSilhouette,
   FashionTexture,
   TodayOutfitColorScheme,
+  ThermalRecommendationContext,
 } from '@closet/types'
-import { colorHexToRgb } from '../classification/color.js'
+import { getColorHarmonyScore, getColorSchemeFitScore } from './outfit-color-rules.js'
+
+export { getColorHarmonyScore, getColorSchemeFitScore } from './outfit-color-rules.js'
 
 export interface StyleRuleItem {
   id: string
@@ -30,217 +33,6 @@ export interface OutfitCombination<T extends StyleRuleItem> {
   id: string
   items: T[]
   score: number
-}
-
-const neutralColors = new Set(['블랙', '화이트', '크림', '베이지', '그레이', '네이비'])
-
-const colorMatches: Record<string, string[]> = {
-  블랙: ['화이트', '그레이', '베이지', '크림', '레드'],
-  화이트: ['네이비', '블랙', '베이지', '브라운', '블루'],
-  크림: ['브라운', '네이비', '베이지', '올리브', '그레이'],
-  베이지: ['화이트', '네이비', '브라운', '블랙', '올리브'],
-  그레이: ['블랙', '화이트', '네이비', '핑크', '블루'],
-  네이비: ['화이트', '크림', '베이지', '그레이', '브라운'],
-  블루: ['화이트', '그레이', '베이지', '네이비', '브라운'],
-  브라운: ['크림', '베이지', '화이트', '네이비', '올리브'],
-  레드: ['블랙', '화이트', '네이비', '그레이', '크림'],
-  핑크: ['그레이', '화이트', '네이비', '크림', '브라운'],
-  오렌지: ['네이비', '크림', '브라운', '화이트', '올리브'],
-  옐로: ['네이비', '그레이', '화이트', '브라운', '올리브'],
-  그린: ['크림', '베이지', '네이비', '브라운', '화이트'],
-  올리브: ['크림', '베이지', '브라운', '블랙', '화이트'],
-  퍼플: ['그레이', '크림', '블랙', '화이트', '네이비'],
-}
-
-interface OklchColor {
-  lightness: number
-  chroma: number
-  hue: number
-}
-
-const NEUTRAL_CHROMA_MAX = 0.045
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max)
-}
-
-function rgbChannelToLinear(value: number) {
-  const normalized = value / 255
-  return normalized <= 0.04045
-    ? normalized / 12.92
-    : ((normalized + 0.055) / 1.055) ** 2.4
-}
-
-function colorHexToOklch(value: string | null): OklchColor | null {
-  const rgb = colorHexToRgb(value)
-  if (!rgb) return null
-
-  const red = rgbChannelToLinear(rgb[0])
-  const green = rgbChannelToLinear(rgb[1])
-  const blue = rgbChannelToLinear(rgb[2])
-  const l = Math.cbrt(
-    0.4122214708 * red + 0.5363325363 * green + 0.0514459929 * blue,
-  )
-  const m = Math.cbrt(
-    0.2119034982 * red + 0.6806995451 * green + 0.1073969566 * blue,
-  )
-  const s = Math.cbrt(
-    0.0883024619 * red + 0.2817188376 * green + 0.6299787005 * blue,
-  )
-  const lightness = 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s
-  const a = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s
-  const b = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s
-  const chroma = Math.sqrt(a ** 2 + b ** 2)
-  const hue = (Math.atan2(b, a) * 180) / Math.PI
-
-  return {
-    lightness,
-    chroma,
-    hue: hue < 0 ? hue + 360 : hue,
-  }
-}
-
-function getHueDistance(left: number, right: number) {
-  const distance = Math.abs(left - right)
-  return Math.min(distance, 360 - distance)
-}
-
-const COLOR_SCHEME_NEUTRAL_CHROMA_MAX = NEUTRAL_CHROMA_MAX
-const COLOR_SCHEME_ACCENT_SUPPORT_CHROMA_MAX = 0.08
-const COLOR_SCHEME_ACCENT_CHROMA_MIN = 0.13
-const mainColorCategories = new Set<ClothingCategory>([
-  'top', 'bottom', 'dress', 'outer', 'midlayer',
-])
-
-/**
- * 주요 옷의 대표색과 확인된 신발·액세서리 색으로 요청한 색 조합이 성립하는지 판정한다.
- * 주요 옷의 색이 없거나 다색·패턴이면 조합을 확정하지 않고, 색을 모르는 보조 아이템은 판정에서 제외한다.
- */
-export function getColorSchemeFitScore(
-  items: StyleRuleItem[],
-  colorScheme: TodayOutfitColorScheme,
-): number {
-  if (colorScheme === 'auto') return 1
-  const mainItems = items.filter((item) => item.category && mainColorCategories.has(item.category))
-  if (mainItems.length === 0) return 0
-  const mainColors = mainItems.map((item) =>
-    item.colorMode === 'patterned' || item.colorMode === 'multicolor'
-      ? null
-      : colorHexToOklch(item.colorHex),
-  )
-  if (mainColors.some((color) => color === null)) return 0
-  const secondaryColors = items
-    .filter((item) => !item.category || !mainColorCategories.has(item.category))
-    .map((item) => colorHexToOklch(item.colorHex))
-    .filter((color): color is OklchColor => color !== null)
-  const knownColors = [...mainColors as OklchColor[], ...secondaryColors]
-  const chromaticColors = knownColors.filter(
-    (color) => color.chroma > COLOR_SCHEME_NEUTRAL_CHROMA_MAX,
-  )
-
-  if (colorScheme === 'achromatic') {
-    return chromaticColors.length === 0 ? 1 : 0
-  }
-  if (knownColors.length < 2) return 0
-  if (colorScheme === 'accent') {
-    const accents = knownColors.filter(
-      (color) => color.chroma >= COLOR_SCHEME_ACCENT_CHROMA_MIN,
-    )
-    return accents.length === 1 && knownColors.every(
-      (color) => color === accents[0] || color.chroma <= COLOR_SCHEME_ACCENT_SUPPORT_CHROMA_MAX,
-    ) ? 1 : 0
-  }
-  if (chromaticColors.length < 2) return 0
-
-  const pairs = chromaticColors.flatMap((left, index) =>
-    chromaticColors.slice(index + 1).map((right) => ({
-      hueDistance: getHueDistance(left.hue, right.hue),
-      lightnessDistance: Math.abs(left.lightness - right.lightness),
-      chromaDistance: Math.abs(left.chroma - right.chroma),
-    })),
-  )
-  if (colorScheme === 'tone-on-tone') {
-    return pairs.every((pair) => pair.hueDistance <= 25) &&
-      pairs.some((pair) => pair.lightnessDistance >= 0.08 && pair.lightnessDistance <= 0.5)
-      ? 1 : 0
-  }
-  return pairs.every((pair) =>
-    pair.lightnessDistance <= 0.14 && pair.chromaDistance <= 0.08,
-  ) && pairs.some((pair) => pair.hueDistance >= 25)
-    ? 1 : 0
-}
-
-function getColorNameScore(left: StyleRuleItem, right: StyleRuleItem) {
-  const leftColor = left.colorName?.trim() ?? ''
-  const rightColor = right.colorName?.trim() ?? ''
-  if (leftColor && leftColor === rightColor) return 2
-  if (colorMatches[leftColor]?.includes(rightColor)) return 6
-  if (colorMatches[rightColor]?.includes(leftColor)) return 6
-  if (neutralColors.has(leftColor) || neutralColors.has(rightColor)) return 4
-  return 1
-}
-
-function softenRepresentativeColorScore(
-  score: number,
-  left: StyleRuleItem,
-  right: StyleRuleItem,
-) {
-  const hasComplexColor = [left.colorMode, right.colorMode].some(
-    (mode) => mode === 'patterned' || mode === 'multicolor',
-  )
-  return hasComplexColor ? 3.5 + (score - 3.5) * 0.7 : score
-}
-
-/** 실제 대표색의 명도·채도·색상 차이를 비교한다. 대표색이 없으면 넓은 색상명 규칙을 사용한다. */
-export function getColorHarmonyScore(
-  left: StyleRuleItem,
-  right: StyleRuleItem,
-) {
-  const leftColor = colorHexToOklch(left.colorHex)
-  const rightColor = colorHexToOklch(right.colorHex)
-  if (!leftColor || !rightColor) return getColorNameScore(left, right)
-
-  const lightnessDistance = Math.abs(
-    leftColor.lightness - rightColor.lightness,
-  )
-  const leftIsNeutral = leftColor.chroma <= NEUTRAL_CHROMA_MAX
-  const rightIsNeutral = rightColor.chroma <= NEUTRAL_CHROMA_MAX
-  let score: number
-
-  if (leftIsNeutral && rightIsNeutral) {
-    score = 4.25 + Math.min(lightnessDistance / 0.22, 1) * 1.25
-  } else if (leftIsNeutral || rightIsNeutral) {
-    const colored = leftIsNeutral ? rightColor : leftColor
-    const contrastBonus = Math.min(lightnessDistance / 0.24, 1) * 0.65
-    const vividnessPenalty = Math.max(0, colored.chroma - 0.24) * 4
-    score = 5 + contrastBonus - vividnessPenalty
-  } else {
-    const hueDistance = getHueDistance(leftColor.hue, rightColor.hue)
-    const lightnessBonus =
-      lightnessDistance >= 0.08 && lightnessDistance <= 0.48 ? 0.45 : 0
-
-    if (hueDistance <= 18) {
-      score = 5.25 + lightnessBonus
-    } else if (hueDistance <= 55) {
-      score = 5 + lightnessBonus
-    } else if (hueDistance >= 145 && hueDistance <= 215) {
-      score = 4.85 + lightnessBonus
-    } else if (hueDistance >= 105 && hueDistance <= 135) {
-      score = 4.4 + lightnessBonus
-    } else {
-      score = 2.75 + lightnessBonus
-    }
-
-    if (
-      leftColor.chroma + rightColor.chroma > 0.34 &&
-      hueDistance > 55 &&
-      hueDistance < 145
-    ) {
-      score -= 0.75
-    }
-  }
-
-  return clamp(softenRepresentativeColorScore(score, left, right), 1, 6)
 }
 
 const layerRoles = new Set(['base', 'mid', 'outer', 'single', 'unknown'])
@@ -404,6 +196,24 @@ function getRotationScore(item: StyleRuleItem) {
 }
 
 /**
+ * 비슷한 기온의 개인 체감이 있을 때 옷의 보온감과 겹쳐 입는 구성을 보조 평가한다.
+ * 기존 선택용 속성 판정을 재사용하고 신발·가방·액세서리는 제외한다. 실제 날씨의 후보 제외 규칙은 바꾸지 않는다.
+ * 한 기록의 영향은 체감 이력 서비스에서 줄이며, 이 점수도 최대 6점으로 제한한다.
+ */
+function getThermalPreferenceScore<T extends StyleRuleItem>(items: T[], context?: ThermalRecommendationContext) {
+  if (!context || context.direction === 'neutral' || !Number.isFinite(context.strength)) return 0
+  const warmth = items.reduce((total, item) => {
+    const isUpper = ['top', 'dress', 'midlayer', 'outer'].some((category) => includesCategory(item, category as ClothingCategory))
+    const weight = isUpper ? 1 : includesCategory(item, 'bottom') ? 0.5 : 0
+    const level = getFashionAttributes(item).warmth
+    const points = level === 'heavy' ? 2 : level === 'medium' ? 1 : 0
+    return total + (points + 0.5) * weight
+  }, 0)
+  const score = Math.min(6, Math.max(0, Math.min(0.6, context.strength)) * 2.5 * warmth)
+  return context.direction === 'warmer' ? score : -score
+}
+
+/**
  * 상의·겉옷과 하의의 실제 실루엣을 비교해 볼륨 균형을 보조 평가한다.
  * 같은 핏이나 기본 핏을 포함한 조합, 여유로운 옷과 슬림한 옷의 조합에 가점을 준다.
  * unknown은 판단에서 제외하고 분석 확신도가 낮으면 가점을 줄이며 어떤 실루엣도 추천 후보에서 금지하지 않는다.
@@ -541,6 +351,7 @@ function scoreCombination<T extends StyleRuleItem>(
   season: Season,
   apparentTemperatureC?: number,
   colorScheme: TodayOutfitColorScheme = 'auto',
+  thermalContext?: ThermalRecommendationContext,
 ) {
   const pairs: Array<[T, T]> = []
   items.forEach((item, index) => {
@@ -582,12 +393,13 @@ function scoreCombination<T extends StyleRuleItem>(
     layerScore -
     patternPenalty -
     summerWarmthPenalty +
-    (colorScheme === 'auto' ? 0 : getColorSchemeFitScore(items, colorScheme) * 4)
+    (colorScheme === 'auto' ? 0 : getColorSchemeFitScore(items, colorScheme) * 4) +
+    getThermalPreferenceScore(items, thermalContext)
   )
 }
 
 /**
- * 각 역할의 후보를 색 궁합과 최근 착용 기록으로 정렬해 최대 8개 남긴다.
+ * 각 역할의 후보를 색 궁합·최근 착용과 개인 체감 보정으로 정렬해 최대 8개 남긴다.
  * 기준 옷이 있으면 그 옷과의 색 궁합을, 없으면 다른 종류 옷과의 평균 궁합을 비교한다.
  * 기준 옷은 점수와 무관하게 맨 앞에 두어 후보 제한으로 빠지지 않게 한다.
  * 색감을 선택했다면 기본 순위 4개와 다른 역할의 옷과 색 조합을 이루는 후보 최대 4개를 함께 남긴다.
@@ -598,6 +410,7 @@ function sortPool<T extends StyleRuleItem>(
   wardrobeItems: T[],
   baseItemId?: string,
   colorScheme: TodayOutfitColorScheme = 'auto',
+  thermalContext?: ThermalRecommendationContext,
 ) {
   const baseItem = wardrobeItems.find((item) => item.id === baseItemId)
   const scores = new Map(items.map((item) => {
@@ -607,7 +420,7 @@ function sortPool<T extends StyleRuleItem>(
     const colorScore = partners.length > 0
       ? partners.reduce((sum, partner) => sum + getColorHarmonyScore(item, partner), 0) / partners.length
       : 0
-    return [item.id, colorScore + getRotationScore(item)]
+    return [item.id, colorScore + getRotationScore(item) + getThermalPreferenceScore([item], thermalContext)]
   }))
   const sorted = [...items]
     .sort((left, right) =>
@@ -711,7 +524,7 @@ function selectDiverseCombinations<T extends StyleRuleItem>(
  * 이너와 하의 또는 원피스를 갖춘 옷장 조합을 만들고 색·핏 균형·레이어·착용 기록으로 정렬한다.
  * 계절은 겉옷과 두께 평가에 사용하고, 기온이 있으면 더운 날의 보온성 옷을 후보에서 제외한다.
  * baseItemId가 있으면 모든 결과에 포함하며 함께 입을 기본 구성이 없으면 빈 배열을 반환한다.
- * 색감을 선택하고 만족하는 조합이 있으면 그 조합에서 최대 18개를 반환한다.
+ * 색감을 만족하는 조합에서 최대 18개를 반환하고, 개인 체감이 있으면 보온성 순위를 보조 보정한다.
  * 만족하는 조합이 없으면 일반 추천으로 돌아가며, 스타일 이름이나 선호 핏으로 옷을 제한하지 않는다.
  */
 export function buildOutfitCombinations<T extends StyleRuleItem>(
@@ -720,6 +533,7 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
   baseItemId?: string,
   apparentTemperatureC?: number,
   colorScheme: TodayOutfitColorScheme = 'auto',
+  thermalContext?: ThermalRecommendationContext,
 ) {
   if (baseItemId !== undefined && !items.some((item) => item.id === baseItemId)) {
     return []
@@ -736,9 +550,10 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
     availableItems,
     baseItemId,
     colorScheme,
+    thermalContext,
   )
-  const bottoms = sortPool(availableItems.filter((item) => includesCategory(item, 'bottom')), availableItems, baseItemId, colorScheme)
-  const dresses = sortPool(availableItems.filter((item) => includesCategory(item, 'dress')), availableItems, baseItemId, colorScheme)
+  const bottoms = sortPool(availableItems.filter((item) => includesCategory(item, 'bottom')), availableItems, baseItemId, colorScheme, thermalContext)
+  const dresses = sortPool(availableItems.filter((item) => includesCategory(item, 'dress')), availableItems, baseItemId, colorScheme, thermalContext)
   const midlayers = sortPool(
     availableItems.filter(
       (item) =>
@@ -747,6 +562,7 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
     availableItems,
     baseItemId,
     colorScheme,
+    thermalContext,
   )
   const outers = sortPool(
     availableItems.filter(
@@ -756,13 +572,15 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
     availableItems,
     baseItemId,
     colorScheme,
+    thermalContext,
   )
-  const shoes = sortPool(availableItems.filter((item) => includesCategory(item, 'shoes')), availableItems, baseItemId, colorScheme)
+  const shoes = sortPool(availableItems.filter((item) => includesCategory(item, 'shoes')), availableItems, baseItemId, colorScheme, thermalContext)
   const accessories = sortPool(
     availableItems.filter((item) => includesCategory(item, 'accessory')),
     availableItems,
     baseItemId,
     colorScheme,
+    thermalContext,
   )
   const combinations = new Map<string, T[]>()
 
@@ -838,6 +656,7 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
         season,
         apparentTemperatureC,
         colorScheme,
+        thermalContext,
       ),
     }))
     .sort((left, right) => right.score - left.score)
@@ -848,7 +667,7 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
         getColorSchemeFitScore(combination.items, colorScheme) > 0,
       )
   if (colorScheme !== 'auto' && matchingCombinations.length === 0) {
-    return buildOutfitCombinations(items, season, baseItemId, apparentTemperatureC)
+    return buildOutfitCombinations(items, season, baseItemId, apparentTemperatureC, 'auto', thermalContext)
   }
 
   return selectDiverseCombinations(matchingCombinations, 18)

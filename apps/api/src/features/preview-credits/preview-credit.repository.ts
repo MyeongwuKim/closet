@@ -5,7 +5,7 @@ import { ServiceError } from '../../graphql/errors.js'
 import { aiTransaction, touchAiMutex } from '../../lib/ai/ai-storage.js'
 import { aiInputKey } from '../../lib/ai/ai-execution.js'
 import { prisma } from '../../lib/prisma.js'
-import { getPreviewCreditDay, getPreviewRewardConfig } from './preview-credit-policy.js'
+import { canRefillTestAiCredits, getPreviewCreditDay, getPreviewRewardConfig } from './preview-credit-policy.js'
 import { AI_CREDIT_CAPACITY } from './ai-credit-wallet-policy.js'
 import { changeAiCreditWalletBalance, readAiCreditWallet } from './ai-credit-wallet.repository.js'
 
@@ -37,6 +37,13 @@ export async function settlePreviewCredit(tx: Prisma.TransactionClient, job: AiP
 
 /** 시간 충전되는 공통 지갑과 광고 번호를 관리한다. Google 거래 번호를 확인해 같은 광고를 중복 지급하지 않는다. */
 export const previewCreditRepository = {
+  /** 테스트 충전도 기존 사용자 잠금과 지갑 상한을 사용해 잔액을 최대 5개로 채운다. */
+  async refillForTest(userId: string) {
+    await aiTransaction(async (tx) => {
+      await lockCredits(tx, userId)
+      await changeAiCreditWalletBalance(tx, userId, AI_CREDIT_CAPACITY)
+    })
+  },
   /** 추천·룩북 어디서 읽어도 같은 잔액을 반환한다. 조회 시 지나간 시간 충전을 반영하고 다음 충전 시각을 함께 전달한다. */
   async balance(userId: string, _kind: AiCreditKind = 'preview') {
     const now = new Date()
@@ -47,7 +54,7 @@ export const previewCreditRepository = {
     })
     const pending = config.mode === 'disabled' ? null : await prisma.previewRewardSession.findFirst({ where: { userId, mode: config.mode, adUnitId: config.adUnitId, status: 'pending', watchedAt: { not: null }, validUntil: { gt: now } }, orderBy: { createdAt: 'desc' } })
     return { freeRemaining: wallet.balance, rewardRemaining: 0, totalRemaining: wallet.balance, adRewardsRemaining: null,
-      capacity: AI_CREDIT_CAPACITY, nextRefillAt: wallet.nextRefillAt?.toISOString() ?? null, serverNow: now.toISOString(),
+      capacity: AI_CREDIT_CAPACITY, nextRefillAt: wallet.nextRefillAt?.toISOString() ?? null, serverNow: now.toISOString(), testRefillAvailable: canRefillTestAiCredits(),
       // 이전 클라이언트용 날짜 필드. 실제 시간 충전에는 nextRefillAt을 사용한다.
       resetsAt: getPreviewCreditDay(userId, now).resetsAt.toISOString(), rewardMode: config.mode, pendingRewardSessionId: pending?.id ?? null }
   },

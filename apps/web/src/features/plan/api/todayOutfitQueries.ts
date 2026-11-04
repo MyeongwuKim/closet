@@ -10,6 +10,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
   Season,
+  ThermalRecommendationContext,
   TodayOutfitRecommendation,
   WeatherSnapshot,
 } from '@closet/types'
@@ -19,6 +20,8 @@ import { requireAiCredit } from '../../lookbook/api/requireAiCredit'
 import { queryKeys } from '../../../lib/queryKeys'
 import type { ColorScheme } from '../data/colorSchemes'
 import { normalizeRecommendationText } from '../utils/recommendationText'
+import { getThermalRecommendationMean, matchesThermalRecommendationContext } from '../utils/thermalRecommendationContext'
+import { assertCurrentThermalRecommendationContext, refreshChangedThermalRecommendationContext } from './thermalRecommendationQueries'
 import {
   toWardrobeItem,
   wardrobeItemFields,
@@ -47,6 +50,8 @@ interface TodayOutfitRecommendationQueryOptions {
   enabled?: boolean
   baseItemId?: string
   weather?: WeatherSnapshot | null
+  /** 날씨의 일평균이 있을 때 먼저 새로 조회한 체감 근거. 조회 준비는 결과 Hook에서 담당한다. */
+  thermalContext?: ThermalRecommendationContext | null
 }
 
 function getWeatherKey(weather?: WeatherSnapshot | null) {
@@ -82,9 +87,13 @@ export function useTodayOutfitRecommendationQuery(
     enabled = true,
     baseItemId,
     weather,
+    thermalContext,
   }: TodayOutfitRecommendationQueryOptions = {},
 ) {
   const client = useQueryClient()
+  const meanTemperatureC = getThermalRecommendationMean(weather)
+  const thermalContextRevision = meanTemperatureC !== null ? thermalContext?.revision : undefined
+  const weatherKey = getWeatherKey(weather)
   return useQuery({
     queryKey: queryKeys.planner.todayRecommendation(
       viewerId,
@@ -94,74 +103,99 @@ export function useTodayOutfitRecommendationQuery(
       variation,
       excludedOuterItemIds,
       baseItemId,
-      getWeatherKey(weather),
+      weatherKey,
+      thermalContextRevision,
     ),
-    enabled: enabled && Boolean(viewerId) && Boolean(date),
+    enabled: enabled && Boolean(viewerId) && Boolean(date) && (meanTemperatureC === null || Boolean(thermalContextRevision)),
     initialData:
-      initialData?.ready &&
-      !matchesTodayRecommendationBaseItem(initialData, baseItemId)
+      initialData && (!matchesThermalRecommendationContext(initialData, thermalContextRevision) ||
+      (initialData.ready && !matchesTodayRecommendationBaseItem(initialData, baseItemId)))
         ? undefined
         : initialData,
-    meta: { baseItemId, colorScheme },
+    meta: { baseItemId, colorScheme, weatherKey, thermalContextRevision },
     placeholderData: (previousData, previousQuery) =>
       previousQuery?.meta?.baseItemId === baseItemId &&
       previousQuery?.meta?.colorScheme === colorScheme &&
+      previousQuery?.meta?.weatherKey === weatherKey &&
+      previousQuery?.meta?.thermalContextRevision === thermalContextRevision &&
+      previousData !== undefined &&
+      matchesThermalRecommendationContext(previousData, thermalContextRevision) &&
       (!previousData?.ready ||
         matchesTodayRecommendationBaseItem(previousData, baseItemId))
         ? previousData
         : undefined,
-    select: (recommendation) =>
-      validateRecommendationBaseItem(recommendation, baseItemId),
+    select: (recommendation) => {
+      if (!matchesThermalRecommendationContext(recommendation, thermalContextRevision)) throw new Error('착용 체감이 바뀌어 추천을 다시 확인해야 해요.')
+      return validateRecommendationBaseItem(recommendation, baseItemId)
+    },
     staleTime: 5 * 60_000,
     retry: false,
     refetchOnWindowFocus: false,
     initialDataUpdatedAt: 0,
     queryFn: async ({ signal, queryKey }): Promise<TodayOutfitRecommendation> => {
+      if (meanTemperatureC !== null) {
+        if (!thermalContextRevision) throw new Error('착용 체감 정보를 먼저 확인해주세요.')
+        await assertCurrentThermalRecommendationContext(client, viewerId, date, meanTemperatureC, thermalContextRevision, signal)
+      }
       // 저장한 결과를 다시 읽을 때는 광고를 요구하지 않는다. 새 조건의 추천은 실행 전에 잔액을 확인한다.
-      if (!client.getQueryData(queryKey) && !await requireAiCredit(client, viewerId, 'recommendation', signal)) throw new Error('잔액을 확인한 뒤 추천받기 버튼을 다시 눌러주세요.')
-      const request = () => graphqlRequest<
-        { todayOutfitRecommendation: TodayOutfitRecommendationPayload },
-        {
-          input: {
-            date: string
-            season: Season
-            colorScheme: ColorScheme
-            variation: number
-            excludedOuterItemIds: string[]
-            baseItemId?: string
-            weather?: WeatherSnapshot
-          }
-        }
-      >(
-        `
-          query TodayOutfitRecommendation(
-            $input: TodayOutfitRecommendationInput!
-          ) {
-            todayOutfitRecommendation(input: $input) {
-              date season ready combinationCount headline summary style reasons colorSchemeApplied
-              profileSummary model source
-              weather {
-                date temperatureC minTemperatureC maxTemperatureC
-                apparentTemperatureC precipitationProbability weatherCode
-                summary recommendedSeason source attribution attributionUrl
+      const cached = client.getQueryData<TodayOutfitRecommendation>(queryKey)
+      const hasCurrentCache = cached && matchesThermalRecommendationContext(cached, thermalContextRevision) && matchesTodayRecommendationBaseItem(cached, baseItemId)
+      if (!hasCurrentCache && !await requireAiCredit(client, viewerId, 'recommendation', signal)) throw new Error('잔액을 확인한 뒤 추천받기 버튼을 다시 눌러주세요.')
+      const request = async () => {
+        try {
+          return await graphqlRequest<
+            { todayOutfitRecommendation: TodayOutfitRecommendationPayload },
+            {
+              input: {
+                date: string
+                season: Season
+                colorScheme: ColorScheme
+                variation: number
+                excludedOuterItemIds: string[]
+                baseItemId?: string
+                weather?: WeatherSnapshot
+                thermalContextRevision?: string
               }
-              items { ${wardrobeItemFields} }
             }
+          >(
+            `
+              query TodayOutfitRecommendation(
+                $input: TodayOutfitRecommendationInput!
+              ) {
+                todayOutfitRecommendation(input: $input) {
+                  date season ready combinationCount headline summary style reasons colorSchemeApplied
+                  profileSummary model source
+                  thermalContext { revision direction strength sampleCount }
+                  weather {
+                    date temperatureC meanTemperatureC minTemperatureC maxTemperatureC
+                    apparentTemperatureC precipitationProbability weatherCode
+                    summary recommendedSeason source attribution attributionUrl
+                  }
+                  items { ${wardrobeItemFields} }
+                }
+              }
+            `,
+            {
+              input: {
+                date,
+                season,
+                colorScheme,
+                variation,
+                excludedOuterItemIds,
+                ...(baseItemId !== undefined ? { baseItemId } : {}),
+                ...(weather ? { weather } : {}),
+                ...(thermalContextRevision ? { thermalContextRevision } : {}),
+              },
+            },
+            signal,
+          )
+        } catch (error) {
+          if (error instanceof GraphqlRequestError && error.code === 'THERMAL_CONTEXT_CHANGED' && meanTemperatureC !== null && thermalContextRevision) {
+            await refreshChangedThermalRecommendationContext(client, viewerId, date, meanTemperatureC, thermalContextRevision, signal)
           }
-        `,
-        {
-          input: {
-            date,
-            season,
-            colorScheme,
-            variation,
-            excludedOuterItemIds,
-            ...(baseItemId !== undefined ? { baseItemId } : {}),
-            ...(weather ? { weather } : {}),
-          },
-        },
-        signal,
-      )
+          throw error
+        }
+      }
       let data: { todayOutfitRecommendation: TodayOutfitRecommendationPayload }
       try {
         data = await request()
@@ -181,6 +215,7 @@ export function useTodayOutfitRecommendationQuery(
         },
         baseItemId,
       )
+      if (!matchesThermalRecommendationContext(recommendation, thermalContextRevision)) throw new Error('추천에 반영된 착용 체감을 확인하지 못했어요. 다시 시도해 주세요.')
       if (recommendation.ready && recommendation.items.length > 0) {
         storeTodayRecommendation(
           viewerId,

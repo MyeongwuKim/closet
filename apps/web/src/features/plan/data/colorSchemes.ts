@@ -17,7 +17,7 @@ export const colorSchemeOptions = [
   {
     value: 'tone-in-tone',
     label: '톤인톤',
-    hint: '다른 색, 비슷한 밝기',
+    hint: '다른 색, 비슷한 밝기·채도',
     swatches: ['#a8b3c5', '#b5a4bb', '#afba9d'],
   },
   {

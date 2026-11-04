@@ -38,6 +38,12 @@ enum Season {
   winter
 }
 
+enum WearFeeling {
+  cold
+  comfortable
+  hot
+}
+
 enum OutfitStyle {
   minimal
   casual
@@ -119,6 +125,9 @@ model User {
   email           String?
   isTemporary     Boolean               @default(true)
   lastLoginAt     DateTime?
+  // 허용된 위치를 지역 단위로 반올림해 보관한다. 예정 코디의 착용 날씨 기록에만 사용한다.
+  wearWeatherLatitude  Float?
+  wearWeatherLongitude Float?
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
   oauthAccounts   OAuthAccount[]
@@ -128,6 +137,7 @@ model User {
   settings        UserSettings?
   preferredStyles UserStylePreference[]
   wardrobeItems   WardrobeItem[]
+  wardrobeRediscovery WardrobeRediscovery?
   imageAssets     ImageAsset[]
   outfits         Outfit[]
   plannerWeeks    PlannerWeek[]
@@ -383,6 +393,16 @@ model PreviewRewardReceipt {
   @@index([expiresAt])
 }
 
+// 계정별 하루 하이라이트와 실제 노출일을 보관한다. 옷 자체의 updatedAt과 추천 캐시에는 영향을 주지 않는다.
+model WardrobeRediscovery {
+  userId      String   @id @map("_id") @db.ObjectId
+  day         String
+  itemIds     String[]
+  impressions Json
+  version     Int      @default(0)
+  user        User     @relation(fields: [userId], references: [id])
+}
+
 model WardrobeItem {
   id                       String               @id @default(auto()) @map("_id") @db.ObjectId
   userId                   String               @db.ObjectId
@@ -484,6 +504,16 @@ model PlannerEntry {
   occasion       String?
   weatherSummary String?
   temperatureC   Float?
+  // 사용자가 해당 날짜의 코디를 실제로 입었다고 확인한 시각. 없으면 배정만 한 일정이다.
+  wornAt         DateTime?
+  // 실제 착용을 확인한 코디에 남긴 체감. 확인 취소·코디 교체 시 함께 비운다.
+  wearFeeling    WearFeeling?
+  // 예보와 구분한 착용일의 평균 기온. 날짜가 지난 뒤 저장하며 지역은 배정 시점에 연결한다.
+  weatherLatitude       Float?
+  weatherLongitude      Float?
+  wearTemperatureC      Float?
+  wearWeatherRecordedAt DateTime?
+  wearWeatherRetryAt    DateTime?
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
   plannerWeek    PlannerWeek @relation(fields: [plannerWeekId], references: [id])
@@ -491,6 +521,7 @@ model PlannerEntry {
 
   @@unique([plannerWeekId, date])
   @@index([outfitId])
+  @@index([date, wearWeatherRetryAt], map: "wear_weather_pending")
 }
 
 // 한 코디에서 여러 번 생성할 수 있으므로 결과와 실행 이력을 분리한다.
@@ -527,4 +558,12 @@ model RecommendationCreditUse {
 
   @@index([userId, state, leaseUntil])
   @@index([expiresAt])
+}
+
+// 원격 이미지 정리의 페이지 진행점. 계정별 revision 비교로 겹친 배치의 오래된 완료 응답을 거절한다.
+model CloudflareCleanupCursor {
+  id                String   @id @map("_id")
+  continuationToken String?
+  revision          Int      @default(0)
+  updatedAt         DateTime @updatedAt
 }

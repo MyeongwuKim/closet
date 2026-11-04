@@ -10,6 +10,10 @@ interface OutfitCompletionActionsProps {
   duplicateMessage: string | null
   /** 기존 AI 이미지가 있으면 보기, 없으면 이미지 만들기 문구를 표시한다. */
   hasAvailableLookbook: boolean
+  /** 같은 계정·옷 조합의 서버 작업을 복원 중이거나 생성 중이면 새 생성 버튼을 막는다. */
+  isPreviewPending?: boolean
+  /** 복원할 작업이 있으면 이미 접수한 결과를 열기 전에 사용권을 다시 요구하지 않는다. */
+  canResumePreview?: boolean
   /** AI 룩 이미지를 열거나 생성하도록 부모에 요청한다. */
   onOpenLookbook: () => void
   /** 조합 확인과 이름·스타일·계절 입력 단계로 이동하도록 부모에 요청한다. */
@@ -22,6 +26,8 @@ export function OutfitCompletionActions({
   isEmpty,
   duplicateMessage,
   hasAvailableLookbook,
+  isPreviewPending = false,
+  canResumePreview = false,
   onOpenLookbook,
   onComplete,
 }: OutfitCompletionActionsProps) {
@@ -45,11 +51,11 @@ export function OutfitCompletionActions({
         }
       >
         <AiCreditActionButton
-          requiresCredit={!hasAvailableLookbook}
-          label={hasAvailableLookbook ? 'AI 룩 보기' : 'AI 룩 만들기'}
+          requiresCredit={!hasAvailableLookbook && !canResumePreview}
+          label={hasAvailableLookbook ? 'AI 룩 보기' : isPreviewPending ? 'AI 룩 만드는 중...' : 'AI 룩 만들기'}
           adLabel="광고 보고 룩북 만들기"
           onClick={onOpenLookbook}
-          disabled={Boolean(completionMessage)}
+          disabled={Boolean(completionMessage) || (!hasAvailableLookbook && isPreviewPending)}
           className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-2 text-xs font-semibold text-ink transition-colors hover:border-accent/40 hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-65"
         >
           <Sparkles size={16} strokeWidth={1.7} aria-hidden="true" />

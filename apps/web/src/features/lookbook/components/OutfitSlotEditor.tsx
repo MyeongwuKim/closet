@@ -9,6 +9,8 @@ interface OutfitSlotEditorProps {
   selectedItems: WardrobeItem[]
   onChange: (items: WardrobeItem[]) => void
   className?: string
+  /** 저장된 코디에 남은 삭제된 옷을 사진과 배지로 표시한다. 선택 목록에는 다시 넣지 않는다. */
+  showArchivedStatus?: boolean
 }
 
 /** 코디북·플래너의 구성 편집에서 가방과 착용 액세서리를 각각 고른다. 선택 완료 시 해당 칸의 아이템만 교체하고 변경된 코디를 부모에 전달한다. */
@@ -17,6 +19,7 @@ export function OutfitSlotEditor({
   selectedItems,
   onChange,
   className = '',
+  showArchivedStatus = false,
 }: OutfitSlotEditorProps) {
   const [pickerSlot, setPickerSlot] = useState<OutfitSlot | null>(null)
   const layers = selectedItems.map((item, order) => ({
@@ -55,6 +58,7 @@ export function OutfitSlotEditor({
         layers={layers}
         className={className}
         onSlotClick={setPickerSlot}
+        showArchivedStatus={showArchivedStatus}
       />
       {pickerSlot && (
         <OutfitWardrobePicker

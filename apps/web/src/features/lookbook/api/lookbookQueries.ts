@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
-  OutfitPreview,
   Season,
   StoredOutfitPreview,
 } from '@closet/types'
@@ -12,7 +11,11 @@ import {
   type WardrobeItemPayload,
 } from '../../closet/api/wardrobeQueries'
 import type { SavedOutfit } from '../types'
-import { useClosetStore } from '../../closet/stores/useClosetStore'
+import { toOutfitPreviewImageInput, type OutfitPreviewImageInput } from '../utils/outfitPreviewInput'
+import { invalidateCompletedOutfitPreviews } from '../utils/completedPreviewCache'
+import { isCompletedPreviewUnavailable } from '../utils/completedPreviewPointer'
+import { removeCachedOutfitPreviewAsset } from '../utils/outfitPreviewCache'
+import { removeRecommendationPreviewAsset } from '../../plan/utils/recommendationPreviewCache'
 
 export interface OutfitPayload {
   id: string
@@ -39,11 +42,7 @@ export interface CreateOutfitVariables {
     wardrobeItemId: string
     layerOrder: number
   }>
-  previewImage?: {
-    imageBase64: string
-    mimeType: OutfitPreview['mimeType']
-    model: string
-  }
+  previewImage?: OutfitPreviewImageInput
   previewImageAssetId?: string
 }
 
@@ -52,6 +51,7 @@ export type UpdateOutfitVariables = Pick<
   'name' | 'style' | 'seasons' | 'items' | 'previewImage'
 > & { id: string }
 
+/** 조회·저장 응답의 옷 관계를 코디에 보관해 활성 옷장 조회가 삭제 옷의 사진을 덮어쓰지 않게 한다. */
 export function toSavedOutfit(outfit: OutfitPayload): SavedOutfit {
   const previewImageUrl = outfit.generations.find(
     (generation) =>
@@ -68,6 +68,7 @@ export function toSavedOutfit(outfit: OutfitPayload): SavedOutfit {
       wardrobeItemId: item.wardrobeItemId,
       order: item.layerOrder,
     })),
+    outfitItems: outfit.items.flatMap((item) => item.wardrobeItem ? [toWardrobeItem(item.wardrobeItem)] : []),
     previewImageUrl: previewImageUrl ?? undefined,
   }
 }
@@ -90,9 +91,6 @@ export function useOutfitsQuery(enabled = true, filter?: { style?: string; wardr
         filter,
         signal,
       )
-      useClosetStore.getState().mergeItems(data.outfits.flatMap((outfit) =>
-        outfit.items.flatMap((item) => item.wardrobeItem ? [toWardrobeItem(item.wardrobeItem)] : []),
-      ))
       return data.outfits.map(toSavedOutfit)
     },
   })
@@ -111,12 +109,12 @@ export function useCreateOutfitMutation() {
           mutation CreateOutfit($input: CreateOutfitInput!) {
             createOutfit(input: $input) {
               id name style seasons createdAt
-              items { wardrobeItemId layerOrder }
+              items { wardrobeItemId layerOrder wardrobeItem { ${wardrobeItemFields} } }
               generations { status imageAsset { deliveryUrl } }
             }
           }
         `,
-        { input },
+        { input: { ...input, previewImage: toOutfitPreviewImageInput(input.previewImage) } },
       )
       return toSavedOutfit(data.createOutfit)
     },
@@ -132,6 +130,7 @@ export function useCreateOutfitMutation() {
       )
       void queryClient.invalidateQueries({ queryKey: queryKeys.outfits.all })
       void queryClient.invalidateQueries({ queryKey: queryKeys.wardrobe.all })
+      void invalidateCompletedOutfitPreviews(queryClient)
     },
   })
 }
@@ -149,12 +148,12 @@ export function useUpdateOutfitMutation() {
           mutation UpdateOutfit($id: ID!, $input: UpdateOutfitInput!) {
             updateOutfit(id: $id, input: $input) {
               id name style seasons createdAt
-              items { wardrobeItemId layerOrder }
+              items { wardrobeItemId layerOrder wardrobeItem { ${wardrobeItemFields} } }
               generations { status imageAsset { deliveryUrl } }
             }
           }
         `,
-        { id, input },
+        { id, input: { ...input, previewImage: toOutfitPreviewImageInput(input.previewImage) } },
       )
       return toSavedOutfit(data.updateOutfit)
     },
@@ -169,6 +168,7 @@ export function useUpdateOutfitMutation() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.outfits.all })
       void queryClient.invalidateQueries({ queryKey: queryKeys.wardrobe.all })
       void queryClient.invalidateQueries({ queryKey: queryKeys.planner.all })
+      void invalidateCompletedOutfitPreviews(queryClient)
     },
   })
 }
@@ -197,6 +197,7 @@ export function useDeleteOutfitMutation() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.outfits.all })
       void queryClient.invalidateQueries({ queryKey: queryKeys.wardrobe.all })
       void queryClient.invalidateQueries({ queryKey: queryKeys.planner.all })
+      void invalidateCompletedOutfitPreviews(queryClient)
     },
   })
 }
@@ -205,26 +206,43 @@ export function useDeleteOutfitMutation() {
 export { useGenerateOutfitPreviewJobMutation as useGenerateOutfitPreviewMutation } from './previewJobQueries'
 
 export function useOutfitPreviewAssetQuery(assetId?: string | null) {
-  return useQuery({
+  const client = useQueryClient()
+  const query = useQuery({
     queryKey: queryKeys.outfits.previewAsset(assetId ?? ''),
     enabled: Boolean(assetId),
-    staleTime: Infinity,
-    retry: 1,
-    queryFn: async () => {
-      const data = await graphqlRequest<
-        { outfitPreviewAsset: StoredOutfitPreview },
-        { id: string }
-      >(
-        `
-          query OutfitPreviewAsset($id: ID!) {
-            outfitPreviewAsset(id: $id) {
-              assetId imageUrl mimeType model
+    staleTime: 30_000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    retry: (failures, error) => failures < 1 && !isCompletedPreviewUnavailable(error),
+    queryFn: async ({ signal }) => {
+      const viewerId = client.getQueryData<{ id: string }>(queryKeys.me)?.id
+      try {
+        const data = await graphqlRequest<
+          { outfitPreviewAsset: StoredOutfitPreview },
+          { id: string }
+        >(
+          `
+            query OutfitPreviewAsset($id: ID!) {
+              outfitPreviewAsset(id: $id) {
+                assetId imageUrl mimeType model
+              }
             }
+          `,
+          { id: assetId! }, signal,
+        )
+        return data.outfitPreviewAsset
+      } catch (error) {
+        if (isCompletedPreviewUnavailable(error)) {
+          client.setQueryData(queryKeys.outfits.previewAsset(assetId!), null)
+          if (viewerId) {
+            removeCachedOutfitPreviewAsset(viewerId, assetId!)
+            removeRecommendationPreviewAsset(viewerId, assetId!)
           }
-        `,
-        { id: assetId! },
-      )
-      return data.outfitPreviewAsset
+        }
+        throw error
+      }
     },
   })
+  // 알림 경로로 다시 열 때도 서버 확인 전·삭제 확정 뒤의 이전 URL을 화면에 복원하지 않는다.
+  return { ...query, data: query.isFetching || (query.isError && isCompletedPreviewUnavailable(query.error)) ? undefined : query.data }
 }

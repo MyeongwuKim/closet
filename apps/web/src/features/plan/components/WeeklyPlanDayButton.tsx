@@ -2,6 +2,7 @@ import type { WardrobeItem } from '@closet/types'
 import { Check, Plus, Shirt } from 'lucide-react'
 import { OutfitItemsPreview } from '../../lookbook/components/OutfitItemsPreview'
 import type { PlanEntry } from '../data/weeklyPlan'
+import { getPlanEntryItems } from '../utils/plannerItems'
 
 interface WeeklyPlanDayButtonProps {
   entry: PlanEntry
@@ -14,10 +15,8 @@ interface WeeklyPlanDayButtonProps {
 export function WeeklyPlanDayButton({ entry, items, isActive, onSelect }: WeeklyPlanDayButtonProps) {
   const hasOutfit = Boolean(entry.outfitId || entry.itemIds.length || entry.previewImageUrl)
   const layers = entry.itemIds.map((wardrobeItemId, order) => ({ wardrobeItemId, order }))
-  const hasItemImages = entry.itemIds.some((itemId) => {
-    const item = items.find((candidate) => candidate.id === itemId)
-    return Boolean(item?.imageUrl || item?.originalImageUrl)
-  })
+  const outfitItems = getPlanEntryItems(entry, items)
+  const hasItemImages = outfitItems.some((item) => Boolean(item.imageUrl || item.originalImageUrl))
 
   return (
     <button
@@ -27,7 +26,7 @@ export function WeeklyPlanDayButton({ entry, items, isActive, onSelect }: Weekly
         isActive ? 'border-accent bg-sage ring-1 ring-accent/25' : 'border-line bg-surface hover:border-accent'
       }`}
       aria-pressed={isActive}
-      aria-label={`${entry.dayLabel}요일 ${entry.dayNumber}, ${hasOutfit ? `${entry.title || '저장한 코디'}, 설정됨` : '저장된 코디 없음'}`}
+      aria-label={`${entry.dayLabel}요일 ${entry.dayNumber}, ${hasOutfit ? `${entry.title || '저장한 코디'}, 설정됨` : '저장된 코디 없음'}${outfitItems.some((item) => item.archivedAt) ? ', 삭제된 옷 포함' : ''}`}
     >
       <span className="flex items-center justify-between gap-1">
         <span className="text-[10px] font-medium text-muted">{entry.dayLabel}요일</span>
@@ -37,7 +36,7 @@ export function WeeklyPlanDayButton({ entry, items, isActive, onSelect }: Weekly
         <div className={`flex size-full items-center justify-center overflow-hidden rounded-lg ${hasOutfit ? 'bg-canvas' : 'border border-dashed border-line bg-canvas/50 text-muted'}`}>
           {hasOutfit ? (
             hasItemImages ? (
-              <OutfitItemsPreview items={items} layers={layers} className="size-full" />
+              <OutfitItemsPreview items={outfitItems} layers={layers} className="size-full" />
             ) : <Shirt size={20} strokeWidth={1.5} className="text-accent" />
           ) : <Plus size={18} strokeWidth={1.5} />}
         </div>

@@ -16,8 +16,12 @@ import {
   type RecentWearConflictInput,
   type SetDirectPlannerEntryInput,
   type SetPlannerEntryInput,
+  type SetPlannerEntryWornInput,
+  type SetPlannerEntryWearFeelingInput,
 } from './planner.service.js'
 import type { CreateOutfitInput } from '../outfit/outfit.service.js'
+import { syncWearWeatherLocation } from './wear-weather.service.js'
+import type { WearWeatherLocation } from './wear-weather.repository.js'
 
 export const plannerResolvers = {
   PlannerWeek: {
@@ -28,9 +32,13 @@ export const plannerResolvers = {
     date: (entry: { date: Date }) => toDateOnly(entry.date),
     createdAt: (entry: { createdAt: Date }) => entry.createdAt.toISOString(),
     updatedAt: (entry: { updatedAt: Date }) => entry.updatedAt.toISOString(),
+    wornAt: (entry: { wornAt?: Date | null }) => entry.wornAt?.toISOString() ?? null,
+    wearFeeling: (entry: { wornAt?: Date | null; wearFeeling?: string | null }) => entry.wornAt ? entry.wearFeeling ?? null : null,
   },
   OutfitWearRecord: {
     date: (record: { date: Date }) => toDateOnly(record.date),
+    temperatureC: (record: { wearTemperatureC?: number | null }) => record.wearTemperatureC ?? null,
+    wornAt: (record: { wornAt?: Date | null }) => record.wornAt?.toISOString() ?? null,
   },
   Query: {
     plannerWeek: async (
@@ -95,6 +103,32 @@ export const plannerResolvers = {
     },
   },
   Mutation: {
+    /** 로그인 계정의 확인된 착용 기록에만 체감을 남긴다. */
+    setPlannerEntryWearFeeling: async (_parent: unknown, { input }: { input: SetPlannerEntryWearFeelingInput }, context: GraphQLContext) => {
+      try {
+        const viewer = await context.getViewer()
+        return await plannerService.setEntryWearFeeling(viewer.id, input)
+      } catch (error) {
+        throw toGraphQLError(error, '체감 기록을 저장하지 못했습니다.', 'PLANNER_WEAR_FEELING_UPDATE_FAILED')
+      }
+    },
+    /** 로그인 계정의 날짜·코디를 검증한 뒤 실제 착용 확인이나 취소를 저장한다. */
+    setPlannerEntryWorn: async (_parent: unknown, { input }: { input: SetPlannerEntryWornInput }, context: GraphQLContext) => {
+      try {
+        const viewer = await context.getViewer()
+        return await plannerService.setEntryWorn(viewer.id, input)
+      } catch (error) {
+        throw toGraphQLError(error, '착용 상태를 저장하지 못했습니다.', 'PLANNER_WEAR_UPDATE_FAILED')
+      }
+    },
+    syncWearWeatherLocation: async (_parent: unknown, { input }: { input?: WearWeatherLocation | null }, context: GraphQLContext) => {
+      try {
+        const viewer = await context.getViewer()
+        return await syncWearWeatherLocation(viewer.id, input ?? null)
+      } catch (error) {
+        throw toGraphQLError(error, '착용 날씨 지역을 저장하지 못했습니다.', 'WEAR_WEATHER_LOCATION_FAILED')
+      }
+    },
     setPlannerEntry: async (
       _parent: unknown,
       { input }: { input: SetPlannerEntryInput },

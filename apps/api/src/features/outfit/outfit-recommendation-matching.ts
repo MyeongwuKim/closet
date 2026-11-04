@@ -1,32 +1,14 @@
 import type { OutfitMatchRelation } from '@closet/types'
-import { fashionColorLabels } from '../classification/taxonomy.js'
+import { getColorMatchEvidence } from './outfit-color-rules.js'
 import {
   getColorHarmonyScore,
   getFashionAttributes,
   type StyleRuleItem,
 } from './outfit-style-rules.js'
 
-const colorNames = new Set(fashionColorLabels.map((color) => color.name))
 const MIN_ATTRIBUTE_CONFIDENCE = 0.6
 
 type DesignCue = { score: number; reason: string }
-
-function normalizeColorName(colorName: string | null) {
-  const trimmed = colorName?.trim() ?? ''
-  if (colorNames.has(trimmed)) return trimmed
-  return fashionColorLabels.find((color) =>
-    trimmed.toLocaleLowerCase().includes(color.name.toLocaleLowerCase()),
-  )?.name ?? '다색'
-}
-
-function getColorRelation(colorName: string, recommendedColorNames: string[]): OutfitMatchRelation {
-  const index = recommendedColorNames.indexOf(colorName)
-  if (index === 0) return 'clean-contrast'
-  if (index === 1) return 'soft-balance'
-  if (index === 2) return 'tone-on-tone'
-  if (index < 0) return 'soft-balance'
-  return 'accent'
-}
 
 function isUpper(item: StyleRuleItem) {
   return item.category === 'top' || item.category === 'midlayer' || item.category === 'outer'
@@ -91,7 +73,7 @@ function getDesignCompatibility(selected: StyleRuleItem, candidate: StyleRuleIte
 /**
  * 선택한 옷과 후보의 대표색 및 신뢰할 수 있는 디자인 속성을 비교해 추천 순서를 정한다.
  * 선택한 ID는 제외하고 최대 limit개(기본 5개)를 반환하며 동점이면 원래 후보 순서를 유지한다.
- * 속성이 없거나 확신도가 낮으면 색 비교만 사용하고 디자인 근거를 이유에 넣지 않는다.
+ * 속성이 없거나 확신도가 낮으면 색 비교만 사용한다. 이전 호출의 추천 색상명 순서는 점수·관계에 사용하지 않는다.
  */
 export function rankOutfitMatchCandidates<
   Selected extends StyleRuleItem,
@@ -99,16 +81,14 @@ export function rankOutfitMatchCandidates<
 >(
   selectedItems: Selected[],
   candidates: Candidate[],
-  recommendedColorNames: string[],
+  _recommendedColorNames: string[],
   limit = 5,
 ): Array<{ item: Candidate; relation: OutfitMatchRelation; reason: string }> {
   const selectedIds = new Set(selectedItems.map((item) => item.id))
   const ranked = candidates
     .filter((item) => !selectedIds.has(item.id))
     .map((item, index) => {
-      const colorName = normalizeColorName(item.colorName)
-      const colorRank = recommendedColorNames.indexOf(colorName)
-      const colorPreference = colorRank < 0 ? 0 : Math.max(0, 1.2 - colorRank * 0.25)
+      const colorEvidence = getColorMatchEvidence(selectedItems, item)
       const colorHarmony = selectedItems.length > 0
         ? selectedItems.reduce(
           (sum, selected) => sum + getColorHarmonyScore(selected, item),
@@ -122,19 +102,16 @@ export function rankOutfitMatchCandidates<
       const strongestCue = comparisons
         .flatMap((comparison) => comparison.cues)
         .sort((left, right) => right.score - left.score)[0]
-      const colorReason = colorHarmony >= 4.5 && colorName !== '다색'
-        ? `${colorName} 컬러가 고른 옷의 색과 자연스럽게 이어져요.`
-        : '고른 옷과 색을 비교해 조합 후보로 모았어요.'
       const hasDesignReason = designScore >= 0.35 && strongestCue !== undefined
 
       return {
         item,
         index,
-        score: colorHarmony + colorPreference + designScore,
+        score: colorHarmony + designScore,
         relation: hasDesignReason
           ? 'design-balance' as const
-          : getColorRelation(colorName, recommendedColorNames),
-        reason: hasDesignReason ? strongestCue.reason : colorReason,
+          : colorEvidence.relation,
+        reason: hasDesignReason ? strongestCue.reason : colorEvidence.reason,
       }
     })
 

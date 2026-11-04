@@ -2,6 +2,8 @@ import type { Season, TodayOutfitRecommendation } from '@closet/types'
 import type { OutfitStyle } from '../../../constants/styleOptions'
 import { isColorScheme, type ColorScheme } from '../data/colorSchemes'
 import { normalizeRecommendationText } from './recommendationText'
+import { OUTFIT_COLOR_RULES_VERSION } from '@closet/types/outfit-colors'
+import { isThermalRecommendationContext, matchesThermalRecommendationContext } from './thermalRecommendationContext'
 
 export interface TodayRecommendationHistoryEntry {
   id: string
@@ -12,6 +14,8 @@ export interface TodayRecommendationHistoryEntry {
   style: OutfitStyle | null
   /** 계절 다음에 선택한 색 조합. 필드가 없는 이전 기록은 자동으로 취급한다. */
   colorScheme?: ColorScheme
+  /** 이전 결과는 기록으로 보존하되 새 추천의 초기 캐시로 재사용하지 않는다. */
+  colorRulesVersion?: string
   variation: number
   baseItemId?: string
   recommendation: TodayOutfitRecommendation
@@ -21,7 +25,7 @@ const MAX_TODAY_RECOMMENDATION_HISTORY = 10
 const TODAY_RECOMMENDATION_STORAGE_PREFIX =
   'closet:today-outfit-recommendation:v8'
 
-/** 자동 색감은 이전 v8 저장 키를 유지하고, 다른 색감은 별도 구간을 붙여 기록을 분리한다. */
+/** 날짜·색감·기준 옷·판정 버전으로 키를 나눈다. null 버전은 보존된 이전 기록을 조회할 때만 사용한다. */
 function getStorageKey(
   viewerId: string,
   date: string,
@@ -29,12 +33,14 @@ function getStorageKey(
   style: OutfitStyle | null,
   colorScheme: ColorScheme,
   baseItemId?: string,
+  colorRulesVersion: string | null = OUTFIT_COLOR_RULES_VERSION,
 ) {
   const colorScope = colorScheme === 'auto' ? '' : `:scheme:${colorScheme}`
   const scope = baseItemId !== undefined
     ? `:base:${encodeURIComponent(baseItemId)}`
     : ''
-  return `${TODAY_RECOMMENDATION_STORAGE_PREFIX}:${viewerId}:${date}:${season}:${style ?? 'wardrobe'}${colorScope}${scope}`
+  const versionScope = colorRulesVersion ? `:color-rules:${colorRulesVersion}` : ''
+  return `${TODAY_RECOMMENDATION_STORAGE_PREFIX}:${viewerId}:${date}:${season}:${style ?? 'wardrobe'}${colorScope}${scope}${versionScope}`
 }
 
 export function matchesTodayRecommendationBaseItem(
@@ -82,6 +88,7 @@ function isHistoryEntry(
     entry.recommendation.season === season &&
     entry.recommendation.style === style &&
     entry.recommendation.ready === true &&
+    (entry.recommendation.thermalContext == null || isThermalRecommendationContext(entry.recommendation.thermalContext)) &&
     (colorScheme === 'auto'
       ? entry.recommendation.colorSchemeApplied === undefined ||
         typeof entry.recommendation.colorSchemeApplied === 'boolean'
@@ -101,7 +108,7 @@ function isHistoryEntry(
   )
 }
 
-/** 같은 날짜·계절·스타일·기준 옷·색감의 유효한 추천을 읽는다. 오래된 자동 기록은 누락된 적용 여부를 true로 보완한다. */
+/** 같은 날짜·조건과 현재 색 판정 버전의 추천을 읽는다. 체감 버전을 전달하면 해당 근거의 결과만 반환하며 이전 기록 원본은 보존한다. */
 export function readTodayRecommendationHistory(
   viewerId: string,
   date: string,
@@ -109,6 +116,7 @@ export function readTodayRecommendationHistory(
   style: OutfitStyle | null,
   baseItemId?: string,
   colorScheme: ColorScheme = 'auto',
+  thermalContextRevision?: string,
 ): TodayRecommendationHistoryEntry[] {
   try {
     const rawValue = window.localStorage.getItem(
@@ -121,7 +129,9 @@ export function readTodayRecommendationHistory(
 
     return stored
       .filter((entry) =>
-        isHistoryEntry(entry, date, season, style, colorScheme, baseItemId),
+        isHistoryEntry(entry, date, season, style, colorScheme, baseItemId) &&
+        entry.colorRulesVersion === OUTFIT_COLOR_RULES_VERSION &&
+        (thermalContextRevision === undefined || matchesThermalRecommendationContext(entry.recommendation, thermalContextRevision)),
       )
       .slice(0, MAX_TODAY_RECOMMENDATION_HISTORY)
       .map((entry) => ({
@@ -187,6 +197,7 @@ function readRecentRecommendationHistory(
             value.style,
             value.colorScheme ?? 'auto',
             value.baseItemId,
+            entry.colorRulesVersion ?? null,
           )
           if (key !== expectedKey) return
         } catch {
@@ -230,7 +241,7 @@ export function readAllRecentTodayRecommendationHistory(
   return readRecentRecommendationHistory(viewerId, date)
 }
 
-/** 추천 조합을 색감별 최근 기록에 저장하고, 같은 색감의 동일 아이템 조합은 최신 설명으로 교체한다. */
+/** 추천 조합과 체감 근거를 색감별 최근 기록에 저장한다. 같은 아이템·체감 버전은 최신 설명으로 교체하며 다른 버전의 결과는 과거 기록으로 남긴다. */
 export function storeTodayRecommendation(
   viewerId: string,
   date: string,
@@ -256,24 +267,30 @@ export function storeTodayRecommendation(
     !recommendation.items.every(
       (item) => item && typeof item.id === 'string',
     ) ||
+    (recommendation.thermalContext != null && !isThermalRecommendationContext(recommendation.thermalContext)) ||
     !matchesTodayRecommendationBaseItem(recommendation, baseItemId)
   ) {
     return history
   }
   const itemKey = getTodayRecommendationItemKey(recommendation)
+  const thermalRevision = recommendation.thermalContext?.revision
+  const isSameResult = (entry: TodayRecommendationHistoryEntry) =>
+    getTodayRecommendationItemKey(entry.recommendation) === itemKey &&
+    entry.recommendation.thermalContext?.revision === thermalRevision
   const existingEntry = history.find(
-    (entry) => getTodayRecommendationItemKey(entry.recommendation) === itemKey,
+    isSameResult,
   )
   const entry: TodayRecommendationHistoryEntry = {
     id:
       existingEntry?.id ??
-      `${Date.now()}:${variation}:${itemKey || 'empty-recommendation'}`,
+      `${Date.now()}:${variation}:${itemKey || 'empty-recommendation'}${thermalRevision ? `:thermal:${encodeURIComponent(thermalRevision)}` : ''}`,
     createdAt: existingEntry?.createdAt ?? new Date().toISOString(),
     date,
     season,
     style,
     ...(colorScheme !== 'auto' ? { colorScheme } : {}),
     variation,
+    colorRulesVersion: OUTFIT_COLOR_RULES_VERSION,
     ...(baseItemId !== undefined ? { baseItemId } : {}),
     recommendation: normalizeRecommendationText(recommendation),
   }
@@ -281,7 +298,7 @@ export function storeTodayRecommendation(
     entry,
     ...history.filter(
       (historyEntry) =>
-        getTodayRecommendationItemKey(historyEntry.recommendation) !== itemKey,
+        !isSameResult(historyEntry),
     ),
   ].slice(0, MAX_TODAY_RECOMMENDATION_HISTORY)
 

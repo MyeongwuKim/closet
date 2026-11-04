@@ -12,12 +12,16 @@
     "test:classifier": "node scripts/test-classification.mjs",
     "test:background": "pnpm build && node scripts/test-background-removal.mjs",
     "cleanup:outfit-previews": "tsx src/cli/cleanup-outfit-previews.ts",
+    "cleanup:cloudflare-orphans": "tsx src/cli/cleanup-cloudflare-orphans.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "test:ai:storage": "tsx src/cli/test-ai-storage.ts",
-    "evaluate:ai": "tsx src/cli/evaluate-ai.ts"
+    "evaluate:ai": "tsx src/cli/evaluate-ai.ts",
+    "evaluate:lookbook": "node --import tsx src/cli/evaluate-lookbook-proportions.ts",
+    "evaluate:colors": "tsx src/cli/evaluate-colors.ts",
+    "test:colors": "node --import tsx --test src/features/outfit/outfit-color-rules.test.ts src/features/outfit/outfit-recommendation-matching.test.ts src/features/outfit/today-outfit-recommendation.service.test.ts src/features/classification/openAiWardrobeClassifier.test.ts src/features/classification/refineBlackColor.test.ts src/features/classification/refineGarmentColor.test.ts src/lib/ai/ai-http.test.ts"
   },
   "dependencies": {
     "@apollo/server": "4.12.2",

@@ -11,7 +11,6 @@ const mimeTypeExtensions: Record<string, string> = {
 }
 
 const MAX_GENERATED_IMAGE_BYTES = 10 * 1024 * 1024
-export const OUTFIT_PREVIEW_RETENTION_MS = 60 * 60 * 1000
 
 export interface PrepareImageUploadInput {
   kind: ImageAssetKind
@@ -81,6 +80,7 @@ export function getImageDeliveryUrl(cloudflareImageId: string) {
 }
 
 export const imageService = {
+  /** 생성 응답의 이미지 형식·크기를 확인해 저장한다. 조회 자체에 만료는 없고 미저장 고아는 생성 24시간 뒤 정리할 수 있다. */
   async storeGeneratedImage(
     userId: string,
     input: {
@@ -88,6 +88,7 @@ export const imageService = {
       mimeType: string
       model: string
       metadata?: Prisma.InputJsonObject
+      /** 이전 호출과의 호환 입력. 생성 결과의 24시간 고아 정리는 이 값과 별개다. */
       temporary?: boolean
       jobId?: string
     },
@@ -118,10 +119,8 @@ export const imageService = {
         cloudflareImageId: uploaded.id,
         kind: 'outfitGenerated',
         uploadStatus: 'ready',
-        retention: input.temporary ? 'temporary' : 'permanent',
-        expiresAt: input.temporary
-          ? new Date(Date.now() + OUTFIT_PREVIEW_RETENTION_MS)
-          : null,
+        retention: 'permanent',
+        expiresAt: null,
         deliveryVariant: variant,
         deliveryUrl,
         storageFilename,
@@ -135,19 +134,23 @@ export const imageService = {
     }
   },
 
+  /** 코디 교체·삭제 뒤 참조가 없는 이미지만 claim 후 CF→DB 순서로 정리한다. 실패하면 기록을 남겨 배치에서 재시도한다. */
   async removeGeneratedImage(
     userId: string,
     asset: { id: string; cloudflareImageId: string },
   ) {
-    const ownedAsset = await imageRepository.findOwnedById(userId, asset.id)
-    if (!ownedAsset || ownedAsset.kind !== 'outfitGenerated') return
-
-    await cloudflareImagesClient
-      .deleteImage(asset.cloudflareImageId)
-      .catch(() => undefined)
-    await imageRepository.remove(asset.id).catch(() => undefined)
+    const claim = await imageRepository.claimGeneratedImageDeletion(userId, asset.id, new Date())
+    if (!claim) return
+    try {
+      await cloudflareImagesClient.deleteImage(claim.asset.cloudflareImageId)
+      const removed = await imageRepository.removeClaimedGeneratedPreview(claim)
+      if (removed.count !== 1) await imageRepository.releaseGeneratedPreviewCleanup(claim).catch(() => undefined)
+    } catch {
+      await imageRepository.releaseGeneratedPreviewCleanup(claim).catch(() => undefined)
+    }
   },
 
+  /** 본인의 준비된 생성 결과를 조회하고 모델·URL을 검증한다. 과거 1시간 조회 제한은 없으며, 고아 정리의 삭제 claim 전까지 읽을 수 있다. */
   async getGeneratedImage(userId: string, assetId: string) {
     const asset = await imageRepository.findOwnedById(userId, assetId)
     if (
@@ -155,8 +158,6 @@ export const imageService = {
       asset.kind !== 'outfitGenerated' ||
       asset.uploadStatus !== 'ready' ||
       asset.retention === 'deleting' ||
-      (asset.retention === 'temporary' &&
-        (!asset.expiresAt || asset.expiresAt.getTime() <= Date.now())) ||
       !asset.mimeType
     ) {
       throw new ServiceError(
@@ -182,86 +183,82 @@ export const imageService = {
       )
     }
 
+    // 과거 조회 만료만 정리한다. 이 변경은 createdAt 기준의 24시간 고아 정리를 막지 않는다.
+    if (asset.retention !== 'permanent' || asset.expiresAt != null) {
+      await imageService.retainGeneratedPreview(userId, asset.id)
+    }
+
     return {
       assetId: asset.id,
       imageUrl,
       mimeType: asset.mimeType,
       model,
       metadata,
-      retention: asset.retention,
+      retention: 'permanent' as const,
     }
   },
 
+  /** 내 생성 결과의 예전 조회 만료를 해제한다. 삭제 중·다른 종류·없는 자산은 거절하며, 고아 정리와는 별개다. */
   async retainGeneratedPreview(userId: string, assetId: string) {
     const result = await imageRepository.markGeneratedPreviewPermanent(
       userId,
       assetId,
-      new Date(),
     )
     if (result.count !== 1) {
       throw new ServiceError(
-        'AI 코디 미리보기의 보관 시간이 만료되었습니다. 다시 만들어주세요.',
-        'OUTFIT_PREVIEW_EXPIRED',
+        '완성된 AI 코디 이미지를 찾을 수 없습니다.',
+        'OUTFIT_PREVIEW_NOT_FOUND',
       )
     }
   },
 
+  /** 예전 저장 실패 rollback도 1시간 조회 제한을 다시 만들지 않는다. 고아의 24시간 정리는 생성 시각으로 판단한다. */
   async restoreGeneratedPreviewExpiration(assetId: string) {
     await imageRepository.restoreGeneratedPreviewExpiration(
       assetId,
-      new Date(Date.now() + OUTFIT_PREVIEW_RETENTION_MS),
     )
   },
 
-  async cleanupExpiredGeneratedPreviews({
-    execute,
-    limit,
-    now = new Date(),
-  }: {
+  /** 24시간 지난 미저장 고아와 이전 삭제 실패를 정리한다. 기본 dry-run은 후보만 읽으며 execute에서만 삭제 임대를 얻어 CF→DB 순서로 처리한다. */
+  async cleanupExpiredGeneratedPreviews(options: {
     execute: boolean
     limit: number
     now?: Date
   }) {
-    const candidates = await imageRepository.findExpiredGeneratedPreviews(
-      now,
-      limit,
-    )
-    if (!execute) {
-      return {
-        candidateCount: candidates.length,
-        deletedCount: 0,
-        failedAssetIds: [] as string[],
-      }
-    }
-
+    const now = options.now ?? new Date()
+    let after: { createdAt: Date; id: string } | undefined
+    let candidateCount = 0
     let deletedCount = 0
     const failedAssetIds: string[] = []
-    for (const candidate of candidates) {
-      const claim = await imageRepository.claimExpiredGeneratedPreview(
-        candidate.id,
-        now,
-      )
-      if (claim.count !== 1) continue
-
-      try {
-        await cloudflareImagesClient.deleteImage(candidate.cloudflareImageId)
-        const removed = await imageRepository.removeClaimedGeneratedPreview(
-          candidate.id,
-        )
-        if (removed.count === 1) deletedCount += 1
-      } catch {
-        failedAssetIds.push(candidate.id)
-        await imageRepository
-          .releaseGeneratedPreviewCleanup(candidate.id)
-          .catch(() => undefined)
+    while (candidateCount < options.limit) {
+      const pageSize = Math.min(100, options.limit - candidateCount)
+      const candidates = await imageRepository.findExpiredGeneratedPreviews(now, pageSize, after)
+      if (candidates.length === 0) break
+      candidateCount += candidates.length
+      if (options.execute) {
+        for (const candidate of candidates) {
+          let claim: Awaited<ReturnType<typeof imageRepository.claimExpiredGeneratedPreview>> = null
+          try {
+            claim = await imageRepository.claimExpiredGeneratedPreview(candidate.id, options.now ?? new Date())
+            if (!claim) continue
+            await cloudflareImagesClient.deleteImage(claim.asset.cloudflareImageId)
+            const removed = await imageRepository.removeClaimedGeneratedPreview(claim)
+            if (removed.count === 1) deletedCount += 1
+            else {
+              failedAssetIds.push(candidate.id)
+              await imageRepository.releaseGeneratedPreviewCleanup(claim, options.now ?? new Date()).catch(() => undefined)
+            }
+          } catch {
+            failedAssetIds.push(candidate.id)
+            if (claim) await imageRepository.releaseGeneratedPreviewCleanup(claim, options.now ?? new Date()).catch(() => undefined)
+          }
+        }
       }
+      const last = candidates.at(-1)!
+      after = { id: last.id, createdAt: last.createdAt }
+      if (candidates.length < pageSize) break
     }
-
-    return {
-      candidateCount: candidates.length,
-      deletedCount,
-      failedAssetIds,
-    }
+    return { candidateCount, deletedCount, failedAssetIds }
   },
 
   async prepareUpload(userId: string, input: PrepareImageUploadInput) {

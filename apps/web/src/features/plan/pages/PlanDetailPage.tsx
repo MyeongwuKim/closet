@@ -1,10 +1,9 @@
 import { AiCreditActionButton } from '../../lookbook/components/AiCreditActionButton'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { OutfitPreview } from '@closet/types'
+import type { OutfitPreview, WardrobeItem } from '@closet/types'
 import {
   BookHeart,
-  Check,
   ChevronLeft,
   ImagePlus,
   LoaderCircle,
@@ -17,9 +16,12 @@ import { useUiStore } from '../../../stores/useUiStore'
 import { useClosetStore } from '../../closet/stores/useClosetStore'
 import { useGenerateOutfitPreviewMutation } from '../../lookbook/api/lookbookQueries'
 import { OutfitSlotEditor } from '../../lookbook/components/OutfitSlotEditor'
+import { OutfitPreviewDialogView } from '../../lookbook/components/OutfitPreviewDialog'
 import { PreviewCreditSummary } from '../../lookbook/components/PreviewCreditSummary'
 import { SavedOutfitPreviewDialog } from '../../lookbook/components/SavedOutfitPreviewDialog'
+import type { OutfitPreviewState } from '../../lookbook/contexts/OutfitComposerContext'
 import { getOutfitCompletionMessage } from '../../lookbook/utils/outfitComposition'
+import { getOutfitPreviewCompositionKey } from '../../lookbook/utils/outfitPreviewCache'
 import {
   usePlannerWeekQuery,
   useClearPlannerEntryMutation,
@@ -32,8 +34,24 @@ import {
 } from '../data/weeklyPlan'
 import { useRecentWearReminder } from '../hooks/useRecentWearReminder'
 import { usePlanStore } from '../stores/usePlanStore'
+import { PlannerWearAction } from '../components/PlannerWearAction'
+import { getPlanEntryItems } from '../utils/plannerItems'
 
-/** 플래너 → 날짜별 코디 설정. 옷 구성·저장·AI 룩북 확인을 전체 화면에서 제공하며, 포털로 화면 전환 레이어와 하단 탭의 영향을 피한다. */
+/** 아직 생성하지 않았거나 구성이 바뀐 플래너 미리보기의 닫힌 초기 상태를 만든다. */
+function createPreviewDialogState(): OutfitPreviewState {
+  return { isOpen: false, status: 'idle', imageUrl: null, imageBase64: null, assetId: null, compositionKey: null, mimeType: null, model: null, errorMessage: null }
+}
+
+/** 복원한 완료 이미지도 새 생성 결과와 같은 팝업·저장 경로로 연다. */
+function completedPreviewDialog(preview: OutfitPreview, compositionKey: string, isOpen: boolean): OutfitPreviewState {
+  return {
+    ...createPreviewDialogState(), isOpen, status: 'success', compositionKey,
+    imageUrl: preview.imageUrl ?? `data:${preview.mimeType};base64,${preview.imageBase64}`,
+    imageBase64: preview.imageBase64, assetId: preview.assetId ?? null, mimeType: preview.mimeType, model: preview.model,
+  }
+}
+
+/** 플래너 → 날짜별 코디 설정. 옷 구성·저장·AI 룩북의 진행·결과 팝업과 실제 착용 확인·취소를 제공하며, 저장 전 편집 코디는 착용으로 확인하지 않는다. */
 export function PlanDetailPage() {
   const navigate = useNavigate()
   const { date } = useParams()
@@ -50,9 +68,14 @@ export function PlanDetailPage() {
   const [generatedPreview, setGeneratedPreview] = useState<OutfitPreview | null>(
     null,
   )
-  const [isPromoted, setIsPromoted] = useState(false)
-  const generatePreview = useGenerateOutfitPreviewMutation()
+  /** 생성 팝업의 열림·진행·결과 상태. 닫아도 요청을 취소하지 않고 같은 구성의 완료 결과는 보관한다. */
+  const [previewDialog, setPreviewDialog] = useState(createPreviewDialogState)
+  /** 요청 당시의 옷 사진. 팝업을 닫은 뒤 구성을 편집해도 진행 중인 작업의 옷을 바꾸지 않는다. */
+  const [previewItems, setPreviewItems] = useState<WardrobeItem[]>([])
+  /** 코디북 복사는 날짜 코디를 승격하지 않는다. 복사한 날짜·구성·이미지에만 완료 안내를 표시한다. */
+  const [copiedRecordKey, setCopiedRecordKey] = useState<string | null>(null)
   const previewRequestVersionRef = useRef(0)
+  const previewInFlightRef = useRef<string | null>(null)
   const setDirectPlannerEntry = useSetDirectPlannerEntryMutation()
   const { confirmRecentWear, isCheckingRecentWear } =
     useRecentWearReminder()
@@ -71,6 +94,7 @@ export function PlanDetailPage() {
     entries.find((plan) => plan.date === date) ??
     plannerWeekQuery.data?.find((plan) => plan.date === date) ??
     fallbackEntry
+  const generatePreview = useGenerateOutfitPreviewMutation({ selectedItemIds: entry?.itemIds ?? [], style: entry?.outfitStyle })
   const requestedBackPath = searchParams.get('from')
   const backPath =
     requestedBackPath?.startsWith('/') && !requestedBackPath.startsWith('//')
@@ -83,13 +107,21 @@ export function PlanDetailPage() {
     hydrateEntries(plannerWeekQuery.data)
   }, [hydrateEntries, plannerWeekQuery.data, setWeek, weekStartsOn])
 
+  // 날짜 이동·화면 종료 뒤 이전 요청이 다른 날짜의 편집 결과에 붙지 않게 한다. 서버 작업은 계속된다.
+  useEffect(() => () => { previewRequestVersionRef.current += 1 }, [date])
+
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
+      if (event.defaultPrevented) return
       if (useUiStore.getState().recentWearConfirmation) return
+      if (previewDialog.isOpen) {
+        setPreviewDialog((current) => ({ ...current, isOpen: false }))
+        return
+      }
       if (isRemoveConfirmOpen) {
         setIsRemoveConfirmOpen(false)
         return
@@ -107,25 +139,35 @@ export function PlanDetailPage() {
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [backPath, isLookbookOpen, isRemoveConfirmOpen, navigate])
+  }, [backPath, isLookbookOpen, isRemoveConfirmOpen, navigate, previewDialog.isOpen])
 
   if (!entry) return null
 
-  const outfitItems = entry.itemIds
-    .map((itemId) => items.find((item) => item.id === itemId))
-    .filter((item) => item !== undefined)
+  const activeItems = items.filter((item) => !item.archivedAt)
+  const outfitItems = getPlanEntryItems(entry, activeItems)
+  const hasArchivedItems = outfitItems.some((item) => item.archivedAt)
   const isEmpty = outfitItems.length === 0
   const outfitCompletionMessage = getOutfitCompletionMessage(outfitItems)
-  const generatedPreviewUrl = generatedPreview
-    ? generatedPreview.imageUrl ?? `data:${generatedPreview.mimeType};base64,${generatedPreview.imageBase64}`
+  const currentPreviewKey = `${entry.date}:${getOutfitPreviewCompositionKey(entry.itemIds, entry.outfitStyle ?? '')}`
+  const currentGeneratedPreview = previewDialog.compositionKey === currentPreviewKey ? generatedPreview : null
+  // 다른 화면의 공용 완료 결과는 명시적으로 열기 전까지 이 날짜의 저장 사진을 대신하지 않는다.
+  const readyPreview = currentGeneratedPreview
+  const hasCurrentPendingPreview = !generatePreview.hasCompletedPreview && (generatePreview.canResumeExisting || (generatePreview.isPending && previewDialog.compositionKey === currentPreviewKey))
+  const generatedPreviewUrl = readyPreview
+    ? readyPreview.imageUrl ?? `data:${readyPreview.mimeType};base64,${readyPreview.imageBase64}`
     : null
   const previewImageUrl = generatedPreviewUrl ?? entry.previewImageUrl
-  const isPlannerOnly = Boolean(
-    entry.outfitId && entry.plannerOnly && !isPromoted,
-  )
-  const isSavedToLookbook = Boolean(
-    entry.outfitId && (!entry.plannerOnly || isPromoted),
-  )
+  const hasCompletedImage = Boolean(previewImageUrl || generatePreview.hasCompletedPreview)
+  const isCompletedLookupError = generatePreview.isCompletedLookupError && !hasCompletedImage
+  const hasLocalPreview = Boolean(readyPreview || entry.previewImageUrl)
+  const isPreviewActionLoading = hasCurrentPendingPreview || (!hasLocalPreview && (generatePreview.isPending || generatePreview.isRestoringCompleted))
+  const isPreviewActionDisabled = isEmpty || (hasArchivedItems && !hasCompletedImage && !hasCurrentPendingPreview) || (!hasLocalPreview && generatePreview.isRestoringCompleted) || (generatePreview.isPending && !hasCurrentPendingPreview && !hasCompletedImage)
+  const hasUnsavedPreview = Boolean(readyPreview && (
+    readyPreview.assetId ? readyPreview.assetId !== entry.previewImageAssetId : generatedPreviewUrl !== entry.previewImageUrl
+  ))
+  const isDateSaved = Boolean(entry.outfitId) && !hasUnsavedPreview
+  const recordKey = `${entry.date}:${entry.outfitId ?? ''}:${currentPreviewKey}:${entry.previewImageAssetId ?? entry.previewImageUrl ?? ''}`
+  const isCopiedToLookbook = copiedRecordKey === recordKey
   const hasPlannerOutfit = Boolean(entry.outfitId || entry.itemIds.length > 0)
   const entryDate = new Date(`${entry.date}T00:00:00`)
   const formattedDate = new Intl.DateTimeFormat('ko-KR', {
@@ -134,9 +176,37 @@ export function PlanDetailPage() {
   }).format(entryDate)
   const entryTitle = entry.title || '코디를 설정해주세요'
 
-  const openAiLookbook = async () => {
-    if (previewImageUrl) {
+  const openAiLookbook = async (forceNew = false) => {
+    if (previewInFlightRef.current === currentPreviewKey) {
+      if (previewDialog.compositionKey === currentPreviewKey) setPreviewDialog((current) => ({ ...current, isOpen: true }))
+      return
+    }
+    if (!forceNew && !hasCurrentPendingPreview && !readyPreview && entry.previewImageUrl) {
       setIsLookbookOpen(true)
+      return
+    }
+    // 완료 포인터가 있으면 이미지 조회만 재시도한다. 조회 실패를 새 생성으로 처리하지 않는다.
+    if (!forceNew && !hasCurrentPendingPreview && (readyPreview || generatePreview.hasCompletedPreview || isCompletedLookupError)) {
+      const requestedPreviewVersion = previewRequestVersionRef.current
+      try {
+        const preview = readyPreview ?? await generatePreview.restoreCompletedAsync()
+        if (previewRequestVersionRef.current !== requestedPreviewVersion) return
+        setGeneratedPreview(preview)
+        setPreviewItems(outfitItems)
+        setPreviewDialog(completedPreviewDialog(preview, currentPreviewKey, true))
+      } catch (error) {
+        if (previewRequestVersionRef.current === requestedPreviewVersion) pushToast(error instanceof Error ? error.message : '완료 이미지를 불러오지 못했어요.', 'error')
+      }
+      return
+    }
+    // 화면 복귀로 찾은 작업은 결과가 바뀌었더라도 새 접수 없이 같은 작업만 조회한다.
+    const resumeExisting = !forceNew && generatePreview.canResumeExisting
+    if (!resumeExisting && !forceNew && previewImageUrl) {
+      setIsLookbookOpen(true)
+      return
+    }
+    if (hasArchivedItems && !resumeExisting) {
+      pushToast('새 AI 룩북을 만들려면 삭제된 옷을 교체해주세요.', 'error')
       return
     }
     if (outfitCompletionMessage) {
@@ -145,28 +215,37 @@ export function PlanDetailPage() {
     }
 
     const requestedPreviewVersion = previewRequestVersionRef.current
+    previewInFlightRef.current = currentPreviewKey
+    setPreviewItems(outfitItems)
+    setGeneratedPreview(null)
+    setPreviewDialog({ ...createPreviewDialogState(), isOpen: true, status: 'loading', compositionKey: currentPreviewKey })
 
     try {
-      const preview = await generatePreview.mutateAsync({
-        selectedItemIds: outfitItems.map((item) => item.id),
-        style: entry.outfitStyle,
-      })
+      const preview = await (resumeExisting
+        ? generatePreview.resumeExistingAsync()
+        : generatePreview.mutateAsync({
+          selectedItemIds: outfitItems.map((item) => item.id),
+          style: entry.outfitStyle,
+        }))
       if (previewRequestVersionRef.current !== requestedPreviewVersion) return
       setGeneratedPreview(preview)
-      setIsLookbookOpen(true)
+      setPreviewDialog((current) => completedPreviewDialog(preview, currentPreviewKey, current.isOpen))
     } catch (error) {
       if (previewRequestVersionRef.current !== requestedPreviewVersion) return
-      pushToast(
-        error instanceof Error ? error.message : 'AI 룩북을 만들지 못했습니다.',
-        'error',
-      )
+      setPreviewDialog((current) => ({ ...current, status: 'error', errorMessage: error instanceof Error ? error.message : 'AI 룩북을 만들지 못했습니다.' }))
+    } finally {
+      if (previewInFlightRef.current === currentPreviewKey) previewInFlightRef.current = null
     }
   }
 
   const saveDirectOutfit = async () => {
+    if (hasArchivedItems) {
+      pushToast('변경사항을 저장하려면 삭제된 옷을 교체해주세요.', 'error')
+      return false
+    }
     if (outfitCompletionMessage) {
       pushToast(outfitCompletionMessage, 'error')
-      return
+      return false
     }
 
     const confirmed = await confirmRecentWear({
@@ -175,14 +254,14 @@ export function PlanDetailPage() {
       confirmLabel: '그래도 저장',
       cancelLabel: '코디 다시 고르기',
     })
-    if (!confirmed) return
+    if (!confirmed) return false
 
     try {
       const nextEntries = await setDirectPlannerEntry.mutateAsync({
         weekStartsOn,
         date: entry.date,
         itemIds: outfitItems.map((item) => item.id),
-        previewImage: generatedPreview ?? undefined,
+        previewImage: readyPreview ?? undefined,
         recommendationStyle: entry.outfitStyle,
       })
       hydrateEntries(nextEntries)
@@ -192,43 +271,34 @@ export function PlanDetailPage() {
       if (!savedEntry?.outfitId) {
         throw new Error('저장된 코디 정보를 찾을 수 없습니다.')
       }
-
-      if (savedEntry.plannerOnly) {
-        pushToast('변경한 코디를 이 날짜에 저장했습니다.', 'success')
-      } else {
-        pushToast(
-          `같은 조합의 '${savedEntry.title}' 코디를 이 날짜에 연결했습니다.`,
-          'success',
-        )
-      }
+      pushToast('변경한 코디를 이 날짜에 저장했습니다.', 'success')
+      return true
     } catch (error) {
       pushToast(
         error instanceof Error ? error.message : '코디를 추가하지 못했습니다.',
         'error',
       )
+      return false
     }
   }
 
-  const promoteToLookbook = async () => {
-    if (!entry.outfitId) return
+  const copyToLookbook = async () => {
+    if (!entry.outfitId) return false
+    if (hasArchivedItems) return false
 
     try {
-      const savedOutfit = await saveToLookbook.mutateAsync({
+      await saveToLookbook.mutateAsync({
         outfitId: entry.outfitId,
-        previewImage: generatedPreview ?? undefined,
       })
-      setIsPromoted(true)
-      pushToast(
-        savedOutfit.id === entry.outfitId
-          ? '코디북에 저장했습니다.'
-          : '같은 옷 조합의 기존 코디를 연결했습니다.',
-        'success',
-      )
+      setCopiedRecordKey(recordKey)
+      pushToast('이 날짜의 코디를 코디북에 저장했습니다. 이후 변경은 각각 적용돼요.', 'success')
+      return true
     } catch (error) {
       pushToast(
         error instanceof Error ? error.message : '코디북에 저장하지 못했습니다.',
         'error',
       )
+      return false
     }
   }
 
@@ -302,11 +372,17 @@ export function PlanDetailPage() {
         </div>
       </header>
 
+      <div className="mx-auto w-full max-w-3xl shrink-0">
+        <PlannerWearAction entry={entry} />
+        {hasArchivedItems && <p className="px-4 py-2 text-center text-[11px] text-muted">삭제한 옷도 이 날짜의 기록에는 남아 있어요.</p>}
+      </div>
+
       <div className="min-h-0 flex-1 px-3 py-3 sm:px-6 sm:py-6">
         <div className="mx-auto h-full max-w-3xl">
           <OutfitSlotEditor
-            items={items}
+            items={activeItems}
             selectedItems={outfitItems}
+            showArchivedStatus
             onChange={(nextItems) => {
               const nextItemIds = nextItems.map((item) => item.id)
               if (
@@ -318,6 +394,7 @@ export function PlanDetailPage() {
               const hadSavedPreview = Boolean(entry.previewImageUrl)
               previewRequestVersionRef.current += 1
               setGeneratedPreview(null)
+              setPreviewDialog((current) => ({ ...current, isOpen: false }))
               setEntryItems(entry.date, nextItemIds)
               if (hadSavedPreview) {
                 pushToast(
@@ -334,16 +411,16 @@ export function PlanDetailPage() {
         <div className="mx-auto grid max-w-3xl grid-cols-[0.95fr_1.05fr] gap-2">
           <div className="col-span-2"><PreviewCreditSummary /></div>
           <AiCreditActionButton
-            requiresCredit={!previewImageUrl}
-            label={generatePreview.isPending ? '만드는 중...' : previewImageUrl ? 'AI 룩북 보기' : 'AI 룩북 만들기'}
+            requiresCredit={!hasCompletedImage && !isCompletedLookupError && !hasCurrentPendingPreview && !generatePreview.willResume}
+            label={hasCurrentPendingPreview ? '생성 과정 보기' : hasCompletedImage ? 'AI 룩북 보기' : isCompletedLookupError ? '이미지 다시 불러오기' : generatePreview.isPending ? '만드는 중...' : 'AI 룩북 만들기'}
             adLabel="광고 보고 룩북 만들기"
             onClick={() => void openAiLookbook()}
-            disabled={isEmpty || generatePreview.isPending}
+            disabled={isPreviewActionDisabled}
             className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-canvas px-3 py-3 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {generatePreview.isPending ? (
+            {isPreviewActionLoading ? (
               <LoaderCircle className="animate-spin" size={16} />
-            ) : previewImageUrl ? (
+            ) : hasCompletedImage ? (
               <Sparkles size={18} />
             ) : (
               <ImagePlus size={18} />
@@ -351,34 +428,35 @@ export function PlanDetailPage() {
           </AiCreditActionButton>
           <button
             type="button"
-            onClick={() =>
-              void (isPlannerOnly ? promoteToLookbook() : saveDirectOutfit())
-            }
+            onClick={() => void saveDirectOutfit()}
             disabled={
               isEmpty ||
+              hasArchivedItems ||
               Boolean(outfitCompletionMessage) ||
-              isSavedToLookbook ||
+              isDateSaved ||
               isCheckingRecentWear ||
               setDirectPlannerEntry.isPending ||
               saveToLookbook.isPending
             }
             className="flex items-center justify-center gap-1.5 rounded-xl bg-accent px-3 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {isSavedToLookbook ? (
-              <Check size={17} />
-            ) : isPlannerOnly ? (
-              <BookHeart size={17} />
-            ) : null}
             {isCheckingRecentWear ||
             setDirectPlannerEntry.isPending ||
             saveToLookbook.isPending
               ? '저장 중...'
-              : isSavedToLookbook
-                ? '코디북 저장됨'
-              : isPlannerOnly
-                  ? '코디북에 추가'
-                  : '변경사항 저장'}
+              : isDateSaved ? '이 날짜에 저장됨' : '변경사항 저장'}
           </button>
+          {entry.outfitId && (
+            <button
+              type="button"
+              onClick={() => void copyToLookbook()}
+              disabled={hasArchivedItems || !isDateSaved || isCopiedToLookbook || saveToLookbook.isPending}
+              className="col-span-2 flex items-center justify-center gap-1.5 rounded-xl border border-line bg-canvas px-3 py-2 text-xs font-bold disabled:opacity-40"
+            >
+              <BookHeart size={15} />
+              {saveToLookbook.isPending ? '저장 중...' : isCopiedToLookbook ? '코디북에도 저장됨' : hasArchivedItems ? '삭제된 옷 교체 후 코디북에 추가' : hasUnsavedPreview ? '이 날짜에 저장한 뒤 코디북에 추가' : '코디북에 추가'}
+            </button>
+          )}
         </div>
       </footer>
 
@@ -396,13 +474,32 @@ export function PlanDetailPage() {
 
       {isLookbookOpen && previewImageUrl && (
         <SavedOutfitPreviewDialog
-          assetId={generatedPreview?.assetId}
+          assetId={entry.previewImageAssetId}
           imageUrl={previewImageUrl}
           outfitName={entryTitle}
-          isSaved={!generatedPreview}
+          isSaved
           onClose={() => setIsLookbookOpen(false)}
+          onRegenerate={hasArchivedItems ? undefined : () => {
+            setIsLookbookOpen(false)
+            void openAiLookbook(true)
+          }}
         />
       )}
+      <OutfitPreviewDialogView
+        selectedItems={previewItems}
+        preview={previewDialog}
+        creditSummary={<PreviewCreditSummary />}
+        generatePreview={() => void openAiLookbook(true)}
+        closePreview={() => setPreviewDialog((current) => ({ ...current, isOpen: false }))}
+        onPrimary={() => {
+          void saveDirectOutfit().then((saved) => {
+            if (saved) setPreviewDialog((current) => ({ ...current, isOpen: false }))
+          })
+        }}
+        primaryLabel="이 날짜에 저장"
+        primaryAction="save"
+        isPrimaryPending={isCheckingRecentWear || setDirectPlannerEntry.isPending || saveToLookbook.isPending}
+      />
     </section>,
     document.body,
   )

@@ -4,10 +4,11 @@ import type { AiPreviewJob } from '@prisma/client'
 import { ServiceError } from '../../graphql/errors.js'
 import { aiExecutor, createAiExecutor } from '../../lib/ai/ai-execution.js'
 import { imageService } from '../image/image.service.js'
+import { imageRepository } from '../image/image.repository.js'
 import { pushService } from '../push/push.service.js'
 import { outfitPreviewService } from './outfit-preview.service.js'
 import { previewJobRepository } from './preview-job.repository.js'
-import { processPreviewJob } from './preview-job.worker.js'
+import { processPreviewJob, recoverPreviewJobs } from './preview-job.worker.js'
 
 const job: AiPreviewJob & { leaseToken: string } = {
   creditDayId: null, creditSource: null, creditState: null,
@@ -24,7 +25,11 @@ test('이미지 저장이 끝난 작업만 완료 알림을 보내며 결과 경
     await options?.onBeforeRequest?.()
     return { imageBase64: 'fixture', mimeType: 'image/png', model: 'model-test' }
   })
-  t.mock.method(imageService, 'storeGeneratedImage', async () => ({ id: 'asset-test' }) as Awaited<ReturnType<typeof imageService.storeGeneratedImage>>)
+  const stored = t.mock.method(imageService, 'storeGeneratedImage', async (...[_owner, input]: Parameters<typeof imageService.storeGeneratedImage>) => {
+    assert.equal(input.temporary, undefined)
+    assert.equal(input.jobId, job.id)
+    return { id: 'asset-test', retention: 'permanent', expiresAt: null } as Awaited<ReturnType<typeof imageService.storeGeneratedImage>>
+  })
   const completed = t.mock.method(previewJobRepository, 'complete', async () => ({ count: 1 }))
   const push = t.mock.method(pushService, 'sendCompletion', async (userId: string, kind: string, data?: Record<string, string>) => {
     assert.equal(userId, job.userId)
@@ -35,7 +40,23 @@ test('이미지 저장이 끝난 작업만 완료 알림을 보내며 결과 경
   })
   await processPreviewJob(job)
   assert.equal(completed.mock.callCount(), 1)
+  assert.equal(completed.mock.calls[0].arguments.length, 3)
+  assert.equal(stored.mock.callCount(), 1)
   assert.equal(push.mock.callCount(), 1)
+})
+
+test('만료된 임시 이미지가 남아 있는 중단 작업도 재생성 없이 영구 보관 후 완료 복구한다', async (t) => {
+  t.mock.method(previewJobRepository, 'expired', async () => [job])
+  t.mock.method(imageRepository, 'findByPreviewJob', async () => ({ id: 'legacy-asset', metadata: { model: 'legacy-model' }, retention: 'temporary', expiresAt: new Date('2020-01-01') }) as unknown as Awaited<ReturnType<typeof imageRepository.findByPreviewJob>>)
+  const retained = t.mock.method(imageService, 'retainGeneratedPreview', async (owner: string, id: string) => { assert.equal(owner, job.userId); assert.equal(id, 'legacy-asset') })
+  const completed = t.mock.method(previewJobRepository, 'complete', async () => ({ count: 1 }))
+  const generate = t.mock.method(outfitPreviewService, 'generate', async () => { throw new Error('재생성 금지') })
+  t.mock.method(pushService, 'sendCompletion', async () => true)
+  await recoverPreviewJobs()
+  assert.equal(retained.mock.callCount(), 1)
+  assert.equal(completed.mock.calls[0].arguments[3], true)
+  assert.equal(completed.mock.calls[0].arguments.length, 4)
+  assert.equal(generate.mock.callCount(), 0)
 })
 
 test('작업 임대가 사라졌으면 유료 요청 직전 검사를 통과하지 못한다', async (t) => {

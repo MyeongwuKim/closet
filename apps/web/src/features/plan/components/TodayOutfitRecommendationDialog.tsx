@@ -95,7 +95,7 @@ export function TodayOutfitRecommendationDialog({
   const [preview, setPreview] = useState(() =>
     createPreviewState(readRecommendationPreview(initialPreviewKey)),
   )
-  const generateOutfitPreview = useGenerateOutfitPreviewMutation()
+  const generateOutfitPreview = useGenerateOutfitPreviewMutation({ selectedItemIds: selectedItems.map((item) => item.id), style: style ?? undefined })
   const availableItems = useMemo(() => {
     const itemById = new Map(items.map((item) => [item.id, item]))
     initialItems.forEach((item) => itemById.set(item.id, item))
@@ -114,7 +114,7 @@ export function TodayOutfitRecommendationDialog({
     day: 'numeric',
     weekday: 'short',
   }).format(dateValue)
-  const generatedPreview: OutfitPreview | undefined =
+  const generatedPreview: OutfitPreview | undefined = generateOutfitPreview.completedPreview ?? (
     preview.status === 'success' &&
     (preview.assetId || preview.imageBase64) &&
     preview.mimeType &&
@@ -126,15 +126,17 @@ export function TodayOutfitRecommendationDialog({
           mimeType: preview.mimeType,
           model: preview.model,
         }
-      : undefined
+      : undefined)
   const handleApplied = onApplied ?? onClose
 
   useEffect(() => {
     previewKeyRef.current = previewKey
   }, [previewKey])
 
-  const generatePreview = () => {
-    if (completionMessage || generateOutfitPreview.isPending) return
+  const hasRestorablePreview = Boolean(generateOutfitPreview.completedPreview || generateOutfitPreview.hasCompletedPreview || generateOutfitPreview.isCompletedLookupError)
+  const generatePreview = (forceNew = false) => {
+    const restoreCompleted = !forceNew && hasRestorablePreview
+    if (completionMessage || (!restoreCompleted && (generateOutfitPreview.isPending || generateOutfitPreview.isRestoringCompleted))) return
 
     const requestedPreviewKey = previewKey
 
@@ -150,17 +152,18 @@ export function TodayOutfitRecommendationDialog({
       errorMessage: null,
     })
 
-    void generateOutfitPreview
-      .mutateAsync({
+    void (restoreCompleted
+      ? generateOutfitPreview.completedPreview ? Promise.resolve(generateOutfitPreview.completedPreview) : generateOutfitPreview.restoreCompletedAsync()
+      : generateOutfitPreview.mutateAsync({
         selectedItemIds: selectedItems.map((item) => item.id),
         ...(style ? { style } : {}),
-      })
+      }))
       .then((result) => {
         cacheRecommendationPreview(requestedPreviewKey, result)
         if (previewKeyRef.current !== requestedPreviewKey) return
 
-        setPreview({
-          isOpen: true,
+        setPreview((current) => ({
+          isOpen: restoreCompleted ? current.isOpen : true,
           status: 'success',
           imageUrl: result.imageUrl ?? `data:${result.mimeType};base64,${result.imageBase64}`,
           imageBase64: result.imageBase64,
@@ -169,7 +172,7 @@ export function TodayOutfitRecommendationDialog({
           mimeType: result.mimeType,
           model: result.model,
           errorMessage: null,
-        })
+        }))
       })
       .catch((error: unknown) => {
         if (previewKeyRef.current !== requestedPreviewKey) return
@@ -192,6 +195,10 @@ export function TodayOutfitRecommendationDialog({
   }
 
   const openOrGeneratePreview = () => {
+    if (hasRestorablePreview) {
+      generatePreview()
+      return
+    }
     if (preview.status === 'success' && preview.imageUrl) {
       setPreview((current) => ({ ...current, isOpen: true }))
       return
@@ -302,14 +309,14 @@ export function TodayOutfitRecommendationDialog({
                 {completionMessage}
               </p>
             )}
-            <div className="grid grid-cols-[0.85fr_1.15fr] gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <AiCreditActionButton
-                requiresCredit={!(preview.status === 'success' && preview.imageUrl)}
-                label={preview.status === 'success' && preview.imageUrl ? 'AI 룩북 보기' : 'AI 룩북 만들기'}
+                requiresCredit={!hasRestorablePreview && !(preview.status === 'success' && preview.imageUrl) && !generateOutfitPreview.willResume}
+                label={hasRestorablePreview || (preview.status === 'success' && preview.imageUrl) ? 'AI 룩북 보기' : 'AI 룩북 만들기'}
                 adLabel="광고 보고 룩북 만들기"
                 onClick={openOrGeneratePreview}
-                disabled={Boolean(completionMessage)}
-                className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-canvas px-3 py-3.5 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={Boolean(completionMessage) || (!hasRestorablePreview && !(preview.status === 'success' && preview.imageUrl) && (generateOutfitPreview.isPending || generateOutfitPreview.isRestoringCompleted))}
+                className="flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-line bg-canvas px-3 py-3.5 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {preview.status === 'success' && preview.imageUrl ? (
                   <Sparkles size={16} />
@@ -325,18 +332,18 @@ export function TodayOutfitRecommendationDialog({
                   if (didApply) handleApplied()
                 }}
                 disabled={Boolean(completionMessage) || isSaving}
-                className="flex items-center justify-center gap-1.5 rounded-xl bg-accent px-3 py-3.5 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
+                className="flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl bg-accent px-3 py-3.5 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
               >
                 {isSaving ? (
-                  <LoaderCircle className="animate-spin" size={18} />
+                  <LoaderCircle className="shrink-0 animate-spin" size={18} />
                 ) : (
-                  <CalendarPlus size={18} />
+                  <CalendarPlus className="shrink-0" size={18} />
                 )}
-                {isSaving
+                <span className="min-w-0 break-keep text-balance">{isSaving
                   ? '일정에 담는 중...'
                   : hasTodayOutfit
                     ? '오늘 코디 바꾸기'
-                    : '오늘 일정에 추가'}
+                    : '오늘 일정에 추가'}</span>
               </button>
             </div>
           </div>

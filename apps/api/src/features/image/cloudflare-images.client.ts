@@ -18,6 +18,12 @@ interface CloudflareImageDetails {
   variants?: string[]
 }
 
+export interface CloudflareImageListPage {
+  /** 원격 메타데이터는 정리 서비스에서 삭제 조건을 검증하기 전까지 신뢰하지 않는다. */
+  images: unknown[]
+  continuationToken?: string
+}
+
 async function assertCloudflareSuccess(response: Response) {
   const payload = (await response.json().catch(() => null)) as
     | CloudflareEnvelope<unknown>
@@ -61,6 +67,28 @@ async function readCloudflareResponse<T>(response: Response) {
 }
 
 export const cloudflareImagesClient = {
+  /** 오래된 업로드부터 최대 1,000개를 읽는다. 이어지는 페이지 번호와 응답 구조를 검증하며 업로드·삭제는 수행하지 않는다. */
+  async listImages(continuationToken?: string): Promise<CloudflareImageListPage> {
+    if (continuationToken !== undefined && (typeof continuationToken !== 'string' || !continuationToken || continuationToken.length > 32)) {
+      throw new ServiceError('Cloudflare Images 목록 페이지 번호가 올바르지 않습니다.', 'CLOUDFLARE_INVALID_PAGE')
+    }
+    const { accountId, apiToken } = getCloudflareConfig()
+    const url = new URL(`https://api.cloudflare.com/client/v4/accounts/${accountId}/images/v2`)
+    url.searchParams.set('per_page', '1000')
+    url.searchParams.set('sort_order', 'asc')
+    if (continuationToken) url.searchParams.set('continuation_token', continuationToken)
+    const response = await fetch(url, { method: 'GET', headers: { Authorization: `Bearer ${apiToken}` }, signal: AbortSignal.timeout(15_000) })
+    const result = await readCloudflareResponse<unknown>(response)
+    if (!result || typeof result !== 'object' || Array.isArray(result)) {
+      throw new ServiceError('Cloudflare Images 목록 응답을 확인할 수 없습니다.', 'CLOUDFLARE_INVALID_PAGE')
+    }
+    const page = result as { images?: unknown; continuation_token?: unknown }
+    if (!Array.isArray(page.images) || page.images.length > 1000 || (page.continuation_token !== undefined && (typeof page.continuation_token !== 'string' || page.continuation_token.length > 32))) {
+      throw new ServiceError('Cloudflare Images 목록 응답을 확인할 수 없습니다.', 'CLOUDFLARE_INVALID_PAGE')
+    }
+    return { images: page.images, ...(page.continuation_token ? { continuationToken: page.continuation_token as string } : {}) }
+  },
+
   async uploadImage(input: {
     userId: string
     kind: string

@@ -7,6 +7,7 @@ import {
 import { closetCategoryLabels } from '../../closet/constants'
 import { wardrobeItemMatchesColor } from '../../closet/utils/color'
 import type { SavedOutfit } from '../types'
+import { getSavedOutfitItems } from './savedOutfitItems'
 
 export function createOutfitSearchTokens(searchQuery: string) {
   return searchQuery
@@ -47,16 +48,10 @@ export function filterSavedOutfits({
   activeColor?: string | null
   searchQuery: string
 }) {
-  const wardrobeItemsById = new Map(
-    wardrobeItems.map((item) => [item.id, item]),
-  )
   const searchTokens = createOutfitSearchTokens(searchQuery)
 
   return outfits.filter((outfit) => {
-    const outfitItems = outfit.layers.flatMap((layer) => {
-      const item = wardrobeItemsById.get(layer.wardrobeItemId)
-      return item ? [item] : []
-    })
+    const outfitItems = getSavedOutfitItems(outfit, wardrobeItems)
     const matchesItems = selectedItemIds.every((itemId) =>
       outfit.layers.some((layer) => layer.wardrobeItemId === itemId),
     )

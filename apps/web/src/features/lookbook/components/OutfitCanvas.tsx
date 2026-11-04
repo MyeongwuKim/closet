@@ -1,6 +1,7 @@
 import type { WardrobeItem } from '@closet/types'
 import { ClothingCategoryIcon } from '../../../components/ClothingCategoryIcon'
 import { ClosetItemVisual } from '../../closet/components/ClosetItemVisual'
+import { ArchivedWardrobeItemBadge } from '../../closet/components/ArchivedWardrobeItemBadge'
 import type { OutfitLayer } from '../types'
 import { outfitSlots, type OutfitSlot } from './outfitSlots'
 
@@ -10,6 +11,8 @@ interface OutfitCanvasProps {
   className?: string
   onItemClick?: (item: WardrobeItem) => void
   onSlotClick?: (slot: OutfitSlot) => void
+  /** 저장된 코디에서는 옷장에 없는 옷도 표시하고 삭제 상태를 사진 위에 알린다. */
+  showArchivedStatus?: boolean
 }
 
 interface SelectedItem {
@@ -22,11 +25,13 @@ function OutfitItemTile({
   selectedItems,
   onItemClick,
   onSlotClick,
+  showArchivedStatus,
 }: {
   slot: OutfitSlot
   selectedItems: SelectedItem[]
   onItemClick?: (item: WardrobeItem) => void
   onSlotClick?: (slot: OutfitSlot) => void
+  showArchivedStatus?: boolean
 }) {
   const slotItem = selectedItems
     .filter(({ item }) => slot.matches(item))
@@ -79,23 +84,26 @@ function OutfitItemTile({
           }`}
         >
           {visibleItems.map(({ item }) => {
-            const itemClassName = `flex h-full min-w-0 items-center justify-center rounded-xl ${
+            const itemClassName = `relative flex h-full min-w-0 items-center justify-center rounded-xl ${
               visibleItems.length > 1 ? 'w-1/2' : 'w-full'
             }`
             const itemVisual = (
-              <span
-                className={`flex size-full items-center justify-center ${
-                  item.imageUrl ? 'scale-[1.25] [&_img]:p-1' : 'scale-[1.12]'
-                }`}
-              >
-                <ClosetItemVisual
-                  item={item}
-                  compact={visibleItems.length > 1 || !slot.onBody}
-                />
-              </span>
+              <>
+                <span
+                  className={`flex size-full items-center justify-center ${
+                    item.imageUrl ? 'scale-[1.25] [&_img]:p-1' : 'scale-[1.12]'
+                  }`}
+                >
+                  <ClosetItemVisual
+                    item={item}
+                    compact={visibleItems.length > 1 || !slot.onBody}
+                  />
+                </span>
+                {showArchivedStatus && item.archivedAt && <ArchivedWardrobeItemBadge className="absolute top-0.5 left-1/2 z-20 -translate-x-1/2" />}
+              </>
             )
 
-            return onItemClick ? (
+            return onItemClick && !item.archivedAt ? (
               <button
                 type="button"
                 onClick={() => onItemClick(item)}
@@ -106,7 +114,7 @@ function OutfitItemTile({
                 {itemVisual}
               </button>
             ) : (
-              <span className={itemClassName} key={item.id}>
+              <span className={itemClassName} title={item.name} aria-label={`${item.name}${item.archivedAt ? ', 삭제된 옷' : ''}`} key={item.id}>
                 {itemVisual}
               </span>
             )
@@ -130,6 +138,7 @@ export function OutfitCanvas({
   className = '',
   onItemClick,
   onSlotClick,
+  showArchivedStatus = false,
 }: OutfitCanvasProps) {
   const selectedItems = layers.flatMap((layer) => {
     const item = items.find(
@@ -159,6 +168,7 @@ export function OutfitCanvas({
               selectedItems={selectedItems}
               onItemClick={onItemClick}
               onSlotClick={onSlotClick}
+              showArchivedStatus={showArchivedStatus}
               key={slot.id}
             />
           ))}

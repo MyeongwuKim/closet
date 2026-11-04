@@ -277,6 +277,7 @@ export function LookbookPage() {
       {selectedOutfit && (
         <OutfitDetailModal
           outfit={selectedOutfit}
+          wearSummary={wearSummaries.get(selectedOutfit.id)}
           items={items}
           onClose={() => setSelectedOutfitId(null)}
         />

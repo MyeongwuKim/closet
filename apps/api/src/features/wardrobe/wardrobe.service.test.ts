@@ -10,10 +10,22 @@ import {
 } from './wardrobe.repository.js'
 import { getWardrobeWearStats, wardrobeService } from './wardrobe.service.js'
 
+test('과거에 배정만 한 일정과 취소한 착용은 옷별 착용 이력이 아니다', () => {
+  const outfit = { items: [{ wardrobeItemId: 'planned' }] }
+  const date = new Date('2026-08-20')
+  const stats = getWardrobeWearStats([
+    { date, outfit }, { date, wornAt: null, outfit },
+    { date, wornAt: date, outfit: { items: [{ wardrobeItemId: 'confirmed' }] } },
+  ])
+  assert.equal(stats.has('planned'), false)
+  assert.equal(stats.get('confirmed')?.wearCount, 1)
+})
+
 test('플래너 기록에서 아이템별 최근 착용일과 착용 횟수를 계산한다', () => {
   const stats = getWardrobeWearStats([
     {
       date: new Date('2026-08-23T00:00:00.000Z'),
+      wornAt: new Date('2026-08-23T10:00:00Z'),
       outfit: {
         items: [
           { wardrobeItemId: 'top-1' },
@@ -23,6 +35,7 @@ test('플래너 기록에서 아이템별 최근 착용일과 착용 횟수를 �
     },
     {
       date: new Date('2026-08-25T00:00:00.000Z'),
+      wornAt: new Date('2026-08-25T10:00:00Z'),
       outfit: { items: [{ wardrobeItemId: 'top-1' }] },
     },
   ])
@@ -40,10 +53,12 @@ test('같은 아이템의 같은 날짜 기록은 한 번만 센다', () => {
   const stats = getWardrobeWearStats([
     {
       date,
+      wornAt: date,
       outfit: { items: [{ wardrobeItemId: 'top-1' }] },
     },
     {
       date,
+      wornAt: date,
       outfit: { items: [{ wardrobeItemId: 'top-1' }] },
     },
   ])
@@ -95,6 +110,26 @@ test('새 옷은 배경 제거 PNG를 표시 자산으로 확인한 뒤에만 �
     error instanceof ServiceError && error.code === 'WARDROBE_CUTOUT_REQUIRED',
   )
   assert.equal(create.mock.callCount(), 0)
+})
+
+test('생성 룩북 이미지를 옷 원본 사진으로 붙이지 못하게 해 고아 정리와의 새 참조 경합을 막는다', async (t) => {
+  t.mock.method(imageRepository, 'findOwnedByIds', async () => [
+    { id: 'display-image', uploadStatus: 'ready', kind: 'wardrobeCutout', mimeType: 'image/png' },
+    { id: 'generated-image', uploadStatus: 'ready', kind: 'outfitGenerated', mimeType: 'image/png' },
+  ])
+  const create = t.mock.method(wardrobeRepository, 'create', async () => ({ id: 'saved-item' }) as never)
+  await assert.rejects(wardrobeService.create('viewer', { ...createInput, originalImageAssetId: 'generated-image' }), { code: 'INVALID_IMAGE_KIND' })
+  assert.equal(create.mock.callCount(), 0)
+})
+
+test('옷 원본으로 업로드한 본인 자산은 기존 저장 경로를 유지한다', async (t) => {
+  t.mock.method(imageRepository, 'findOwnedByIds', async () => [
+    { id: 'display-image', uploadStatus: 'ready', kind: 'wardrobeCutout', mimeType: 'image/png' },
+    { id: 'original-image', uploadStatus: 'ready', kind: 'wardrobeOriginal', mimeType: 'image/jpeg' },
+  ])
+  const create = t.mock.method(wardrobeRepository, 'create', async (data: CreateWardrobeItemData) => ({ id: 'saved-item', ...data }))
+  await wardrobeService.create('viewer', { ...createInput, originalImageAssetId: 'original-image' })
+  assert.equal(create.mock.calls[0]?.arguments[0].originalImageAssetId, 'original-image')
 })
 
 test('전체 골지와 독립적으로 세 부위의 시보리 판정을 저장한다', async (t) => {

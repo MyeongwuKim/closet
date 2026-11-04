@@ -19,16 +19,17 @@ test('MongoDB 이미지 작업 복원 통합 검증', { skip: !process.env.AI_IN
   t.after(() => prisma.$disconnect())
   const userId = randomBytes(12).toString('hex')
   t.afterEach(async () => { await prisma.previewCreditDay.deleteMany({ where: { userId } }); await prisma.aiCreditWallet.deleteMany({ where: { userId } }) })
-  const items = [
-    { id: 'top', category: 'top', updatedAt: new Date(), displayImageAsset: { deliveryUrl: 'https://fixture.invalid/top.png' } },
-    { id: 'bottom', category: 'bottom', updatedAt: new Date(), displayImageAsset: { deliveryUrl: 'https://fixture.invalid/bottom.png' } },
-  ]
+  const items = await Promise.all([
+    prisma.wardrobeItem.create({ data: { userId, name: '테스트 상의', category: 'top', classificationStatus: 'classified' } }),
+    prisma.wardrobeItem.create({ data: { userId, name: '테스트 하의', category: 'bottom', classificationStatus: 'classified' } }),
+  ]).then((rows) => rows.map((item) => ({ ...item, displayImageAsset: { deliveryUrl: `https://fixture.invalid/${item.id}.png` } })))
+  t.after(() => prisma.wardrobeItem.deleteMany({ where: { id: { in: items.map((item) => item.id) } } }))
   t.mock.method(wardrobeRepository, 'findManyOwnedWithImagesByIds', async () => items as Awaited<ReturnType<typeof wardrobeRepository.findManyOwnedWithImagesByIds>>)
   t.mock.method(userRepository, 'findViewerById', async () => null)
   t.mock.method(aiExecutor, 'run', createSharedAiExecutor({ pollMs: 5 }).run)
   t.mock.method(pushService, 'sendCompletion', async () => true)
   t.mock.method(pushService, 'sendFailure', async () => true)
-  const start = (requestId = randomUUID()) => previewJobService.start(userId, { selectedItemIds: ['top', 'bottom'], requestId })
+  const start = (requestId = randomUUID()) => previewJobService.start(userId, { selectedItemIds: items.map((item) => item.id), requestId })
 
   await t.test('동시 접수·응답 유실 후 재전송은 같은 작업 ID를 반환한다', async () => {
     const firstId = randomUUID()

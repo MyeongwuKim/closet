@@ -18,6 +18,7 @@ import { OutfitCardVisual } from '../../lookbook/components/OutfitCardVisual'
 import { OutfitFilterControls } from '../../lookbook/components/OutfitFilterControls'
 import { OutfitWearStatus } from '../../lookbook/components/OutfitWearStatus'
 import { useOutfitWearSummaries } from '../../lookbook/hooks/useOutfitWearSummaries'
+import { findDuplicateOutfit } from '../../lookbook/utils/outfitComposition'
 import { useLookbookStore } from '../../lookbook/stores/useLookbookStore'
 import {
   filterSavedOutfits,
@@ -41,7 +42,6 @@ export function WeeklyPlanEditor({ onClose }: WeeklyPlanEditorProps) {
   const items = useClosetStore((state) => state.items)
   const outfits = useLookbookStore((state) => state.outfits)
   const entries = usePlanStore((state) => state.entries)
-  const assignOutfit = usePlanStore((state) => state.assignOutfit)
   const clearOutfit = usePlanStore((state) => state.clearOutfit)
   const pushToast = useUiStore((state) => state.pushToast)
   const setPlannerEntry = useSetPlannerEntryMutation()
@@ -95,25 +95,19 @@ export function WeeklyPlanEditor({ onClose }: WeeklyPlanEditorProps) {
     })
     if (!confirmed) return
 
-    if (/^[a-f\d]{24}$/i.test(outfit.id)) {
-      try {
-        await setPlannerEntry.mutateAsync({
-          weekStartsOn: entries[0].date,
-          date: activeDate,
-          outfitId: outfit.id,
-          title: outfit.name,
-          occasion: activeEntry?.occasion,
-        })
-      } catch (error) {
-        pushToast(
-          error instanceof Error ? error.message : '플래너를 저장하지 못했습니다.',
-          'error',
-        )
-        return
-      }
+    try {
+      await setPlannerEntry.mutateAsync({
+        weekStartsOn: entries[0].date,
+        date: activeDate,
+        outfitId: outfit.id,
+        title: outfit.name,
+        occasion: activeEntry?.occasion,
+      })
+    } catch (error) {
+      pushToast(error instanceof Error ? error.message : '플래너를 저장하지 못했습니다.', 'error')
+      return
     }
 
-    assignOutfit(activeDate, outfit)
     pushToast(`${activeEntry?.dayLabel}요일 코디를 설정했습니다.`, 'success')
   }
 
@@ -267,7 +261,7 @@ export function WeeklyPlanEditor({ onClose }: WeeklyPlanEditorProps) {
               ) : (
                 <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                   {visibleOutfits.map((outfit) => {
-                    const isAssigned = activeEntry?.outfitId === outfit.id
+                    const isAssigned = Boolean(activeEntry?.outfitId && findDuplicateOutfit([outfit], activeEntry.itemIds))
                     return (
                       <button
                         type="button"

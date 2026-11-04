@@ -185,3 +185,50 @@ test('AI 사용량 제한 응답에는 추가 컷아웃 요청을 보내지 않�
   await expect(page.getByRole('dialog', { name: 'AI 분석 결과' })).toHaveCount(0)
   expect(mockApi.operations).not.toContain('RemoveWardrobeImageBackground')
 })
+
+test('여러 사진 등록에서 저장 중 Esc를 눌러도 다음 사진을 잃지 않는다', async ({ page, mockApi }) => {
+  let classified = 0
+  let isSaving = false
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => { release = resolve })
+  await page.route('**/graphql', async (route) => {
+    const { query } = route.request().postDataJSON()
+    if (query.includes('mutation ClassifyWardrobeImage')) {
+      classified += 1
+      await route.fulfill({ json: { data: { classifyWardrobeImage: {
+        category: 'top', categoryLabel: '상의', subcategory: 'shirt', subcategoryLabel: '셔츠',
+        suggestedName: classified === 1 ? '첫 번째 셔츠' : '두 번째 셔츠',
+        colorName: '네이비', colorDetailName: '네이비', colorHex: '#24364a', colorRgb: [36, 54, 74],
+        colorMode: 'solid', fashionAttributes: null, confidence: 0.9, model: 'e2e-mock', candidates: [],
+        cutoutImageBase64: onePixelPng.toString('base64'), cutoutMimeType: 'image/png',
+      } } } })
+    } else {
+      if (query.includes('mutation CreateWardrobeItem')) {
+        isSaving = true
+        await gate
+      }
+      await route.fallback()
+    }
+  })
+  try {
+    await page.goto('/closet')
+    await selectWardrobePhoto(page, 2)
+    const dialog = page.getByRole('dialog', { name: 'AI 분석 결과' })
+    await expect(dialog.getByRole('textbox', { name: '아이템 이름' })).toHaveValue('첫 번째 셔츠')
+    await expect.poll(() => classified).toBe(2)
+    await dialog.getByRole('group', { name: '입을 계절' }).getByRole('button', { name: '봄' }).click()
+    await dialog.getByRole('button', { name: '옷장에 추가', exact: true }).click()
+    await expect.poll(() => isSaving).toBe(true)
+    await page.keyboard.press('Escape')
+    await expect(dialog.getByRole('textbox', { name: '아이템 이름' })).toHaveValue('첫 번째 셔츠')
+    await expect(dialog.getByRole('button', { name: '옷 추가 취소' })).toBeDisabled()
+    release()
+    await expect(dialog.getByRole('textbox', { name: '아이템 이름' })).toHaveValue('두 번째 셔츠')
+    await dialog.getByRole('group', { name: '입을 계절' }).getByRole('button', { name: '봄' }).click()
+    await dialog.getByRole('button', { name: '옷장에 추가', exact: true }).click()
+    await expect(dialog).toHaveCount(0)
+    expect(mockApi.wardrobeItems.map((item) => item.name)).toEqual(expect.arrayContaining(['첫 번째 셔츠', '두 번째 셔츠']))
+  } finally {
+    release()
+  }
+})

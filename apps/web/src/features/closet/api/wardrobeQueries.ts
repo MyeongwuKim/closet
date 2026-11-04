@@ -10,12 +10,14 @@ import { graphqlRequest } from '../../../lib/graphql'
 import { queryKeys } from '../../../lib/queryKeys'
 import { useClosetStore } from '../stores/useClosetStore'
 import { clearWardrobeBrandFromItems, getWardrobeBrandKey } from '../utils/wardrobeBrands'
+import { advanceOutfitRecommendationRevision } from '../../lookbook/api/outfitRecommendationCache'
 
 export interface WardrobeItemPayload {
   id: string
   name: string
   brandName: string | null
   createdAt: string
+  archivedAt?: string | null
   category: ClothingCategory | null
   additionalCategories: ClothingCategory[]
   subcategory: string | null
@@ -50,6 +52,7 @@ export function toWardrobeItem(item: WardrobeItemPayload): WardrobeItem {
     name: item.name,
     brandName: item.brandName ?? undefined,
     createdAt: item.createdAt,
+    archivedAt: item.archivedAt ?? null,
     category: item.category,
     additionalCategories: item.additionalCategories,
     subcategory: item.subcategory ?? undefined,
@@ -88,7 +91,7 @@ export function useWardrobeItemsQuery(enabled = true) {
         `
           query WardrobeItems {
             wardrobeItems {
-              id name brandName createdAt category additionalCategories subcategory colorName colorDetailName
+              id name brandName createdAt archivedAt category additionalCategories subcategory colorName colorDetailName
               colorHex colorMode seasons tags
               fashionAttributes {
                 layerRole silhouette pattern material texture warmth formality confidence
@@ -142,6 +145,7 @@ export function useDeleteWardrobeBrandMutation() {
       return data.deleteWardrobeBrand
     },
     onSuccess: async (_count, brandName) => {
+      advanceOutfitRecommendationRevision(queryClient)
       const store = useClosetStore.getState()
       store.hydrateItems(clearWardrobeBrandFromItems(store.items, brandName))
       queryClient.setQueryData<string[]>(queryKeys.wardrobe.brandOptions, (brands) =>
@@ -186,7 +190,7 @@ export interface UpdateWardrobeItemVariables {
 }
 
 export const wardrobeItemFields = `
-  id name brandName createdAt category additionalCategories subcategory colorName colorDetailName
+  id name brandName createdAt archivedAt category additionalCategories subcategory colorName colorDetailName
   colorHex colorMode seasons tags
   fashionAttributes {
     layerRole silhouette pattern material texture warmth formality confidence
@@ -223,6 +227,7 @@ export function useUpdateWardrobeItemMutation() {
       return toWardrobeItem(data.updateWardrobeItem)
     },
     onSuccess: (updatedItem) => {
+      advanceOutfitRecommendationRevision(queryClient)
       useClosetStore.getState().mergeItems([updatedItem])
       queryClient.setQueryData(['wardrobe', 'detail', updatedItem.id], updatedItem)
       queryClient.setQueryData<WardrobeItem[]>(
@@ -276,12 +281,35 @@ export function useArchiveWardrobeItemMutation() {
       )
       return data.archiveWardrobeItem.id
     },
-    onSuccess: (archivedItemId) => {
+    onSuccess: async (archivedItemId) => {
+      // 삭제 전에 시작한 조회가 끝나면서 옷을 다시 병합하지 않도록 먼저 중단한다.
+      await queryClient.cancelQueries({ queryKey: queryKeys.wardrobe.all })
+      advanceOutfitRecommendationRevision(queryClient)
+      useClosetStore.getState().removeItem(archivedItemId)
       queryClient.setQueryData<WardrobeItem[]>(
         queryKeys.wardrobe.list(),
         (currentItems = []) =>
           currentItems.filter((item) => item.id !== archivedItemId),
       )
+      queryClient.setQueriesData<{
+        pages: Array<{ items: WardrobeItem[]; totalCount: number }>
+        pageParams: unknown[]
+      }>({ queryKey: ['wardrobe', 'pages'] }, (currentData) => {
+        if (!currentData) return currentData
+        const containedItem = currentData.pages.some((page) => page.items.some((item) => item.id === archivedItemId))
+        return {
+          ...currentData,
+          pages: currentData.pages.map((page) => ({
+            ...page,
+            items: page.items.filter((item) => item.id !== archivedItemId),
+            totalCount: Math.max(0, page.totalCount - Number(containedItem)),
+          })),
+        }
+      })
+      queryClient.removeQueries({ queryKey: ['wardrobe', 'detail', archivedItemId], exact: true })
+      // 기존 날짜 코디의 옷·사진은 유지하고 서버의 삭제 상태만 다시 읽는다.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.planner.all })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.outfits.all })
       void queryClient.invalidateQueries({ queryKey: queryKeys.wardrobe.all })
       void queryClient.invalidateQueries({ queryKey: ['planner', 'today-recommendation'] })
       void queryClient.invalidateQueries({ queryKey: ['outfits', 'recommendation'] })

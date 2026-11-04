@@ -6,10 +6,12 @@ import { useUiStore } from '../../stores/useUiStore'
 import { OutfitRecommendationActions } from '../../features/plan/components/OutfitRecommendationActions'
 import { AppHeader } from './AppHeader'
 import { MobileTabBar } from './MobileTabBar'
+import { useWearWeatherLocationSync } from '../../features/plan/hooks/useWearWeatherLocationSync'
 
-/** 주요 탭의 공통 헤더·추천 버튼·하단 탭을 표시한다. 전체 화면으로 열리는 코디·옷 상세와 설정 하위 화면에서는 하단 탭을 숨겨 입력·저장 영역을 가리지 않는다. */
+/** 주요 탭의 공통 UI를 표시하고 허용된 날씨 지역을 동기화한다. 전체 화면으로 열리는 코디·옷 상세와 설정 하위 화면에서는 하단 탭을 숨겨 입력·저장 영역을 가리지 않는다. */
 export function AppLayout() {
   const location = useLocation()
+  useWearWeatherLocationSync(location.pathname)
   const hasHeaderRecommendations = ['/plan', '/closet', '/lookbook'].includes(location.pathname)
   const isDetailRoute = [
     '/plan/:date',

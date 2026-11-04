@@ -6,6 +6,8 @@ import { requestAiJson } from '../../lib/ai/ai-http.js'
  * 동작 방식:
  * 이미지에서 직접 확인되는 정보만 구조화하고, 하의는 제품명을 추측하는 대신
  * 바지통·포켓·허리·앞주름 형태를 별도로 기록한다.
+ * 사진에서 미리 계산한 원단 표본 세 곳으로 단색의 색 계열과 밝은 패턴 바탕의 화이트·크림 구분을 확인한다.
+ * 검정은 배경과 원단을 안정적으로 분리할 수 있을 때 사진 픽셀로 대표 밝기도 보완한다.
  */
 import type {
   ClothingClassificationResult,
@@ -13,10 +15,11 @@ import type {
   FashionItemAttributes,
 } from '@closet/types'
 import { ServiceError } from '../../graphql/errors.js'
+import { refineBlackColor } from './refineBlackColor.js'
+import { createColorReferenceGuide, createColorReferencePatches, refineGarmentColor } from './refineGarmentColor.js'
 import {
   colorHexToRgb,
   isColorHex,
-  normalizeColorHex,
 } from './color.js'
 import {
   categoryLabels,
@@ -41,6 +44,7 @@ interface OpenAiClassificationResponse {
   colorDetailName: string | null
   colorHex: string | null
   colorMode: 'solid' | 'patterned' | 'multicolor' | null
+  colorSamplePatchIds: string[] | null
   fashionAttributes: FashionItemAttributes | null
   suggestedName: string | null
   confidence: number | null
@@ -119,6 +123,13 @@ const bottomStructureAnalysisGuide = [
   'bottomWaistStyle은 고정된 허리단과 단추·후크 여밈이면 structured, 밴딩이면 elastic, 끈 조절이 중심이면 drawstring, 두 방식이 함께 뚜렷하면 mixed입니다.',
   'bottomFrontPleats는 허리 아래 앞판에 잡힌 주름이 선명하면 present, 앞판 전체가 충분히 보이고 주름이 없으면 absent, 가림이나 해상도 때문에 판단할 수 없으면 unknown입니다.',
 ].join(' ')
+const colorSampleAnalysisGuide = [
+  'colorReferencePatches는 사진을 가로 8열·세로 8행으로 나눠 각 셀 중심에서 직접 측정한 작은 표본입니다. r0c0은 좌상단, r7c7은 우하단이고 각 표본의 HEX가 제공됩니다. 좌표를 새로 추정하지 마세요.',
+  '첫 이미지는 분석할 원본이고 두 번째 이미지는 표본 ID를 표시한 위치 참조용입니다. 각 셀 중앙의 초록 사각형이 실제 표본 영역입니다. 두 번째 이미지에서 ID가 실제 옷 내부에 놓여 있는지, 초록 사각형이 원단을 가리키는지 확인한 뒤 선택하세요. 격자나 글자의 색은 원단 색이 아니며, 제공된 표본 HEX는 표시 없는 원본에서 측정한 값입니다.',
+  'colorSamplePatchIds에는 옷 내부의 서로 떨어진 원단 세 곳에 해당하는 표본 ID를 고르세요. patterned이면 가장 넓은 같은 바탕색이 주로 보이는 세 곳을 고르고 진한 무늬를 피하세요. 배경·피부·단추·봉제선·로고·강한 그림자·반사를 피하세요. 확실한 세 곳을 고를 수 없거나 multicolor이면 빈 배열, fashion_item이 아니면 null을 사용하세요.',
+  '화이트와 크림 바탕은 표본에 실제로 남아 있는 노란 기운을 함께 확인하세요. 그림자 속 흰 바탕의 낮은 밝기나 촬영 색온도만으로 크림·베이지를 추정하지 마세요. 실제로 노란 기운이 있는 크림·아이보리는 유지하세요.',
+  '색 이름은 고른 원단 표본의 색상 축·채도와 함께 판단하세요. 어두운 청록을 네이비로 묶거나, 검정 원단의 약한 푸른 반사만으로 블루라고 판단하지 마세요. 표본의 사진 밝기와 원래 원단의 색은 조명에 따라 다를 수 있습니다.',
+].join(' ')
 
 export function getOpenAiClassificationModel() {
   return process.env.OPENAI_MODEL?.trim() || 'gpt-5-mini'
@@ -175,6 +186,9 @@ function isOpenAiClassificationResponse(
     (candidate.colorMode === null ||
       (typeof candidate.colorMode === 'string' &&
         ['solid', 'patterned', 'multicolor'].includes(candidate.colorMode))) &&
+    (candidate.colorSamplePatchIds === null ||
+      (Array.isArray(candidate.colorSamplePatchIds) && candidate.colorSamplePatchIds.length <= 3 &&
+        candidate.colorSamplePatchIds.every((id) => typeof id === 'string' && /^r[0-7]c[0-7]$/.test(id)))) &&
     (candidate.fashionAttributes === null ||
       isFashionItemAttributes(candidate.fashionAttributes)) &&
     (candidate.suggestedName === null ||
@@ -330,6 +344,8 @@ export async function classifyWardrobeImageWithOpenAi(
   }
 
   const model = getOpenAiClassificationModel()
+  const colorPatches = await createColorReferencePatches(imageBuffer, mimeType)
+  const colorReferenceGuide = colorPatches.length ? await createColorReferenceGuide(imageBuffer, mimeType) : null
   const taxonomy = classificationEntries.map(({ key, item }) => ({
     key,
     label: item.label,
@@ -353,6 +369,7 @@ export async function classifyWardrobeImageWithOpenAi(
             personImageAnalysisGuide,
             ribbedTrimAnalysisGuide,
             bottomStructureAnalysisGuide,
+            colorSampleAnalysisGuide,
           ].join('\n\n'),
         },
         {
@@ -364,6 +381,7 @@ export async function classifyWardrobeImageWithOpenAi(
                 task: '옷장 등록용 옷 정보 분석',
                 allowedClassifications: taxonomy,
                 allowedColors: colorNames,
+                colorReferencePatches: colorPatches.map(({ id, colorHex }) => ({ id, colorHex })),
               }),
             },
             {
@@ -371,6 +389,11 @@ export async function classifyWardrobeImageWithOpenAi(
               image_url: `data:${mimeType};base64,${imageBuffer.toString('base64')}`,
               detail: 'high',
             },
+            ...(colorReferenceGuide ? [{
+              type: 'input_image',
+              image_url: `data:image/png;base64,${colorReferenceGuide.toString('base64')}`,
+              detail: 'high',
+            }] : []),
           ],
         },
       ],
@@ -390,6 +413,7 @@ export async function classifyWardrobeImageWithOpenAi(
               'colorDetailName',
               'colorHex',
               'colorMode',
+              'colorSamplePatchIds',
               'fashionAttributes',
               'suggestedName',
               'confidence',
@@ -420,6 +444,14 @@ export async function classifyWardrobeImageWithOpenAi(
               colorMode: {
                 type: ['string', 'null'],
                 enum: ['solid', 'patterned', 'multicolor', null],
+              },
+              colorSamplePatchIds: {
+                type: ['array', 'null'],
+                maxItems: 3,
+                items: {
+                  type: 'string',
+                  pattern: '^r[0-7]c[0-7]$',
+                },
               },
               fashionAttributes: {
                 type: ['object', 'null'],
@@ -515,9 +547,14 @@ export async function classifyWardrobeImageWithOpenAi(
   }
 
   const type = classificationByKey.get(parsed.classificationKey)!
-  const color = colorByName.get(parsed.colorName)!
-  const colorHex = normalizeColorHex(parsed.colorHex)
+  const selectedPatches = (parsed.colorSamplePatchIds ?? []).flatMap((id) => {
+    const patch = colorPatches.find((patch) => patch.id === id)
+    return patch ? [patch.region] : []
+  })
+  const color = await refineGarmentColor(imageBuffer, mimeType, parsed, selectedPatches)
+  const colorHex = await refineBlackColor(imageBuffer, mimeType, { ...parsed, ...color })
   const colorRgb = colorHexToRgb(colorHex)
+  const colorWasRefined = color.colorName !== parsed.colorName || color.colorHex !== parsed.colorHex.trim().toUpperCase()
 
   if (!colorRgb) {
     throw new Error('OpenAI clothing classification color is invalid')
@@ -528,9 +565,9 @@ export async function classifyWardrobeImageWithOpenAi(
     categoryLabel: categoryLabels[type.category],
     subcategory: type.subcategory,
     subcategoryLabel: type.label,
-    suggestedName: parsed.suggestedName.trim(),
-    colorName: color.name,
-    colorDetailName: parsed.colorDetailName.trim(),
+    suggestedName: colorWasRefined ? `${color.colorDetailName} ${type.label}` : parsed.suggestedName.trim(),
+    colorName: color.colorName,
+    colorDetailName: color.colorDetailName.trim(),
     colorHex,
     colorRgb,
     colorMode: parsed.colorMode,

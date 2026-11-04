@@ -1,51 +1,14 @@
 import { useMemo } from 'react'
-import {
-  formatRecentWearLabel,
-  formatWearDate,
-} from '../../../utils/wearDate'
-import { useOutfitWearHistoryQuery } from '../../plan/api/plannerQueries'
-import { formatDateOnly } from '../../plan/data/weeklyPlan'
-
-export interface OutfitWearSummary {
-  label: string
-  title: string
-}
+import { useOutfitWearHistoryQuery, type OutfitWearRecord } from '../../plan/api/plannerQueries'
+import { createOutfitWearSummary } from '../utils/outfitWearSummary'
+import type { OutfitWearSummary } from '../utils/outfitWearSummary'
+export type { OutfitWearSummary } from '../utils/outfitWearSummary'
 
 interface OutfitWearSummaryOptions {
   includeUnworn?: boolean
 }
 
-function createWearSummary(
-  dates: string[],
-  today: string,
-): OutfitWearSummary | null {
-  const uniqueDates = [...new Set(dates)].sort()
-  const wornDates = uniqueDates.filter((date) => date <= today)
-
-  if (wornDates.length > 0) {
-    const latestDate = wornDates.at(-1) as string
-    const dateLabel =
-      formatRecentWearLabel(latestDate, today) ??
-      `최근 착용 · ${formatWearDate(latestDate)}`
-
-    return {
-      label:
-        wornDates.length > 1
-          ? `${dateLabel} · ${wornDates.length}회`
-          : dateLabel,
-      title: `착용 기록: ${wornDates.map(formatWearDate).join(', ')}`,
-    }
-  }
-
-  const nextDate = uniqueDates.find((date) => date > today)
-  if (!nextDate) return null
-
-  return {
-    label: `착용 예정 · ${formatWearDate(nextDate)}`,
-    title: `다음 착용 예정일: ${formatWearDate(nextDate)}`,
-  }
-}
-
+/** 한국 날짜 기준으로 오늘까지 착용을 확인한 플래너 기록의 횟수·기온을 요약한다. 확인하지 않은 오늘·미래 배정은 예정으로 반환한다. */
 export function useOutfitWearSummaries(
   outfitIds: string[],
   { includeUnworn = false }: OutfitWearSummaryOptions = {},
@@ -53,31 +16,32 @@ export function useOutfitWearSummaries(
   const persistedOutfitIds = [...new Set(outfitIds)]
     .filter((id) => /^[a-f\d]{24}$/i.test(id))
     .sort()
-  const outfitWearHistoryQuery = useOutfitWearHistoryQuery(persistedOutfitIds)
-  const today = formatDateOnly(new Date())
+  // 조회 상태도 구독해 응답 내용이 같아도 주기 조회·앱 복귀 뒤 날짜를 다시 계산한다.
+  const { data, isSuccess, isFetching } = useOutfitWearHistoryQuery(persistedOutfitIds)
+  const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date())
 
   const summaries = useMemo(() => {
-    const datesByOutfitId = new Map<string, string[]>()
+    const recordsByOutfitId = new Map<string, OutfitWearRecord[]>()
 
-    for (const record of outfitWearHistoryQuery.data ?? []) {
-      const dates = datesByOutfitId.get(record.outfitId) ?? []
-      dates.push(record.date)
-      datesByOutfitId.set(record.outfitId, dates)
+    for (const record of data ?? []) {
+      const records = recordsByOutfitId.get(record.outfitId) ?? []
+      records.push(record)
+      recordsByOutfitId.set(record.outfitId, records)
     }
 
     const summaries = new Map<string, OutfitWearSummary>()
-    for (const [outfitId, dates] of datesByOutfitId) {
-      const summary = createWearSummary(dates, today)
+    for (const [outfitId, records] of recordsByOutfitId) {
+      const summary = createOutfitWearSummary(records, today)
       if (summary) summaries.set(outfitId, summary)
     }
 
     return summaries
-  }, [outfitWearHistoryQuery.data, today])
+  }, [data, today])
 
   if (
     !includeUnworn ||
-    !outfitWearHistoryQuery.isSuccess ||
-    outfitWearHistoryQuery.isFetching
+    !isSuccess ||
+    isFetching
   ) {
     return summaries
   }

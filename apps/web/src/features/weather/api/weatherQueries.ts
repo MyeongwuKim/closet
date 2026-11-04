@@ -41,7 +41,7 @@ export function weatherForecastQueryOptions(
         `
           query WeatherForecast($input: WeatherForecastInput!) {
             weatherForecast(input: $input) {
-              date expiresAt temperatureC minTemperatureC maxTemperatureC
+              date expiresAt temperatureC meanTemperatureC minTemperatureC maxTemperatureC
               apparentTemperatureC precipitationProbability weatherCode
               summary recommendedSeason source attribution attributionUrl
             }

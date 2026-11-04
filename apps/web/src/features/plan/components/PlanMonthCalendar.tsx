@@ -1,7 +1,10 @@
 import type { WardrobeItem } from '@closet/types'
 import { Link } from 'react-router-dom'
+import { Check } from 'lucide-react'
 import { ClosetItemVisual } from '../../closet/components/ClosetItemVisual'
 import type { MonthCalendarDay, PlanEntry } from '../data/weeklyPlan'
+import { getPlanEntryItems } from '../utils/plannerItems'
+import { ArchivedWardrobeItemBadge } from '../../closet/components/ArchivedWardrobeItemBadge'
 
 interface PlanMonthCalendarProps {
   days: MonthCalendarDay[]
@@ -22,7 +25,6 @@ export function PlanMonthCalendar({
   today,
 }: PlanMonthCalendarProps) {
   const entryByDate = new Map(entries.map((entry) => [entry.date, entry]))
-  const itemById = new Map(items.map((item) => [item.id, item]))
   const backPath = `/plan?view=month&month=${monthKey}`
 
   return (
@@ -43,9 +45,9 @@ export function PlanMonthCalendar({
       <div className="plan-month-calendar-days grid grid-cols-7" style={{ gridTemplateRows: `repeat(${Math.ceil(days.length / 7)}, minmax(0, 1fr))` }}>
         {days.map((day, index) => {
           const entry = entryByDate.get(day.date)
-          const firstItem = entry?.itemIds[0]
-            ? itemById.get(entry.itemIds[0])
-            : undefined
+          const outfitItems = entry ? getPlanEntryItems(entry, items) : []
+          const firstItem = outfitItems[0]
+          const hasArchivedItems = outfitItems.some((item) => item.archivedAt)
           const isToday = day.date === today
 
           return (
@@ -56,7 +58,7 @@ export function PlanMonthCalendar({
               } ${index >= 7 ? 'border-t border-line' : ''} ${
                 day.isCurrentMonth ? 'bg-surface' : 'bg-canvas/45 text-muted'
               }`}
-              aria-label={`${day.date}${entry?.title ? `, ${entry.title}` : ', 저장된 코디 없음'}`}
+              aria-label={`${day.date}${entry?.title ? `, ${entry.title}` : ', 저장된 코디 없음'}${entry?.wornAt ? ', 착용 완료' : ''}${hasArchivedItems ? ', 삭제된 옷 포함' : ''}`}
               key={day.date}
             >
               <span
@@ -66,11 +68,13 @@ export function PlanMonthCalendar({
               >
                 {day.dayNumber}
               </span>
+              {entry?.wornAt && <span className="absolute top-2 right-1.5 inline-flex size-4 items-center justify-center rounded-full bg-sage text-accent sm:right-2.5" role="img" aria-label="착용 완료"><Check size={11} aria-hidden="true" /></span>}
 
               {firstItem ? (
                 <>
-                  <span className="plan-month-calendar-preview mt-1 flex h-10 items-center justify-center overflow-hidden rounded-lg bg-canvas sm:h-16 sm:rounded-xl">
+                  <span className="plan-month-calendar-preview relative mt-1 flex h-10 items-center justify-center overflow-hidden rounded-lg bg-canvas sm:h-16 sm:rounded-xl">
                     <ClosetItemVisual item={firstItem} compact />
+                    {firstItem.archivedAt && <ArchivedWardrobeItemBadge compact className="absolute inset-x-0 bottom-0 rounded-t-none" />}
                   </span>
                   <strong className="plan-month-calendar-caption mt-1.5 hidden truncate text-[10px] sm:block">
                     {entry?.title}

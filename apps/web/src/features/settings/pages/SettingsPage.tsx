@@ -25,6 +25,7 @@ import { useUiStore } from '../../../stores/useUiStore'
 import {
   useMeQuery,
   useUpdateStyleProfileMutation,
+  ViewerSessionChangedError,
 } from '../api/profileQueries'
 import { useLogoutMutation } from '../../auth/api/authQueries'
 import { SettingsDrawerList } from '../components/SettingsDrawerList'
@@ -84,7 +85,6 @@ interface StyleProfileFormProps {
 }
 
 function StyleProfileForm({ initialProfile }: StyleProfileFormProps) {
-  const updateProfile = useStyleProfileStore((state) => state.updateProfile)
   const pushToast = useUiStore((state) => state.pushToast)
   const updateStyleProfile = useUpdateStyleProfileMutation()
   const [gender, setGender] = useState(initialProfile.gender)
@@ -160,17 +160,9 @@ function StyleProfileForm({ initialProfile }: StyleProfileFormProps) {
         preferredFit,
         preferredStyles: [],
       })
-      updateProfile({
-        gender,
-        bodyBuild,
-        heightCm,
-        weightKg,
-        ...bodyMeasurements,
-        preferredFit,
-        preferredStyles: [],
-      })
       pushToast('스타일 프로필을 저장했습니다.', 'success')
     } catch (error) {
+      if (error instanceof ViewerSessionChangedError) return
       pushToast(
         error instanceof Error
           ? error.message

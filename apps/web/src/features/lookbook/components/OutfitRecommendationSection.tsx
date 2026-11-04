@@ -43,6 +43,7 @@ interface OutfitStyleSuggestionProps {
 const relationLabels: Record<OutfitMatchRelation, string> = {
   'clean-contrast': '깔끔한 대비',
   'tone-on-tone': '톤온톤',
+  'tone-in-tone': '톤인톤',
   'soft-balance': '부드러운 조합',
   accent: '포인트 조합',
   'design-balance': '디자인 균형',
@@ -110,7 +111,7 @@ function RecommendationResults({
             onClick={() => onColorSelect(color)}
             className="flex w-full items-start gap-4 rounded-2xl border border-line bg-surface p-4 text-left transition hover:border-accent/50 focus-visible:outline-accent"
             aria-label={`${color.name} 색상의 ${categoryLabel} 아이템 옷장에서 보기`}
-            key={color.name}
+            key={`${color.role}:${color.hex}`}
           >
             <span
               className="mt-0.5 size-9 shrink-0 rounded-full border border-black/10 shadow-sm"
@@ -274,8 +275,8 @@ export function OutfitStyleSuggestion({
   const recommendationQuery = useOutfitRecommendationQuery(
     selectedItemIds,
     category === 'bag' ? null : category,
-    mode !== null,
   )
+  const previousRevisionRef = useRef(recommendationQuery.revision)
   const categoryLabel = outfitSelectionLabels[category]
   const isRecommendationPending = !recommendationQuery.isError &&
     (recommendationQuery.isLoading || !recommendationQuery.data)
@@ -289,6 +290,13 @@ export function OutfitStyleSuggestion({
     if (restoreFocus) window.requestAnimationFrame(() => triggerRef.current?.focus())
   }, [])
 
+  // 옷장 정보가 바뀌면 열린 후보 상세도 닫는다. 새 추천은 사용권 확인을 거친 다음 클릭으로 시작한다.
+  useEffect(() => {
+    if (previousRevisionRef.current === recommendationQuery.revision) return
+    previousRevisionRef.current = recommendationQuery.revision
+    closeSuggestion(false)
+  }, [closeSuggestion, recommendationQuery.revision])
+
   /** 현재 옷장 시트를 덮을 위치를 저장하고, 공통 사용권 안내와 추천 시작 버튼을 연다. */
   const openSuggestion = () => {
     const container = triggerRef.current?.closest<HTMLElement>('.outfit-styling-layout__wardrobe')
@@ -300,6 +308,7 @@ export function OutfitStyleSuggestion({
 
   /** 이미 받은 결과 또는 사용권 확인을 마친 새 추천을 연다. 처음 보여줄 탭만 정하고 조회는 하나를 공유한다. */
   const startRecommendation = () => {
+    if (!recommendationQuery.loadRecommendation()) return
     setMode(hasClosetCandidates ? 'items' : 'colors')
     setIsChoiceOpen(false)
   }

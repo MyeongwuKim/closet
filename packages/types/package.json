@@ -4,6 +4,10 @@
   "version": "0.1.0",
   "type": "module",
   "exports": {
+    "./outfit-colors": {
+      "types": "./src/outfitColors.d.ts",
+      "default": "./src/outfitColors.js"
+    },
     "./outfit-items": {
       "types": "./src/outfitItems.d.ts",
       "default": "./src/outfitItems.js"

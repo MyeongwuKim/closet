@@ -13,6 +13,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     let consumed = false
     let startCalls = 0
     let adCalls = 0
+    let previewJob: Record<string, unknown> | null = null
     await page.exposeFunction('earnTestPreviewReward', () => { rewarded = true; adCalls += 1 })
     await page.addInitScript(() => {
       window.ClosetRuntimeConfig = { isNativeWebView: true }
@@ -39,13 +40,17 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
           return
         }
         consumed = true
-        data = { startOutfitPreview: { id: 'preview-credit-job', status: 'completed', selectedItemIds: ['item-1', 'item-2'], style: null, imageAssetId: 'rewarded-image', model: 'fixture', errorCode: null, errorMessage: null, createdAt: new Date().toISOString(), path: '/lookbook/new?items=item-1,item-2&preview=open&previewAssetId=rewarded-image' } }
+        previewJob = { id: 'preview-credit-job', status: 'completed', selectedItemIds: ['item-1', 'item-2'], style: null, imageAssetId: 'rewarded-image', model: 'fixture', errorCode: null, errorMessage: null, createdAt: new Date().toISOString(), path: '/lookbook/new?items=item-1,item-2&preview=open&previewAssetId=rewarded-image' }
+        data = { startOutfitPreview: previewJob }
+      } else if (query.includes('query OutfitPreviewJob(')) {
+        expect(variables.id).toBe('preview-credit-job')
+        data = { outfitPreviewJob: previewJob }
       } else if (query.includes('query OutfitPreviewAsset')) data = { outfitPreviewAsset: { assetId: 'rewarded-image', imageUrl, mimeType: 'image/png', model: 'fixture' } }
       else { await route.fallback(); return }
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data }) })
     })
     await page.goto('/#/lookbook/new?items=item-1,item-2')
-    await page.getByRole('button', { name: '광고 보고 사용권 얻기', exact: true }).click()
+    await page.getByRole('button', { name: '광고 보고 충전', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: 'AI 사용권이 부족해요', exact: true })
     await expect(dialog).toBeVisible()
     await expect(dialog.getByRole('button', { name: /광고 보고.*즉시 받기/ })).toBeEnabled()
@@ -82,7 +87,7 @@ test('광고를 중간에 닫으면 생성 요청을 추가 전송하지 않는�
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(payload) })
   })
   await page.goto('/#/lookbook/new?items=item-1,item-2')
-  await page.getByRole('button', { name: '광고 보고 사용권 얻기', exact: true }).click()
+  await page.getByRole('button', { name: '광고 보고 충전', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'AI 사용권이 부족해요', exact: true })
   await dialog.getByRole('button', { name: /광고 보고.*즉시 받기/ }).click()
   await expect(dialog.getByRole('alert')).toContainText('광고 시청을 취소했어요')

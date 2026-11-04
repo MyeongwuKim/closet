@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom'
 import type { PlanEntry } from '../data/weeklyPlan'
 import { PlanOutfitStage } from './PlanOutfitStage'
 import { PlanTodayEmptyState } from './PlanTodayEmptyState'
+import { PlannerWearAction } from './PlannerWearAction'
+import { getPlanEntryItems } from '../utils/plannerItems'
 
 interface PlanTodayCardProps {
   entry: PlanEntry
@@ -11,22 +13,26 @@ interface PlanTodayCardProps {
   isToday: boolean
 }
 
-/** 플래너 → 하루 보기. 실제 코디 또는 빈 상태 안내와 선택 동작을 한 카드에 표시한다. 카드 전체가 하나의 링크이며 해당 날짜의 코디 편집 화면으로 이동한다. */
+/** 플래너 → 하루 보기. 코디 미리보기는 날짜 편집 링크로 열고, 오늘·지난 날짜의 실제 착용 확인은 링크 밖의 별도 조작으로 제공한다. */
 export function PlanTodayCard({ entry, items, isToday }: PlanTodayCardProps) {
   const date = new Date(`${entry.date}T00:00:00`)
   const formattedDate = new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' }).format(date)
   const backPath = isToday ? '/plan?view=today' : `/plan?view=today&date=${entry.date}`
   const hasOutfit = Boolean(entry.outfitId || entry.itemIds.length || entry.previewImageUrl)
-  const outfitDescription = isToday ? '오늘 입을 코디' : '이날 입을 코디'
+  const outfitItems = getPlanEntryItems(entry, items)
+  const outfitDescription = entry.wornAt
+    ? isToday ? '오늘 입은 코디' : '이날 입은 코디'
+    : isToday ? '오늘 계획한 코디' : '이날 계획한 코디'
   return (
+    <div className="plan-today-card flex min-h-0 flex-1 flex-col bg-surface">
     <Link
       to={`/plan/${entry.date}?from=${encodeURIComponent(backPath)}`}
-      className="plan-today-card group flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-line bg-surface transition-colors hover:border-accent focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
+      className="group flex min-h-0 flex-1 flex-col overflow-hidden bg-surface transition-colors focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
       aria-label={`${formattedDate}, ${hasOutfit ? entry.title || '저장한 코디' : '저장된 코디 없음'}, 옷 설정하기`}
     >
       {hasOutfit ? (
         <>
-          <PlanOutfitStage items={items} />
+          <PlanOutfitStage items={outfitItems} />
           <span className="plan-today-caption block shrink-0 px-4 py-3">
             <strong className="block truncate text-base font-medium tracking-[-.04em]">{entry.title || '저장한 코디'}</strong>
             <span className="mt-1 flex items-center justify-between gap-3">
@@ -37,5 +43,7 @@ export function PlanTodayCard({ entry, items, isToday }: PlanTodayCardProps) {
         </>
       ) : <PlanTodayEmptyState isToday={isToday} />}
     </Link>
+    <PlannerWearAction entry={entry} />
+    </div>
   )
 }

@@ -12,34 +12,13 @@
 import { useEffect, useState } from 'react'
 import { CloudSun, LoaderCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import {
-  getNativeAppInfo,
-  isNativeWebViewRuntime,
-} from '../../../native-bridge'
 import { readNotificationWeatherPreferences } from '../../settings/utils/notificationWeatherPreferences'
 import { useLocationWeather } from '../../weather/hooks/useLocationWeather'
 import { PlanWeatherBadge } from './PlanWeatherBadge'
+import { readLocationPermission } from '../../weather/utils/locationPermission'
 
 interface PlanTodayWeatherProps {
   date: string
-}
-
-async function hasGrantedLocationPermission() {
-  if (isNativeWebViewRuntime()) {
-    const appInfo = await getNativeAppInfo()
-    return (
-      appInfo?.permissions.location === 'granted' ||
-      appInfo?.permissions.location === 'limited'
-    )
-  }
-
-  if (!('permissions' in navigator)) return false
-  try {
-    const permission = await navigator.permissions.query({ name: 'geolocation' })
-    return permission.state === 'granted'
-  } catch {
-    return false
-  }
 }
 
 export function PlanTodayWeather({ date }: PlanTodayWeatherProps) {
@@ -57,9 +36,9 @@ export function PlanTodayWeather({ date }: PlanTodayWeatherProps) {
     if (preferences.locationWeather || preferences.locationWeatherDisabled) return
 
     let active = true
-    void hasGrantedLocationPermission()
-      .then((granted) => {
-        if (active) setHasLocationPermission(granted)
+    void readLocationPermission()
+      .then((status) => {
+        if (active) setHasLocationPermission(status === 'granted')
       })
       .catch(() => {
         if (active) setHasLocationPermission(false)

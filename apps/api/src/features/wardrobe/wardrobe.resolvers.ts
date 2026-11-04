@@ -1,6 +1,7 @@
 import type { ClothingCategory } from '@prisma/client'
 import type { GraphQLContext } from '../../graphql/context.js'
 import { toGraphQLError } from '../../graphql/errors.js'
+import { wardrobeRediscoveryService } from './wardrobe-rediscovery.service.js'
 import {
   wardrobeService,
   type CreateWardrobeItemInput,
@@ -18,8 +19,18 @@ export const wardrobeResolvers = {
     createdAt: (item: { createdAt: Date }) => item.createdAt.toISOString(),
     updatedAt: (item: { updatedAt: Date }) => item.updatedAt.toISOString(),
     lastWornAt: (item: { lastWornAt?: Date | null }) => isoDate(item.lastWornAt),
+    archivedAt: (item: { archivedAt?: Date | null }) => isoDate(item.archivedAt),
   },
   Query: {
+    /** 로그인 계정의 전체 옷장에서 오늘의 하이라이트를 조회한다. */
+    wardrobeRediscovery: async (_parent: unknown, _args: unknown, context: GraphQLContext) => {
+      try {
+        const viewer = await context.getViewer()
+        return await wardrobeRediscoveryService.get(viewer.id)
+      } catch (error) {
+        throw toGraphQLError(error, '잊고 있던 옷을 불러오지 못했습니다.', 'WARDROBE_REDISCOVERY_FAILED')
+      }
+    },
     wardrobeBrandOptions: async (
       _parent: unknown,
       _args: Record<string, never>,
@@ -62,6 +73,17 @@ export const wardrobeResolvers = {
     },
   },
   Mutation: {
+    /** 실제 화면에 보인 오늘의 하이라이트만 현재 계정의 노출 이력에 남긴다. */
+    markWardrobeRediscoverySeen: async (
+      _parent: unknown, { day, itemIds }: { day: string; itemIds: string[] }, context: GraphQLContext,
+    ) => {
+      try {
+        const viewer = await context.getViewer()
+        return await wardrobeRediscoveryService.markSeen(viewer.id, day, itemIds)
+      } catch (error) {
+        throw toGraphQLError(error, '하이라이트 확인을 저장하지 못했습니다.', 'WARDROBE_REDISCOVERY_SEEN_FAILED')
+      }
+    },
     deleteWardrobeBrand: async (
       _parent: unknown,
       { brandName }: { brandName: string },

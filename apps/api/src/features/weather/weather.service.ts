@@ -1,15 +1,17 @@
 /**
  * 용도:
- * 현재 위치 좌표와 날짜를 Open-Meteo 예보로 변환해 코디 추천에 제공한다.
+ * 현재 위치 좌표와 날짜를 Open-Meteo 예보로 변환해 코디 추천에 제공하고, 지난 착용일의 평균 기온을 조회한다.
  *
  * 동작 방식:
  * 좌표와 날짜를 검증한 뒤 지역 단위로 30분 동안 캐시하고,
  * 현재 또는 일별 기온과 WMO 날씨 코드를 앱용 설명으로 정리한다.
  * expiresAt은 캐시를 재사용해도 변경하지 않아 화면에서도 같은 시각에 만료된다.
+ * 착용 기온에는 현재 값이나 미래 예보를 섞지 않고 지난 날짜의 하루 평균만 사용한다.
  */
 import type { Season } from '@prisma/client'
 import { ServiceError } from '../../graphql/errors.js'
 import { parseDateOnly } from '../../lib/date.js'
+import { getKoreaTodayUtc } from '../wardrobe/wardrobe.service.js'
 
 export interface WeatherForecastInput {
   latitude: number
@@ -22,6 +24,8 @@ export interface WeatherSnapshot {
   /** 제공자 응답의 만료 시각. 저장된 추천이나 전달받은 날씨에는 없을 수 있다. */
   expiresAt?: string | null
   temperatureC: number
+  /** 현재 기온과 별개인 예보의 하루 평균. 과거 착용일 평균 기온과 같은 기준으로 비교한다. */
+  meanTemperatureC?: number | null
   minTemperatureC: number
   maxTemperatureC: number
   apparentTemperatureC: number
@@ -238,6 +242,7 @@ async function fetchWeatherForecast(
     date: input.date,
     expiresAt: new Date(Date.now() + WEATHER_CACHE_DURATION_MS).toISOString(),
     temperatureC: Math.round(temperatureC * 10) / 10,
+    meanTemperatureC: Math.round(dailyTemperature * 10) / 10,
     minTemperatureC: getNumberAt(
       daily.temperature_2m_min,
       dateIndex,
@@ -266,6 +271,32 @@ async function fetchWeatherForecast(
 }
 
 export const weatherService = {
+  /** 지난 날짜의 하루 평균 기온만 읽는다. 최근 7일은 예보 API의 과거 구간, 오래된 날짜는 재분석 자료를 사용한다. */
+  async getPastDailyTemperature(input: WeatherForecastInput) {
+    validateCoordinates(input)
+    const daysAgo = (getKoreaTodayUtc().getTime() - parseDateOnly(input.date).getTime()) / 86_400_000
+    if (daysAgo <= 0) throw new ServiceError('지난 날짜의 기온만 기록할 수 있습니다.', 'INVALID_WEAR_WEATHER_DATE')
+    const url = daysAgo <= 7 ? createWeatherUrl(input) : new URL(
+      process.env.WEATHER_ARCHIVE_API_BASE_URL?.trim() || (process.env.WEATHER_API_KEY?.trim() ? 'https://customer-archive-api.open-meteo.com/v1/archive' : 'https://archive-api.open-meteo.com/v1/archive'),
+    )
+    url.searchParams.delete('current')
+    url.searchParams.set('latitude', input.latitude.toString())
+    url.searchParams.set('longitude', input.longitude.toString())
+    url.searchParams.set('daily', 'temperature_2m_mean')
+    url.searchParams.set('temperature_unit', 'celsius')
+    url.searchParams.set('timezone', 'Asia/Seoul')
+    url.searchParams.set('start_date', input.date)
+    url.searchParams.set('end_date', input.date)
+    const apiKey = process.env.WEATHER_API_KEY?.trim()
+    if (apiKey) url.searchParams.set('apikey', apiKey)
+    const response = await fetch(url, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(10_000) })
+    if (!response.ok) throw new ServiceError('착용일의 기온을 확인하지 못했습니다.', 'WEAR_WEATHER_UNAVAILABLE')
+    const payload = await response.json() as OpenMeteoResponse
+    const index = Array.isArray(payload.daily?.time) ? payload.daily.time.indexOf(input.date) : -1
+    const temperature = getNumberAt(payload.daily?.temperature_2m_mean, index, '착용일 평균 기온')
+    return Math.round(temperature * 10) / 10
+  },
+
   /** 지역·날짜별 만료 전 예보를 재사용하고, 만료됐으면 제공자를 다시 조회한다. */
   async getForecast(input: WeatherForecastInput) {
     validateCoordinates(input)

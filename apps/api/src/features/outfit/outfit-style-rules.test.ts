@@ -76,7 +76,10 @@ test('colorHex가 없거나 잘못되면 색상명 규칙으로 대체한다', (
     colorHex: 'invalid',
   })
 
-  assert.equal(getColorHarmonyScore(black, beige), 6)
+  assert.ok(getColorHarmonyScore(black, beige) > 3)
+  assert.ok(getColorHarmonyScore(black, beige) < getColorHarmonyScore(
+    { ...black, colorHex: '#242424' }, { ...beige, colorHex: '#C9B28F' },
+  ))
 })
 
 test('세부 중립색도 colorHex로 인식해 색상명 미인식보다 높게 평가한다', () => {

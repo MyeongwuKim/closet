@@ -17,6 +17,7 @@ export const previewCreditResolvers = {
     previewRewardSession: owned((userId, { id }: { id: string }) => previewCreditService.rewardSession(userId, id)),
   },
   Mutation: {
+    refillTestAiCredits: owned((userId) => previewCreditService.refillForTest(userId)),
     startPreviewReward: owned((userId, { kind }: { kind?: AiCreditKind }) => previewCreditService.startReward(userId, kind)),
     markPreviewRewardWatched: owned((userId, { id }: { id: string }) => previewCreditService.markWatched(userId, id)),
     completeTestPreviewReward: owned((userId, { id }: { id: string }) => previewCreditService.completeTestReward(userId, id)),

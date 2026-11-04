@@ -3,7 +3,8 @@ import { ServiceError } from '../../graphql/errors.js'
 import { imageService } from '../image/image.service.js'
 import { wardrobeRepository } from '../wardrobe/wardrobe.repository.js'
 import { hasCompleteOutfitBase } from './outfit-composition.js'
-import { outfitRepository, type OutfitFilter } from './outfit.repository.js'
+import { outfitRepository, type DetachedOutfitImage, type OutfitFilter } from './outfit.repository.js'
+import { resolveOutfitPreviewImage, type OutfitPreviewImageInput } from './outfit-preview-storage.js'
 
 export interface CreateOutfitInput {
   name: string
@@ -15,11 +16,7 @@ export interface CreateOutfitInput {
     wardrobeItemId: string
     layerOrder: number
   }>
-  previewImage?: {
-    imageBase64: string
-    mimeType: string
-    model: string
-  } | null
+  previewImage?: OutfitPreviewImageInput | null
   previewImageAssetId?: string | null
 }
 
@@ -98,7 +95,7 @@ async function addOutfitPreview(
   outfitId: string,
   previewImage: NonNullable<CreateOutfitInput['previewImage']>,
 ) {
-  await requireOutfit(userId, outfitId)
+  const outfit = await requireOutfit(userId, outfitId)
   const model = previewImage.model.trim()
   if (!model) {
     throw new ServiceError(
@@ -107,20 +104,17 @@ async function addOutfitPreview(
     )
   }
 
-  const imageAsset = await imageService.storeGeneratedImage(userId, {
-    ...previewImage,
-    model,
-  })
-  try {
-    return await outfitRepository.addGeneration(outfitId, {
-      userId,
-      imageAssetId: imageAsset.id,
-      model,
-    })
-  } catch (error) {
-    await imageService.removeGeneratedImage(userId, imageAsset)
-    throw error
-  }
+  const imageAsset = await resolveOutfitPreviewImage(userId, previewImage, outfit.items.map((item) => item.wardrobeItemId), outfit.style)
+  const result = await outfitRepository.addGeneration(outfitId, { userId, imageAssetId: imageAsset.id, model: imageAsset.model })
+  await releaseDetachedImages(userId, result.detachedAssets)
+  return result.outfit
+}
+
+/** DB 커밋 뒤 끊어진 이전 이미지만 정리한다. 삭제 재시도는 이미지 저장소에 맡기고 저장 성공을 오류로 바꾸지 않는다. */
+async function releaseDetachedImages(userId: string, assets: DetachedOutfitImage[]) {
+  const uniqueAssets = [...new Map(assets.map((asset) => [asset.id, asset])).values()]
+  const results = await Promise.allSettled(uniqueAssets.map((asset) => imageService.removeGeneratedImage(userId, asset)))
+  if (results.some((result) => result.status === 'rejected')) console.warn('[outfit] detached preview cleanup will retry')
 }
 
 export const outfitService = {
@@ -226,7 +220,6 @@ export const outfitService = {
     const storedPreview = input.previewImageAssetId
       ? await imageService.getGeneratedImage(userId, input.previewImageAssetId)
       : null
-    const shouldRetainStoredPreview = storedPreview?.retention === 'temporary'
     if (storedPreview) {
       const previewItemIds = storedPreview.metadata?.selectedItemIds
       const normalizedPreviewItemIds = Array.isArray(previewItemIds)
@@ -248,55 +241,39 @@ export const outfitService = {
     }
 
     const uploadedImageAsset = input.previewImage
-      ? await imageService.storeGeneratedImage(userId, {
-          ...input.previewImage,
-          model: model!,
-        })
+      ? await resolveOutfitPreviewImage(userId, input.previewImage, uniqueItemIds, style)
       : null
     const imageAssetId = storedPreview?.assetId ?? uploadedImageAsset?.id
-    const generationModel = storedPreview?.model ?? model
+    const generationModel = storedPreview?.model ?? uploadedImageAsset?.model
 
-    try {
-      if (storedPreview && shouldRetainStoredPreview) {
-        await imageService.retainGeneratedPreview(userId, storedPreview.assetId)
-      }
-      const savedOutfit = await outfitRepository.create({
-        userId,
-        name,
-        style,
-        seasons,
-        source: imageAssetId ? 'ai' : (input.source ?? 'manual'),
-        note: input.note?.trim() || null,
-        items: input.items.map((item, index) => ({
-          wardrobeItemId: item.wardrobeItemId,
-          slot: itemById.get(item.wardrobeItemId)!.category!,
-          layerOrder: Number.isInteger(item.layerOrder)
-            ? item.layerOrder
-            : index,
-        })),
-        generation: imageAssetId && generationModel
-          ? {
-              userId,
-              imageAssetId,
-              model: generationModel,
-            }
-          : undefined,
-      })
-      return savedOutfit
-    } catch (error) {
-      if (storedPreview && shouldRetainStoredPreview) {
-        await imageService
-          .restoreGeneratedPreviewExpiration(storedPreview.assetId)
-          .catch(() => undefined)
-      }
-      if (uploadedImageAsset) {
-        await imageService.removeGeneratedImage(userId, uploadedImageAsset)
-      }
-      throw error
-    }
+    // 저장 실패의 새 결과도 재사용할 수 있게 남기고, 미참조 24시간 정리 정책으로 처리한다.
+    const savedOutfit = await outfitRepository.create({
+      userId,
+      name,
+      style,
+      seasons,
+      source: imageAssetId ? 'ai' : (input.source ?? 'manual'),
+      note: input.note?.trim() || null,
+      items: input.items.map((item, index) => ({
+        wardrobeItemId: item.wardrobeItemId,
+        slot: itemById.get(item.wardrobeItemId)!.category!,
+        layerOrder: Number.isInteger(item.layerOrder)
+          ? item.layerOrder
+          : index,
+      })),
+      generation: imageAssetId && generationModel
+        ? {
+            userId,
+            imageAssetId,
+            model: generationModel,
+          }
+        : undefined,
+    })
+    return savedOutfit
   },
 
-  async createPlannerOnly(userId: string, input: PlannerOnlyOutfitInput) {
+  /** 날짜 저장을 위한 입력을 검증한다. 실제 코디 생성과 날짜 연결은 플래너 트랜잭션에서 함께 처리한다. */
+  async preparePlannerOutfit(userId: string, input: PlannerOnlyOutfitInput) {
     const uniqueItemIds = [...new Set(input.itemIds)]
     if (uniqueItemIds.length < 2 || uniqueItemIds.length !== input.itemIds.length) {
       throw new ServiceError(
@@ -333,10 +310,7 @@ export const outfitService = {
       )
     }
     const imageAsset = input.previewImage
-      ? await imageService.storeGeneratedImage(userId, {
-          ...input.previewImage,
-          model: model!,
-        })
+      ? await resolveOutfitPreviewImage(userId, input.previewImage, uniqueItemIds, input.style?.trim() || '직접 구성')
       : null
     const itemById = new Map(wardrobeItems.map((item) => [item.id, item]))
     const name = input.name?.trim() || '직접 고른 코디'
@@ -355,36 +329,35 @@ export const outfitService = {
       )
     }
 
-    try {
-      return await outfitRepository.create({
-        userId,
-        name,
-        style,
-        seasons: getCommonSeasons(wardrobeItems),
-        source: input.source ?? (imageAsset ? 'ai' : 'manual'),
-        plannerOnly: true,
-        items: uniqueItemIds.map((wardrobeItemId, layerOrder) => ({
-          wardrobeItemId,
-          slot: itemById.get(wardrobeItemId)!.category!,
-          layerOrder,
-        })),
-        generation: imageAsset
-          ? {
-              userId,
-              imageAssetId: imageAsset.id,
-              model: model!,
-            }
-          : undefined,
-      })
-    } catch (error) {
-      if (imageAsset) {
-        await imageService.removeGeneratedImage(userId, imageAsset)
-      }
-      throw error
-    }
+    return {
+      userId,
+      name,
+      style,
+      seasons: getCommonSeasons(wardrobeItems),
+      source: input.source ?? (imageAsset ? 'ai' : 'manual'),
+      plannerOnly: true,
+      items: uniqueItemIds.map((wardrobeItemId, layerOrder) => ({
+        wardrobeItemId,
+        slot: itemById.get(wardrobeItemId)!.category!,
+        layerOrder,
+      })),
+      generation: imageAsset
+        ? {
+            userId,
+            imageAssetId: imageAsset.id,
+            model: imageAsset.model,
+          }
+        : undefined,
+    } satisfies Parameters<typeof outfitRepository.create>[0]
   },
 
-  async promotePlannerOutfit(
+  /** 날짜에 연결하기 전의 독립 플래너 코디가 필요한 호환 호출에서만 사용한다. */
+  async createPlannerOnly(userId: string, input: PlannerOnlyOutfitInput) {
+    return outfitRepository.create(await outfitService.preparePlannerOutfit(userId, input))
+  },
+
+  /** 날짜 코디를 코디북에 별도 복사한다. 같은 조합이 있으면 날짜·기존 코디를 바꾸지 않고 반환한다. */
+  async copyPlannerOutfitToLookbook(
     userId: string,
     outfitId: string,
     previewImage?: CreateOutfitInput['previewImage'],
@@ -395,20 +368,9 @@ export const outfitService = {
       userId,
       outfit.items.map((item) => item.wardrobeItemId),
       outfit.id,
-      { style: outfit.style, source: outfit.source },
     )
-    if (duplicate) {
-      if (previewImage) {
-        await addOutfitPreview(userId, duplicate.id, previewImage)
-      }
-      await outfitRepository.mergePlannerOnlyIntoSaved(
-        outfit.id,
-        duplicate.id,
-        duplicate.name,
-      )
-      return requireOutfit(userId, duplicate.id)
-    }
-
+    // 이미 있는 코디북을 날짜의 옷·사진으로 덮거나 플래너 연결을 합치지 않는다.
+    if (duplicate) return duplicate
     const model = previewImage?.model.trim()
     if (previewImage && !model) {
       throw new ServiceError(
@@ -417,29 +379,12 @@ export const outfitService = {
       )
     }
     const imageAsset = previewImage
-      ? await imageService.storeGeneratedImage(userId, {
-          ...previewImage,
-          model: model!,
-        })
+      ? await resolveOutfitPreviewImage(userId, previewImage, outfit.items.map((item) => item.wardrobeItemId), outfit.style)
       : null
 
-    try {
-      return await outfitRepository.promotePlannerOutfit(
-        outfitId,
-        imageAsset
-          ? {
-              userId,
-              imageAssetId: imageAsset.id,
-              model: model!,
-            }
-          : undefined,
-      )
-    } catch (error) {
-      if (imageAsset) {
-        await imageService.removeGeneratedImage(userId, imageAsset)
-      }
-      throw error
-    }
+    const generation = imageAsset ? { userId, imageAssetId: imageAsset.id, model: imageAsset.model } : undefined
+    const result = await outfitRepository.copyPlannerOutfitToLookbook(outfitId, generation)
+    return result.outfit
   },
 
   async update(userId: string, outfitId: string, input: UpdateOutfitInput) {
@@ -521,68 +466,38 @@ export const outfitService = {
     }
 
     const imageAsset = input.previewImage
-      ? await imageService.storeGeneratedImage(userId, {
-          ...input.previewImage,
-          model: model!,
-        })
+      ? await resolveOutfitPreviewImage(userId, input.previewImage, uniqueItemIds, style)
       : null
     const resetGenerations = itemsChanged && !imageAsset
-    const generatedAssets = resetGenerations
-      ? currentOutfit.generations.flatMap((generation) =>
-          generation.imageAsset ? [generation.imageAsset] : [],
-        )
-      : []
     const itemById = new Map(wardrobeItems.map((item) => [item.id, item]))
-    let updatedOutfit
-    try {
-      updatedOutfit = await outfitRepository.update(outfitId, {
-        name,
-        style,
-        seasons,
-        resetGenerations,
-        items: input.items.map((item, index) => ({
-          wardrobeItemId: item.wardrobeItemId,
-          slot: itemById.get(item.wardrobeItemId)!.category!,
-          layerOrder: Number.isInteger(item.layerOrder)
-            ? item.layerOrder
-            : index,
-        })),
-        generation: imageAsset
-          ? {
-              userId,
-              imageAssetId: imageAsset.id,
-              model: model!,
-            }
-          : undefined,
-      })
-    } catch (error) {
-      if (imageAsset) {
-        await imageService.removeGeneratedImage(userId, imageAsset)
-      }
-      throw error
-    }
-
-    if (generatedAssets.length > 0) {
-      await Promise.all(
-        generatedAssets.map((asset) =>
-          imageService.removeGeneratedImage(userId, asset),
-        ),
-      )
-    }
-    return updatedOutfit
+    const result = await outfitRepository.update(outfitId, {
+      name,
+      style,
+      seasons,
+      resetGenerations,
+      items: input.items.map((item, index) => ({
+        wardrobeItemId: item.wardrobeItemId,
+        slot: itemById.get(item.wardrobeItemId)!.category!,
+        layerOrder: Number.isInteger(item.layerOrder)
+          ? item.layerOrder
+          : index,
+      })),
+      generation: imageAsset
+        ? {
+            userId,
+            imageAssetId: imageAsset.id,
+            model: imageAsset.model,
+          }
+        : undefined,
+    })
+    await releaseDetachedImages(userId, result.detachedAssets)
+    return result.outfit
   },
 
   async remove(userId: string, outfitId: string) {
-    const outfit = await requireOutfit(userId, outfitId)
-    const generatedAssets = outfit.generations.flatMap((generation) =>
-      generation.imageAsset ? [generation.imageAsset] : [],
-    )
-    const removedOutfit = await outfitRepository.remove(outfitId)
-    await Promise.all(
-      generatedAssets.map((asset) =>
-        imageService.removeGeneratedImage(userId, asset),
-      ),
-    )
-    return removedOutfit
+    await requireOutfit(userId, outfitId)
+    const result = await outfitRepository.remove(outfitId)
+    await releaseDetachedImages(userId, result.detachedAssets)
+    return result.outfit
   },
 }

@@ -1,0 +1,3 @@
+interface:
+  display_name: "closet 코디 추천 변경"
+  short_description: "코디 추천 규칙·설명·캐시·사용권의 변경 영향을 확인하고 검증"

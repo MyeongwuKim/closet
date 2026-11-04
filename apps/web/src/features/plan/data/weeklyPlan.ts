@@ -1,3 +1,5 @@
+import type { WardrobeItem, WearFeeling } from '@closet/types'
+
 export interface PlanEntry {
   date: string
   dayLabel: string
@@ -6,9 +8,17 @@ export interface PlanEntry {
   occasion: string
   weather: string
   itemIds: string[]
+  /** 날짜 코디에 연결된 옷의 표시 정보. 삭제된 옷도 현재 옷장 목록과 별개로 유지한다. */
+  outfitItems?: WardrobeItem[]
   outfitId?: string
+  /** 이 날짜에 실제 입었다고 확인한 시각. 미확인 일정과 편집 중 코디는 null 또는 undefined다. */
+  wornAt?: string | null
+  /** 착용 완료한 코디에 남긴 온도 체감. 착용 취소·코디 변경 시 함께 비운다. */
+  wearFeeling?: WearFeeling | null
   outfitStyle?: string
   plannerOnly?: boolean
+  /** 이 날짜에 저장한 이미지 번호. 같은 옷 조합의 공용 생성 결과와 독립적으로 유지한다. */
+  previewImageAssetId?: string
   previewImageUrl?: string
 }
 
@@ -73,9 +83,11 @@ function getOutfitFields(entry: PlanEntry) {
   return {
     title: entry.title,
     itemIds: entry.itemIds,
+    outfitItems: entry.outfitItems,
     outfitId: entry.outfitId,
     outfitStyle: entry.outfitStyle,
     plannerOnly: entry.plannerOnly,
+    previewImageAssetId: entry.previewImageAssetId,
     previewImageUrl: entry.previewImageUrl,
   }
 }
@@ -87,6 +99,8 @@ export function placePlanOutfitInDate(
   return {
     ...dateEntry,
     ...getOutfitFields(outfitEntry),
+    wornAt: dateEntry.outfitId === outfitEntry.outfitId ? dateEntry.wornAt : null,
+    wearFeeling: dateEntry.outfitId === outfitEntry.outfitId && dateEntry.wornAt ? dateEntry.wearFeeling : null,
   }
 }
 
@@ -148,6 +162,8 @@ export function moveWeeklyPlanOutfits(
   return entries.map((entry, index) => ({
     ...entry,
     ...movedOutfits[index],
+    wornAt: entry.outfitId === movedOutfits[index]?.outfitId ? entry.wornAt : null,
+    wearFeeling: entry.outfitId === movedOutfits[index]?.outfitId && entry.wornAt ? entry.wearFeeling : null,
   }))
 }
 

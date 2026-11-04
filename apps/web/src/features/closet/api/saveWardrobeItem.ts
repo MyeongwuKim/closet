@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { advanceOutfitRecommendationRevision } from '../../lookbook/api/outfitRecommendationCache'
 import type {
   ClothingCategory,
   ColorMode,
@@ -263,6 +264,7 @@ export function useSaveWardrobeItemMutation() {
     mutationFn: ({ candidate, input }: SaveWardrobeItemVariables) =>
       saveWardrobeItem(candidate, input),
     onSuccess: (item) => {
+      advanceOutfitRecommendationRevision(queryClient)
       queryClient.setQueryData<WardrobeItem[]>(
         queryKeys.wardrobe.list(),
         (currentItems = []) => [

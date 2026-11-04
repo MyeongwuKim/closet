@@ -4,6 +4,7 @@
  *
  * 동작 방식:
  * 브라우저 저장소에서 설정을 읽고, 누락되거나 잘못된 값은 기본값으로 정리한다.
+ * 저장하면 열린 화면에도 변경 이벤트를 보내 날씨 지역 동기화를 갱신한다.
  */
 export interface NotificationWeatherPreferences {
   locationWeather: boolean
@@ -34,4 +35,5 @@ export function saveNotificationWeatherPreferences(
   preferences: NotificationWeatherPreferences,
 ) {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences))
+  window.dispatchEvent(new Event('closet:weather-preferences-changed'))
 }

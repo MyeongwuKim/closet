@@ -4,7 +4,7 @@ import { requestAiJson } from '../../lib/ai/ai-http.js'
  * 옷장 아이템과 사용자 체형 정보를 바탕으로 착장형 룩북 이미지를 생성한다.
  *
  * 요청 흐름:
- * 아이템 참조 이미지와 분석 속성을 프롬프트로 정리해 이미지 편집 API에 전달한 뒤,
+ * 아이템 참조 이미지·분석 속성과 가능한 실측 레이어 도식을 이미지 편집 API에 전달한 뒤,
  * 저장 가능한 생성 이미지와 사용 모델 정보를 반환한다.
  */
 import type {
@@ -24,6 +24,19 @@ import {
   describeLookbookFabric,
   lookbookFabricPreservationGuide,
 } from './lookbook-fabric-guide.js'
+import {
+  describeLookbookGarmentEase,
+  describeLookbookSleeveHemRelation,
+  getLookbookBodyProportionGuide,
+  getLookbookHemTarget,
+  getLookbookLayerLengthGuide,
+} from './lookbook-proportion-guide.js'
+import {
+  buildLookbookLayerLayout,
+  renderLookbookLayerLayout,
+} from './lookbook-layer-layout.js'
+
+export { getLookbookHemTarget } from './lookbook-proportion-guide.js'
 
 const categoryLabels: Record<ClothingCategory, string> = {
   top: '상의',
@@ -65,7 +78,7 @@ const previewStyleLabels: Record<OutfitStyle, string> = {
 
 const previewStyleGuides: Record<OutfitStyle, string> = {
   minimal:
-    'Keep the silhouette clean and restrained with a clear, uncluttered waistline.',
+    'Keep the silhouette clean and restrained while preserving every measured untucked hem. Do not expose or tidy the waistline by shortening or tucking a top.',
   casual:
     'Keep the outfit relaxed and natural. Leave shirts, T-shirts, sweatshirts, and knits fully untucked.',
   street:
@@ -96,8 +109,8 @@ const ribbedTrimPreservationGuide = [
 export const lookbookGarmentLengthGuide = [
   'Treat each saved totalLengthCm as a mandatory garment proportion, not a loose styling suggestion.',
   'Interpret it from the normal measurement anchor for that garment category to its hem, and scale that length against the saved model heightCm while also following the reference image.',
-  'Do not shorten, crop, raise, roll, fold, or hide a measured hem, and do not pull the front hem higher than the back hem.',
-  'Keep every top fully untucked, including shirts, T-shirts, sweatshirts, and knits. Let the complete hem hang freely and naturally over the waistband at its measured length.',
+  'Do not shorten, crop, raise, roll, fold, or tuck a measured hem, and do not pull the front hem higher than the back hem. A closed-front outer may naturally cover an inner hem; with an open front, show that hem inside the opening at its measured depth. Never change a garment length to reveal or hide a hem.',
+  'Keep every top fully untucked, including shirts, T-shirts, sweatshirts, and knits. Let the complete hem hang freely and naturally at its measured shoulder-to-hem depth, independent of the trouser waistband. Wherever it overlaps the trousers, the top hangs in front of them and may cover the waistband, fly and buttons. Preserve genuinely cropped references without lengthening them.',
   'Never use a full tuck, half tuck, French tuck, bloused tuck, or invisible waistband tuck.',
   'Do not invent a belt or use a belt-like cinch unless a belt is included in the reference garments.',
 ].join(' ')
@@ -126,44 +139,13 @@ function describeRibbedTrims(value: unknown) {
   ].join(', ')
 }
 
-export function getLookbookHemTarget(
-  category: ClothingCategory | null,
-  totalLengthCm?: number | null,
-  modelHeightCm?: number | null,
-) {
-  if (
-    !category ||
-    !['top', 'outer', 'midlayer'].includes(category) ||
-    totalLengthCm == null ||
-    modelHeightCm == null ||
-    !Number.isFinite(totalLengthCm) ||
-    !Number.isFinite(modelHeightCm) ||
-    totalLengthCm <= 0 ||
-    modelHeightCm <= 0
-  ) {
-    return null
-  }
-
-  const lengthRatio = totalLengthCm / modelHeightCm
-  const targetLandmark = lengthRatio >= 0.4
-    ? 'the lower-hip area, approaching the upper thigh'
-    : lengthRatio >= 0.36
-      ? 'the fullest part of the hip'
-      : lengthRatio >= 0.32
-        ? 'the mid-hip area'
-        : lengthRatio >= 0.28
-          ? 'the upper-hip area below the waistband'
-          : 'the waist area, only if the reference itself is visibly cropped'
-
-  return `computedUntuckedHemTarget=${targetLandmark}; garmentLengthToModelHeight=${(lengthRatio * 100).toFixed(1)}%; do not end this garment at the waistband unless that target explicitly says waist`
-}
-
 function describeGarment(
   item: Awaited<
     ReturnType<typeof wardrobeRepository.findManyOwnedWithImagesByIds>
   >[number],
   index: number,
   modelHeightCm?: number | null,
+  body?: Parameters<typeof describeLookbookGarmentEase>[1],
 ) {
   const measurements = [
     formatMeasurement('어깨너비', item.shoulderWidthCm),
@@ -191,6 +173,8 @@ function describeGarment(
       item.totalLengthCm,
       modelHeightCm,
     ),
+    describeLookbookGarmentEase(item, body),
+    describeLookbookSleeveHemRelation(item),
     item.sizeLabel ? `표기 사이즈 ${item.sizeLabel}` : null,
     measurements.length > 0 ? measurements.join(', ') : null,
   ]
@@ -227,7 +211,7 @@ export function getLookbookGenderConstraint(
   gender?: Gender | null,
 ) {
   if (gender === 'female') {
-    return 'Use one adult woman only, with clearly adult female anatomy and an adult female skeletal frame. For an athletic or broad build, show visible training and muscle definition on a woman without changing her into a male bodybuilder. If exact measurements are missing, use balanced adult female proportions: shoulders proportional to the hips, a naturally defined waist, natural female chest and hip contours, and proportionate neck, hands, and feet. Do not render a wide rectangular male torso, a male ribcage or shoulder frame, bodybuilder bulk, oversized masculine hands, or oversized masculine feet. Never reinterpret muscularity, unisex garments, oversized clothing, or missing body measurements as a reason to substitute an adult man or a male-presenting mannequin. Preserve the referenced garments and their intended volume around this female body; do not shrink or redesign the clothes to create the body shape.'
+    return 'Use one adult woman only, with clearly adult female anatomy and an adult female skeletal frame. When the selected build is athletic, show natural visible training and muscle definition on a woman without changing her into a male bodybuilder. A broad build alone does not imply muscle definition. If exact measurements are missing, use plausible adult female proportions and proportionate neck, hands and feet. Explicit saved measurements take priority over any generic idealized shoulder, waist, chest or hip shape. Do not substitute a male ribcage or shoulder frame, bodybuilder bulk, oversized masculine hands, or oversized masculine feet. Never reinterpret muscularity, unisex garments, oversized clothing, or missing body measurements as a reason to substitute an adult man or a male-presenting mannequin. Preserve the referenced garments and their intended volume around this female body; do not shrink or redesign the clothes to create the body shape.'
   }
   if (gender === 'male') {
     return 'Use one adult man only. A slim male build or feminine-coded garment must not be used as a reason to substitute an adult woman or a female-presenting mannequin.'
@@ -326,14 +310,16 @@ function buildPrompt(
   >,
   profile: Awaited<ReturnType<typeof userRepository.findViewerById>>,
   style?: string | null,
+  layoutGuide?: string | null,
 ) {
   const garments = items
     .map((item, index) =>
-      describeGarment(item, index, profile?.styleProfile?.heightCm),
+      describeGarment(item, index, profile?.styleProfile?.heightCm, profile?.styleProfile),
     )
     .join('\n')
   const baseLayerGuide = getLookbookBaseLayerGuide(items)
   const bagGuide = getLookbookBagGuide(items)
+  const layerLengthGuide = getLookbookLayerLengthGuide(items)
   const armsGuide = bagGuide
     ? 'Keep the arms relaxed beside the torso and both hands outside every pocket. Allow one hand to hold a referenced bag handle naturally beside the thigh when its design requires hand carrying. Otherwise keep the hands relaxed and visible. Do not cover the garment front, put a hand on the waist or hip, hold a jacket, or use the bag to hide garment details.'
     : 'Both arms must hang straight and relaxed beside the torso, with both hands fully visible next to the thighs. Keep both hands completely outside every pocket and away from the garments. Do not cross or fold the arms, bend an arm across the torso, put a hand on the waist or hip, touch or hold a jacket, cover the waistline, lean, step forward, or create a dynamic pose. Arms and hands must not obscure the top, outerwear, waistband, pockets, or lower garment.'
@@ -344,7 +330,11 @@ function buildPrompt(
     ? 'Use only the referenced footwear. Do not replace it with generic sneakers or add another pair.'
     : 'No footwear was selected. Show the model barefoot, with natural bare feet visible. Do not invent shoes, sneakers, sandals or socks to complete the outfit.'
 
-  return `Create a photorealistic fashion lookbook image using every garment from the reference images exactly once.
+  return `Create a photorealistic fashion lookbook image using every garment from the first ${items.length} reference images exactly once.
+
+Critical measured-layer composition, taking priority over generic styling conventions:
+${layerLengthGuide ?? 'Keep each garment at its own reference length. Do not infer real lengths by comparing independently scaled product photos.'}
+${layoutGuide ?? ''}
 
 Reference garment order, observed fabric attributes, ribbed trim signals and optional silhouette measurements:
 ${garments}
@@ -358,6 +348,8 @@ Model gender constraint: ${getLookbookGenderConstraint(profile?.styleProfile?.ge
 Model hair guide: ${getLookbookHairGuide(profile?.styleProfile?.gender)}
 
 Model body guide: ${describeBody(profile)}. The gender constraint is mandatory and takes priority over body-build shorthand, garment styling cues, and any missing body measurements.
+
+Body proportion preservation: ${getLookbookBodyProportionGuide(profile?.styleProfile)}
 
 Preferred styling fit: ${describePreferredFit(profile)}. Use this preference only when the reference images and garment measurements leave the fit ambiguous. Garment measurements and visible garment proportions always take priority. Do not resize or redesign a garment to force the preferred fit.
 
@@ -375,7 +367,9 @@ Preserve each referenced garment's visible color, material, pattern, length, pro
 
 Show the model in a three-quarter front view like a clean apparel catalog photo. Keep the model centered, then rotate the torso, hips, knees, feet, neck, and implied gaze together about 20 to 30 degrees away from straight-on toward the left edge of the final image from the viewer's perspective (image-left). Keep this same image-left orientation in every generation. Never turn or mirror the pose toward image-right, and never alternate the pose direction. Do not use a full side profile. Keep the torso upright, shoulders level, legs uncrossed, and both feet flat with a small natural gap. Use a neutral standing-at-attention pose, not an editorial fashion pose. ${armsGuide}
 
-Frame the complete outfit from the neck to the feet, keeping the model's face entirely outside the image. Use a warm off-white studio background, soft natural light, realistic fabric folds, and a clean Korean fashion lookbook composition. ${extraGarmentRule} Do not add text, captions, logos, duplicate items, shopping UI, borders, or a collage. Do not infer or reproduce a real person's identity or face.`
+Frame the complete outfit from the neck to the feet, keeping the model's face entirely outside the image. Use a warm off-white studio background, soft natural light, realistic fabric folds, and a clean Korean fashion lookbook composition. ${extraGarmentRule} Do not add text, captions, logos, duplicate items, shopping UI, borders, or a collage. Do not infer or reproduce a real person's identity or face.
+
+Final hem check: leave the immediately visible inner layer's complete hem free and untucked at its measured depth inside an open coat. Respect natural coverage by other selected layers. No part of its front or sides may disappear into the trouser waistband. Do not lift the hem to reveal a trouser button or fly. Clothes may naturally cover the waistband; the restriction against obscuring the outfit applies to hands, hair and props, not to a correctly layered inner garment. Preserve the measured relative hem depths before rendering the final photo.`
 }
 
 async function downloadReferenceImage(url: string, index: number) {
@@ -452,7 +446,12 @@ export const outfitPreviewService = {
         downloadReferenceImage(item.displayImageAsset!.deliveryUrl!, index),
       ),
     )
-    const prompt = buildPrompt(items, profile, style)
+    // 공통 어깨선의 실측 도식을 사진 뒤에 추가한다. 인체 치수나 허리 위치를 새로 추정하지 않는다.
+    const layout = buildLookbookLayerLayout(items)
+    const layoutImage = layout ? await renderLookbookLayerLayout(layout) : null
+    const prompt = buildPrompt(items, profile, style, layout
+      ? `Supplementary image ${items.length + 1} is a measured layer layout, not another garment reference. ${layout.guide}`
+      : null)
 
     const createForm = () => {
       const form = new FormData()
@@ -468,6 +467,9 @@ export const outfitPreviewService = {
           `garment-${index + 1}.${reference.mimeType.split('/')[1]}`,
         )
       })
+      if (layoutImage) {
+        form.append('image[]', new Blob([layoutImage.bytes], { type: layoutImage.mimeType }), 'measured-layer-layout.png')
+      }
       return form
     }
 

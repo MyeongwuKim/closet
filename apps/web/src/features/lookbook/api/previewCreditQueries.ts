@@ -6,15 +6,33 @@ import { getNativeAppInfo, isNativeWebViewRuntime } from '../../../native-bridge
 import { useMeQuery } from '../../settings/api/profileQueries'
 
 export const previewCreditKeys = { all: ['preview-credits'] as const, balance: (userId: string, kind: AiCreditKind = 'preview') => ['preview-credits', userId, kind] as const }
-const creditFields = 'freeRemaining rewardRemaining totalRemaining adRewardsRemaining rewardMode resetsAt pendingRewardSessionId capacity nextRefillAt serverNow'
+const creditFields = 'freeRemaining rewardRemaining totalRemaining adRewardsRemaining rewardMode resetsAt pendingRewardSessionId capacity nextRefillAt serverNow testRefillAvailable'
 const sessionFields = 'id mode adUnitId status watchedAt validUntil'
 
-/** kind에 해당하는 오늘의 무료·광고 잔액을 읽는다. 기본값 preview는 이미지 생성권이고 recommendation은 추천권이다. 조회로 횟수를 차감하지 않는다. */
+/** 공통 AI 사용권 잔액·다음 충전 시각·테스트 충전 허용 여부를 읽는다. 조회로 횟수를 차감하지 않는다. */
 export async function getPreviewCredits(kind: AiCreditKind = 'preview') {
   return (await graphqlRequest<{ previewCredits: PreviewCredits }>(`query PreviewCredits($kind: AiCreditKind!) { previewCredits(kind: $kind) { ${creditFields} } }`, { kind })).previewCredits
 }
 
-/** 서버의 한국 시간 초기화 시각에 맞춰 잔액을 다시 읽고, 앱이 전면으로 돌아올 때 광고 지급 결과도 갱신한다. */
+/** 개발용 충전 결과를 같은 계정의 이미지·추천 잔액에 함께 반영한다. 충전만 수행하며 AI 요청을 시작하지 않는다. */
+export function useRefillTestAiCreditsMutation() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      const ownerId = client.getQueryData<{ id: string }>(queryKeys.me)?.id
+      if (!ownerId) throw new Error('로그인한 뒤 테스트 충전을 사용해 주세요.')
+      const data = await graphqlRequest<{ refillTestAiCredits: PreviewCredits }>(`mutation RefillTestAiCredits { refillTestAiCredits { ${creditFields} } }`)
+      await client.cancelQueries({ queryKey: [...previewCreditKeys.all, ownerId] })
+      if (client.getQueryData<{ id: string }>(queryKeys.me)?.id !== ownerId) throw new Error('계정이 바뀌었어요. 현재 계정의 사용권을 다시 확인해 주세요.')
+      return { ownerId, credits: data.refillTestAiCredits }
+    },
+    onSuccess: ({ ownerId, credits }) => {
+      for (const kind of ['preview', 'recommendation'] as const) client.setQueryData(previewCreditKeys.balance(ownerId, kind), credits)
+    },
+  })
+}
+
+/** 다음 충전 시각에 맞춰 잔액을 다시 읽고, 앱이 전면으로 돌아올 때 지급 결과도 갱신한다. */
 export function usePreviewCreditsQuery(enabled = true, kind: AiCreditKind = 'preview') {
   const me = useMeQuery()
   return useQuery({ queryKey: previewCreditKeys.balance(me.data?.id ?? '', kind), enabled: enabled && Boolean(me.data?.id), retry: 1,

@@ -43,8 +43,10 @@ interface UiState {
   recentWearConfirmationOwnerId: string | null
   recentWearConfirmationResolver: ((confirmed: boolean) => void) | null
   enqueueClassification: (candidate: ClassificationCandidate) => void
-  completeClassification: () => void
-  cancelClassification: () => void
+  /** 저장을 마친 사진만 대기열에서 제거한다. 이미 닫힌 사진의 늦은 응답은 다른 후보에 영향을 주지 않는다. */
+  completeClassification: (itemId: string) => void
+  /** 지정한 등록 후보의 임시 이미지를 해제하고 대기열에서 제거한다. */
+  cancelClassification: (itemId: string) => void
   disposeClassificationImages: () => void
   pushToast: (message: string, variant?: Toast['variant']) => void
   dismissToast: (id: string) => void
@@ -66,12 +68,12 @@ export const useUiStore = create<UiState>((set, get) => ({
     set((state) => ({
       classificationQueue: [...state.classificationQueue, candidate],
     })),
-  completeClassification: () =>
+  completeClassification: (itemId) =>
     set((state) => ({
-      classificationQueue: state.classificationQueue.slice(1),
+      classificationQueue: state.classificationQueue.filter((candidate) => candidate.itemId !== itemId),
     })),
-  cancelClassification: () => {
-    const candidate = get().classificationQueue[0]
+  cancelClassification: (itemId) => {
+    const candidate = get().classificationQueue.find((entry) => entry.itemId === itemId)
     if (candidate?.imageUrl.startsWith('blob:')) {
       URL.revokeObjectURL(candidate.imageUrl)
     }
@@ -80,7 +82,7 @@ export const useUiStore = create<UiState>((set, get) => ({
     }
 
     set((state) => ({
-      classificationQueue: state.classificationQueue.slice(1),
+      classificationQueue: state.classificationQueue.filter((entry) => entry.itemId !== itemId),
     }))
   },
   disposeClassificationImages: () => {

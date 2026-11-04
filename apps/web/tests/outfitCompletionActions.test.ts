@@ -79,12 +79,12 @@ test('중복 코디에서 새로 만든 미리보기는 추가 대신 닫기만 
 
 
 test('이미지 생성권이 없으면 만들기 전에 광고 동작을 표시한다', () => {
-  assert.match(renderActions(false, null, 0), /광고 보고 사용권 얻기/)
+  assert.match(renderActions(false, null, 0), /광고 보고 충전/)
 })
 
 test('이미지 생성권이 0회여도 저장된 AI 룩은 광고 없이 열 수 있다', () => {
   const markup = renderActions(true, duplicateMessage, 0)
   assert.match(markup, /AI 룩 보기/)
-  assert.doesNotMatch(markup, /광고 보고 사용권 얻기/)
+  assert.doesNotMatch(markup, /광고 보고 충전/)
   assert.doesNotMatch(markup, / disabled=""/)
 })

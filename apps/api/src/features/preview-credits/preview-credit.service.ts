@@ -1,7 +1,7 @@
 import type { AiCreditKind } from '@closet/types'
 import type { PreviewRewardSession } from '@prisma/client'
 import { ServiceError } from '../../graphql/errors.js'
-import { getPreviewRewardConfig } from './preview-credit-policy.js'
+import { canRefillTestAiCredits, getPreviewRewardConfig } from './preview-credit-policy.js'
 import { previewCreditRepository } from './preview-credit.repository.js'
 
 /** 계정 ID·보관 기한은 숨기고 광고 표시에 필요한 서버 발급 번호와 상태만 전달한다. */
@@ -13,6 +13,12 @@ export function toRewardSession(session: PreviewRewardSession) {
 /** 광고 세션의 소유권과 로컬 테스트 허용 여부를 확인하고 생성권 저장소에 위임한다. */
 export const previewCreditService = {
   balance: previewCreditRepository.balance,
+  /** 개발 중 로그인 계정의 공통 지갑을 최대치로 채운다. 운영에서는 DB 접근 전에 거절한다. */
+  async refillForTest(userId: string) {
+    if (!canRefillTestAiCredits()) throw new ServiceError('테스트 충전은 개발 서버에서만 사용할 수 있어요.', 'TEST_CREDIT_REFILL_DISABLED')
+    await previewCreditRepository.refillForTest(userId)
+    return previewCreditRepository.balance(userId)
+  },
   async startReward(userId: string, kind: AiCreditKind = 'preview') { return toRewardSession(await previewCreditRepository.startReward(userId, kind)) },
   async rewardSession(userId: string, id: string) { return toRewardSession(await previewCreditRepository.rewardSession(userId, id)) },
   async markWatched(userId: string, id: string) { return toRewardSession(await previewCreditRepository.markWatched(userId, id)) },

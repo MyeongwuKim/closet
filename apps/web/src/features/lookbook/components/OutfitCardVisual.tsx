@@ -1,6 +1,8 @@
 import type { WardrobeItem } from '@closet/types'
 import type { LookbookViewMode, SavedOutfit } from '../types'
 import { OutfitItemsBox } from './OutfitItemsBox'
+import { getSavedOutfitItems } from '../utils/savedOutfitItems'
+import { ArchivedWardrobeItemBadge } from '../../closet/components/ArchivedWardrobeItemBadge'
 
 interface OutfitCardVisualProps {
   outfit: SavedOutfit
@@ -10,16 +12,18 @@ interface OutfitCardVisualProps {
   viewMode?: LookbookViewMode
 }
 
-/** 보기 옵션이 ai이고 생성 이미지가 있으면 AI 룩을 표시한다. 나머지 경우에는 조회된 옷을 레이어 순서로 정리해 콜라주로 표시한다. 원본 레이어 배열은 변경하지 않는다. */
+/** AI 표지 또는 저장된 옷 관계의 콜라주를 표시한다. 옷장에서 삭제한 구성도 사진과 삭제 안내를 유지한다. */
 export function OutfitCardVisual({
   outfit,
   items,
   className = '',
   viewMode = 'ai',
 }: OutfitCardVisualProps) {
+  const outfitItems = getSavedOutfitItems(outfit, items)
+  const hasArchivedItems = outfitItems.some((item) => item.archivedAt)
   if (viewMode === 'ai' && outfit.previewImageUrl) {
     return (
-      <div className={`overflow-hidden bg-canvas ${className}`}>
+      <div className={`relative overflow-hidden bg-canvas ${className}`}>
         <img
           src={outfit.previewImageUrl}
           loading="lazy"
@@ -27,18 +31,11 @@ export function OutfitCardVisual({
           alt={`${outfit.name} AI 룩북 이미지`}
           className="size-full object-contain"
         />
+        {hasArchivedItems && <ArchivedWardrobeItemBadge label="삭제된 옷 포함" className="absolute top-2 left-2" />}
       </div>
     )
   }
 
-  const outfitItems = [...outfit.layers]
-    .sort((left, right) => left.order - right.order)
-    .flatMap((layer) => {
-      const item = items.find(
-        (candidate) => candidate.id === layer.wardrobeItemId,
-      )
-      return item ? [item] : []
-    })
   return (
     <OutfitItemsBox outfitName={outfit.name} items={outfitItems} className={className} />
   )

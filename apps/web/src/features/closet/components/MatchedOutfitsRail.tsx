@@ -4,6 +4,7 @@ import { ClothingCategoryIcon } from '../../../components/ClothingCategoryIcon'
 import { getOutfitStyleLabel } from '../../../constants/styleOptions'
 import { OutfitItemsPreview } from '../../lookbook/components/OutfitItemsPreview'
 import type { SavedOutfit } from '../../lookbook/types'
+import { getSavedOutfitItems } from '../../lookbook/utils/savedOutfitItems'
 
 interface MatchedOutfitsRailProps {
   items: WardrobeItem[]
@@ -59,8 +60,9 @@ export function MatchedOutfitsRail({
               key={outfit.id}
             >
               <OutfitItemsPreview
-                items={items}
+                items={getSavedOutfitItems(outfit, items)}
                 layers={outfit.layers}
+                showArchivedStatus
                 className="aspect-[4/3] w-full"
               />
               <span className="block px-1 pt-2 pb-1">

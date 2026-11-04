@@ -78,4 +78,57 @@ test.describe('옷장', () => {
     await expect(page.getByRole('button', { name: '테스트 셔츠 옷 상세 보기' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: '남길 바지 옷 상세 보기' })).toBeVisible()
   })
+
+  test('코디로 선택한 옷을 삭제하면 선택도 비우고 같은 종류의 다른 옷을 고를 수 있다', async ({ page, mockApi }) => {
+    mockApi.wardrobeItems = [
+      createWardrobeItem({ name: '삭제할 셔츠' }),
+      createWardrobeItem({ id: 'item-2', name: '남겨둘 셔츠' }),
+    ]
+    await page.goto('/closet')
+    await page.getByRole('button', { name: '삭제할 셔츠 코디로 선택' }).click()
+    await expect(page.getByRole('button', { name: '선택한 옷 모두 해제' })).toBeVisible()
+    await page.getByRole('button', { name: '삭제할 셔츠 옷 상세 보기' }).click()
+    await page.getByRole('button', { name: '옷장에서 삭제', exact: true }).click()
+    await page.getByRole('alertdialog', { name: '옷장에서 삭제할까요?' }).getByRole('button', { name: '옷장에서 삭제' }).click()
+    await expect(page).toHaveURL('/closet')
+    await expect(page.getByRole('button', { name: '선택한 옷 모두 해제' })).toHaveCount(0)
+    await page.getByRole('button', { name: '남겨둘 셔츠 코디로 선택' }).click()
+    await expect(page.getByRole('button', { name: '남겨둘 셔츠 선택 해제' })).toBeVisible()
+    await expect(page.getByText('상의는 한 개만 선택할 수 있어요.', { exact: true })).toHaveCount(0)
+  })
+
+  test('캐시 없는 상세 조회 실패는 화면을 유지하며 다시 시도할 수 있다', async ({ page, mockApi }) => {
+    mockApi.wardrobeItems = []
+    mockApi.outfits = []
+    let shouldFail = true
+    await page.route('**/graphql', async (route) => {
+      if (route.request().postDataJSON().query.includes('query WardrobeItem(') && shouldFail) {
+        await route.fulfill({ json: { errors: [{ message: '테스트 상세 조회 오류' }] } })
+      } else await route.fallback()
+    })
+    await page.goto('/closet/retry-shirt')
+    const errorDialog = page.getByRole('dialog', { name: '옷 상세 조회 오류' })
+    await expect(errorDialog.getByRole('heading', { name: '옷을 불러오지 못했어요' })).toBeVisible()
+    await expect(page).toHaveURL('/closet/retry-shirt')
+    shouldFail = false
+    mockApi.wardrobeItems = [createWardrobeItem({ id: 'retry-shirt', name: '다시 불러온 셔츠' })]
+    await errorDialog.getByRole('button', { name: '다시 시도', exact: true }).click()
+    await expect(page.getByRole('dialog', { name: '다시 불러온 셔츠 상세' })).toBeVisible()
+  })
+
+  test('삭제되거나 접근할 수 없는 상세는 일시 오류와 구분해 돌아갈 수 있다', async ({ page, mockApi }) => {
+    mockApi.wardrobeItems = []
+    mockApi.outfits = []
+    await page.route('**/graphql', async (route) => {
+      if (route.request().postDataJSON().query.includes('query WardrobeItem(')) {
+        await route.fulfill({ json: { errors: [{ message: '옷장 아이템을 찾을 수 없습니다.', extensions: { code: 'WARDROBE_ITEM_NOT_FOUND' } }] } })
+      } else await route.fallback()
+    })
+    await page.goto('/closet/missing-shirt')
+    const dialog = page.getByRole('dialog', { name: '옷 상세 조회 오류' })
+    await expect(dialog.getByRole('heading', { name: '옷을 찾을 수 없어요' })).toBeVisible()
+    await expect(dialog.getByRole('button', { name: '다시 시도', exact: true })).toHaveCount(0)
+    await dialog.getByRole('button', { name: '내 옷장으로 돌아가기' }).click()
+    await expect(page).toHaveURL('/closet')
+  })
 })

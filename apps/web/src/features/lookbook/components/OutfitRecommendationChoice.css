@@ -224,6 +224,111 @@
   }
 }
 
+@media (max-width: 767px) {
+  .outfit-recommendation-choice__body {
+    container: recommendation-choice-body / size;
+    padding: 10px 14px;
+  }
+
+  .outfit-recommendation-choice__cards {
+    min-height: 0;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .outfit-recommendation-choice__card {
+    gap: 4px;
+    border-radius: 14px;
+    padding: 8px 12px;
+  }
+
+  .outfit-recommendation-choice__card-index {
+    font-size: 8px;
+    line-height: 12px;
+  }
+
+  .outfit-recommendation-choice__card-main {
+    align-items: center;
+  }
+
+  .outfit-recommendation-choice__card-copy {
+    gap: 3px;
+  }
+
+  .outfit-recommendation-choice__card-copy strong {
+    font-size: 18px;
+  }
+
+  .outfit-recommendation-choice__wardrobe-art,
+  .outfit-recommendation-choice__palette-art {
+    width: 64px;
+    height: 44px;
+  }
+
+  .outfit-recommendation-choice__garment {
+    width: 34px;
+    height: 40px;
+    border-radius: 6px;
+  }
+
+  .outfit-recommendation-choice__garment svg {
+    width: 28px;
+    height: 28px;
+  }
+
+  .outfit-recommendation-choice__garment--back {
+    top: 1px;
+    left: 4px;
+  }
+
+  .outfit-recommendation-choice__garment--front {
+    top: 4px;
+    left: 22px;
+  }
+
+  .outfit-recommendation-choice__swatch {
+    width: 32px;
+    height: 32px;
+    border-width: 2px;
+  }
+
+  .outfit-recommendation-choice__swatch--one {
+    top: 10px;
+    left: 0;
+  }
+
+  .outfit-recommendation-choice__swatch--two {
+    top: 0;
+    left: 16px;
+  }
+
+  .outfit-recommendation-choice__swatch--three {
+    top: 10px;
+    left: 32px;
+  }
+}
+
+@container recommendation-choice-body (max-height: 180px) {
+  .outfit-recommendation-choice__cards {
+    min-height: 108px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .outfit-recommendation-choice__card-copy {
+    max-width: 100%;
+  }
+
+  .outfit-recommendation-choice__card-copy strong {
+    font-size: 16px;
+  }
+
+  .outfit-recommendation-choice__wardrobe-art,
+  .outfit-recommendation-choice__palette-art {
+    display: none;
+  }
+}
+
 @media (min-width: 768px) {
   .outfit-recommendation-choice__card-copy strong {
     font-size: 22px;

@@ -6,6 +6,9 @@ import type {
   Season,
 } from '@prisma/client'
 import { prisma } from '../../lib/prisma.js'
+import { confirmedWearWhere } from '../planner/planner-wear.js'
+import { aiTransaction } from '../../lib/ai/ai-storage.js'
+import { lockWardrobeImagesForReference } from './wardrobe-image-lifecycle.js'
 
 export const wardrobeItemInclude = {
   displayImageAsset: true,
@@ -105,9 +108,11 @@ export const wardrobeRepository = {
     })
   },
 
+  /** 오늘까지의 일정 중 사용자가 실제 착용을 확인한 기록만 읽는다. 배정만 된 일정은 포함하지 않는다. */
   findWearHistory(userId: string, throughDate: Date, itemIds?: string[]) {
     return prisma.plannerEntry.findMany({
       where: {
+        ...confirmedWearWhere,
         date: { lte: throughDate },
         outfitId: { not: null },
         plannerWeek: { is: { userId } },
@@ -115,6 +120,7 @@ export const wardrobeRepository = {
       },
       select: {
         date: true,
+        wornAt: true,
         outfit: {
           select: {
             items: { select: { wardrobeItemId: true } },
@@ -168,10 +174,14 @@ export const wardrobeRepository = {
     })
   },
 
+  /** 같은 사진을 다른 옷에 연결할 때도 삭제 claim과 직렬화해 정리 중인 사진의 재사용을 거절한다. */
   create(data: CreateWardrobeItemData) {
-    return prisma.wardrobeItem.create({
-      data: { ...data, archivedAt: null },
-      include: wardrobeItemInclude,
+    return aiTransaction(async (tx) => {
+      await lockWardrobeImagesForReference(tx, data.userId, [data.displayImageAssetId, ...(data.originalImageAssetId ? [data.originalImageAssetId] : [])])
+      return tx.wardrobeItem.create({
+        data: { ...data, archivedAt: null },
+        include: wardrobeItemInclude,
+      })
     })
   },
 

@@ -180,13 +180,16 @@ function validateGarmentMeasurements(
 
 interface WardrobeWearHistoryRecord {
   date: Date
+  wornAt?: Date | null
   outfit: { items: Array<{ wardrobeItemId: string }> } | null
 }
 
+/** 실제 착용을 확인한 일정만 옷별로 집계하며 같은 옷·날짜의 중복 기록은 한 번으로 계산한다. */
 export function getWardrobeWearStats(records: WardrobeWearHistoryRecord[]) {
   const datesByItemId = new Map<string, Map<number, Date>>()
 
   for (const record of records) {
+    if (!record.wornAt || !Number.isFinite(record.wornAt.getTime())) continue
     for (const item of record.outfit?.items ?? []) {
       const dates = datesByItemId.get(item.wardrobeItemId) ?? new Map()
       dates.set(record.date.getTime(), record.date)
@@ -415,7 +418,7 @@ export const wardrobeService = {
 
   /**
    * 새 옷을 저장하기 전에 이름·치수와 사용자 소유 이미지의 업로드 완료 여부를 확인한다.
-   * 표시 자산은 wardrobeCutout PNG여야 하며, 조건을 만족하면 저장소에 아이템을 생성한다.
+   * 표시 자산은 wardrobeCutout PNG, 원본은 wardrobeOriginal이어야 하며, 생성 룩북 자산을 옷 사진으로 연결하지 않는다.
    */
   async create(userId: string, input: CreateWardrobeItemInput) {
     const name = input.name.trim()
@@ -447,6 +450,9 @@ export const wardrobeService = {
         '배경이 제거된 PNG 사진으로 다시 등록해 주세요.',
         'WARDROBE_CUTOUT_REQUIRED',
       )
+    }
+    if (input.originalImageAssetId && assets.find((asset) => asset.id === input.originalImageAssetId)?.kind !== 'wardrobeOriginal') {
+      throw new ServiceError('옷 원본 사진으로 업로드한 이미지만 연결할 수 있습니다.', 'INVALID_IMAGE_KIND')
     }
 
     return wardrobeRepository.create({

@@ -3,6 +3,11 @@ import { aiInputKey } from '../../lib/ai/ai-execution.js'
 
 export const TEST_REWARDED_AD_UNIT = 'ca-app-pub-3940256099942544/1712485313'
 
+/** 개발 서버에서만 광고 없이 사용권을 채우는 테스트 기능을 허용한다. */
+export function canRefillTestAiCredits() {
+  return process.env.NODE_ENV !== 'production'
+}
+
 /** 추천 결과 캐시·이전 예약 반환에 쓰는 한국 시간 날짜 키를 계산한다. 공통 지갑의 시간 충전은 이 날짜와 무관하다. */
 export function getPreviewCreditDay(userId: string, now = new Date(), kind: AiCreditKind = 'preview') {
   const kst = now.getTime() + 9 * 60 * 60_000

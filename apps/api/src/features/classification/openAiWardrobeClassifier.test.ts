@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test, { type TestContext } from 'node:test'
 import type { FashionItemAttributes } from '@closet/types'
 import { ServiceError } from '../../graphql/errors.js'
+import { RawImage } from '@huggingface/transformers'
 import { classifyWardrobeImageWithOpenAi } from './openAiWardrobeClassifier.js'
 
 const fashionAttributes: FashionItemAttributes = {
@@ -49,7 +50,7 @@ function mockOpenAiResponse(t: TestContext, output: unknown) {
   })
 }
 
-function mockClassification(t: TestContext, attributes: unknown) {
+function mockClassification(t: TestContext, attributes: unknown, overrides: Record<string, unknown> = {}) {
   return mockOpenAiResponse(t, {
     imageKind: 'fashion_item',
     classificationKey: 'top:knit',
@@ -57,12 +58,82 @@ function mockClassification(t: TestContext, attributes: unknown) {
     colorDetailName: '그레이',
     colorHex: '#777777',
     colorMode: 'solid',
+    colorSamplePatchIds: [],
     suggestedName: '그레이 니트',
     fashionAttributes: attributes,
     confidence: 0.9,
     alternatives: [],
+    ...overrides,
   })
 }
+
+test('최종 분류 결과의 검정 HEX와 RGB에 사진 픽셀 보정을 함께 반영한다', async (t) => {
+  mockOpenAiResponse(t, {
+    imageKind: 'fashion_item', classificationKey: 'top:knit', colorName: '블랙',
+    colorDetailName: '블랙', colorHex: '#111111', colorMode: 'solid', suggestedName: '블랙 니트',
+    colorSamplePatchIds: [],
+    fashionAttributes, confidence: 0.9, alternatives: [],
+  })
+  const image = await RawImage.fromBlob(new Blob(['<svg xmlns="http://www.w3.org/2000/svg" width="160" height="200"><rect width="160" height="200" fill="white"/><rect x="35" y="40" width="90" height="130" fill="#2D2C32"/></svg>'], { type: 'image/svg+xml' }))
+  const result = await classifyWardrobeImageWithOpenAi(await image.toSharp().png().toBuffer(), 'image/png')
+  assert.equal(result.colorHex, '#2D2C32')
+  assert.deepEqual(result.colorRgb, [45, 44, 50])
+})
+
+test('실제 픽셀 표본을 전달하고 교정된 색 계열·상세명·이름·HEX·RGB를 함께 반환한다', async (t) => {
+  const request = mockClassification(t, fashionAttributes, {
+    colorName: '네이비', colorDetailName: '딥 네이비', colorHex: '#0F2740', suggestedName: '딥 네이비 니트',
+    colorSamplePatchIds: ['r2c2', 'r4c4', 'r6c3'],
+  })
+  const image = await RawImage.fromBlob(new Blob(['<svg xmlns="http://www.w3.org/2000/svg" width="200" height="240"><rect width="200" height="240" fill="white"/><rect x="40" y="40" width="120" height="170" fill="#193138"/></svg>'], { type: 'image/svg+xml' }))
+  const result = await classifyWardrobeImageWithOpenAi(await image.toSharp().png().toBuffer(), 'image/png')
+  assert.equal(result.colorName, '블루')
+  assert.equal(result.colorDetailName, '짙은 블루')
+  assert.equal(result.suggestedName, '짙은 블루 니트')
+  assert.equal(result.colorHex, '#0F3540')
+  assert.deepEqual(result.colorRgb, [15, 53, 64])
+  const body = JSON.parse(String(request.mock.calls[0].arguments[1]?.body))
+  assert.ok(body.text.format.schema.required.includes('colorSamplePatchIds'))
+  assert.equal(body.text.format.schema.properties.colorSamplePatchIds.items.pattern, '^r[0-7]c[0-7]$')
+  const prompt = JSON.parse(body.input[1].content[0].text)
+  assert.equal(prompt.colorReferencePatches.find((patch: { id: string }) => patch.id === 'r2c2').colorHex, '#193138')
+  assert.match(body.input[0].content, /서로 떨어진 원단 세 곳/)
+})
+
+test('흰 패턴 바탕의 크림 추정을 보완해도 패턴 구분을 유지하고 색 이름·HEX·RGB를 함께 반영한다', async (t) => {
+  const request = mockClassification(t, { ...fashionAttributes, pattern: 'stripe' }, {
+    colorName: '크림', colorDetailName: '라이트 크림', colorHex: '#F2E6DC', colorMode: 'patterned',
+    suggestedName: '크림 스트라이프 니트', colorSamplePatchIds: ['r2c2', 'r4c4', 'r6c3'],
+  })
+  const stripes = [66, 106, 86].map((x) => `<rect x="${x}" y="40" width="4" height="170" fill="#293A42"/>`).join('')
+  const image = await RawImage.fromBlob(new Blob([`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="240"><rect width="200" height="240" fill="#AB8C72"/><rect x="40" y="40" width="120" height="170" fill="#D9DEE5"/>${stripes}</svg>`], { type: 'image/svg+xml' }))
+  const result = await classifyWardrobeImageWithOpenAi(await image.toSharp().png().toBuffer(), 'image/png')
+  assert.equal(result.colorName, '화이트')
+  assert.equal(result.colorHex, '#F2F2F2')
+  assert.deepEqual(result.colorRgb, [242, 242, 242])
+  assert.equal(result.colorMode, 'patterned')
+  assert.equal(result.fashionAttributes?.pattern, 'stripe')
+  assert.equal(result.suggestedName, '화이트 바탕 니트')
+  const body = JSON.parse(String(request.mock.calls[0].arguments[1]?.body))
+  assert.match(body.input[0].content, /patterned이면 가장 넓은 같은 바탕색/)
+  assert.equal(body.input[1].content.filter((part: { type: string }) => part.type === 'input_image').length, 2)
+  assert.match(body.input[0].content, /초록 사각형이 원단을 가리키는지 확인/)
+})
+
+test('잘못된 표본 ID는 거절하고 사용할 수 없는 표본은 원래 분석으로 처리한다', async (t) => {
+  for (const value of [undefined, 'invalid', [2], ['r8c0']]) {
+    await t.test(`invalid regions: ${JSON.stringify(value)}`, async (t) => {
+      mockClassification(t, fashionAttributes, { colorSamplePatchIds: value })
+      await assert.rejects(classifyWardrobeImageWithOpenAi(Buffer.from('unused'), 'image/png'), /output is invalid/)
+    })
+  }
+  mockClassification(t, fashionAttributes, {
+    colorName: '네이비', colorDetailName: '네이비', colorHex: '#0F2740',
+    colorSamplePatchIds: ['r2c2', 'r4c4', 'r6c3'],
+  })
+  const result = await classifyWardrobeImageWithOpenAi(Buffer.from('unused'), 'image/png')
+  assert.equal(result.colorHex, '#0F2740')
+})
 
 test('사람 착용 사진은 최종 이미지 분류 결과에서 차단한다', async (t) => {
   mockOpenAiResponse(t, {
@@ -72,6 +143,7 @@ test('사람 착용 사진은 최종 이미지 분류 결과에서 차단한다'
     colorDetailName: null,
     colorHex: null,
     colorMode: null,
+    colorSamplePatchIds: null,
     suggestedName: null,
     fashionAttributes: null,
     confidence: null,

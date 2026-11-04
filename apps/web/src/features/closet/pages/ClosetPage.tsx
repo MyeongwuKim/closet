@@ -27,6 +27,7 @@ import { ClosetItemCard } from '../components/ClosetItemCard'
 import { ClosetMultiSelectBar } from '../components/ClosetMultiSelectBar'
 import { ClosetPageHeader } from '../components/ClosetPageHeader'
 import { ClosetSearchFilter } from '../components/ClosetSearchFilter'
+import { WardrobeRediscoverySection } from '../components/WardrobeRediscoverySection'
 import { WardrobeImageDropDialog } from '../components/WardrobeImageDropDialog'
 import {
   WardrobeImageSourceDialog,
@@ -38,7 +39,7 @@ import { useClosetFilterTransition } from '../hooks/useClosetFilterTransition'
 import { normalizeWardrobeBrand } from '../utils/wardrobeBrands'
 import { createOutfitComposerPath } from '../../lookbook/utils/outfitComposerNavigation'
 
-/** 옷장 메뉴 → 옷 목록. 상단 필터는 유지하고 목록만 스크롤하며, 종류 전환에서는 새 조건의 조회가 끝난 뒤 목록을 들여온다. 옷 선택·상세 열기와 사진 추가를 연결한다. */
+/** 옷장 메뉴 → 옷 목록. 필터 없는 목록 앞에 잊고 있던 옷을 표시하고 기준 옷 코디 추천으로 연결한다. 상단 필터를 유지한 채 목록만 스크롤하며 옷 선택·상세 열기·사진 추가를 제공한다. */
 export function ClosetPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -67,6 +68,14 @@ export function ClosetPage() {
     onError: (message) => pushToast(message, 'error'),
   })
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  // 목록 필터와 무관한 Store의 삭제·초기화에만 선택을 맞춰, 보관 삭제한 옷이 슬롯을 차지하지 않게 한다.
+  useEffect(() => useClosetStore.subscribe((state) => {
+    const remainingIds = new Set(state.items.map((item) => item.id))
+    setSelectedIds((currentIds) => {
+      const nextIds = currentIds.filter((id) => remainingIds.has(id))
+      return nextIds.length === currentIds.length ? currentIds : nextIds
+    })
+  }), [])
   const [isSearchOpen, setIsSearchOpen] = useState(() =>
     Boolean(searchParams.get('q')?.trim()),
   )
@@ -346,6 +355,10 @@ export function ClosetPage() {
         )}
 
         <CatalogScrollRegion label="옷장 목록" resetKey={searchParams.toString()}>
+          {totalCount > 0 && <WardrobeRediscoverySection
+            visible={!activeCategory && !activeSeason && !selectedColor && !selectedTag && !activeBrand && !unbrandedOnly && !searchQuery.trim() && selectedIds.length === 0}
+            onOpenItem={handleItemClick}
+          />}
           <WardrobeCabinet
             key={activeSeason ?? 'all'}
             label={activeSeason ? `${seasonLabels[activeSeason]}에 입는 옷` : '전체 옷장'}

@@ -1,13 +1,14 @@
 /**
  * 용도:
- * 플래너 조회와 편집 규칙을 검증하고 최근 착용 알림에 필요한 충돌을 계산한다.
+ * 플래너 조회·편집, 실제 착용 확인·취소와 체감 기록을 검증하고 최근 착용 알림에 필요한 충돌을 계산한다.
  *
  * 동작 방식:
- * 날짜와 사용자 소유 코디를 확인한 뒤 저장소 작업을 조합하며,
+ * 날짜와 사용자 소유 코디를 확인하고 날짜마다 독립된 코디 복사본을 저장하며,
+ * 오늘 이후 배정에는 허용된 마지막 날씨 지역을 연결해 날짜가 지난 뒤 기온을 기록할 수 있게 한다.
  * 최근 착용 검사는 설정된 기간 안의 기록만 조회해 우선순위가 가장 높은 결과를 반환한다.
  */
 
-import type { OutfitStyle } from '@prisma/client'
+import type { OutfitStyle, WearFeeling } from '@prisma/client'
 import { ServiceError } from '../../graphql/errors.js'
 import { parseDateOnly, toDateOnly } from '../../lib/date.js'
 import { outfitRepository } from '../outfit/outfit.repository.js'
@@ -18,6 +19,7 @@ import {
 import { plannerRepository } from './planner.repository.js'
 import { getKoreaTodayUtc } from '../wardrobe/wardrobe.service.js'
 import { findRecentWearConflict } from './recent-wear-conflict.js'
+import { wearWeatherRepository } from './wear-weather.repository.js'
 
 export interface SetPlannerEntryInput {
   weekStartsOn: string
@@ -27,6 +29,23 @@ export interface SetPlannerEntryInput {
   occasion?: string | null
   weatherSummary?: string | null
   temperatureC?: number | null
+}
+
+/** 착용 버튼을 눌렀을 때 본 코디 ID를 포함해, 다른 탭에서 교체한 코디가 잘못 확인되지 않게 한다. */
+export interface SetPlannerEntryWornInput {
+  weekStartsOn: string
+  date: string
+  outfitId: string
+  worn: boolean
+}
+
+/** 체감을 고를 때 보고 있던 착용 확인 시각을 함께 보내, 취소·재확인한 새 기록을 이전 화면이 수정하지 않게 한다. */
+export interface SetPlannerEntryWearFeelingInput {
+  weekStartsOn: string
+  date: string
+  outfitId: string
+  wornAt: string
+  feeling: WearFeeling | null
 }
 
 export interface SetDirectPlannerEntryInput {
@@ -121,6 +140,55 @@ function parseWeekAndDate(weekStartsOnValue: string, dateValue: string) {
 }
 
 export const plannerService = {
+  /** 확인된 내 코디에만 추위·적정·더위 체감을 저장하거나 비운다. 미래·미확인·교체·재확인한 기록은 거절한다. */
+  async setEntryWearFeeling(userId: string, input: SetPlannerEntryWearFeelingInput) {
+    const { weekStartsOn, date } = parseWeekAndDate(input.weekStartsOn, input.date)
+    if (!objectIdPattern.test(input.outfitId)) {
+      throw new ServiceError('올바르지 않은 코디입니다.', 'INVALID_OUTFIT_ID')
+    }
+    const wornAt = new Date(input.wornAt)
+    if (typeof input.wornAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(input.wornAt)
+      || Number.isNaN(wornAt.getTime()) || wornAt.toISOString() !== input.wornAt) {
+      throw new ServiceError('올바른 착용 확인 시각이 필요합니다.', 'INVALID_WEAR_CONFIRMATION')
+    }
+    if (input.feeling !== null && !['cold', 'comfortable', 'hot'].includes(input.feeling)) {
+      throw new ServiceError('체감은 추웠어요·적당했어요·더웠어요 중에서 선택해주세요.', 'INVALID_WEAR_FEELING')
+    }
+    if (date > getKoreaTodayUtc()) {
+      throw new ServiceError('미래 코디에는 체감을 기록할 수 없습니다.', 'FUTURE_PLANNER_WEAR')
+    }
+    const week = await plannerRepository.findWeek(userId, weekStartsOn)
+    const entry = week?.entries.find((candidate) => candidate.date.getTime() === date.getTime())
+    if (!week || !entry?.outfitId || !entry.outfit || entry.outfit.userId !== userId || entry.outfitId !== input.outfitId
+      || !entry.wornAt || entry.wornAt.getTime() !== wornAt.getTime()) {
+      throw new ServiceError('착용 완료한 현재 코디를 다시 확인해주세요.', 'PLANNER_WEAR_CHANGED')
+    }
+    const updatedWeek = await plannerRepository.setEntryWearFeeling(week.id, date, input.outfitId, wornAt, input.feeling)
+    if (!updatedWeek) {
+      throw new ServiceError('착용 기록이 변경됐습니다. 다시 확인해주세요.', 'PLANNER_WEAR_CHANGED')
+    }
+    return updatedWeek
+  },
+  /** 오늘 또는 지난 날짜의 내 배정을 실제 착용으로 확인하거나 취소한다. 배정 없는 날짜와 교체된 코디는 거절한다. */
+  async setEntryWorn(userId: string, input: SetPlannerEntryWornInput) {
+    const { weekStartsOn, date } = parseWeekAndDate(input.weekStartsOn, input.date)
+    if (!objectIdPattern.test(input.outfitId)) {
+      throw new ServiceError('올바르지 않은 코디입니다.', 'INVALID_OUTFIT_ID')
+    }
+    if (input.worn && date > getKoreaTodayUtc()) {
+      throw new ServiceError('미래의 코디는 아직 착용 완료로 표시할 수 없습니다.', 'FUTURE_PLANNER_WEAR')
+    }
+    const week = await plannerRepository.findWeek(userId, weekStartsOn)
+    const entry = week?.entries.find((candidate) => candidate.date.getTime() === date.getTime())
+    if (!week || !entry?.outfitId || !entry.outfit || entry.outfit.userId !== userId || entry.outfitId !== input.outfitId) {
+      throw new ServiceError('현재 날짜에 배정된 코디를 다시 확인해주세요.', 'PLANNER_OUTFIT_CHANGED')
+    }
+    const updatedWeek = await plannerRepository.setEntryWorn(week.id, date, input.outfitId, input.worn, new Date())
+    if (!updatedWeek) {
+      throw new ServiceError('코디가 변경됐습니다. 다시 확인해주세요.', 'PLANNER_OUTFIT_CHANGED')
+    }
+    return updatedWeek
+  },
   getWeek(userId: string, weekStartsOnValue: string) {
     return plannerRepository.findWeek(
       userId,
@@ -217,6 +285,7 @@ export const plannerService = {
     const week =
       currentWeek ?? (await plannerRepository.upsertWeek(userId, weekStartsOn))
     const updatedWeek = await plannerRepository.setEntry({
+      ...(date >= getKoreaTodayUtc() ? await wearWeatherRepository.getLocation(userId) : null),
       plannerWeekId: week.id,
       date,
       outfitId: outfit.id,
@@ -225,7 +294,7 @@ export const plannerService = {
       weatherSummary: input.weatherSummary?.trim() || null,
       temperatureC: input.temperatureC,
     })
-    if (previousOutfit?.plannerOnly && previousOutfit.id !== outfit.id) {
+    if (previousOutfit?.plannerOnly && previousOutfit.id !== updatedWeek?.entries.find((entry) => entry.date.getTime() === date.getTime())?.outfitId) {
       await outfitService
         .remove(userId, previousOutfit.id)
         .catch(() => undefined)
@@ -242,55 +311,26 @@ export const plannerService = {
     const previousOutfit = currentWeek?.entries.find(
       (entry) => entry.date.getTime() === date.getTime(),
     )?.outfit
-    const uniqueItemIds = [...new Set(input.itemIds)]
-    const duplicate =
-      uniqueItemIds.length >= 2 && uniqueItemIds.length === input.itemIds.length
-        ? await outfitService.findSavedDuplicate(
-            userId,
-            uniqueItemIds,
-            undefined,
-            input.recommendationStyle
-              ? { style: input.recommendationStyle, source: 'ai' }
-              : undefined,
-          )
-        : undefined
-    const createdPlannerOnly = !duplicate
-    const outfit = duplicate
-      ? input.previewImage
-        ? await outfitService.addPreview(
-            userId,
-            duplicate.id,
-            input.previewImage,
-          )
-        : duplicate
-      : await outfitService.createPlannerOnly(userId, {
-          itemIds: input.itemIds,
-          previewImage: input.previewImage,
-          name: input.recommendationName,
-          style: input.recommendationStyle,
-          source: input.recommendationStyle ? 'ai' : undefined,
-        })
+    const outfit = await outfitService.preparePlannerOutfit(userId, {
+      itemIds: input.itemIds,
+      previewImage: input.previewImage,
+      name: input.recommendationName ?? previousOutfit?.name,
+      style: input.recommendationStyle ?? previousOutfit?.style,
+      source: input.previewImage || input.recommendationStyle ? 'ai' : previousOutfit?.source,
+    })
     const week =
       currentWeek ?? (await plannerRepository.upsertWeek(userId, weekStartsOn))
 
-    let updatedWeek
-    try {
-      updatedWeek = await plannerRepository.setEntry({
-        plannerWeekId: week.id,
-        date,
-        outfitId: outfit.id,
-        title: outfit.name,
-        weatherSummary: input.weatherSummary?.trim() || null,
-        temperatureC: input.temperatureC,
-      })
-    } catch (error) {
-      if (createdPlannerOnly) {
-        await outfitService.remove(userId, outfit.id).catch(() => undefined)
-      }
-      throw error
-    }
-
-    if (previousOutfit?.plannerOnly && previousOutfit.id !== outfit.id) {
+    const updatedWeek = await plannerRepository.setEntry({
+      ...(date >= getKoreaTodayUtc() ? await wearWeatherRepository.getLocation(userId) : null),
+      plannerWeekId: week.id,
+      date,
+      outfitData: outfit,
+      title: outfit.name,
+      weatherSummary: input.weatherSummary?.trim() || null,
+      temperatureC: input.temperatureC,
+    })
+    if (previousOutfit?.plannerOnly && previousOutfit.id !== updatedWeek?.entries.find((entry) => entry.date.getTime() === date.getTime())?.outfitId) {
       await outfitService
         .remove(userId, previousOutfit.id)
         .catch(() => undefined)
@@ -303,7 +343,7 @@ export const plannerService = {
     outfitId: string,
     previewImage?: CreateOutfitInput['previewImage'],
   ) {
-    return outfitService.promotePlannerOutfit(userId, outfitId, previewImage)
+    return outfitService.copyPlannerOutfitToLookbook(userId, outfitId, previewImage)
   },
 
   async moveEntry(userId: string, input: MovePlannerEntryInput) {
@@ -359,6 +399,10 @@ export const plannerService = {
       source.dayOffset - affectedStart,
       target.dayOffset - affectedStart,
     )
+    const today = getKoreaTodayUtc()
+    const weatherLocation = affectedDates.some((date) => date >= today)
+      ? await wearWeatherRepository.getLocation(userId)
+      : null
 
     return plannerRepository.moveEntryOutfits({
       plannerWeekId: week.id,
@@ -366,6 +410,11 @@ export const plannerService = {
         date,
         outfitId: movedSnapshots[index]?.outfitId ?? null,
         title: movedSnapshots[index]?.title ?? null,
+        // 오늘 이후 날짜는 새 배정과 같이 현재 허용된 지역을 연결한다. 과거 날짜의 지역은 소급해서 바꾸지 않는다.
+        ...(date >= today ? {
+          weatherLatitude: weatherLocation?.weatherLatitude ?? null,
+          weatherLongitude: weatherLocation?.weatherLongitude ?? null,
+        } : {}),
       })),
     })
   },

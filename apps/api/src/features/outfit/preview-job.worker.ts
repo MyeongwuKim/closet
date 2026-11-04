@@ -13,7 +13,7 @@ function notifyReady(job: AiPreviewJob, imageAssetId: string) {
 }
 
 /**
- * 끊긴 작업에서 이미 저장된 이미지를 먼저 찾는다. API 전송 전 작업만 대기열로 되돌린다.
+ * 끊긴 작업에서 저장된 이미지를 먼저 찾아 영구 보관한다. API 전송 전 작업만 대기열로 되돌린다.
  * 전송 기록이 있고 결과를 찾을 수 없으면 interrupted로 남겨 자동 재생성에 따른 재과금을 막는다.
  */
 export async function recoverPreviewJobs() {
@@ -22,7 +22,8 @@ export async function recoverPreviewJobs() {
     if (image) {
       const metadata = image.metadata as { model?: unknown } | null
       if (typeof metadata?.model === 'string') {
-        const completed = await previewJobRepository.complete(job, image.id, metadata.model, true, image.expiresAt ?? undefined)
+        await imageService.retainGeneratedPreview(job.userId, image.id)
+        const completed = await previewJobRepository.complete(job, image.id, metadata.model, true)
         if (completed.count === 1) notifyReady(job, image.id)
         continue
       }
@@ -53,12 +54,12 @@ export async function processPreviewJob(job: AiPreviewJob & { leaseToken: string
         },
       })
       const asset = await imageService.storeGeneratedImage(job.userId, {
-        ...preview, temporary: true, jobId: job.id,
+        ...preview, jobId: job.id,
         metadata: { purpose: 'outfitPreview', selectedItemIds: job.selectedItemIds, ...(job.style ? { style: job.style } : {}) },
       })
-      return { assetId: asset.id, model: preview.model, expiresAt: asset.expiresAt?.toISOString() ?? null }
+      return { assetId: asset.id, model: preview.model }
     })
-    const saved = await previewJobRepository.complete(job, image.assetId, image.model, false, image.expiresAt ? new Date(image.expiresAt) : undefined)
+    const saved = await previewJobRepository.complete(job, image.assetId, image.model)
     if (saved.count === 1) notifyReady(job, image.assetId)
   } catch (error) {
     if (error instanceof ServiceError && error.code === 'AI_BUSY') {
