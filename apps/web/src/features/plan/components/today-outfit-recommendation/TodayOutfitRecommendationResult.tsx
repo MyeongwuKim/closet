@@ -19,7 +19,9 @@ import { formatRecommendationHeadline } from '../../utils/todayOutfitRecommendat
 import { TodayOutfitRecommendationDialog } from '../TodayOutfitRecommendationDialog'
 import { TodayOutfitRecommendationLoading } from '../TodayOutfitRecommendationLoading'
 import { RecommendationExplanationDialog } from './RecommendationExplanationDialog'
+import { RecommendationLookbookSave } from './RecommendationLookbookSave'
 import { WeatherSnapshotSummary } from '../../../weather/components/WeatherSnapshotSummary'
+import { recommendationDayLabels, type RecommendationMode } from './recommendationFlow'
 
 interface TodayOutfitRecommendationResultProps {
   viewerId: string
@@ -28,8 +30,11 @@ interface TodayOutfitRecommendationResultProps {
   colorScheme: ColorScheme
   baseItemId?: string
   weather?: WeatherSnapshot | null
-  hasTodayOutfit: boolean
+  hasScheduledOutfit: boolean
+  mode: RecommendationMode
   onOpenCloset: () => void
+  onOpenLookbook?: () => void
+  onApplied?: () => void
 }
 
 function RecommendationRefreshLoading({
@@ -89,7 +94,7 @@ function RecommendationRefreshLoading({
   )
 }
 
-/** 선택한 계절·색감·기준 옷의 추천 조합을 조회해 썸네일과 설명을 나란히 표시한다. 색감 조건을 적용하지 못한 결과에는 안내를 보여준다. 재추천·일정 적용은 아래에 유지하고 구성 수정과 긴 설명은 별도 팝업으로 연다. */
+/** 계절·색감·기준 옷에 맞춘 조합과 설명을 표시한다. 재추천·일정 적용·코디북 저장을 제공하고 구성 편집과 긴 설명은 별도 팝업으로 연다. */
 export function TodayOutfitRecommendationResult({
   viewerId,
   date,
@@ -97,9 +102,13 @@ export function TodayOutfitRecommendationResult({
   colorScheme,
   baseItemId,
   weather,
-  hasTodayOutfit,
+  hasScheduledOutfit,
+  mode,
   onOpenCloset,
+  onOpenLookbook,
+  onApplied,
 }: TodayOutfitRecommendationResultProps) {
+  const dayLabel = recommendationDayLabels[mode]
   const closetItems = useClosetStore((state) => state.items)
   const [activeOverlay, setActiveOverlay] = useState<
     'explanation' | 'detail-result' | 'detail-explanation' | null
@@ -123,11 +132,13 @@ export function TodayOutfitRecommendationResult({
     colorScheme,
     baseItemId,
     weather,
-    hasTodayOutfit,
+    hasScheduledOutfit,
+    mode,
+    onApplied,
   })
 
   if (recommendationQuery.isLoading) {
-    return <TodayOutfitRecommendationLoading />
+    return <TodayOutfitRecommendationLoading dayLabel={dayLabel} />
   }
 
   if (recommendationQuery.isError || !recommendation) {
@@ -136,7 +147,7 @@ export function TodayOutfitRecommendationResult({
         <p className="text-sm font-black">
           {baseItemId
             ? '이 옷에 맞는 코디를 불러오지 못했어요'
-            : '오늘의 코디를 불러오지 못했어요'}
+            : `${dayLabel}의 코디를 불러오지 못했어요`}
         </p>
         <PreviewCreditSummary kind="recommendation" />
         <p className="mt-2 text-xs leading-5 text-muted" role="alert">
@@ -167,7 +178,7 @@ export function TodayOutfitRecommendationResult({
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-black tracking-[0.08em] text-accent">
-              오늘의 추천
+              {dayLabel}의 추천
             </p>
             <h2 className="mt-1 text-base font-black">
               {formatRecommendationHeadline(recommendation.headline)}
@@ -290,7 +301,7 @@ export function TodayOutfitRecommendationResult({
 
         <div className="shrink-0 pb-2"><PreviewCreditSummary kind="recommendation" /></div>
         <div
-          className="ai-recommendation-chat-enter grid shrink-0 grid-cols-[0.85fr_1.15fr] gap-2 border-t border-line/70 pt-3"
+          className="ai-recommendation-chat-enter grid shrink-0 grid-cols-2 gap-2 border-t border-line/70 pt-3"
           style={{ animationDelay: '360ms' }}
         >
           <AiCreditActionButton
@@ -308,17 +319,26 @@ export function TodayOutfitRecommendationResult({
           </AiCreditActionButton>
           <button
             type="button"
-            onClick={() => void actions.applyTodayOutfit()}
+            onClick={() => void actions.applyRecommendation()}
             disabled={recommendationQuery.isFetching || isSaving}
-            className="flex items-center justify-center gap-1.5 rounded-xl bg-accent px-3 py-3 text-xs font-bold text-white disabled:opacity-50"
+            className={`flex items-center justify-center gap-1.5 rounded-xl px-3 py-3 text-xs font-bold disabled:opacity-50 ${mode === 'tomorrow' ? 'bg-accent text-white' : 'border border-line bg-surface'}`}
           >
             {isSaving ? (
               <LoaderCircle className="animate-spin" size={16} />
             ) : (
               <CalendarPlus size={16} />
             )}
-            {hasTodayOutfit ? '오늘 코디 바꾸기' : '오늘 일정에 담기'}
+            {hasScheduledOutfit ? `${dayLabel} 코디 바꾸기` : `${dayLabel} 일정에 담기`}
           </button>
+          <RecommendationLookbookSave
+            date={date}
+            name={formatRecommendationHeadline(recommendation.headline)}
+            season={season}
+            items={recommendation.items}
+            disabled={recommendationQuery.isFetching || isSaving}
+            onOpenLookbook={onOpenLookbook}
+            secondary={mode === 'tomorrow'}
+          />
         </div>
       </section>
 
@@ -335,7 +355,9 @@ export function TodayOutfitRecommendationResult({
           items={wardrobeQuery.data ?? closetItems}
           initialItems={recommendation.items}
           style={null}
-          hasTodayOutfit={hasTodayOutfit}
+          season={season}
+          hasScheduledOutfit={hasScheduledOutfit}
+          mode={mode}
           isSaving={isSaving}
           onClose={() =>
             setActiveOverlay(
@@ -343,7 +365,8 @@ export function TodayOutfitRecommendationResult({
             )
           }
           onApplied={() => setActiveOverlay(null)}
-          onApply={actions.applyTodayOutfit}
+          onApply={actions.applyRecommendation}
+          onOpenLookbook={onOpenLookbook}
         />
       )}
 
@@ -357,6 +380,7 @@ export function TodayOutfitRecommendationResult({
           colorScheme={colorScheme}
           colorSchemeApplied={recommendation.colorSchemeApplied}
           items={recommendation.items}
+          dayLabel={dayLabel}
           onClose={() => setActiveOverlay(null)}
           onOpenDetails={() => setActiveOverlay('detail-explanation')}
         />

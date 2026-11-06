@@ -136,7 +136,7 @@ export const plannerResolvers = {
     ) => {
       try {
         const viewer = await context.getViewer()
-        return plannerService.setEntry(viewer.id, input)
+        return await plannerService.setEntry(viewer.id, input)
       } catch (error) {
         throw toGraphQLError(error, '플래너를 저장하지 못했습니다.', 'PLANNER_UPDATE_FAILED')
       }
@@ -148,7 +148,7 @@ export const plannerResolvers = {
     ) => {
       try {
         const viewer = await context.getViewer()
-        return plannerService.setDirectEntry(viewer.id, input)
+        return await plannerService.setDirectEntry(viewer.id, input)
       } catch (error) {
         throw toGraphQLError(
           error,
@@ -164,7 +164,7 @@ export const plannerResolvers = {
     ) => {
       try {
         const viewer = await context.getViewer()
-        return plannerService.moveEntry(viewer.id, input)
+        return await plannerService.moveEntry(viewer.id, input)
       } catch (error) {
         throw toGraphQLError(
           error,
@@ -206,7 +206,7 @@ export const plannerResolvers = {
     ) => {
       try {
         const viewer = await context.getViewer()
-        return plannerService.clearEntry(viewer.id, weekStartsOn, date)
+        return await plannerService.clearEntry(viewer.id, weekStartsOn, date)
       } catch (error) {
         throw toGraphQLError(error, '플래너를 비우지 못했습니다.', 'PLANNER_UPDATE_FAILED')
       }

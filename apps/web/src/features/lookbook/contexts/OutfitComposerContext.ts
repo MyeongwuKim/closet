@@ -52,7 +52,7 @@ export type OutfitComposerAction =
   | { type: 'OPEN_SAVE' }
   | { type: 'OPEN_PREVIEW' }
   | { type: 'REOPEN_PREVIEW' }
-  /** 스타일을 처음 지정할 때 이미 만든 AI 이미지의 조합 키만 바꾸고 이미지 데이터는 유지한다. */
+  /** 저장할 스타일을 정할 때 완성한 AI 이미지의 조합 키만 바꾸고 이미지 데이터는 유지한다. */
   | {
       type: 'REKEY_PREVIEW'
       previousCompositionKey: string

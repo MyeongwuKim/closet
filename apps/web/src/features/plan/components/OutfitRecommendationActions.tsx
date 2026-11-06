@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { History, Sparkles } from 'lucide-react'
-import { formatDateOnly } from '../data/weeklyPlan'
+import { useKoreaPlannerToday } from '../hooks/useKoreaPlannerToday'
 import { RecommendationHistoryDialog } from './today-outfit-recommendation/RecommendationHistoryDialog'
 import { TodayOutfitRecommendationPopover } from './today-outfit-recommendation/TodayOutfitRecommendationPopover'
 
@@ -12,7 +12,7 @@ interface OutfitRecommendationActionsProps {
 export function OutfitRecommendationActions({ placement = 'floating' }: OutfitRecommendationActionsProps) {
   const [isRecommendationOpen, setIsRecommendationOpen] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
-  const date = formatDateOnly(new Date())
+  const date = useKoreaPlannerToday()
   const inHeader = placement === 'header'
 
   return (
@@ -50,12 +50,14 @@ export function OutfitRecommendationActions({ placement = 'floating' }: OutfitRe
 
       {isRecommendationOpen && (
         <TodayOutfitRecommendationPopover
+          key={date}
           date={date}
           onClose={() => setIsRecommendationOpen(false)}
         />
       )}
       {isHistoryOpen && (
         <RecommendationHistoryDialog
+          key={date}
           date={date}
           scope="all"
           onClose={() => setIsHistoryOpen(false)}

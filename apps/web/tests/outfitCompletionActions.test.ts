@@ -3,10 +3,12 @@ import test from 'node:test'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createElement, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { MemoryRouter } from 'react-router-dom'
 import { OutfitCompletionActions } from '../src/features/lookbook/components/OutfitCompletionActions'
 import { OutfitPreviewDialogView } from '../src/features/lookbook/components/OutfitPreviewDialog'
 
 const duplicateMessage = "같은 옷 조합이 이미 '출근 코디' 코디로 저장되어 있어요."
+const existingOutfitPath = '/lookbook?outfit=outfit-1'
 const noop = () => undefined
 
 function renderWithCredits(content: ReactNode, remaining = 1) {
@@ -18,38 +20,45 @@ function renderWithCredits(content: ReactNode, remaining = 1) {
 
 function renderActions(hasAvailableLookbook: boolean, message: string | null, remaining = 1) {
   return renderWithCredits(
-    createElement(OutfitCompletionActions, {
-      completionMessage: null,
-      isEmpty: false,
-      duplicateMessage: message,
-      hasAvailableLookbook,
-      onOpenLookbook: noop,
-      onComplete: noop,
-    }),
+    createElement(MemoryRouter, null,
+      createElement(OutfitCompletionActions, {
+        completionMessage: null,
+        isEmpty: false,
+        duplicateMessage: message,
+        existingOutfitPath: message ? existingOutfitPath : undefined,
+        hasAvailableLookbook,
+        onOpenLookbook: noop,
+        onComplete: noop,
+      }),
+    ),
     remaining,
   )
 }
 
-test('저장된 중복 코디는 안내와 AI 룩 보기만 노출한다', () => {
+test('이미지가 있는 중복 코디는 AI 룩과 기존 코디를 열 수 있다', () => {
   const markup = renderActions(true, duplicateMessage)
 
   assert.match(markup, /출근 코디/)
   assert.match(markup, /AI 룩 보기/)
-  assert.doesNotMatch(markup, /Look 확인하기/)
+  assert.match(markup, /기존 코디 열기/)
+  assert.ok(markup.includes(`href="${existingOutfitPath}"`))
+  assert.doesNotMatch(markup, /AI 착장 이미지 만들기|코디 저장하기/)
 })
 
-test('AI 이미지가 없는 중복 코디도 미리보기는 허용한다', () => {
+test('이미지가 없는 중복 코디는 AI 이미지를 만들거나 기존 코디를 열 수 있다', () => {
   const markup = renderActions(false, duplicateMessage)
 
-  assert.match(markup, /AI 룩 만들기/)
-  assert.doesNotMatch(markup, /Look 확인하기/)
+  assert.match(markup, /AI 착장 이미지 만들기/)
+  assert.match(markup, /기존 코디 열기/)
+  assert.doesNotMatch(markup, /코디 저장하기/)
 })
 
-test('새 코디는 AI 미리보기와 완성 동작을 함께 노출한다', () => {
+test('새 코디는 AI 이미지 생성과 일반 저장을 각각 표시한다', () => {
   const markup = renderActions(false, null)
 
-  assert.match(markup, /AI 룩 만들기/)
-  assert.match(markup, /Look 확인하기/)
+  assert.match(markup, /AI 착장 이미지 만들기/)
+  assert.match(markup, /코디 저장하기/)
+  assert.doesNotMatch(markup, /기존 코디 열기/)
 })
 
 test('중복 코디에서 새로 만든 미리보기는 추가 대신 닫기만 노출한다', () => {

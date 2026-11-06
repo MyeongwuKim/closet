@@ -63,6 +63,16 @@ const clearedWearData = {
   wearWeatherRetryAt: null,
 } as const
 
+/** 착용을 취소하기 전에는 기존 기록의 코디나 날짜를 바꿀 수 없다. */
+function assertPlannerWearEditable(wornAt: Date | null | undefined) {
+  if (wornAt) {
+    throw new ServiceError(
+      '착용 완료한 날짜예요. 코디를 바꾸려면 먼저 착용 기록을 취소해 주세요.',
+      'PLANNER_WEAR_CONFIRMED',
+    )
+  }
+}
+
 /** 옷 사진은 전용 잠금, 생성 사진은 자산 잠금을 정리 배치와 공유해 일정 이동 중 파일이 삭제되지 않게 한다. */
 async function lockPlannerOutfitImages(transaction: Prisma.TransactionClient, plannerWeekId: string, outfitIds: string[]) {
   const uniqueIds = [...new Set(outfitIds)]
@@ -188,7 +198,7 @@ export const plannerRepository = {
     })
   },
 
-  /** 원본과 별도인 날짜 코디를 생성·연결한다. 같은 옷의 사진·이름 변경은 착용 기록을 유지한다. */
+  /** 날짜 코디를 복사해 연결한다. 착용 완료 후에는 같은 옷 구성의 사진·이름 등만 변경할 수 있다. */
   async setEntry(data: SetPlannerEntryData) {
     return aiTransaction(async (transaction) => {
       const week = await transaction.plannerWeek.findUnique({ where: { id: data.plannerWeekId }, select: { userId: true } })
@@ -203,6 +213,7 @@ export const plannerRepository = {
       if (snapshotData.userId !== week.userId) throw new ServiceError('내 코디만 플래너에 저장할 수 있습니다.', 'OUTFIT_NOT_FOUND')
       const previousData = previous?.outfit ? outfitSnapshotData(previous.outfit) : null
       const sameItems = Boolean(previousData && sameWornItems(previousData, snapshotData))
+      if (!sameItems) assertPlannerWearEditable(previous?.wornAt)
       if (data.outfitData && sameItems && !snapshotData.generation) snapshotData.generation = previousData?.generation
       // 원본 수정·삭제와 날짜 복사가 겹치면 같은 코디 행에 대한 충돌 재시도로 최신 상태를 다시 읽는다.
       if (source) await transaction.outfit.update({ where: { id: source.id }, data: { updatedAt: new Date() } })
@@ -273,26 +284,35 @@ export const plannerRepository = {
     })
   },
 
+  /** 비우기 전에 착용 여부를 확인한다. 동시에 확인한 기록은 쓰기 충돌을 재시도할 때 다시 읽는다. */
   async clearEntry(plannerWeekId: string, date: Date) {
-    await prisma.plannerEntry.updateMany({
-      where: { plannerWeekId, date },
-      data: { outfitId: null, title: null, ...clearedWearData },
-    })
+    return aiTransaction(async (transaction) => {
+      const entry = await transaction.plannerEntry.findUnique({
+        where: { plannerWeekId_date: { plannerWeekId, date } },
+        select: { wornAt: true },
+      })
+      assertPlannerWearEditable(entry?.wornAt)
+      await transaction.plannerEntry.updateMany({
+        where: { plannerWeekId, date },
+        data: { outfitId: null, title: null, ...clearedWearData },
+      })
 
-    return prisma.plannerWeek.findUnique({
-      where: { id: plannerWeekId },
-      include: plannerWeekInclude,
+      return transaction.plannerWeek.findUnique({
+        where: { id: plannerWeekId },
+        include: plannerWeekInclude,
+      })
     })
   },
 
-  /** 날짜별 코디를 이동하고 바뀐 배정의 착용을 초기화한다. 전달된 지역은 갱신하고 새 과거 날짜에는 지역을 추정하지 않는다. */
+  /** 중간 날짜를 포함한 이동 범위의 착용 완료 여부를 저장 시점에 검사한 뒤 미확정 코디를 옮긴다. */
   async moveEntryOutfits(data: MovePlannerEntryData) {
     return aiTransaction(async (transaction) => {
-      await lockPlannerOutfitImages(transaction, data.plannerWeekId, data.entries.flatMap((entry) => entry.outfitId ? [entry.outfitId] : []))
       const previousEntries = await transaction.plannerEntry.findMany({
         where: { plannerWeekId: data.plannerWeekId, date: { in: data.entries.map((entry) => entry.date) } },
-        select: { date: true, outfitId: true },
+        select: { date: true, outfitId: true, wornAt: true },
       })
+      assertPlannerWearEditable(previousEntries.find((entry) => entry.wornAt)?.wornAt)
+      await lockPlannerOutfitImages(transaction, data.plannerWeekId, data.entries.flatMap((entry) => entry.outfitId ? [entry.outfitId] : []))
       await Promise.all(data.entries.map((entry) => {
         const previous = previousEntries.find((candidate) => candidate.date.getTime() === entry.date.getTime())
         return transaction.plannerEntry.upsert({

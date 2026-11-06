@@ -14,6 +14,8 @@ export interface StyleProfile {
   chestCircumferenceCm: string
   waistCircumferenceCm: string
   hipCircumferenceCm: string
+  /** 몸의 허벅지를 한 바퀴 잰 둘레(cm). 미입력은 빈 문자열이다. */
+  thighCircumferenceCm: string
   shoulderWidthCm: string
   inseamCm: string
   preferredFit: PreferredFit
@@ -34,6 +36,7 @@ export const useStyleProfileStore = create<StyleProfileState>((set) => ({
     chestCircumferenceCm: '',
     waistCircumferenceCm: '',
     hipCircumferenceCm: '',
+    thighCircumferenceCm: '',
     shoulderWidthCm: '',
     inseamCm: '',
     preferredFit: 'regular',

@@ -80,7 +80,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     mockApi.plannerEntries = [plannerEntry(true)]
     const state = await installPreviewJobs(page, mockApi)
     await page.goto(`/plan/${date}`)
-    await page.getByRole('button', { name: 'AI 룩북 만들기', exact: true }).click()
+    await page.getByRole('button', { name: 'AI 착장 이미지 만들기', exact: true }).click()
     const progress = page.getByRole('dialog', { name: 'AI가 룩북을 만들고 있어요', exact: true })
     await expect(progress).toBeVisible()
     await expect(progress).toHaveAttribute('aria-busy', 'true')
@@ -102,7 +102,7 @@ test('진행 팝업을 닫고 다시 열거나 완료 이미지를 다시 봐도
   mockApi.plannerEntries = [plannerEntry()]
   const state = await installPreviewJobs(page, mockApi)
   await page.goto(`/plan/${date}`)
-  await page.getByRole('button', { name: 'AI 룩북 만들기', exact: true }).click()
+  await page.getByRole('button', { name: 'AI 착장 이미지 만들기', exact: true }).click()
   await expect(page.getByRole('dialog', { name: 'AI가 룩북을 만들고 있어요', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'AI 룩 미리보기 닫기', exact: true }).click()
   await expect(page.getByRole('dialog', { name: 'AI가 룩북을 만들고 있어요', exact: true })).toHaveCount(0)
@@ -123,7 +123,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     mockApi.plannerEntries = [plannerEntry(true)]
     const state = await installPreviewJobs(page, mockApi)
     await page.goto(`/plan/${date}`)
-    await page.getByRole('button', { name: 'AI 룩북 만들기', exact: true }).click()
+    await page.getByRole('button', { name: 'AI 착장 이미지 만들기', exact: true }).click()
     await expect.poll(() => state.startCalls).toBe(1)
     state.status = 'completed'
     const result = page.getByRole('dialog', { name: 'AI 룩 미리보기', exact: true })
@@ -158,7 +158,7 @@ test('화면 밖에서 생성이 완료되어도 돌아오면 완료 이미지 �
   mockApi.plannerEntries = [plannerEntry()]
   const state = await installPreviewJobs(page, mockApi)
   await page.goto(`/plan/${date}`)
-  await page.getByRole('button', { name: 'AI 룩북 만들기', exact: true }).click()
+  await page.getByRole('button', { name: 'AI 착장 이미지 만들기', exact: true }).click()
   await expect.poll(() => state.startCalls).toBe(1)
   await page.goto('/closet')
   state.status = 'completed'
@@ -179,7 +179,7 @@ test('서버에만 있는 완료 결과를 복원한 뒤 다른 조합에는 붙
   await expect(page.getByRole('dialog', { name: 'AI 룩 미리보기', exact: true })).toBeVisible()
   state.acknowledged = true
   await page.goto('/plan/2026-11-03')
-  await expect(page.getByRole('button', { name: 'AI 룩북 만들기', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'AI 착장 이미지 만들기', exact: true })).toBeEnabled()
   await expect(page.getByRole('button', { name: 'AI 룩북 보기', exact: true })).toHaveCount(0)
   await page.goto(`/plan/${date}`)
   await page.getByRole('button', { name: 'AI 룩북 보기', exact: true }).click()
@@ -212,14 +212,14 @@ test('삭제된 완료 이미지는 복원 기록을 해제하고 자동 재생�
   mockApi.plannerEntries = [plannerEntry()]
   const state = await installPreviewJobs(page, mockApi)
   await page.goto(`/plan/${date}`)
-  await page.getByRole('button', { name: 'AI 룩북 만들기', exact: true }).click()
+  await page.getByRole('button', { name: 'AI 착장 이미지 만들기', exact: true }).click()
   await expect.poll(() => state.startCalls).toBe(1)
   await page.goto('/closet')
   state.status = 'completed'
   state.acknowledged = true
   state.assetErrorCode = 'OUTFIT_PREVIEW_NOT_FOUND'
   await page.goto(`/plan/${date}`)
-  await expect(page.getByRole('button', { name: 'AI 룩북 만들기', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'AI 착장 이미지 만들기', exact: true })).toBeEnabled()
   expect(state.startCalls).toBe(1)
 })
 
@@ -227,7 +227,7 @@ test('2시간 뒤 로컬 기록과 알림 목록이 없어도 미저장 이미�
   mockApi.plannerEntries = [plannerEntry()]
   const state = await installPreviewJobs(page, mockApi)
   await page.goto(`/plan/${date}`)
-  await page.getByRole('button', { name: 'AI 룩북 만들기', exact: true }).click()
+  await page.getByRole('button', { name: 'AI 착장 이미지 만들기', exact: true }).click()
   await expect.poll(() => state.startCalls).toBe(1)
   state.status = 'completed'
   const result = page.getByRole('dialog', { name: 'AI 룩 미리보기', exact: true })
@@ -262,7 +262,7 @@ test('24시간 뒤 고아 배치가 삭제한 결과는 예전 포인터나 URL 
   await page.clock.setFixedTime(new Date(Date.now() + 25 * 60 * 60_000))
   state.assetErrorCode = 'OUTFIT_PREVIEW_NOT_FOUND'
   await page.reload()
-  await expect(page.getByRole('button', { name: 'AI 룩북 만들기', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'AI 착장 이미지 만들기', exact: true })).toBeEnabled()
   await expect(view).toHaveCount(0)
   await expect(page.getByRole('dialog', { name: 'AI 룩 미리보기', exact: true })).toHaveCount(0)
   expect(state.startCalls).toBe(0)
@@ -367,7 +367,7 @@ for (const entryPoint of ['composer', 'detail', 'recommendation'] as const) {
       await page.goto('/plan')
       await page.getByRole('button', { name: 'AI 코디 추천', exact: true }).click()
       const sheet = page.getByRole('dialog', { name: '오늘의 AI 코디 추천' })
-      await sheet.getByRole('button', { name: '추천받기' }).click()
+      await sheet.getByRole('button', { name: '조건 바꾸기', exact: true }).click()
       await sheet.getByRole('button', { name: '봄', exact: true }).click()
       await sheet.getByRole('button', { name: /자동/ }).click()
       await expect(sheet.getByText('영구 이미지 확인 코디', { exact: true })).toBeVisible()
@@ -391,7 +391,7 @@ test('화면 복귀와 새로고침 후 생성 과정 보기로 기존 팝업을
   mockApi.plannerEntries = [plannerEntry(), plannerEntry(false, ['item-1', 'item-3'], '2026-11-03')]
   const state = await installPreviewJobs(page, mockApi)
   await page.goto(`/plan/${date}`)
-  await page.getByRole('button', { name: 'AI 룩북 만들기', exact: true }).click()
+  await page.getByRole('button', { name: 'AI 착장 이미지 만들기', exact: true }).click()
   await expect.poll(() => state.startCalls).toBe(1)
   await page.goto('/closet')
   await page.goto(`/plan/${date}`)
@@ -411,14 +411,14 @@ test('화면 복귀와 새로고침 후 생성 과정 보기로 기존 팝업을
   await page.getByRole('button', { name: 'AI 룩 미리보기 닫기', exact: true }).click()
   expect(state.startCalls).toBe(1)
   await page.goto('/plan/2026-11-03')
-  await expect(page.getByRole('button', { name: 'AI 룩북 만들기', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'AI 착장 이미지 만들기', exact: true })).toBeEnabled()
   await page.goto(`/plan/${date}`)
   await viewProgress.click()
   await expect(progress).toBeVisible()
   state.status = 'failed'
   await expect(page.getByRole('dialog', { name: '미리보기를 만들지 못했어요', exact: true }).getByText('테스트 이미지 생성 실패')).toBeVisible()
   await page.getByRole('button', { name: 'AI 룩 미리보기 닫기', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'AI 룩북 만들기', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'AI 착장 이미지 만들기', exact: true })).toBeEnabled()
   expect(state.startCalls).toBe(1)
 })
 
@@ -464,7 +464,7 @@ test('생성 실패는 오류 팝업으로 안내하고 사용자가 다시 만�
   const state = await installPreviewJobs(page, mockApi)
   state.status = 'failed'
   await page.goto(`/plan/${date}`)
-  await page.getByRole('button', { name: 'AI 룩북 만들기', exact: true }).click()
+  await page.getByRole('button', { name: 'AI 착장 이미지 만들기', exact: true }).click()
   const failure = page.getByRole('dialog', { name: '미리보기를 만들지 못했어요', exact: true })
   await expect(failure.getByText('테스트 이미지 생성 실패')).toBeVisible()
   expect(state.startCalls).toBe(1)

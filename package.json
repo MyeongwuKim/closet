@@ -22,6 +22,8 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "typecheck:e2e": "tsc -p tsconfig.e2e.json && tsc -p tsconfig.ai-tests.json",
     "typecheck:ai": "tsc -p tsconfig.ai-tests.json",
+    "test:unit:api": "pnpm --filter @closet/api exec node ../../scripts/run-unit-tests.mjs src",
+    "test:unit:web": "pnpm --filter @closet/api exec sh -c 'TSX_TSCONFIG_PATH=../../apps/web/tsconfig.app.json node ../../scripts/run-unit-tests.mjs ../../apps/web/tests'",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:ai:api": "pnpm typecheck:ai && playwright test --config playwright.ai.config.ts",

@@ -36,6 +36,7 @@ export function useTestLoginMutation() {
                 styleProfile {
                   gender bodyBuild heightCm weightKg
                   chestCircumferenceCm waistCircumferenceCm hipCircumferenceCm
+                  thighCircumferenceCm
                   shoulderWidthCm inseamCm preferredFit preferredStyles
                 }
                 wearReminderPreferences {

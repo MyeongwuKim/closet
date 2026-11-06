@@ -1,6 +1,6 @@
 /**
  * 용도:
- * 오늘의 코디 추천 조회, 재추천, 최근 착용 확인과 플래너 저장을 관리한다.
+ * 오늘·내일의 코디 추천 조회, 재추천, 최근 착용 확인과 플래너 저장을 관리한다.
  *
  * 동작 방식:
  * 계절·색감·날씨를 포함해 추천을 요청하고 사용자가 확정하면
@@ -24,6 +24,7 @@ import { usePlanStore } from '../stores/usePlanStore'
 import type { ColorScheme } from '../data/colorSchemes'
 import { useRecentWearReminder } from './useRecentWearReminder'
 import { useThermalRecommendationContextQuery } from '../api/thermalRecommendationQueries'
+import { recommendationDayLabels, type RecommendationMode } from '../components/today-outfit-recommendation/recommendationFlow'
 import { getThermalRecommendationMean, matchesThermalRecommendationContext, matchesTodayRecommendationWeather } from '../utils/thermalRecommendationContext'
 import {
   formatRecommendationHeadline,
@@ -36,8 +37,10 @@ interface UseTodayOutfitRecommendationResultOptions {
   season: Season
   colorScheme: ColorScheme
   baseItemId?: string
-  hasTodayOutfit: boolean
+  hasScheduledOutfit: boolean
+  mode: RecommendationMode
   weather?: WeatherSnapshot | null
+  onApplied?: () => void
 }
 
 export function useTodayOutfitRecommendationResult({
@@ -46,8 +49,10 @@ export function useTodayOutfitRecommendationResult({
   season,
   colorScheme,
   baseItemId,
-  hasTodayOutfit,
+  hasScheduledOutfit,
+  mode,
   weather,
+  onApplied,
 }: UseTodayOutfitRecommendationResultOptions) {
   const pushToast = useUiStore((state) => state.pushToast)
   const hydrateEntries = usePlanStore((state) => state.hydrateEntries)
@@ -122,7 +127,11 @@ export function useTodayOutfitRecommendationResult({
       queriedRecommendation?.ready &&
       !queriedRecommendation.items.some((item) => item.id === baseItemId),
   )
-  const recommendation = isBaseItemMissing ? undefined : queriedRecommendation
+  const recommendation = isBaseItemMissing || !queriedRecommendation
+    ? undefined
+    : mode === 'tomorrow' && formatRecommendationHeadline(queriedRecommendation.headline) === '오늘은 이 조합으로 입어보세요'
+      ? { ...queriedRecommendation, headline: '이 조합으로 입어보세요' }
+      : queriedRecommendation
   const errorMessage =
     recommendationQuery.error instanceof Error
       ? recommendationQuery.error.message
@@ -146,7 +155,8 @@ export function useTodayOutfitRecommendationResult({
     })
   }
 
-  const applyTodayOutfit = async (
+  /** 화면을 열 때 선택한 날짜에 추천을 저장하고, 성공한 경우에만 플래너에 적용 완료를 알린다. */
+  const applyRecommendation = async (
     selectedItems: WardrobeItem[] = recommendation?.items ?? [],
     previewImage?: OutfitPreview,
   ) => {
@@ -155,7 +165,7 @@ export function useTodayOutfitRecommendationResult({
     const confirmed = await confirmRecentWear({
       itemIds: selectedItems.map((item) => item.id),
       targetDate: date,
-      confirmLabel: hasTodayOutfit ? '그래도 변경' : '그래도 추가',
+      confirmLabel: hasScheduledOutfit ? '그래도 변경' : '그래도 추가',
       cancelLabel: '추천 코디로 돌아가기',
     })
     if (!confirmed) return false
@@ -174,13 +184,6 @@ export function useTodayOutfitRecommendationResult({
         temperatureC: recommendation.weather?.temperatureC,
       })
       hydrateEntries(nextEntries)
-      pushToast(
-        hasTodayOutfit
-          ? '오늘의 코디를 추천 조합으로 바꿨어요.'
-          : '추천 코디를 오늘 일정에 담았어요.',
-        'success',
-      )
-      return true
     } catch (error) {
       pushToast(
         error instanceof Error ? error.message : '추천 코디를 담지 못했어요.',
@@ -188,6 +191,16 @@ export function useTodayOutfitRecommendationResult({
       )
       return false
     }
+
+    const dayLabel = recommendationDayLabels[mode]
+    pushToast(
+      hasScheduledOutfit
+        ? `${dayLabel}의 코디를 추천 조합으로 바꿨어요.`
+        : `추천 코디를 ${dayLabel} 일정에 담았어요.`,
+      'success',
+    )
+    onApplied?.()
+    return true
   }
 
   return {
@@ -199,7 +212,7 @@ export function useTodayOutfitRecommendationResult({
     isSaving: isCheckingRecentWear || setDirectPlannerEntry.isPending,
     actions: {
       requestAnotherRecommendation,
-      applyTodayOutfit,
+      applyRecommendation,
     },
   }
 }

@@ -15,10 +15,10 @@ function PlanTodaySkeleton() {
 
 function PlanWeekSkeleton() {
   return (
-    <div className="mt-4 grid animate-pulse gap-3 pb-2">
+    <div className="mt-3 grid animate-pulse gap-2 pb-2 sm:mt-4 sm:gap-3">
       {Array.from({ length: 7 }, (_, index) => (
         <div
-          className="grid h-full min-h-18 grid-cols-[38px_minmax(0,1fr)_16px] items-center gap-2 rounded-2xl border border-line/70 bg-surface py-3 pr-4 pl-2 sm:min-h-23 sm:grid-cols-[58px_minmax(180px,0.85fr)_minmax(140px,1fr)_auto] sm:gap-3 sm:p-4"
+          className="grid h-full min-h-15 grid-cols-[38px_minmax(0,1fr)_16px] items-center gap-2 rounded-2xl border border-line/70 bg-surface py-1.5 pr-10 pl-2 sm:min-h-23 sm:grid-cols-[58px_minmax(180px,0.85fr)_minmax(140px,1fr)_auto] sm:gap-3 sm:p-4"
           aria-hidden="true"
           key={index}
         >
@@ -27,10 +27,11 @@ function PlanWeekSkeleton() {
             <span className="block h-3.5 w-2/3 rounded-full bg-line/55" />
             <span className="mt-2 block h-3 w-1/2 rounded-full bg-line/30" />
           </span>
-          <span className="flex min-w-0 items-center justify-end gap-1.5 sm:justify-start">
-            <span className="size-8 rounded-lg bg-line/35 sm:size-12 sm:rounded-xl" />
-            <span className="hidden size-12 rounded-xl bg-line/25 sm:block" />
-            <span className="hidden size-12 rounded-xl bg-line/20 sm:block" />
+          <span className="grid w-full max-w-[196px] min-w-0 grid-cols-4 gap-1.5 sm:flex sm:max-w-none">
+            <span className="aspect-square rounded-lg bg-line/35 sm:size-12 sm:rounded-xl" />
+            <span className="aspect-square rounded-lg bg-line/25 sm:size-12 sm:rounded-xl" />
+            <span className="aspect-square rounded-lg bg-line/20 sm:size-12 sm:rounded-xl" />
+            <span className="aspect-square rounded-lg bg-line/20 sm:hidden" />
           </span>
           <span className="block size-3 rounded-full bg-line/45" />
         </div>

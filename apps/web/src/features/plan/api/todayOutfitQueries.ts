@@ -1,10 +1,10 @@
 /**
  * 용도:
- * 오늘의 코디 추천을 조회하고 기준 아이템·색감·날씨별 캐시와 추천 기록을 관리한다.
+ * 선택한 날짜의 코디 추천을 조회하고 날짜·기준 아이템·색감·날씨별 캐시와 추천 기록을 관리한다.
  *
  * 동작 방식:
  * 계절·색감과 선택한 날씨를 GraphQL에 전달하고
- * 기준 아이템을 포함한 유효한 결과만 변환해 로컬 추천 기록에 저장한다.
+ * 요청한 날짜와 기준 아이템이 맞는 유효한 결과만 로컬 추천 기록에 저장한다.
  * 새 추천은 조회 전에 잔액과 광고 지급을 확인한다. 실행 중 다른 요청이 횟수를 쓰면 같은 조건으로 한 번 재확인한다.
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -60,6 +60,17 @@ function getWeatherKey(weather?: WeatherSnapshot | null) {
     : undefined
 }
 
+/** 지난 조회나 잘못 연결된 예보가 다른 날짜의 추천으로 표시되는 것을 막는다. */
+function matchesRecommendationDate(recommendation: TodayOutfitRecommendation, date: string) {
+  return recommendation.date === date && (!recommendation.weather || recommendation.weather.date === date)
+}
+
+function validateRecommendationDate(recommendation: TodayOutfitRecommendation, date: string) {
+  if (!matchesRecommendationDate(recommendation, date)) {
+    throw new Error('추천 날짜가 플래너에서 선택한 날짜와 달라요. 다시 시도해 주세요.')
+  }
+}
+
 function validateRecommendationBaseItem(
   recommendation: TodayOutfitRecommendation,
   baseItemId?: string,
@@ -108,7 +119,8 @@ export function useTodayOutfitRecommendationQuery(
     ),
     enabled: enabled && Boolean(viewerId) && Boolean(date) && (meanTemperatureC === null || Boolean(thermalContextRevision)),
     initialData:
-      initialData && (!matchesThermalRecommendationContext(initialData, thermalContextRevision) ||
+      initialData && (!matchesRecommendationDate(initialData, date) ||
+      !matchesThermalRecommendationContext(initialData, thermalContextRevision) ||
       (initialData.ready && !matchesTodayRecommendationBaseItem(initialData, baseItemId)))
         ? undefined
         : initialData,
@@ -119,12 +131,14 @@ export function useTodayOutfitRecommendationQuery(
       previousQuery?.meta?.weatherKey === weatherKey &&
       previousQuery?.meta?.thermalContextRevision === thermalContextRevision &&
       previousData !== undefined &&
+      matchesRecommendationDate(previousData, date) &&
       matchesThermalRecommendationContext(previousData, thermalContextRevision) &&
       (!previousData?.ready ||
         matchesTodayRecommendationBaseItem(previousData, baseItemId))
         ? previousData
         : undefined,
     select: (recommendation) => {
+      validateRecommendationDate(recommendation, date)
       if (!matchesThermalRecommendationContext(recommendation, thermalContextRevision)) throw new Error('착용 체감이 바뀌어 추천을 다시 확인해야 해요.')
       return validateRecommendationBaseItem(recommendation, baseItemId)
     },
@@ -139,7 +153,7 @@ export function useTodayOutfitRecommendationQuery(
       }
       // 저장한 결과를 다시 읽을 때는 광고를 요구하지 않는다. 새 조건의 추천은 실행 전에 잔액을 확인한다.
       const cached = client.getQueryData<TodayOutfitRecommendation>(queryKey)
-      const hasCurrentCache = cached && matchesThermalRecommendationContext(cached, thermalContextRevision) && matchesTodayRecommendationBaseItem(cached, baseItemId)
+      const hasCurrentCache = cached && matchesRecommendationDate(cached, date) && matchesThermalRecommendationContext(cached, thermalContextRevision) && matchesTodayRecommendationBaseItem(cached, baseItemId)
       if (!hasCurrentCache && !await requireAiCredit(client, viewerId, 'recommendation', signal)) throw new Error('잔액을 확인한 뒤 추천받기 버튼을 다시 눌러주세요.')
       const request = async () => {
         try {
@@ -215,6 +229,7 @@ export function useTodayOutfitRecommendationQuery(
         },
         baseItemId,
       )
+      validateRecommendationDate(recommendation, date)
       if (!matchesThermalRecommendationContext(recommendation, thermalContextRevision)) throw new Error('추천에 반영된 착용 체감을 확인하지 못했어요. 다시 시도해 주세요.')
       if (recommendation.ready && recommendation.items.length > 0) {
         storeTodayRecommendation(

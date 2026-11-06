@@ -51,7 +51,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     await page.goto('/#/plan')
     await page.getByRole('button', { name: 'AI 코디 추천', exact: true }).click()
     const sheet = page.getByRole('dialog', { name: '오늘의 AI 코디 추천' })
-    await sheet.getByRole('button', { name: '추천받기', exact: true }).click()
+    await sheet.getByRole('button', { name: '조건 바꾸기', exact: true }).click()
     await sheet.getByRole('button', { name: '봄', exact: true }).click()
     await sheet.getByRole('button', { name: /자동/ }).click()
     await expect(sheet.getByText('추천 코디 1', { exact: true })).toBeVisible()
@@ -144,10 +144,15 @@ test('일반 브라우저의 추천권 안내에서는 광고를 실행하지 �
   const dialog = page.getByRole('dialog', { name: 'AI 사용권이 부족해요', exact: true })
   await expect(dialog.getByRole('button', { name: /광고 보고.*즉시 받기/ })).toBeDisabled()
   await expect(dialog.getByText('광고 보상은 광고 기능이 포함된 iOS 앱에서 이용할 수 있어요.')).toBeVisible()
+  await dialog.getByRole('button', { name: /기다리기/ }).click()
+  await sheet.getByRole('button', { name: '조건 바꾸기', exact: true }).click()
+  await sheet.getByRole('button', { name: '봄', exact: true }).click()
+  await sheet.getByRole('button', { name: '자동', exact: true }).click()
+  await expect(dialog).toBeVisible()
   expect(mockApi.operations).not.toContain('StartPreviewReward')
 })
 
-test('충전 대기 시간과 광고 즉시 지급을 선택하고 보상 후 같은 화면의 추천받기 버튼으로 돌아온다', async ({ page, mockApi }) => {
+test('충전 대기 시간과 광고 즉시 지급을 선택하고 보상 후 같은 화면의 오늘 날씨 추천으로 돌아온다', async ({ page, mockApi }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.clock.install()
   let granted = false
@@ -199,12 +204,12 @@ test('충전 대기 시간과 광고 즉시 지급을 선택하고 보상 후 �
   granted = true
   await page.clock.fastForward(1500)
   await expect(dialog).toHaveCount(0)
-  await expect(sheet.getByRole('button', { name: '추천받기', exact: true })).toBeEnabled()
+  await expect(sheet.getByRole('button', { name: '오늘 날씨로 바로 추천', exact: true })).toBeEnabled()
   await expect(sheet.getByText('AI 사용권 1/5', { exact: true })).toBeVisible()
   await expect(sheet.getByRole('heading', { name: '오늘 입을 코디를 골라드릴까요?', exact: true })).toBeVisible()
   expect(recommendationCalls).toBe(0)
   await page.screenshot({ path: '.playwright-mcp/ai-credit-recommendation-ready.png', animations: 'disabled' })
-  await sheet.getByRole('button', { name: '추천받기', exact: true }).click()
+  await sheet.getByRole('button', { name: '조건 바꾸기', exact: true }).click()
   await expect(sheet.getByRole('button', { name: '봄', exact: true })).toBeVisible()
   expect(mockApi.operations).not.toContain('StartOutfitPreview')
 })

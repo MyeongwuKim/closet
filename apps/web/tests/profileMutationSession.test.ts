@@ -17,7 +17,7 @@ function createViewer(id: string, heightCm = 170): ViewerProfile {
     id, displayName: id, email: null, isTemporary: true,
     styleProfile: {
       gender: 'male', bodyBuild: 'average', heightCm, weightKg: 65,
-      chestCircumferenceCm: null, waistCircumferenceCm: null, hipCircumferenceCm: null,
+      chestCircumferenceCm: null, waistCircumferenceCm: null, hipCircumferenceCm: null, thighCircumferenceCm: null,
       shoulderWidthCm: null, inseamCm: null, preferredFit: 'regular', preferredStyles: [],
     },
     wearReminderPreferences: { enabled: false, intervalDays: 7, combinationReminderEnabled: true, itemReminderEnabled: true },
@@ -52,7 +52,11 @@ for (const kind of ['profile', 'reminder'] as const) {
       let markRequested!: () => void
       const requested = new Promise<void>((resolve) => { markRequested = resolve })
       const before = createViewer('viewer-A')
-      const saved = { ...createViewer('viewer-A', 185), wearReminderPreferences: { ...before.wearReminderPreferences, enabled: true } }
+      const saved = {
+        ...createViewer('viewer-A', 185),
+        styleProfile: { ...createViewer('viewer-A', 185).styleProfile, thighCircumferenceCm: 70 },
+        wearReminderPreferences: { ...before.wearReminderPreferences, enabled: true },
+      }
       Object.defineProperty(globalThis, 'window', {
         configurable: true,
         value: {
@@ -87,7 +91,10 @@ for (const kind of ['profile', 'reminder'] as const) {
       if (transition === 'same-session') {
         assert.deepEqual(await pending, saved)
         assert.deepEqual(client.getQueryData(queryKeys.me), saved)
-        if (kind === 'profile') assert.equal(useStyleProfileStore.getState().profile.heightCm, '185')
+        if (kind === 'profile') {
+          assert.equal(useStyleProfileStore.getState().profile.heightCm, '185')
+          assert.equal(useStyleProfileStore.getState().profile.thighCircumferenceCm, '70')
+        }
       } else {
         await assert.rejects(pending, ViewerSessionChangedError)
         assert.deepEqual(client.getQueryData(queryKeys.me), transition === 'before-cache-write' ? createViewer('viewer-B') : expected)

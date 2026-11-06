@@ -9,6 +9,8 @@ interface OutfitSlotEditorProps {
   selectedItems: WardrobeItem[]
   onChange: (items: WardrobeItem[]) => void
   className?: string
+  /** 착용 완료한 날짜에서는 저장된 구성을 표시하고 교체 화면을 열지 않는다. */
+  readOnly?: boolean
   /** 저장된 코디에 남은 삭제된 옷을 사진과 배지로 표시한다. 선택 목록에는 다시 넣지 않는다. */
   showArchivedStatus?: boolean
 }
@@ -19,6 +21,7 @@ export function OutfitSlotEditor({
   selectedItems,
   onChange,
   className = '',
+  readOnly = false,
   showArchivedStatus = false,
 }: OutfitSlotEditorProps) {
   const [pickerSlot, setPickerSlot] = useState<OutfitSlot | null>(null)
@@ -57,10 +60,10 @@ export function OutfitSlotEditor({
         items={selectedItems}
         layers={layers}
         className={className}
-        onSlotClick={setPickerSlot}
+        onSlotClick={readOnly ? undefined : setPickerSlot}
         showArchivedStatus={showArchivedStatus}
       />
-      {pickerSlot && (
+      {!readOnly && pickerSlot && (
         <OutfitWardrobePicker
           slot={pickerSlot}
           items={items}

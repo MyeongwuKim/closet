@@ -30,7 +30,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
       await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ data }) })
     })
     await page.goto('/lookbook/new?items=item-1,item-2')
-    await page.getByRole('button', { name: 'AI 룩 만들기', exact: true }).click()
+    await page.getByRole('button', { name: 'AI 착장 이미지 만들기', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'AI가 룩북을 만들고 있어요' })).toBeVisible()
     await expect.poll(() => startCalls).toBe(1)
     await page.goto('/plan')

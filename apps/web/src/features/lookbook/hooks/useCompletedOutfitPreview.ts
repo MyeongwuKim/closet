@@ -69,7 +69,7 @@ export function useCompletedOutfitPreview({ viewerId, requestKey, enabled, activ
 
   const loadLatest = async (signal?: AbortSignal): Promise<CompletedOutfitPreview | null> => {
     assertScopeActive()
-    if (!input || new Set(input.selectedItemIds).size < 2) return null
+    if (!enabled || !input?.selectedItemIds.length) return null
     const pointerAtStart = readCompletedPreviewPointer(requestKey)
     const data = await graphqlRequest<{ outfitPreviewForItems: CompletedOutfitPreview | null }>(`query OutfitPreviewForItems($selectedItemIds: [ID!]!, $style: String) {
       outfitPreviewForItems(selectedItemIds: $selectedItemIds, style: $style) { assetId imageUrl mimeType model jobId createdAt }

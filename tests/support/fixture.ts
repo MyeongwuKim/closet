@@ -70,6 +70,13 @@ type PlannerEntry = {
 }
 
 type GraphqlRequest = { query: string; variables?: Record<string, any> }
+
+class MockGraphqlError extends Error {
+  constructor(message: string, readonly code: string) {
+    super(message)
+  }
+}
+
 export type MockApi = {
   wardrobeItems: WardrobeItem[]
   outfits: Outfit[]
@@ -217,6 +224,16 @@ function plannerWeekPayload(api: MockApi, weekStartsOn: string) {
   return { id: `week-${weekStartsOn}`, weekStartsOn, entries: api.plannerEntries.filter((entry) => entry.date >= weekStartsOn && entry.date < end).map((entry) => withPlannerWardrobeItems(api, entry)) }
 }
 
+/** 서버가 쓰기 시점에 확인하는 착용 보호 상태를 모의 GraphQL 오류로 반환한다. */
+function assertPlannerWearEditable(entry: PlannerEntry | undefined) {
+  if (entry?.wornAt) {
+    throw new MockGraphqlError(
+      '착용 완료한 날짜예요. 코디를 바꾸려면 먼저 착용 기록을 취소해 주세요.',
+      'PLANNER_WEAR_CONFIRMED',
+    )
+  }
+}
+
 function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest): Record<string, unknown> {
   const operation = query.match(/\b(?:query|mutation)\s+(\w+)/)?.[1] ?? 'unknown'
   api.operations.push(operation)
@@ -250,6 +267,11 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
     case 'WardrobeItem': return { wardrobeItem: api.wardrobeItems.find((item) => item.id === variables.id && !item.archivedAt) ?? null }
     case 'WardrobeBrandOptions': return { wardrobeBrandOptions: [...new Set(filterWardrobe(api.wardrobeItems).map((item) => item.brandName).filter(Boolean))] }
     case 'Outfits': return { outfits: filterOutfits(api, variables).map((outfit) => withWardrobeItems(api, outfit)) }
+    case 'Outfit': {
+      const outfit = api.outfits.find((candidate) => candidate.id === variables.id)
+      if (!outfit) throw new Error('코디를 찾을 수 없습니다.')
+      return { outfit: { ...withWardrobeItems(api, outfit), plannerOnly: false } }
+    }
     case 'OutfitPage': {
       const outfits = filterOutfits(api, input)
       return { outfitPage: { items: outfits.map((outfit) => withWardrobeItems(api, outfit)), totalCount: outfits.length, hasNextPage: false, nextCursor: null } }
@@ -273,6 +295,7 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
       if (!outfit) throw new Error(`Unknown outfit: ${input.outfitId}`)
       const previous = api.plannerEntries.find((entry) => entry.date === input.date)
       const sameItems = Boolean(previous?.outfit && sameOutfitItems(previous.outfit.items, outfit.items))
+      if (!sameItems) assertPlannerWearEditable(previous)
       const sameSnapshot = sameItems && previous?.outfit?.name === outfit.name && previous.outfit.style === outfit.style
         && JSON.stringify(previous.outfit.generations) === JSON.stringify(outfit.generations)
       api.plannerEntries = api.plannerEntries.filter((entry) => entry.date !== input.date)
@@ -291,6 +314,7 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
       const previous = api.plannerEntries.find((entry) => entry.date === input.date)
       const items = input.itemIds.map((wardrobeItemId: string, layerOrder: number) => ({ wardrobeItemId, layerOrder }))
       const sameItems = Boolean(previous?.outfit && sameOutfitItems(previous.outfit.items, items))
+      if (!sameItems) assertPlannerWearEditable(previous)
       let generations = sameItems ? previous?.outfit?.generations ?? [] : []
       if (input.previewImage?.assetId) {
         const assetId = input.previewImage.assetId
@@ -304,7 +328,8 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
         items, generations,
       })
       api.plannerEntries = api.plannerEntries.filter((entry) => entry.date !== input.date)
-      api.plannerEntries.push({ date: input.date, title: outfit.name, occasion: null, weatherSummary: null, temperatureC: null,
+      api.plannerEntries.push({ date: input.date, title: outfit.name, occasion: null,
+        weatherSummary: input.weatherSummary ?? null, temperatureC: input.temperatureC ?? previous?.temperatureC ?? null,
         wornAt: sameItems ? previous?.wornAt ?? null : null, wearFeeling: sameItems ? previous?.wearFeeling ?? null : null,
         wearTemperatureC: sameItems ? previous?.wearTemperatureC ?? null : null, outfit })
       return { setDirectPlannerEntry: plannerWeekPayload(api, input.weekStartsOn) }
@@ -339,6 +364,7 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
       return { setPlannerEntryWearFeeling: plannerWeekPayload(api, input.weekStartsOn) }
     }
     case 'ClearPlannerEntry': {
+      assertPlannerWearEditable(api.plannerEntries.find((entry) => entry.date === variables.date))
       api.plannerEntries = api.plannerEntries.filter((entry) => entry.date !== variables.date)
       return { clearPlannerEntry: { id: `planner-${variables.date}` } }
     }
@@ -355,7 +381,7 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
     case 'AcknowledgeOutfitPreviewJob': return { acknowledgeOutfitPreviewJob: true }
     case 'Me': return { me: {
       id: 'e2e-user', displayName: 'E2E 사용자', email: null, isTemporary: true,
-      styleProfile: { gender: null, bodyBuild: null, heightCm: null, weightKg: null, chestCircumferenceCm: null, waistCircumferenceCm: null, hipCircumferenceCm: null, shoulderWidthCm: null, inseamCm: null, preferredFit: 'regular', preferredStyles: [] },
+      styleProfile: { gender: null, bodyBuild: null, heightCm: null, weightKg: null, chestCircumferenceCm: null, waistCircumferenceCm: null, hipCircumferenceCm: null, thighCircumferenceCm: null, shoulderWidthCm: null, inseamCm: null, preferredFit: 'regular', preferredStyles: [] },
       wearReminderPreferences: { enabled: false, intervalDays: 7, combinationReminderEnabled: false, itemReminderEnabled: false },
     } }
     case 'UpdateWardrobeItem': {
@@ -417,7 +443,11 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
       return { deleteOutfit: true }
     }
     case 'CreateOutfit': {
-      const outfit = createOutfit({ ...input, id: `outfit-${api.outfits.length + 1}`, createdAt: new Date().toISOString() })
+      const assetId = input.previewImageAssetId ?? input.previewImage?.assetId
+      const generations = assetId
+        ? [{ status: 'completed', imageAsset: { id: assetId, deliveryUrl: api.previewImages[assetId] ?? null } }]
+        : []
+      const outfit = createOutfit({ ...input, generations, id: `outfit-${api.outfits.length + 1}`, createdAt: new Date().toISOString() })
       api.outfits = [outfit, ...api.outfits]
       return { createOutfit: withWardrobeItems(api, outfit) }
     }
@@ -428,10 +458,6 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
 }
 
 async function installMockRoutes(page: Page, api: MockApi) {
-  await page.addInitScript(() => {
-    window.localStorage.setItem('closet-test-access-token', 'e2e-local-only')
-  })
-
   await page.routeWebSocket('**/*', async (socket) => {
     const url = new URL(socket.url())
     if (url.host === new URL(webOrigin).host) {
@@ -455,7 +481,10 @@ async function installMockRoutes(page: Page, api: MockApi) {
         const data = handleGraphql(api, request.postDataJSON() as GraphqlRequest)
         await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ data }) })
       } catch (error) {
-        await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ errors: [{ message: String(error) }] }) })
+        const graphQLError = error instanceof MockGraphqlError
+          ? { message: error.message, extensions: { code: error.code } }
+          : { message: String(error) }
+        await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ errors: [graphQLError] }) })
       }
       return
     }
@@ -468,14 +497,23 @@ async function installMockRoutes(page: Page, api: MockApi) {
   })
 }
 
-type Fixtures = { mockApi: MockApi }
+type Fixtures = {
+  mockApi: MockApi
+  seedMockSession: boolean
+}
 
 export const test = base.extend<Fixtures>({
-  mockApi: async ({ page }, use, testInfo: TestInfo) => {
+  seedMockSession: [true, { option: true }],
+  mockApi: async ({ page, seedMockSession }, use, testInfo: TestInfo) => {
     const api = createMockApi()
     const browserErrors: string[] = []
     page.on('console', (message) => { if (message.type() === 'error') browserErrors.push(message.text()) })
     page.on('pageerror', (error) => browserErrors.push(`Page error: ${error.message}`))
+    if (seedMockSession) {
+      await page.addInitScript(() => {
+        window.localStorage.setItem('closet-test-access-token', 'e2e-local-only')
+      })
+    }
     await installMockRoutes(page, api)
     await use(api)
     if (testInfo.status !== testInfo.expectedStatus || browserErrors.length || api.unexpectedRequests.length) {

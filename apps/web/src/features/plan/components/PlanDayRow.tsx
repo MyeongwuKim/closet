@@ -1,5 +1,5 @@
 import type { WardrobeItem } from '@closet/types'
-import { Check, ChevronRight, GripVertical } from 'lucide-react'
+import { Check, ChevronRight, GripVertical, Lock } from 'lucide-react'
 import { useCallback, useRef } from 'react'
 import { useDrag, useDrop } from 'react-dnd'
 import { Link } from 'react-router-dom'
@@ -39,6 +39,7 @@ interface PlanDayRowProps {
   items: WardrobeItem[]
   isToday: boolean
   disabled?: boolean
+  canMoveTo: (sourceIndex: number, targetIndex: number) => boolean
   onDragStart: () => void
   onMovePreview: (fromIndex: number, toIndex: number) => void
   onDragEnd: (
@@ -65,15 +66,21 @@ export function PlanDayRowContent({
         <strong className="block font-editorial text-2xl leading-none tracking-[-.05em] sm:text-3xl sm:leading-normal">
           {entry.dayNumber}
         </strong>
-        <span
-          className={`mt-1 block text-[11px] leading-none sm:mt-0 sm:text-xs sm:leading-normal ${
-            isToday ? 'font-bold text-accent' : 'text-muted'
-          }`}
-        >
-          {entry.dayLabel}
-          <span className="hidden sm:inline">{isToday ? ' · 오늘' : ''}</span>
+        <span className="mt-1 flex items-center justify-center gap-1 sm:mt-0 sm:flex-col">
+          <span
+            className={`text-[11px] leading-none sm:text-xs sm:leading-normal ${
+              isToday ? 'font-bold text-accent' : 'text-muted'
+            }`}
+          >
+            {entry.dayLabel}
+            <span className="hidden sm:inline">{isToday ? ' · 오늘' : ''}</span>
+          </span>
+          {entry.wornAt && (
+            <span className="inline-flex items-center rounded-full bg-sage px-1 py-0.5 text-[9px] font-bold text-accent sm:px-1.5" role="img" aria-label="착용 완료">
+              <Check size={10} aria-hidden="true" />
+            </span>
+          )}
         </span>
-        {entry.wornAt && <span className="mt-1 inline-flex items-center rounded-full bg-sage px-1.5 py-0.5 text-[9px] font-bold text-accent" role="img" aria-label="착용 완료"><Check size={10} aria-hidden="true" /></span>}
       </span>
 
       <span className="hidden min-w-0 sm:block">
@@ -99,13 +106,15 @@ export function PlanDayRow({
   items,
   isToday,
   disabled = false,
+  canMoveTo,
   onDragStart,
   onMovePreview,
   onDragEnd,
 }: PlanDayRowProps) {
+  const backPath = '/plan?view=week'
   const rowRef = useRef<HTMLDivElement | null>(null)
   const handleRef = useRef<HTMLButtonElement | null>(null)
-  const canDrag = Boolean(entry.outfitId) && !disabled
+  const canDrag = Boolean(entry.outfitId) && !entry.wornAt && !disabled
   const [{ isDragging }, drag] = useDrag<
     WeeklyPlanDragItem,
     WeeklyPlanDropResult,
@@ -149,10 +158,10 @@ export function PlanDayRow({
   >(
     () => ({
       accept: WEEKLY_PLAN_OUTFIT,
-      canDrop: () => !disabled,
+      canDrop: (dragged) => !disabled && canMoveTo(dragged.originalIndex, index),
       hover: (dragged, monitor) => {
         const rowElement = rowRef.current
-        if (!rowElement || disabled || dragged.index === index) return
+        if (!rowElement || disabled || !canMoveTo(dragged.originalIndex, index) || dragged.index === index) return
 
         const clientOffset = monitor.getClientOffset()
         if (!clientOffset) return
@@ -178,10 +187,10 @@ export function PlanDayRow({
       },
       drop: () => ({ index }),
       collect: (monitor) => ({
-        isOver: monitor.isOver({ shallow: true }),
+        isOver: monitor.isOver({ shallow: true }) && monitor.canDrop(),
       }),
     }),
-    [disabled, entry, index, isToday, onMovePreview],
+    [canMoveTo, disabled, entry, index, isToday, onMovePreview],
   )
 
   const connectRow = useCallback(
@@ -202,20 +211,21 @@ export function PlanDayRow({
   return (
     <div
       ref={connectRow}
-      className={`relative h-full min-h-18 rounded-2xl border ${
+      className={`relative h-full min-h-15 rounded-2xl border sm:min-h-18 ${
         isDragging ? 'opacity-0 transition-none' : 'opacity-100 transition'
       } ${
         isOver && !isDragging
           ? 'border-accent bg-sage/45'
           : isToday
             ? 'border-accent/40 bg-sage/65'
-            : 'border-line bg-surface'
+            : 'border-line bg-surface max-sm:data-[has-outfit]:border-accent/40'
       }`}
       data-plan-date={entry.date}
+      data-has-outfit={entry.outfitId ? '' : undefined}
     >
       <Link
-        to={`/plan/${entry.date}`}
-        className="grid h-full min-h-18 grid-cols-[38px_minmax(0,1fr)_16px] items-center gap-2 rounded-[inherit] py-3 pr-10 pl-2 transition hover:bg-canvas/35 sm:grid-cols-[58px_minmax(180px,0.85fr)_minmax(140px,1fr)_auto] sm:gap-3 sm:p-4 sm:pr-12 sm:hover:-translate-y-0.5"
+        to={`/plan/${entry.date}?from=${encodeURIComponent(backPath)}`}
+        className="grid h-full min-h-15 grid-cols-[38px_minmax(0,1fr)_16px] items-center gap-2 rounded-[inherit] py-1.5 pr-10 pl-2 transition hover:bg-canvas/35 sm:min-h-18 sm:grid-cols-[58px_minmax(180px,0.85fr)_minmax(140px,1fr)_auto] sm:gap-3 sm:p-4 sm:pr-12 sm:hover:-translate-y-0.5"
         aria-current={isToday ? 'date' : undefined}
       >
         <PlanDayRowContent entry={entry} items={items} isToday={isToday} />
@@ -229,12 +239,14 @@ export function PlanDayRow({
           isDragging ? 'cursor-grabbing' : 'cursor-grab'
         }`}
         aria-label={
-          canDrag
-            ? `${entry.dayLabel}요일 코디 위치 옮기기`
-            : `${entry.dayLabel}요일에는 옮길 코디가 없습니다`
+          entry.wornAt
+            ? `${entry.dayLabel}요일은 착용 완료하여 옮길 수 없습니다`
+            : entry.outfitId
+              ? `${entry.dayLabel}요일 코디 위치 옮기기`
+              : `${entry.dayLabel}요일에는 옮길 코디가 없습니다`
         }
       >
-        <GripVertical className="size-4" />
+        {entry.wornAt ? <Lock className="size-3.5" aria-hidden="true" /> : <GripVertical className="size-4" aria-hidden="true" />}
       </button>
     </div>
   )

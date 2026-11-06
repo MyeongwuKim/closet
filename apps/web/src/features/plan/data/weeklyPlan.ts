@@ -13,7 +13,7 @@ export interface PlanEntry {
   outfitId?: string
   /** 이 날짜에 실제 입었다고 확인한 시각. 미확인 일정과 편집 중 코디는 null 또는 undefined다. */
   wornAt?: string | null
-  /** 착용 완료한 코디에 남긴 온도 체감. 착용 취소·코디 변경 시 함께 비운다. */
+  /** 착용 완료한 코디에 남긴 온도 체감. 착용을 취소하면 함께 비운다. */
   wearFeeling?: WearFeeling | null
   outfitStyle?: string
   plannerOnly?: boolean
@@ -140,6 +140,20 @@ export function shouldMovePlanRow(
     : pointerOffsetY <= rowMiddleY
 }
 
+/** 시작·도착 사이의 코디도 한 칸씩 이동하므로 범위 전체에 착용 완료가 없어야 한다. */
+export function canMoveWeeklyPlanOutfit(
+  entries: PlanEntry[],
+  sourceIndex: number,
+  targetIndex: number,
+) {
+  if (!entries[sourceIndex]?.outfitId || !entries[targetIndex]) return false
+
+  const rangeStart = Math.min(sourceIndex, targetIndex)
+  const rangeEnd = Math.max(sourceIndex, targetIndex)
+  return !entries.slice(rangeStart, rangeEnd + 1).some((entry) => entry.wornAt)
+}
+
+/** 착용 완료 날짜를 포함하지 않는 이동만 화면과 주간 조회 캐시에 반영한다. */
 export function moveWeeklyPlanOutfits(
   entries: PlanEntry[],
   sourceDate: string,
@@ -149,9 +163,7 @@ export function moveWeeklyPlanOutfits(
 
   const sourceIndex = entries.findIndex((entry) => entry.date === sourceDate)
   const targetIndex = entries.findIndex((entry) => entry.date === targetDate)
-  if (sourceIndex < 0 || targetIndex < 0 || !entries[sourceIndex]?.outfitId) {
-    return entries
-  }
+  if (!canMoveWeeklyPlanOutfit(entries, sourceIndex, targetIndex)) return entries
 
   const movedOutfits = moveArrayItem(
     entries.map(getOutfitFields),

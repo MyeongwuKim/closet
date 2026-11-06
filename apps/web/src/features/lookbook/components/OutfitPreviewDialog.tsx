@@ -1,7 +1,8 @@
 import { AiCreditActionButton } from './AiCreditActionButton'
 import { useEffect, useState, type ReactNode } from 'react'
 import type { WardrobeItem } from '@closet/types'
-import { AlertCircle, BookPlus, RefreshCw, Sparkles, X } from 'lucide-react'
+import { BookPlus, RefreshCw, Sparkles, X } from 'lucide-react'
+import { OutfitPreviewFailureIllustration } from './OutfitPreviewFailureIllustration'
 import { ClosetItemVisual } from '../../closet/components/ClosetItemVisual'
 import { isNativeWebViewRuntime } from '../../../native-bridge'
 import {
@@ -161,9 +162,7 @@ export function OutfitPreviewDialogView({
             </div>
           ) : (
             <div className="flex min-h-96 flex-col items-center justify-center rounded-3xl border border-dashed border-line bg-canvas px-6 text-center">
-              <span className="flex size-14 items-center justify-center rounded-2xl bg-red-50 text-red-500">
-                <AlertCircle size={24} />
-              </span>
+              <OutfitPreviewFailureIllustration className="size-28 shrink-0" />
               <strong className="mt-5 text-base font-black">
                 이미지를 완성하지 못했어요
               </strong>

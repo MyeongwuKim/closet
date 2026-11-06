@@ -47,6 +47,7 @@ interface UiState {
   completeClassification: (itemId: string) => void
   /** 지정한 등록 후보의 임시 이미지를 해제하고 대기열에서 제거한다. */
   cancelClassification: (itemId: string) => void
+  /** 분석 세션을 끝낼 때 남은 임시 이미지를 해제하고 확인 대기열을 비운다. */
   disposeClassificationImages: () => void
   pushToast: (message: string, variant?: Toast['variant']) => void
   dismissToast: (id: string) => void
@@ -94,6 +95,7 @@ export const useUiStore = create<UiState>((set, get) => ({
         URL.revokeObjectURL(candidate.originalImageUrl)
       }
     })
+    set({ classificationQueue: [] })
   },
   pushToast: (message, variant = 'info') => {
     const id = crypto.randomUUID()

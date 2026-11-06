@@ -3,6 +3,7 @@ import type {
   Season,
   StoredOutfitPreview,
 } from '@closet/types'
+import { getAccessToken } from '../../../lib/auth'
 import { graphqlRequest } from '../../../lib/graphql'
 import { queryKeys } from '../../../lib/queryKeys'
 import {
@@ -96,10 +97,35 @@ export function useOutfitsQuery(enabled = true, filter?: { style?: string; wardr
   })
 }
 
+/** 기존 코디 링크는 목록에 없는 코디도 ID로 조회한다. 날짜에만 배정한 코디는 코디북에서 열지 않는다. */
+export function useSavedOutfitQuery(outfitId: string) {
+  return useQuery({
+    queryKey: queryKeys.outfits.detail(outfitId),
+    enabled: Boolean(outfitId),
+    queryFn: async ({ signal }) => {
+      const data = await graphqlRequest<{ outfit: OutfitPayload & { plannerOnly: boolean } }>(
+        `
+          query Outfit($id: ID!) {
+            outfit(id: $id) {
+              id name style seasons createdAt plannerOnly
+              items { wardrobeItemId layerOrder wardrobeItem { ${wardrobeItemFields} } }
+              generations { status imageAsset { deliveryUrl } }
+            }
+          }
+        `,
+        { id: outfitId },
+        signal,
+      )
+      return data.outfit.plannerOnly ? null : toSavedOutfit(data.outfit)
+    },
+  })
+}
+
 export function useCreateOutfitMutation() {
   const queryClient = useQueryClient()
 
   return useMutation({
+    onMutate: () => ({ accessToken: getAccessToken() }),
     mutationFn: async (input: CreateOutfitVariables) => {
       const data = await graphqlRequest<
         { createOutfit: OutfitPayload },
@@ -118,7 +144,9 @@ export function useCreateOutfitMutation() {
       )
       return toSavedOutfit(data.createOutfit)
     },
-    onSuccess: (outfit) => {
+    onSuccess: (outfit, _input, session) => {
+      // 저장 응답이 늦게 오더라도 그사이 로그인한 계정의 코디북에 섞이지 않게 한다.
+      if (!session?.accessToken || session.accessToken !== getAccessToken()) return
       queryClient.setQueryData<SavedOutfit[]>(
         queryKeys.outfits.list(),
         (currentOutfits = []) => [

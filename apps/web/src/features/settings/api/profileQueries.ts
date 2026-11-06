@@ -24,6 +24,13 @@ export interface WearReminderPreferences {
   itemReminderEnabled: boolean
 }
 
+export const defaultWearReminderPreferences: WearReminderPreferences = {
+  enabled: false,
+  intervalDays: 7,
+  combinationReminderEnabled: true,
+  itemReminderEnabled: true,
+}
+
 export interface ViewerProfile {
   id: string
   displayName: string | null
@@ -37,6 +44,7 @@ export interface ViewerProfile {
     chestCircumferenceCm: number | null
     waistCircumferenceCm: number | null
     hipCircumferenceCm: number | null
+    thighCircumferenceCm: number | null
     shoulderWidthCm: number | null
     inseamCm: number | null
     preferredFit: PreferredFit
@@ -53,6 +61,7 @@ export interface UpdateStyleProfileVariables {
   chestCircumferenceCm: number | null
   waistCircumferenceCm: number | null
   hipCircumferenceCm: number | null
+  thighCircumferenceCm: number | null
   shoulderWidthCm: number | null
   inseamCm: number | null
   preferredFit: PreferredFit
@@ -98,6 +107,7 @@ const viewerFields = `
     chestCircumferenceCm
     waistCircumferenceCm
     hipCircumferenceCm
+    thighCircumferenceCm
     shoulderWidthCm
     inseamCm
     preferredFit
@@ -147,6 +157,7 @@ function useViewerUpdateMutation<TVariables>(request: (input: TVariables) => Pro
           chestCircumferenceCm: profile.chestCircumferenceCm?.toString() ?? '',
           waistCircumferenceCm: profile.waistCircumferenceCm?.toString() ?? '',
           hipCircumferenceCm: profile.hipCircumferenceCm?.toString() ?? '',
+          thighCircumferenceCm: profile.thighCircumferenceCm?.toString() ?? '',
           shoulderWidthCm: profile.shoulderWidthCm?.toString() ?? '',
           inseamCm: profile.inseamCm?.toString() ?? '',
         })

@@ -1,8 +1,17 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { formatRecentWearLabel } from '../src/utils/wearDate'
+import { formatRecentWearLabel, isRecentlyWorn } from '../src/utils/wearDate'
 
 const today = '2026-08-26'
+
+test('최근 착용은 오늘과 기간 경계일을 포함하고 더 오래됐거나 유효하지 않은 기록은 제외한다', () => {
+  for (const wornDate of [today, '2026-08-23T00:00:00.000Z']) {
+    assert.equal(isRecentlyWorn(wornDate, 3, today), true)
+  }
+  for (const wornDate of ['2026-08-22', '2026-08-27', '2026-02-30', undefined]) {
+    assert.equal(isRecentlyWorn(wornDate, 3, today), false)
+  }
+})
 
 test('오늘부터 일주일까지 최근 착용일을 상대 날짜로 표시한다', () => {
   assert.equal(formatRecentWearLabel('2026-08-26', today), '오늘 착용')

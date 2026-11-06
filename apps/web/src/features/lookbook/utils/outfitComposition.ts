@@ -1,10 +1,12 @@
 import type { WardrobeItem } from '@closet/types'
+import { hasMinimumOutfitItems } from '@closet/types/outfit-items'
 import type { SavedOutfit } from '../types'
 
 type OutfitItemCategory = Pick<WardrobeItem, 'category'>
 
+/** 원피스 한 벌 또는 상·하의 구성이 완성되면 안내를 숨기고, 빠진 구성에 맞는 안내를 반환한다. */
 export function getOutfitCompletionMessage(items: OutfitItemCategory[]) {
-  if (items.length < 2) {
+  if (!hasMinimumOutfitItems(items)) {
     return '코디를 완성하려면 옷을 하나 더 골라주세요.'
   }
 

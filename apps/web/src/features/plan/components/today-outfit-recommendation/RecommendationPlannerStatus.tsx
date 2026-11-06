@@ -1,12 +1,14 @@
 import { CalendarDays, LoaderCircle, RefreshCw } from 'lucide-react'
 
 interface RecommendationPlannerStatusProps {
+  dayLabel: '오늘' | '내일'
   isError: boolean
   isRetrying: boolean
   onRetry: () => void
 }
 
 export function RecommendationPlannerStatus({
+  dayLabel,
   isError,
   isRetrying,
   onRetry,
@@ -19,7 +21,7 @@ export function RecommendationPlannerStatus({
         <LoaderCircle className="animate-spin text-accent" size={24} />
       )}
       <p className="mt-3 text-sm font-black" role={isError ? 'alert' : 'status'}>
-        {isError ? '오늘 일정을 불러오지 못했어요' : '오늘 일정을 확인하고 있어요'}
+        {dayLabel} 일정을 {isError ? '불러오지 못했어요' : '확인하고 있어요'}
       </p>
       <p className="mt-2 text-xs leading-5 text-muted">
         등록된 코디가 있는지 확인한 뒤 추천을 보여드릴게요.

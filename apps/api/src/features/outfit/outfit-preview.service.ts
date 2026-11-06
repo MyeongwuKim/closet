@@ -62,7 +62,7 @@ const genderLabels: Record<Gender, string> = {
 
 const bodyBuildLabels: Record<BodyBuild, string> = {
   slim: '마른 체형',
-  average: '보통 체형',
+  average: '일반 체형 선택(실제 체격은 입력한 키·체중·신체 치수를 따름)',
   athletic: '운동으로 단련된 탄탄한 근육형 체형',
   broad: '골격과 체격이 큰 체형',
 }
@@ -145,7 +145,6 @@ function describeGarment(
   >[number],
   index: number,
   modelHeightCm?: number | null,
-  body?: Parameters<typeof describeLookbookGarmentEase>[1],
 ) {
   const measurements = [
     formatMeasurement('어깨너비', item.shoulderWidthCm),
@@ -173,7 +172,6 @@ function describeGarment(
       item.totalLengthCm,
       modelHeightCm,
     ),
-    describeLookbookGarmentEase(item, body),
     describeLookbookSleeveHemRelation(item),
     item.sizeLabel ? `표기 사이즈 ${item.sizeLabel}` : null,
     measurements.length > 0 ? measurements.join(', ') : null,
@@ -201,6 +199,7 @@ function describeBody(
     formatMeasurement('가슴둘레', body.chestCircumferenceCm),
     formatMeasurement('허리둘레', body.waistCircumferenceCm),
     formatMeasurement('엉덩이둘레', body.hipCircumferenceCm),
+    formatMeasurement('허벅지둘레', body.thighCircumferenceCm),
     formatMeasurement('인심', body.inseamCm),
   ].filter(Boolean)
 
@@ -211,7 +210,7 @@ export function getLookbookGenderConstraint(
   gender?: Gender | null,
 ) {
   if (gender === 'female') {
-    return 'Use one adult woman only, with clearly adult female anatomy and an adult female skeletal frame. When the selected build is athletic, show natural visible training and muscle definition on a woman without changing her into a male bodybuilder. A broad build alone does not imply muscle definition. If exact measurements are missing, use plausible adult female proportions and proportionate neck, hands and feet. Explicit saved measurements take priority over any generic idealized shoulder, waist, chest or hip shape. Do not substitute a male ribcage or shoulder frame, bodybuilder bulk, oversized masculine hands, or oversized masculine feet. Never reinterpret muscularity, unisex garments, oversized clothing, or missing body measurements as a reason to substitute an adult man or a male-presenting mannequin. Preserve the referenced garments and their intended volume around this female body; do not shrink or redesign the clothes to create the body shape.'
+    return 'Use one adult woman only, with clearly adult female anatomy and an adult female skeletal frame. Carry the full body volume specified below in that frame at every size. When the selected build is athletic, show natural visible training and muscle definition on a woman without changing her into a male bodybuilder. A broad build alone does not imply muscle definition. For missing body measurements, use the body-size and build guidance below. Explicit saved measurements take priority over any generic idealized shoulder, waist, chest or hip shape. Never reinterpret muscularity, unisex garments, oversized clothing, or missing body measurements as a reason to substitute an adult man or a male-presenting mannequin.'
   }
   if (gender === 'male') {
     return 'Use one adult man only. A slim male build or feminine-coded garment must not be used as a reason to substitute an adult woman or a female-presenting mannequin.'
@@ -314,9 +313,17 @@ function buildPrompt(
 ) {
   const garments = items
     .map((item, index) =>
-      describeGarment(item, index, profile?.styleProfile?.heightCm, profile?.styleProfile),
+      describeGarment(item, index, profile?.styleProfile?.heightCm),
     )
     .join('\n')
+  // 치수로 계산한 핏은 상품 설명에 묻히지 않도록 체형 다음에 별도 우선 지침으로 둔다.
+  const fitGuides = items.flatMap((item, index) => {
+    const ease = describeLookbookGarmentEase(item, profile?.styleProfile)
+    return ease ? [`참조 이미지 ${index + 1} measured fit: ${ease}`] : []
+  }).join('\n')
+  const measuredFitGuide = fitGuides
+    ? `Critical garment-to-body fit based on paired measurements:\n${fitGuides}\nThese measured-region fit cues take priority over the preferred styling fit and a default regular-fit catalog appearance. Preserve the supplied body dimensions and the referenced garment cut; reflect their actual relationship instead of making every garment fit comfortably.\n`
+    : ''
   const baseLayerGuide = getLookbookBaseLayerGuide(items)
   const bagGuide = getLookbookBagGuide(items)
   const layerLengthGuide = getLookbookLayerLengthGuide(items)
@@ -332,6 +339,14 @@ function buildPrompt(
 
   return `Create a photorealistic fashion lookbook image using every garment from the first ${items.length} reference images exactly once.
 
+Model gender constraint: ${getLookbookGenderConstraint(profile?.styleProfile?.gender)}
+
+Critical model body size, taking priority over a default lean fashion model and any body shape suggested by the clothing references:
+Model body guide: ${describeBody(profile)}. Honor the model gender together with the saved stature, body volume and regional dimensions.
+Body proportion preservation: ${getLookbookBodyProportionGuide(profile?.styleProfile)}
+The reference images and measured layer diagram describe the garments, not the wearer's body or body width. Preserve the requested body's visible outline and volume beneath the garments. Let fabric drape and tension follow that body. Do not substitute a change in clothing size, camera angle or image zoom for a change in body size.
+
+${measuredFitGuide}
 Critical measured-layer composition, taking priority over generic styling conventions:
 ${layerLengthGuide ?? 'Keep each garment at its own reference length. Do not infer real lengths by comparing independently scaled product photos.'}
 ${layoutGuide ?? ''}
@@ -343,15 +358,9 @@ Garment construction preservation: ${ribbedTrimPreservationGuide}
 
 Fabric surface preservation: ${lookbookFabricPreservationGuide}
 
-Model gender constraint: ${getLookbookGenderConstraint(profile?.styleProfile?.gender)}
-
 Model hair guide: ${getLookbookHairGuide(profile?.styleProfile?.gender)}
 
-Model body guide: ${describeBody(profile)}. The gender constraint is mandatory and takes priority over body-build shorthand, garment styling cues, and any missing body measurements.
-
-Body proportion preservation: ${getLookbookBodyProportionGuide(profile?.styleProfile)}
-
-Preferred styling fit: ${describePreferredFit(profile)}. Use this preference only when the reference images and garment measurements leave the fit ambiguous. Garment measurements and visible garment proportions always take priority. Do not resize or redesign a garment to force the preferred fit.
+Preferred styling fit: ${describePreferredFit(profile)}. The body profile, garment measurements and visible garment proportions always take priority over this styling preference. Do not resize the body or garment to force the preferred fit.
 
 Selected outfit style: ${describeOutfitStyle(style)}
 

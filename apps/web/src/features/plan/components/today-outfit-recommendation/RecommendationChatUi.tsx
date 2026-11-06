@@ -21,6 +21,7 @@ export function RecommendationAssistantMessage({
 interface RecommendationQuickReplyProps {
   children: ReactNode
   onClick: () => void
+  disabled?: boolean
   secondary?: boolean
   delayMs?: number
 }
@@ -28,6 +29,7 @@ interface RecommendationQuickReplyProps {
 export function RecommendationQuickReply({
   children,
   onClick,
+  disabled,
   secondary,
   delayMs = 0,
 }: RecommendationQuickReplyProps) {
@@ -35,8 +37,9 @@ export function RecommendationQuickReply({
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       style={{ animationDelay: `${delayMs}ms` }}
-      className={`ai-recommendation-chat-enter rounded-full border px-3.5 py-2 text-xs font-bold transition ${
+      className={`ai-recommendation-chat-enter rounded-full border px-3.5 py-2 text-xs font-bold transition disabled:opacity-60 ${
         secondary
           ? 'border-transparent bg-canvas text-muted hover:text-ink'
           : 'border-line bg-surface text-ink hover:border-ink'

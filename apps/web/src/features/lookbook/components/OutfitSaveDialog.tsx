@@ -1,40 +1,65 @@
+import { useId, type Ref } from 'react'
 import { BookHeart, Sparkles, X } from 'lucide-react'
 import { SeasonMultiSelect } from '../../../components/SeasonMultiSelect'
-import { useOutfitComposer } from '../contexts/OutfitComposerContext'
+import { useOutfitComposer, type OutfitComposerSession } from '../contexts/OutfitComposerContext'
 import { ComposerLookCanvas } from './ComposerLookCanvas'
 import { OutfitStyleSelector } from './OutfitStyleSelector'
 import { OutfitSavingState } from './OutfitSavingState'
 
-/**
- * 코디 맞춰보기에서 고른 옷을 한 장의 Look으로 확인한 뒤 이름·스타일·계절을 정한다.
- * 이름·스타일·계절이 빠지면 제출을 막고, 실제 저장은 composer 세션에 맡긴다.
- * 저장 중에는 입력 대신 수납 장면을 표시한다.
- */
+/** 코디 맞춰보기에서 저장 단계가 열렸을 때 편집 세션을 공통 저장 화면에 연결한다. */
 export function OutfitSaveDialog() {
-  const {
-    selectedItems,
-    isSaveOpen,
-    outfitName,
-    outfitStyle,
-    outfitSeasons,
-    styleOptions,
-    includesPreview,
-    isSaving,
-    isPersisting,
-    setOutfitName,
-    setOutfitStyle,
-    setOutfitSeasons,
-    saveOutfit,
-    closeSave,
-  } = useOutfitComposer()
-  if (!isSaveOpen) return null
+  const session = useOutfitComposer()
+  return session.isSaveOpen ? <OutfitSaveDialogView {...session} /> : null
+}
+
+type OutfitSaveDialogViewProps = Pick<OutfitComposerSession,
+  | 'selectedItems'
+  | 'outfitName'
+  | 'outfitStyle'
+  | 'outfitSeasons'
+  | 'styleOptions'
+  | 'includesPreview'
+  | 'isSaving'
+  | 'isPersisting'
+  | 'setOutfitName'
+  | 'setOutfitStyle'
+  | 'setOutfitSeasons'
+  | 'saveOutfit'
+  | 'closeSave'
+> & {
+  dialogRef?: Ref<HTMLDivElement>
+  errorMessage?: string | null
+  seasonDescription?: string
+}
+
+/** 코디북에 저장할 조합과 이름·스타일·계절을 확인한다. 저장 실행과 실패 상태는 호출 화면에서 관리한다. */
+export function OutfitSaveDialogView({
+  selectedItems,
+  outfitName,
+  outfitStyle,
+  outfitSeasons,
+  styleOptions,
+  includesPreview,
+  isSaving,
+  isPersisting,
+  setOutfitName,
+  setOutfitStyle,
+  setOutfitSeasons,
+  saveOutfit,
+  closeSave,
+  dialogRef,
+  errorMessage,
+  seasonDescription = '선택한 옷의 공통 계절을 먼저 표시해요.',
+}: OutfitSaveDialogViewProps) {
+  const titleId = useId()
 
   return (
     <div
+      ref={dialogRef}
       className="classification-page-enter fixed inset-0 z-[120] flex items-center justify-center bg-black/45 backdrop-blur-[2px] sm:p-6"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="outfit-save-title"
+      aria-labelledby={titleId}
       aria-busy={isSaving}
       onMouseDown={(event) => {
         if (!isSaving && event.target === event.currentTarget) closeSave()
@@ -55,7 +80,7 @@ export function OutfitSaveDialog() {
             <span className="text-[10px] font-bold tracking-[0.2em] text-muted">
               LOOK REVIEW
             </span>
-            <h2 id="outfit-save-title" className="mt-0.5 text-lg font-black leading-tight">
+            <h2 id={titleId} className="mt-0.5 text-lg font-black leading-tight">
               이 Look으로 저장할까요?
             </h2>
             <p className="mt-1 text-[11px] text-muted">
@@ -88,6 +113,7 @@ export function OutfitSaveDialog() {
                   <span className="text-[11px] text-muted">{selectedItems.length}개의 아이템</span>
                 </div>
                 <ComposerLookCanvas
+                  className="composer-look-canvas--review"
                   selectedItems={selectedItems}
                   lookName={outfitName}
                 />
@@ -127,7 +153,7 @@ export function OutfitSaveDialog() {
                 <fieldset className="mt-6">
                   <legend className="text-xs font-black">입을 계절</legend>
                   <p className="mt-1 text-[11px] text-muted">
-                    선택한 옷의 공통 계절을 먼저 표시해요.
+                    {seasonDescription}
                   </p>
                   <div className="mt-2">
                     <SeasonMultiSelect
@@ -140,8 +166,11 @@ export function OutfitSaveDialog() {
                 {includesPreview && (
                   <div className="mt-5 flex items-center gap-2 rounded-xl bg-sage px-3 py-2.5 text-[11px] font-bold text-ink">
                     <Sparkles size={14} className="shrink-0 text-accent" />
-                    AI 룩 이미지도 함께 저장돼요.
+                    AI 착장 이미지도 함께 저장돼요.
                   </div>
+                )}
+                {errorMessage && (
+                  <p role="alert" className="mt-4 text-xs font-bold text-red-600">{errorMessage}</p>
                 )}
               </section>
             </div>
@@ -176,7 +205,7 @@ export function OutfitSaveDialog() {
                   : outfitSeasons.length === 0
                     ? '계절을 골라주세요'
                     : includesPreview
-                      ? 'AI 룩과 함께 저장'
+                      ? 'AI 이미지와 함께 저장'
                       : '코디북에 저장'}
           </button>
         </footer>

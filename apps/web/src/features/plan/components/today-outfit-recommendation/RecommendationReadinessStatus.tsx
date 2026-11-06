@@ -3,15 +3,17 @@ import { ChevronLeft, LoaderCircle, RefreshCw } from 'lucide-react'
 interface RecommendationReadinessStatusProps {
   isLoading: boolean
   errorMessage: string | null
+  loadingMessage?: string
   onRetry: () => void
   onBack: () => void
   backLabel?: string
 }
 
-/** 계정·현재 날씨 조회를 기다리고, 실패하면 재시도하거나 직전 선택 단계로 돌아가게 한다. */
+/** 계정·날씨 조회를 기다리고, 실패하면 재시도하거나 직전 선택 단계로 돌아가게 한다. */
 export function RecommendationReadinessStatus({
   isLoading,
   errorMessage,
+  loadingMessage = '추천에 필요한 정보를 확인하고 있어요',
   onRetry,
   onBack,
   backLabel = '이전 단계로 돌아가기',
@@ -20,7 +22,7 @@ export function RecommendationReadinessStatus({
     <section className="flex h-full flex-col items-center justify-center gap-3 rounded-2xl border border-line bg-surface p-5 text-center">
       {!errorMessage && <LoaderCircle className="animate-spin text-accent" size={24} />}
       <p className="text-sm font-black" role={errorMessage ? 'alert' : 'status'}>
-        {errorMessage ?? '추천에 필요한 정보를 확인하고 있어요'}
+        {errorMessage ?? loadingMessage}
       </p>
       {errorMessage && (
         <button

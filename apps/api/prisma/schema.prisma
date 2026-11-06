@@ -208,6 +208,7 @@ model StyleProfile {
   chestCircumferenceCm Float?
   waistCircumferenceCm Float?
   hipCircumferenceCm   Float?
+  thighCircumferenceCm Float?
   shoulderWidthCm      Float?
   inseamCm             Float?
   preferredFit         PreferredFit @default(regular)

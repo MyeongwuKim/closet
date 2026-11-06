@@ -10,6 +10,7 @@ interface RecommendationHistoryDialogProps {
   baseItemId?: string
   scope?: 'all' | 'current'
   onClose: () => void
+  onOpenLookbook?: () => void
 }
 
 export function RecommendationHistoryDialog({
@@ -17,6 +18,7 @@ export function RecommendationHistoryDialog({
   baseItemId,
   scope = 'current',
   onClose,
+  onOpenLookbook,
 }: RecommendationHistoryDialogProps) {
   const [isEditorOpen, setIsEditorOpen] = useState(false)
   const history = useRecommendationHistory({
@@ -43,7 +45,8 @@ export function RecommendationHistoryDialog({
         items={history.closetItems}
         initialItems={history.selectedEntry.recommendation.items}
         style={history.selectedEntry.style}
-        hasTodayOutfit={history.hasTodayOutfit}
+        season={history.selectedEntry.season}
+        hasScheduledOutfit={history.hasTodayOutfit}
         isSaving={history.isSaving}
         onClose={() => setIsEditorOpen(false)}
         onApplied={() => {
@@ -51,6 +54,7 @@ export function RecommendationHistoryDialog({
           history.actions.showList()
         }}
         onApply={history.actions.applyRecommendation}
+        onOpenLookbook={onOpenLookbook ?? onClose}
       />
     )
   }

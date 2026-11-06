@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  canMoveWeeklyPlanOutfit,
   createEmptyPlanEntry,
   createEmptyWeeklyPlan,
   mergeWeeklyPlanEntries,
@@ -126,24 +127,25 @@ test('서버에 없는 날짜를 합칠 때도 한 주 7일을 채운다', () =>
   assert.deepEqual(merged[0]?.itemIds, [])
 })
 
-test('코디가 다른 날짜로 이동하면 착용 완료는 옮겨지지 않고 변경되지 않은 날짜만 유지한다', () => {
+test('출발·도착·중간 날짜 중 착용 완료가 있으면 미리보기와 캐시에서 이동하지 않는다', () => {
   const entries = createEmptyWeeklyPlan('2026-08-24').map((entry, index) => ({
     ...entry,
     outfitId: `outfit-${index}`,
     itemIds: [`item-${index}`],
-    wornAt: `2026-08-${24 + index}T12:00:00.000Z`,
-    wearFeeling: 'comfortable' as const,
+    wornAt: index === 1 ? '2026-08-25T12:00:00.000Z' : null,
+    wearFeeling: index === 1 ? 'comfortable' as const : null,
   }))
-  const moved = moveWeeklyPlanOutfits(entries, '2026-08-24', '2026-08-26')
-  assert.equal(moved[0].wornAt, null)
-  assert.equal(moved[1].wornAt, null)
-  assert.equal(moved[2].wornAt, null)
-  assert.equal(moved[0].wearFeeling, null)
-  assert.equal(moved[1].wearFeeling, null)
-  assert.equal(moved[2].wearFeeling, null)
-  assert.equal(moved[3].wornAt, entries[3].wornAt)
-  assert.equal(moved[3].wearFeeling, 'comfortable')
-  assert.equal(entries[0].wornAt, '2026-08-24T12:00:00.000Z')
+
+  assert.equal(canMoveWeeklyPlanOutfit(entries, 0, 1), false)
+  assert.equal(canMoveWeeklyPlanOutfit(entries, 1, 2), false)
+  assert.equal(canMoveWeeklyPlanOutfit(entries, 0, 2), false)
+  assert.equal(canMoveWeeklyPlanOutfit(entries, 2, 0), false)
+  assert.equal(moveWeeklyPlanOutfits(entries, '2026-08-24', '2026-08-26'), entries)
+  assert.equal(canMoveWeeklyPlanOutfit(entries, 2, 3), true)
+  const moved = moveWeeklyPlanOutfits(entries, '2026-08-26', '2026-08-27')
+  assert.equal(moved[1].wornAt, entries[1].wornAt)
+  assert.equal(moved[1].wearFeeling, 'comfortable')
+  assert.equal(moved[3].outfitId, entries[2].outfitId)
 })
 
 test('날짜 슬롯 미리보기는 같은 코디의 확인을 유지하고 다른 코디면 비운다', () => {

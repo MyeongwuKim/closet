@@ -62,8 +62,8 @@ function installMoveFixture(t: TestContext, entries: StoredEntry[], savedLocatio
   return { entries, readLocation }
 }
 
-test('빈 오늘 날짜로 이동한 코디에도 마지막 날씨 지역을 연결하고 착용·체감은 초기화한다', async (t) => {
-  const fixture = installMoveFixture(t, [{ date: new Date('2026-11-03'), outfitId, title: '옮길 코디', weatherLatitude: 35.16, weatherLongitude: 129.06, wornAt: new Date(), wearFeeling: 'cold', wearTemperatureC: 12 }])
+test('미확정 코디를 빈 오늘 날짜로 이동하면 마지막 날씨 지역을 연결한다', async (t) => {
+  const fixture = installMoveFixture(t, [{ date: new Date('2026-11-03'), outfitId, title: '옮길 코디', weatherLatitude: 35.16, weatherLongitude: 129.06 }])
   await plannerService.moveEntry(userId, { weekStartsOn, sourceDate: '2026-11-03', targetDate: '2026-11-04' })
   const target = fixture.entries.find((entry) => entry.date.getTime() === Date.parse('2026-11-04'))!
   assert.equal(target.outfitId, outfitId)
@@ -75,6 +75,24 @@ test('빈 오늘 날짜로 이동한 코디에도 마지막 날씨 지역을 연
   assert.equal(fixture.entries[0].wearTemperatureC, null)
   assert.equal(fixture.entries[0].weatherLatitude, 35.16)
   assert.equal(fixture.readLocation.mock.callCount(), 1)
+})
+
+test('이동 범위의 중간 날짜가 착용 완료면 이동 전체를 거절한다', async (t) => {
+  const entries = [
+    { date: new Date('2026-11-02'), outfitId, title: '옮길 코디' },
+    {
+      date: new Date('2026-11-03'), outfitId: '000000000000000000000003', title: '입은 코디',
+      wornAt: new Date('2026-11-03T08:00:00Z'), wearFeeling: 'cold', wearTemperatureC: 12,
+    },
+  ]
+  const before = structuredClone(entries)
+  installMoveFixture(t, entries)
+
+  await assert.rejects(
+    plannerService.moveEntry(userId, { weekStartsOn, sourceDate: '2026-11-02', targetDate: '2026-11-04' }),
+    { code: 'PLANNER_WEAR_CONFIRMED' },
+  )
+  assert.deepEqual(entries, before)
 })
 
 test('미래 빈 날짜로 이동해도 지역을 연결하며 이미 있는 날짜는 현재 허용된 지역으로 갱신한다', async (t) => {

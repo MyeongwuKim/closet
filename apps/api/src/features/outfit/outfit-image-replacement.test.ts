@@ -6,6 +6,8 @@ import { outfitRepository, type OutfitImageMutationResult, type outfitInclude } 
 import { outfitService } from './outfit.service.js'
 import { imageService } from '../image/image.service.js'
 import { wardrobeRepository } from '../wardrobe/wardrobe.repository.js'
+import { plannerRepository } from '../planner/planner.repository.js'
+import { plannerService } from '../planner/planner.service.js'
 
 type StoredOutfit = Prisma.OutfitGetPayload<{ include: typeof outfitInclude }>
 const generationInput = { userId: 'viewer', imageAssetId: 'new-image', model: 'model' }
@@ -208,6 +210,44 @@ function mockServiceUpdate(t: TestContext, failSave = false) {
 }
 
 const updateInput = { name: '코디', style: 'casual', seasons: ['spring' as const], items: [{ wardrobeItemId: 'top', layerOrder: 0 }, { wardrobeItemId: 'bottom', layerOrder: 1 }], previewImage: previewInput }
+
+test('원피스 한 벌로 코디북을 만들고 기존 코디도 원피스 한 벌로 바꿀 수 있다', async (t) => {
+  const fixture = transactionFixture(t, [outfit('outfit', [])])
+  const dress = { id: 'dress', category: 'dress', seasons: ['spring'] }
+  const input = { name: '원피스 코디', style: 'casual', seasons: ['spring' as const], items: [{ wardrobeItemId: dress.id, layerOrder: 0 }] }
+  t.mock.method(wardrobeRepository, 'findManyOwnedByIds', async () => [dress] as Awaited<ReturnType<typeof wardrobeRepository.findManyOwnedByIds>>)
+  t.mock.method(outfitRepository, 'findSavedCandidatesByItems', async () => [])
+  t.mock.method(outfitRepository, 'findById', async () => fixture.records.get('outfit'))
+
+  const created = await outfitService.create('viewer', input)
+  const expectedItems = [{ ...input.items[0], slot: 'dress' }]
+  assert.deepEqual(created.items, expectedItems)
+
+  await outfitService.update('viewer', 'outfit', input)
+  assert.deepEqual(fixture.data()?.items, { deleteMany: {}, create: expectedItems })
+})
+
+test('추천한 원피스 한 벌은 날짜 저장으로 전달하고 단독 상의나 중복·미소유 옷은 거절한다', async (t) => {
+  const wardrobe = [
+    { id: 'dress', category: 'dress', seasons: ['spring'] },
+    { id: 'top', category: 'top', seasons: ['spring'] },
+  ] as Awaited<ReturnType<typeof wardrobeRepository.findManyOwnedByIds>>
+  const input = { weekStartsOn: '2025-01-06', date: '2025-01-07', recommendationName: '추천 원피스 코디', itemIds: ['dress'] }
+  const weekStart = new Date(input.weekStartsOn)
+  t.mock.method(wardrobeRepository, 'findManyOwnedByIds', async (_userId: string, ids: string[]) => wardrobe.filter((item) => ids.includes(item.id)))
+  t.mock.method(plannerRepository, 'findWeek', async () => ({ id: 'week', userId: 'viewer', weekStartsOn: weekStart, createdAt: weekStart, updatedAt: weekStart, entries: [] }))
+  const save = t.mock.method(plannerRepository, 'setEntry', async (_input: Parameters<typeof plannerRepository.setEntry>[0]) => null)
+
+  await plannerService.setDirectEntry('viewer', input)
+  assert.deepEqual(save.mock.calls[0]?.arguments[0]?.outfitData?.items, [{ wardrobeItemId: 'dress', slot: 'dress', layerOrder: 0 }])
+  assert.equal(save.mock.calls[0]?.arguments[0]?.outfitData?.plannerOnly, true)
+  assert.equal(save.mock.calls[0]?.arguments[0]?.title, input.recommendationName)
+
+  for (const itemIds of [[], ['top'], ['other-dress'], ['dress', 'dress']]) {
+    await assert.rejects(plannerService.setDirectEntry('viewer', { ...input, itemIds }), { code: 'INVALID_OUTFIT_ITEMS' })
+  }
+  assert.equal(save.mock.callCount(), 1)
+})
 
 test('저장 커밋 뒤 이전 파일을 정리하며 삭제 실패는 저장 성공 응답을 바꾸지 않는다', async (t) => {
   const { current, calls } = mockServiceUpdate(t)

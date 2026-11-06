@@ -8,6 +8,8 @@
 
 화면은 `apps/web/src/features/*/pages`, 관련 UI·Hook·API 함수는 같은 기능 폴더에 있다. 공통 스타일은 `apps/web/src/index.css`, 공통 레이아웃은 `apps/web/src/components/layout`에 있다.
 
+코디 만들기와 오늘 추천은 코디북 저장 화면을 공유한다. 추천에서는 이름과 계절을 미리 채우고 추천 조합을 날짜 배정과 별도로 저장한다. 같은 옷 조합을 찾으면 `/lookbook?outfit=<id>`의 기존 코디 상세로 연결한다. 코디북은 목록에 없을 때도 해당 ID를 조회한다.
+
 ## 공통 팝업과 상태
 
 [GlobalUi.tsx](../../apps/web/src/components/GlobalUi.tsx)는 분류 확인·최근 착용 안내·사용권 안내·생성 완료 안내·토스트를 연결한다. 분류 확인은 `useUiStore`의 대기열을 사용한다. 저장 중에는 취소를 막고 완료는 후보 ID로 처리해 다음 사진을 제거하지 않는다.
@@ -39,6 +41,8 @@
 코디북도 조회·생성·수정 응답의 옷 관계를 `SavedOutfit.outfitItems`에 둔다. [savedOutfitItems.ts](../../apps/web/src/features/lookbook/utils/savedOutfitItems.ts)는 저장된 관계를 우선해 배치 순서대로 옷을 읽으며, 관계가 없는 기존 데이터는 활성 목록에서 찾는다. 코디 목록·상세·주간 편집 표지·포함된 코디 미리보기에서 이 정보를 사용하고 삭제 상태를 표시한다. 코디 조회는 활성 옷장 Store에 옷을 병합하지 않으며 Store도 `archivedAt`이 있는 옷을 제외한다. 옷 삭제 시 코디북 조회를 무효화해 삭제 상태를 갱신한다. 회귀는 `savedOutfitItems.test.ts`와 `tests/lookbook-archived-items.spec.ts`다.
 
 삭제 옷이 포함된 상세는 기존 AI 사진 보기·착용·체감·코디 삭제를 유지하며, 삭제 옷을 교체하기 전에는 새 AI 생성·변경 저장·플래너에서 코디북 복사를 제한한다. 교체창 취소는 기존 구성과 사진을 유지한다.
+
+플래너와 코디북 상세가 공유하는 `OutfitWardrobePicker`는 슬롯에 맞는 활성 옷을 세부 카테고리·검색어·계절·색상으로 거른다. 룩북 만들기와 공유하는 필터 패널에서 최근 착용 옷도 숨길 수 있다. 숨기기는 기본으로 꺼져 있으며, 저장 직전의 리마인드 사용 여부와 별개로 설정 기간을 사용한다. 한국의 오늘부터 설정 일수 전까지 착용을 확인한 옷을 숨기며, 필터는 보이는 목록에만 적용하고 이미 고른 옷은 유지한다.
 
 ## 날짜별 코디와 사진
 

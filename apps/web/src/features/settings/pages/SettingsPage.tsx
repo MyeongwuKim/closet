@@ -63,6 +63,7 @@ type DetailedBodyKey =
   | 'chestCircumferenceCm'
   | 'waistCircumferenceCm'
   | 'hipCircumferenceCm'
+  | 'thighCircumferenceCm'
   | 'shoulderWidthCm'
   | 'inseamCm'
 
@@ -76,6 +77,7 @@ const detailedBodyFields: Array<{
   { key: 'chestCircumferenceCm', label: '가슴둘레', placeholder: '90', min: 40, max: 200 },
   { key: 'waistCircumferenceCm', label: '허리둘레', placeholder: '72', min: 40, max: 200 },
   { key: 'hipCircumferenceCm', label: '엉덩이둘레', placeholder: '94', min: 40, max: 200 },
+  { key: 'thighCircumferenceCm', label: '허벅지둘레', placeholder: '70', min: 20, max: 150 },
   { key: 'shoulderWidthCm', label: '어깨너비', placeholder: '42', min: 20, max: 80 },
   { key: 'inseamCm', label: '인심', placeholder: '76', min: 40, max: 130 },
 ]
@@ -97,6 +99,7 @@ function StyleProfileForm({ initialProfile }: StyleProfileFormProps) {
     chestCircumferenceCm: initialProfile.chestCircumferenceCm,
     waistCircumferenceCm: initialProfile.waistCircumferenceCm,
     hipCircumferenceCm: initialProfile.hipCircumferenceCm,
+    thighCircumferenceCm: initialProfile.thighCircumferenceCm,
     shoulderWidthCm: initialProfile.shoulderWidthCm,
     inseamCm: initialProfile.inseamCm,
   })
@@ -367,6 +370,8 @@ export function StyleProfilePage() {
           meQuery.data.styleProfile.waistCircumferenceCm?.toString() ?? '',
         hipCircumferenceCm:
           meQuery.data.styleProfile.hipCircumferenceCm?.toString() ?? '',
+        thighCircumferenceCm:
+          meQuery.data.styleProfile.thighCircumferenceCm?.toString() ?? '',
         shoulderWidthCm:
           meQuery.data.styleProfile.shoulderWidthCm?.toString() ?? '',
         inseamCm: meQuery.data.styleProfile.inseamCm?.toString() ?? '',

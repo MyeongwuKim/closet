@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
+import { ImagePlus } from 'lucide-react'
 import type {
   ClothingCategory,
   Season,
   WardrobeItem,
 } from '@closet/types'
+import { hasMinimumOutfitItems } from '@closet/types/outfit-items'
 import { Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { ColorFilter } from '../../../components/ColorFilter'
 import { CatalogCardSkeletonGrid } from '../../../components/CatalogCardSkeletonGrid'
@@ -29,6 +31,7 @@ import { ClosetPageHeader } from '../components/ClosetPageHeader'
 import { ClosetSearchFilter } from '../components/ClosetSearchFilter'
 import { WardrobeRediscoverySection } from '../components/WardrobeRediscoverySection'
 import { WardrobeImageDropDialog } from '../components/WardrobeImageDropDialog'
+import { WardrobePhotoAnalysisStatus } from '../components/WardrobePhotoAnalysisStatus'
 import {
   WardrobeImageSourceDialog,
   WardrobePhotoReviewDialog,
@@ -46,7 +49,9 @@ export function ClosetPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const items = useClosetStore((state) => state.items)
   const pushToast = useUiStore((state) => state.pushToast)
-  const { analyzeImages, analyzingCount } = useWardrobeImageAnalysis()
+  const analyzeImages = useWardrobeImageAnalysis((state) => state.analyzeImages)
+  const analyzingCount = useWardrobeImageAnalysis((state) => state.analyzingCount)
+  const openWardrobePhotoPicker = (location.state as { openWardrobePhotoPicker?: boolean } | null)?.openWardrobePhotoPicker === true
   const {
     isNativeApp,
     addButtonRef,
@@ -64,9 +69,20 @@ export function ClosetPage() {
     retakePhoto,
     useCapturedPhoto,
   } = useWardrobeImagePicker({
+    initiallyOpen: openWardrobePhotoPicker,
     onImagesSelected: analyzeImages,
     onError: (message) => pushToast(message, 'error'),
   })
+  // 첫 사진 진입 요청은 한 번만 사용해 브라우저 새로고침이나 뒤로 가기에서 다시 열지 않는다.
+  useEffect(() => {
+    if (openWardrobePhotoPicker) {
+      void navigate(`${location.pathname}${location.search}${location.hash}`, {
+        replace: true,
+        state: null,
+        preventScrollReset: true,
+      })
+    }
+  }, [location.hash, location.pathname, location.search, navigate, openWardrobePhotoPicker])
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   // 목록 필터와 무관한 Store의 삭제·초기화에만 선택을 맞춰, 보관 삭제한 옷이 슬롯을 차지하지 않게 한다.
   useEffect(() => useClosetStore.subscribe((state) => {
@@ -109,6 +125,11 @@ export function ClosetPage() {
   const filteredItems = wardrobeItemsQuery.data?.pages.flatMap((page) => page.items) ?? []
   const totalCount = filterOptions.data?.totalCount ?? wardrobeItemsQuery.data?.pages[0]?.totalCount ?? 0
   const matchCount = wardrobeItemsQuery.data?.pages[0]?.totalCount ?? 0
+  const hasActiveFilters = Boolean(activeCategory || activeSeason || selectedColor || selectedTag || activeBrand || unbrandedOnly || searchQuery.trim())
+  const isEmptyWardrobe = wardrobeItemsQuery.isSuccess && !wardrobeItemsQuery.isPlaceholderData &&
+    (hasActiveFilters
+      ? filterOptions.isSuccess && !filterOptions.isPlaceholderData && filterOptions.data.totalCount === 0
+      : matchCount === 0)
   const isWaitingForItems = wardrobeItemsQuery.isPending || wardrobeItemsQuery.isPlaceholderData
   const isSearchPending = searchQuery !== settledSearch || wardrobeItemsQuery.isPlaceholderData
   const wardrobeTransition = useWardrobeTransition(isWaitingForItems || (wardrobeItemsQuery.isFetching && filteredItems.length === 0))
@@ -246,8 +267,11 @@ export function ClosetPage() {
     setSelectedIds((currentIds) => [...currentIds, item.id])
   }
 
+  const selectedItems = items.filter((item) => selectedIds.includes(item.id))
+  const canCreateOutfit = hasMinimumOutfitItems(selectedItems)
+
   const sendToLookbook = () => {
-    if (selectedIds.length < 2) return
+    if (!canCreateOutfit) return
     navigate(
       createOutfitComposerPath(
         selectedIds,
@@ -293,6 +317,7 @@ export function ClosetPage() {
         onToggleSearch={toggleSearch}
         onAddItem={openPicker}
       />
+      <WardrobePhotoAnalysisStatus />
       {totalCount > 0 && (
         <ClosetSearchFilter
           query={searchQuery}
@@ -356,7 +381,7 @@ export function ClosetPage() {
 
         <CatalogScrollRegion label="옷장 목록" resetKey={searchParams.toString()}>
           {totalCount > 0 && <WardrobeRediscoverySection
-            visible={!activeCategory && !activeSeason && !selectedColor && !selectedTag && !activeBrand && !unbrandedOnly && !searchQuery.trim() && selectedIds.length === 0}
+            visible={!hasActiveFilters && selectedIds.length === 0}
             onOpenItem={handleItemClick}
           />}
           <WardrobeCabinet
@@ -413,7 +438,7 @@ export function ClosetPage() {
             ) : (
               <div
                 className={
-                  totalCount === 0
+                  isEmptyWardrobe
                     ? 'mt-6 rounded-3xl border border-line bg-surface p-6 text-center sm:p-8'
                     : 'mt-6 rounded-3xl border border-dashed border-line bg-surface px-6 py-12 text-center'
                 }
@@ -421,10 +446,10 @@ export function ClosetPage() {
                 <WardrobeEmptyStateIllustration className="mx-auto size-28" />
                 <h2
                   className={`mt-5 font-black ${
-                    totalCount === 0 ? 'text-xl' : 'text-lg'
+                    isEmptyWardrobe ? 'text-xl' : 'text-lg'
                   }`}
                 >
-                  {totalCount === 0
+                  {isEmptyWardrobe
                     ? '옷장이 비어 있어요'
                     : searchQuery.trim()
                       ? '검색 결과가 없어요'
@@ -440,12 +465,12 @@ export function ClosetPage() {
                 </h2>
                 <p
                   className={
-                    totalCount === 0
-                      ? 'mx-auto mt-2 min-h-14 max-w-md text-sm leading-7 text-muted'
+                    isEmptyWardrobe
+                      ? 'mx-auto mt-2 max-w-md text-sm leading-7 text-muted'
                       : 'mt-2 text-sm text-muted'
                   }
                 >
-                  {totalCount === 0
+                  {isEmptyWardrobe
                     ? '내 옷장에 옷 사진을 추가해보세요.'
                     : searchQuery.trim() || selectedTag
                       ? '검색어를 바꾸거나 선택한 태그를 해제해보세요.'
@@ -457,6 +482,16 @@ export function ClosetPage() {
                       ? '다른 계절을 선택하거나 옷의 계절 정보를 수정해보세요.'
                       : '다른 카테고리를 확인하거나 새 옷을 추가해보세요.'}
                 </p>
+                {isEmptyWardrobe && (
+                  <button
+                    type="button"
+                    onClick={(event) => openPicker(event.currentTarget)}
+                    disabled={analyzingCount > 0}
+                    className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-full bg-accent px-5 text-sm font-medium text-surface focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50"
+                  >
+                    <ImagePlus size={16} aria-hidden="true" />첫 옷 사진 추가
+                  </button>
+                )}
               </div>
             )}
             </CatalogResults>
@@ -474,7 +509,8 @@ export function ClosetPage() {
 
       {selectedIds.length > 0 && (
         <ClosetMultiSelectBar
-          selectedItems={items.filter((item) => selectedIds.includes(item.id))}
+          selectedItems={selectedItems}
+          isReady={canCreateOutfit}
           onClear={() => setSelectedIds([])}
           onViewInLookbook={viewInLookbook}
           onSendToLookbook={sendToLookbook}

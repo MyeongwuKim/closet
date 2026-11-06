@@ -1,14 +1,19 @@
-import type { WardrobeItem } from '@closet/types'
-import { CalendarDays, Check, ChevronLeft } from 'lucide-react'
+import type { Season, WardrobeItem } from '@closet/types'
+import { CalendarDays, Check, ChevronLeft, Search, SlidersHorizontal, X } from 'lucide-react'
+import { CatalogSearchField } from '../../../components/CatalogSearchField'
 import { ClothingCategoryIcon } from '../../../components/ClothingCategoryIcon'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { formatRecentWearLabel } from '../../../utils/wearDate'
 import { ClosetItemVisual } from '../../closet/components/ClosetItemVisual'
 import { closetCategoryLabels } from '../../closet/constants'
+import { wardrobeItemMatchesSearch } from '../../closet/utils/wardrobeTags'
+import { useOutfitRecentWearFilter } from '../hooks/useOutfitRecentWearFilter'
+import { filterOutfitItems, getOutfitItemFilterOptions } from '../utils/outfitItemFilters'
 import { getCenteredScrollTop } from '../utils/outfitPickerScroll'
 import type { OutfitSlot } from './outfitSlots'
 import { getOutfitSelectionCapacity } from '../utils/outfitSelection'
+import { OutfitWardrobeFilters } from './OutfitWardrobeFilters'
 
 interface OutfitWardrobePickerProps {
   slot: OutfitSlot
@@ -18,7 +23,7 @@ interface OutfitWardrobePickerProps {
   onConfirm: (itemIds: string[]) => void
 }
 
-/** 코디 슬롯에 맞는 옷을 선택하고 완료할 때 ID 목록을 부모에 전달한다. 애니메이션이 있는 편집 시트 안에서도 화면 전체를 덮도록 body에 표시하며 Escape는 이 선택 화면만 닫는다. */
+/** 슬롯의 옷을 검색어·세부 종류·계절·색상·최근 착용 조건으로 좁히되 이미 고른 옷은 유지한다. 완료하면 선택한 ID를 부모에 전달한다. */
 export function OutfitWardrobePicker({
   slot,
   items,
@@ -37,35 +42,63 @@ export function OutfitWardrobePicker({
     ),
   ]
   const selectionLimit = getOutfitSelectionCapacity(slot.id, selectedItems)
+  const filterPanelId = useId()
+  const searchButtonRef = useRef<HTMLButtonElement>(null)
+  const filterButtonRef = useRef<HTMLButtonElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const itemButtonRefs = useRef(new Map<string, HTMLButtonElement>())
   const initialSelectedItemIdRef = useRef(
     selectedItems.find((item) => slot.matches(item))?.id ?? null,
   )
   const [activeSubcategory, setActiveSubcategory] = useState('all')
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [season, setSeason] = useState<Season | null>(null)
+  const [color, setColor] = useState<string | null>(null)
+  const { recentWearDays, today, hideRecentlyWorn, setHideRecentlyWorn } =
+    useOutfitRecentWearFilter()
   const [selectedIds, setSelectedIds] = useState(() =>
     selectedItems
       .filter((item) => slot.matches(item))
       .slice(0, selectionLimit)
       .map((item) => item.id),
   )
-  const visibleItems =
-    activeSubcategory === 'all'
-      ? selectableItems
-      : selectableItems.filter(
-          (item) => item.subcategory === activeSubcategory,
-        )
+  const filterOptions = getOutfitItemFilterOptions(selectableItems)
+  const activeFilterCount = Number(season !== null) + Number(color !== null) + Number(hideRecentlyWorn)
+  const visibleItems = filterOutfitItems(selectableItems, {
+    query: '',
+    season,
+    color,
+    recentWear: hideRecentlyWorn ? { intervalDays: recentWearDays, today } : undefined,
+  }).filter(
+    (item) =>
+      (activeSubcategory === 'all' || item.subcategory?.trim() === activeSubcategory)
+      && wardrobeItemMatchesSearch(item, query),
+  )
+  const hasSearchQuery = Boolean(query.trim())
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       event.preventDefault()
       event.stopImmediatePropagation()
+      if (isSearchOpen) {
+        setIsSearchOpen(false)
+        setQuery('')
+        searchButtonRef.current?.focus()
+        return
+      }
+      if (isFilterOpen) {
+        setIsFilterOpen(false)
+        filterButtonRef.current?.focus()
+        return
+      }
       onClose()
     }
     window.addEventListener('keydown', handleKeyDown, { capture: true })
     return () => window.removeEventListener('keydown', handleKeyDown, true)
-  }, [onClose])
+  }, [isFilterOpen, isSearchOpen, onClose])
 
   useLayoutEffect(() => {
     const selectedItemId = initialSelectedItemIdRef.current
@@ -134,6 +167,41 @@ export function OutfitWardrobePicker({
                 : '한 개를 선택할 수 있어요.'}
             </p>
           </div>
+          <button
+            ref={searchButtonRef}
+            type="button"
+            onClick={() => {
+              if (isSearchOpen) setQuery('')
+              setIsSearchOpen(!isSearchOpen)
+            }}
+            className={`flex size-10 shrink-0 items-center justify-center rounded-full border ${
+              isSearchOpen ? 'border-accent bg-sage text-accent' : 'border-line bg-surface text-muted'
+            }`}
+            aria-label={isSearchOpen ? '검색 닫기' : `${slot.label} 검색`}
+            aria-expanded={isSearchOpen}
+          >
+            {isSearchOpen ? <X size={18} /> : <Search size={18} />}
+          </button>
+          <button
+            ref={filterButtonRef}
+            type="button"
+            onClick={() => setIsFilterOpen(!isFilterOpen)}
+            className={`relative flex size-10 shrink-0 items-center justify-center rounded-full border ${
+              isFilterOpen || activeFilterCount > 0
+                ? 'border-ink bg-ink text-white'
+                : 'border-line bg-surface text-muted'
+            }`}
+            aria-label={`${slot.label} 필터`}
+            aria-expanded={isFilterOpen}
+            aria-controls={filterPanelId}
+          >
+            <SlidersHorizontal size={18} />
+            {activeFilterCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-accent text-[9px] font-bold text-white" aria-hidden="true">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
           {selectedIds.length > 0 && (
             <button
               type="button"
@@ -143,6 +211,45 @@ export function OutfitWardrobePicker({
               선택 해제
             </button>
           )}
+        </div>
+        <div className={`mx-auto max-w-3xl px-4 sm:px-6 max-sm:[&_input]:text-base! ${isFilterOpen ? 'pb-3' : ''}`}>
+          <CatalogSearchField
+            isOpen={isSearchOpen}
+            value={query}
+            label={`${slot.label} 검색어`}
+            placeholder="이름, 브랜드, 색상 검색"
+            onChange={(value) => {
+              setQuery(value)
+              scrollContainerRef.current?.scrollTo({ top: 0 })
+            }}
+          />
+          <OutfitWardrobeFilters
+            id={filterPanelId}
+            isOpen={isFilterOpen}
+            options={filterOptions}
+            season={season}
+            color={color}
+            recentWearDays={recentWearDays}
+            hideRecentlyWorn={hideRecentlyWorn}
+            onSeasonChange={(value) => {
+              setSeason(value)
+              scrollContainerRef.current?.scrollTo({ top: 0 })
+            }}
+            onColorChange={(value) => {
+              setColor(value?.name ?? null)
+              scrollContainerRef.current?.scrollTo({ top: 0 })
+            }}
+            onHideRecentlyWornChange={(value) => {
+              setHideRecentlyWorn(value)
+              scrollContainerRef.current?.scrollTo({ top: 0 })
+            }}
+            onClear={() => {
+              setSeason(null)
+              setColor(null)
+              setHideRecentlyWorn(false)
+              scrollContainerRef.current?.scrollTo({ top: 0 })
+            }}
+          />
         </div>
       </header>
 
@@ -187,7 +294,7 @@ export function OutfitWardrobePicker({
               {visibleItems.map((item) => {
                 const isSelected = selectedIds.includes(item.id)
                 const wearLabel = item.lastWornAt
-                  ? formatRecentWearLabel(item.lastWornAt)
+                  ? formatRecentWearLabel(item.lastWornAt, today)
                   : null
                 return (
                   <button
@@ -247,10 +354,18 @@ export function OutfitWardrobePicker({
                 />
               </span>
               <h2 className="mt-5 text-lg font-black">
-                고를 수 있는 {slot.label}가 없어요
+                {hasSearchQuery
+                  ? '검색 결과가 없어요'
+                  : activeFilterCount > 0
+                    ? '필터에 맞는 옷이 없어요'
+                    : `고를 수 있는 ${slot.label}가 없어요`}
               </h2>
               <p className="mt-2 text-sm text-muted">
-                옷장에 {slot.label}를 먼저 추가해주세요.
+                {hideRecentlyWorn
+                  ? '최근 착용 숨기기를 끄거나 다른 조건을 골라보세요.'
+                  : hasSearchQuery || activeFilterCount > 0
+                    ? '검색어나 필터를 바꿔보세요.'
+                    : `옷장에 ${slot.label}를 먼저 추가해주세요.`}
               </p>
             </div>
           )}

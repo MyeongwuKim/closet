@@ -166,7 +166,7 @@ test('추천 오류는 자동 재요청하지 않고 사용자가 다시 누른 
 test('옷 수정·보관 후 예전 스타일 후보를 숨기며 다음 클릭 전에는 사용권을 쓰지 않는다', async ({ page, mockApi }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   mockApi.wardrobeItems.push(createWardrobeItem({ id: 'replacement-pants', name: '남겨둘 바지', category: 'bottom', subcategory: '슬랙스' }))
-  const state = await installStyleCredits(page, () => mockApi.wardrobeItems.find((item) => item.category === 'bottom'), 3)
+  const state = await installStyleCredits(page, () => mockApi.wardrobeItems.find((item) => item.category === 'bottom' && !item.archivedAt), 3)
   let choice = await openStyleChoice(page)
   await choice.getByRole('button', { name: '컬러·옷장 함께 추천받기' }).click()
   const result = page.getByRole('region', { name: '스타일 추천', exact: true })

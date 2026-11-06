@@ -50,6 +50,9 @@ export function weatherForecastQueryOptions(
         { input: { ...coordinates, date } },
         signal,
       )
+      if (data.weatherForecast.date !== date) {
+        throw new Error('선택한 날짜의 예보를 확인하지 못했어요.')
+      }
       return data.weatherForecast
     },
   })

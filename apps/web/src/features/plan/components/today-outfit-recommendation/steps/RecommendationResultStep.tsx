@@ -3,17 +3,21 @@ import { ChevronLeft } from 'lucide-react'
 import type { ColorScheme } from '../../../data/colorSchemes'
 import { RecommendationQuickReply } from '../RecommendationChatUi'
 import { TodayOutfitRecommendationResult } from '../TodayOutfitRecommendationResult'
+import type { RecommendationMode } from '../recommendationFlow'
 
 interface RecommendationResultStepProps {
   viewerId: string
   date: string
   season: Season
   colorScheme: ColorScheme
-  hasTodayOutfit: boolean
+  hasScheduledOutfit: boolean
+  mode: RecommendationMode
   baseItemId?: string
   weather?: WeatherSnapshot | null
   onBack: () => void
   onOpenCloset: () => void
+  onOpenLookbook?: () => void
+  onApplied?: () => void
 }
 
 export function RecommendationResultStep({
@@ -21,11 +25,14 @@ export function RecommendationResultStep({
   date,
   season,
   colorScheme,
-  hasTodayOutfit,
+  hasScheduledOutfit,
+  mode,
   baseItemId,
   weather,
   onBack,
   onOpenCloset,
+  onOpenLookbook,
+  onApplied,
 }: RecommendationResultStepProps) {
   return (
     <section className="flex h-full min-h-0 flex-col gap-2 py-1">
@@ -36,10 +43,13 @@ export function RecommendationResultStep({
           date={date}
           season={season}
           colorScheme={colorScheme}
-          hasTodayOutfit={hasTodayOutfit}
+          hasScheduledOutfit={hasScheduledOutfit}
+          mode={mode}
           baseItemId={baseItemId}
           weather={weather}
           onOpenCloset={onOpenCloset}
+          onOpenLookbook={onOpenLookbook}
+          onApplied={onApplied}
         />
       </div>
       <div className="flex shrink-0 justify-end">

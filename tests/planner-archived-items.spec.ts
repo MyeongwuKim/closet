@@ -64,12 +64,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     await expect(page.getByRole('radio', { name: '추웠어요', exact: true })).toHaveAttribute('aria-checked', 'true')
     await expect.poll(() => mockApi.plannerEntries[0]?.wearFeeling).toBe('cold')
 
-    await page.getByRole('button', { name: '아우터 교체하기', exact: true }).click()
-    const picker = page.getByRole('dialog', { name: '아우터 옷 선택' })
-    await expect(picker.getByRole('button', { name: /B 코트/ })).toHaveCount(0)
-    await expect(picker.getByRole('button', { name: /D 재킷/ })).toBeVisible()
-    await picker.getByRole('button', { name: '코디 설정으로 돌아가기', exact: true }).click()
-    await expect(page.getByRole('img', { name: 'B 코트', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: '아우터 교체하기', exact: true })).toHaveCount(0)
 
     await page.getByRole('button', { name: 'AI 룩북 보기', exact: true }).click()
     const imageDialog = page.getByRole('dialog', { name: 'AI 룩북', exact: true })
@@ -98,8 +93,14 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     await expect(page.getByRole('button', { name: 'A 셔츠 옷 상세 보기' })).toBeVisible()
 
     await page.goto(`/plan/${monday}`)
+    await page.getByRole('button', { name: '착용 취소', exact: true }).click()
     await page.getByRole('button', { name: '아우터 교체하기', exact: true }).click()
     const replacementPicker = page.getByRole('dialog', { name: '아우터 옷 선택' })
+    await expect(replacementPicker.getByRole('button', { name: /B 코트/ })).toHaveCount(0)
+    await expect(replacementPicker.getByRole('button', { name: /D 재킷/ })).toBeVisible()
+    await replacementPicker.getByRole('button', { name: '코디 설정으로 돌아가기', exact: true }).click()
+    await expect(page.getByRole('img', { name: 'B 코트', exact: true })).toBeVisible()
+    await page.getByRole('button', { name: '아우터 교체하기', exact: true }).click()
     await replacementPicker.getByRole('button', { name: /D 재킷/ }).click()
     await replacementPicker.getByRole('button', { name: '1개 선택 완료', exact: true }).click()
     await expect(page.getByText('삭제된 옷', { exact: true })).toHaveCount(0)

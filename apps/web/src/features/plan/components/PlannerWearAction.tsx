@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
 import type { WearFeeling } from '@closet/types'
 import { Check, LoaderCircle } from 'lucide-react'
 import { useUiStore } from '../../../stores/useUiStore'
 import { useSetPlannerEntryWearFeelingMutation, useSetPlannerEntryWornMutation } from '../api/plannerQueries'
 import { getCurrentWeekStart, type PlanEntry } from '../data/weeklyPlan'
-import { canConfirmPlannerWear, getKoreaPlannerToday } from '../utils/plannerWear'
+import { useKoreaPlannerToday } from '../hooks/useKoreaPlannerToday'
+import { canConfirmPlannerWear } from '../utils/plannerWear'
 import { PlannerWearFeeling } from './PlannerWearFeeling'
 
 interface PlannerWearActionProps {
@@ -16,20 +16,9 @@ export function PlannerWearAction({ entry }: PlannerWearActionProps) {
   const mutation = useSetPlannerEntryWornMutation()
   const feelingMutation = useSetPlannerEntryWearFeelingMutation()
   const pushToast = useUiStore((state) => state.pushToast)
-  const [today, setToday] = useState(getKoreaPlannerToday)
+  const today = useKoreaPlannerToday()
   const isWorn = Boolean(entry.wornAt)
   const isSaving = mutation.isPending || feelingMutation.isPending
-
-  // 자정을 넘기거나 앱으로 돌아오면 미래 일정의 확인 가능 여부를 다시 계산한다.
-  useEffect(() => {
-    const updateToday = () => setToday(getKoreaPlannerToday())
-    const interval = window.setInterval(updateToday, 60_000)
-    window.addEventListener('focus', updateToday)
-    return () => {
-      window.clearInterval(interval)
-      window.removeEventListener('focus', updateToday)
-    }
-  }, [])
 
   if (!canConfirmPlannerWear(entry, today)) return null
 

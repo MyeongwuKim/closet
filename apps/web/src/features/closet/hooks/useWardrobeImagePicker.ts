@@ -18,28 +18,36 @@ export interface CapturedWardrobePhoto {
 }
 
 interface UseWardrobeImagePickerOptions {
+  /** 플래너에서 첫 옷 등록으로 이동했을 때만 사진 추가창부터 보여준다. */
+  initiallyOpen?: boolean
   onImagesSelected: (files: File[]) => boolean | void
   onError: (message: string) => void
 }
 
 /** 옷장 사진 추가의 실행 환경과 선택 단계를 관리한다. 웹은 파일 선택·드롭 창을, 앱은 촬영·앨범 창을 사용하며 허용된 사진은 onImagesSelected의 분석 흐름에 전달한다. */
 export function useWardrobeImagePicker({
+  initiallyOpen = false,
   onImagesSelected,
   onError,
 }: UseWardrobeImagePickerOptions) {
   const isNativeApp = isNativeWebViewRuntime()
   const addButtonRef = useRef<HTMLButtonElement>(null)
+  const openerRef = useRef<HTMLButtonElement | null>(null)
   const albumInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const capturedPhotoRef = useRef<CapturedWardrobePhoto | null>(null)
   const isMountedRef = useRef(true)
   const [pickerStep, setPickerStep] =
-    useState<WardrobeImagePickerStep>('closed')
+    useState<WardrobeImagePickerStep>(initiallyOpen ? 'source' : 'closed')
   const [capturedPhoto, setCapturedPhoto] =
     useState<CapturedWardrobePhoto | null>(null)
 
   const restoreAddButtonFocus = useCallback(() => {
-    window.requestAnimationFrame(() => addButtonRef.current?.focus())
+    window.requestAnimationFrame(() => {
+      const opener = openerRef.current
+      if (opener?.isConnected && !opener.disabled) opener.focus()
+      else addButtonRef.current?.focus()
+    })
   }, [])
 
   const clearCapturedPhoto = () => {
@@ -138,7 +146,11 @@ export function useWardrobeImagePicker({
     cameraInputRef.current?.click()
   }
 
-  const openPicker = () => setPickerStep('source')
+  /** 클릭한 추가 버튼을 기억해 사진 추가창을 닫은 뒤 키보드 포커스를 돌려준다. */
+  const openPicker = (opener = addButtonRef.current) => {
+    openerRef.current = opener
+    setPickerStep('source')
+  }
 
   const closePicker = () => {
     clearCapturedPhoto()

@@ -49,6 +49,7 @@ import {
   getOutfitCompletionMessage,
 } from '../utils/outfitComposition'
 import {
+  createLookbookOutfitPath,
   getOutfitComposerBackPath,
   shouldExitOutfitComposer,
 } from '../utils/outfitComposerNavigation'
@@ -172,7 +173,12 @@ export function OutfitComposerPage() {
     return [...outfitStyleOptions, ...customStyles]
   }, [outfits])
   const selectedIds = layers.map((layer) => layer.wardrobeItemId)
-  const previewMutation = useGenerateOutfitPreviewMutation({ selectedItemIds: selectedIds, style })
+  const selectedItems = selectedIds.flatMap((itemId) => {
+    const item = items.find((candidate) => candidate.id === itemId)
+    return item ? [item] : []
+  })
+  const outfitCompletionMessage = getOutfitCompletionMessage(selectedItems)
+  const previewMutation = useGenerateOutfitPreviewMutation(outfitCompletionMessage ? undefined : { selectedItemIds: selectedIds, style })
   const currentPreviewCompositionKey = getOutfitPreviewCompositionKey(
     selectedIds,
     style,
@@ -372,11 +378,6 @@ export function OutfitComposerPage() {
     }
   }, [goBackStep, isExitConfirmOpen])
 
-  const selectedItems = selectedIds.flatMap((itemId) => {
-    const item = items.find((candidate) => candidate.id === itemId)
-    return item ? [item] : []
-  })
-  const outfitCompletionMessage = getOutfitCompletionMessage(selectedItems)
   const duplicateOutfit = findDuplicateOutfit(outfits, selectedIds)
   const duplicateMessage = duplicateOutfit
     ? `같은 옷 조합이 이미 '${duplicateOutfit.name}' 코디로 저장되어 있어요.`
@@ -782,9 +783,9 @@ export function OutfitComposerPage() {
   const updateOutfitStyle = (nextStyle: string) => {
     if (nextStyle === style) return
 
-    // 스타일 없이 만든 이미지는 첫 스타일 선택 때 그대로 저장할 수 있다.
-    // 이미 지정한 스타일을 바꾸면 이미지에 반영된 방향도 달라지므로 다시 만든다.
-    const keepPreview = !style && hasGeneratedPreview
+    // 저장 화면에서 정하는 코디북 분류는 완성한 이미지를 지우지 않는다.
+    // 편집 화면의 생성 스타일을 바꾸는 경우에는 이전 이미지를 무효화한다.
+    const keepPreview = hasGeneratedPreview && (!style || isSaveStepOpen)
     const nextSearchParams = new URLSearchParams(searchParams)
     if (nextStyle) nextSearchParams.set('style', nextStyle)
     else nextSearchParams.delete('style')
@@ -882,11 +883,13 @@ export function OutfitComposerPage() {
             <div className="mx-auto max-w-2xl">
               <div className="mb-2"><PreviewCreditSummary /></div>
               <OutfitCompletionActions
-                isPreviewPending={previewMutation.isPending || previewMutation.isRestoringCompleted}
+                isPreviewPending={previewMutation.isPending}
+                isRestoringPreview={previewMutation.isRestoringCompleted}
                 canResumePreview={previewMutation.willResume || previewMutation.hasCompletedPreview || previewMutation.isCompletedLookupError}
                 completionMessage={outfitCompletionMessage}
                 isEmpty={selectedItems.length === 0}
                 duplicateMessage={duplicateMessage}
+                existingOutfitPath={duplicateOutfit ? createLookbookOutfitPath(duplicateOutfit.id) : undefined}
                 hasAvailableLookbook={Boolean(
                   canUseSavedLookbookPreview ||
                     previewMutation.hasCompletedPreview ||

@@ -14,7 +14,9 @@ interface MatchedOutfitsRailProps {
   onViewAll: () => void
 }
 
-/** 옷 상세의 사진 아래에 해당 옷이 포함된 코디와 실제 구성 아이템 사진을 가로로 표시한다. 카드 선택·전체보기는 부모 콜백에 맡기고, 조회 후 코디가 없으면 상의·하의 조합 아이콘과 라벨을 가운데 표시한다. */
+const railClassName = 'scrollbar-hidden mt-3 grid auto-cols-[160px] grid-flow-col gap-2.5 overflow-x-auto pb-2 sm:auto-cols-[180px]'
+
+/** 옷 상세 아래에 해당 옷의 코디를 표시한다. 조회 중과 빈 상태는 같은 높이의 안내를 사용하며 카드 선택·전체보기는 부모에 맡긴다. */
 export function MatchedOutfitsRail({
   items,
   outfits,
@@ -22,6 +24,8 @@ export function MatchedOutfitsRail({
   onOutfitClick,
   onViewAll,
 }: MatchedOutfitsRailProps) {
+  const showOutfits = !isLoading && outfits.length > 0
+
   return (
     <section aria-labelledby="matched-outfits-title">
       <div className="flex items-end justify-between gap-3">
@@ -34,7 +38,7 @@ export function MatchedOutfitsRail({
           </h2>
           <p className="mt-1 text-[11px] text-muted">코디북에 저장한 최근 조합</p>
         </div>
-        {outfits.length > 0 && (
+        {showOutfits && (
           <button
             type="button"
             onClick={onViewAll}
@@ -45,12 +49,8 @@ export function MatchedOutfitsRail({
         )}
       </div>
 
-      {isLoading ? (
-        <p className="mt-3 rounded-2xl border border-line bg-surface px-3 py-4 text-xs text-muted" role="status">
-          저장한 코디를 불러오는 중이에요.
-        </p>
-      ) : outfits.length > 0 ? (
-        <div className="scrollbar-hidden mt-3 grid auto-cols-[160px] grid-flow-col gap-2.5 overflow-x-auto pb-2 sm:auto-cols-[180px]">
+      {showOutfits ? (
+        <div className={railClassName}>
           {outfits.map((outfit) => (
             <button
               type="button"
@@ -84,13 +84,33 @@ export function MatchedOutfitsRail({
           ))}
         </div>
       ) : (
-        <div className="mt-3 flex flex-col items-center rounded-2xl bg-surface/60 px-3 py-4 text-center">
+        <div
+          className="mt-3 flex flex-col items-center rounded-2xl bg-surface/60 px-3 py-4 text-center"
+          role={isLoading ? 'status' : undefined}
+          aria-label={isLoading ? '저장한 코디를 불러오는 중' : undefined}
+        >
           <div className="flex h-7 items-center justify-center gap-1.5 text-accent" aria-hidden="true">
-            <ClothingCategoryIcon category="top" size={28} strokeWidth={1.4} />
-            <Plus size={10} strokeWidth={1.5} />
-            <ClothingCategoryIcon category="bottom" size={28} strokeWidth={1.4} />
+            {isLoading ? (
+              <div className="flex gap-1.5 motion-safe:animate-pulse">
+                {['top', 'bottom'].map((category) => (
+                  <span key={category} className="grid size-7 place-items-center rounded-lg border border-line bg-accent/10">
+                    <ClothingCategoryIcon category={category} size={16} strokeWidth={1.5} />
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <>
+                <ClothingCategoryIcon category="top" size={28} strokeWidth={1.4} />
+                <Plus size={10} strokeWidth={1.5} />
+                <ClothingCategoryIcon category="bottom" size={28} strokeWidth={1.4} />
+              </>
+            )}
           </div>
-          <h3 className="mt-2 text-xs font-medium text-muted">아직 매칭한 코디가 없어요</h3>
+          {isLoading ? (
+            <p className="mt-2 text-xs font-medium text-muted">저장한 코디를 불러오는 중이에요</p>
+          ) : (
+            <h3 className="mt-2 text-xs font-medium text-muted">아직 매칭한 코디가 없어요</h3>
+          )}
         </div>
       )}
     </section>

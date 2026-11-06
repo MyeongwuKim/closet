@@ -1,5 +1,10 @@
 import type { OutfitComposerState } from '../contexts/OutfitComposerContext'
 
+/** 코디북 목록의 정렬·페이지와 관계없이 저장한 코디 상세를 여는 경로다. */
+export function createLookbookOutfitPath(outfitId: string) {
+  return `/lookbook?${new URLSearchParams({ outfit: outfitId })}`
+}
+
 export function createOutfitComposerPath(
   itemIds: readonly string[],
   fromPath: string,

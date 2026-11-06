@@ -15,20 +15,26 @@ const MAX_IMAGE_REQUESTS = 3
 const SYNTHETIC_USER_ID = 'synthetic-lookbook-proportions'
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
 const DEFAULT_CASE_NAMES = ['athletic-jacket', 'slim-jacket', 'broad-coat'] as const
-const CASE_NAMES = [...DEFAULT_CASE_NAMES, 'broad-coat-short-inner', 'broad-coat-long-inner'] as const
+const AVERAGE_WEIGHT_CASE_NAMES = ['average-176-70-jacket', 'average-176-90-jacket', 'average-176-100-jacket'] as const
+const FEMALE_PROFILE_CASE_NAMES = ['female-160-55-basic', 'female-160-80-basic', 'female-160-80-measured'] as const
+const CASE_NAMES = [
+  ...DEFAULT_CASE_NAMES, 'broad-coat-short-inner', 'broad-coat-long-inner', ...AVERAGE_WEIGHT_CASE_NAMES, ...FEMALE_PROFILE_CASE_NAMES,
+] as const
 type CaseName = typeof CASE_NAMES[number]
 type ReferenceName = 'jacket' | 'long-inner' | 'coat' | 'coat-inner' | 'coat-inner-short' | 'coat-inner-long' | 'pants'
+  | 'blue-short-sleeve' | 'profile-test-pants'
 
 interface SyntheticBody {
   gender: Gender
   bodyBuild: BodyBuild
   heightCm: number
   weightKg: number
-  shoulderWidthCm: number
-  chestCircumferenceCm: number
-  waistCircumferenceCm: number
-  hipCircumferenceCm: number
-  inseamCm: number
+  shoulderWidthCm: number | null
+  chestCircumferenceCm: number | null
+  waistCircumferenceCm: number | null
+  hipCircumferenceCm: number | null
+  thighCircumferenceCm?: number | null
+  inseamCm: number | null
 }
 
 interface ProportionCase {
@@ -40,6 +46,17 @@ interface ProportionCase {
 
 const COAT_BODY: SyntheticBody = { gender: 'female', bodyBuild: 'broad', heightCm: 165, weightKg: 62, shoulderWidthCm: 41, chestCircumferenceCm: 96, waistCircumferenceCm: 80, hipCircumferenceCm: 100, inseamCm: 76 }
 
+const FEMALE_BASIC_BODY: SyntheticBody = {
+  gender: 'female', bodyBuild: 'average', heightCm: 160, weightKg: 80,
+  shoulderWidthCm: null, chestCircumferenceCm: null, waistCircumferenceCm: null,
+  hipCircumferenceCm: null, thighCircumferenceCm: null, inseamCm: null,
+}
+const FEMALE_MEASURED_BODY: SyntheticBody = {
+  ...FEMALE_BASIC_BODY,
+  shoulderWidthCm: 40, chestCircumferenceCm: 103, waistCircumferenceCm: 80,
+  hipCircumferenceCm: 110, thighCircumferenceCm: 67, inseamCm: 71,
+}
+
 function coatVisualReviewCriteria(innerLengthCm: number) {
   return [
     '큰 골격의 성인 여성 체형을 근육형이나 남성 체형으로 바꾸지 않는지 확인한다.',
@@ -50,7 +67,7 @@ function coatVisualReviewCriteria(innerLengthCm: number) {
   ]
 }
 
-/** 재킷의 체형 차이와 코트 안 이너 55·70·85cm의 기장 차이를 분리해 보는 공개 합성 사례다. */
+/** 체형·체중·상세 치수·겹쳐 입는 옷의 기장 차이를 각 대조군 내에서 같은 옷 조건으로 비교한다. */
 export const LOOKBOOK_PROPORTION_CASES: readonly ProportionCase[] = [
   {
     name: 'athletic-jacket',
@@ -90,6 +107,35 @@ export const LOOKBOOK_PROPORTION_CASES: readonly ProportionCase[] = [
     references: ['coat', 'coat-inner-long', 'pants'],
     visualReviewCriteria: coatVisualReviewCriteria(85),
   },
+  ...([70, 90, 100] as const).map((weightKg, index): ProportionCase => ({
+    name: AVERAGE_WEIGHT_CASE_NAMES[index]!,
+    body: {
+      gender: 'male', bodyBuild: 'average', heightCm: 176, weightKg,
+      shoulderWidthCm: null, chestCircumferenceCm: null, waistCircumferenceCm: null,
+      hipCircumferenceCm: null, inseamCm: null,
+    },
+    references: ['jacket', 'long-inner', 'pants'],
+    visualReviewCriteria: [
+      '176cm·보통 체형·같은 옷을 유지하고 체중만 70/90/100kg으로 바꾼 결과를 비교한다.',
+      '체중이 큰 조건을 날씬한 모델이나 근육형으로 바꾸지 않고 허리·복부·몸통·팔다리 볼륨에 반영하는지 본다.',
+      '상세 둘레를 입력하지 않았으므로 정확한 둘레나 체지방률을 재현했다고 판정하지 않는다.',
+      '옷 크기를 키우거나 자세·화면 확대 차이만으로 체격이 달라 보이는 것은 구분한다.',
+    ],
+  })),
+  ...[
+    { ...FEMALE_BASIC_BODY, weightKg: 55 },
+    FEMALE_BASIC_BODY,
+    FEMALE_MEASURED_BODY,
+  ].map((body, index): ProportionCase => ({
+    name: FEMALE_PROFILE_CASE_NAMES[index]!,
+    body,
+    references: ['blue-short-sleeve', 'profile-test-pants'],
+    visualReviewCriteria: [
+      '160cm·보통 체형의 기본 프로필에서 체중만 55kg에서 80kg으로 바뀌면 몸통·팔·허벅지 볼륨이 달라지는지 확인한다.',
+      '같은 80kg에서 상세 치수를 추가하면 허리 대비 가슴과 엉덩이 비율, 바지의 허리 여유와 엉덩이·허벅지의 가까운 핏이 드러나는지 확인한다.',
+      '옷 형태나 인물의 확대·회전으로 생긴 차이를 신체와 핏의 변화와 구분한다.',
+    ],
+  })),
 ]
 
 /** 실행 여부·사례·출력 경로만 받는다. 잘못된 사례나 중복 인자는 유료 요청 전에 거절한다. */
@@ -133,6 +179,7 @@ interface ReferenceSpec {
   sleeveLengthCm?: number
   waistWidthCm?: number
   hipWidthCm?: number
+  thighWidthCm?: number
   inseamCm?: number
 }
 
@@ -146,14 +193,23 @@ const REFERENCE_SPECS: Record<ReferenceName, ReferenceSpec> = {
   'coat-inner-short': { ...COAT_INNER_SPEC, totalLengthCm: 55 },
   'coat-inner-long': { ...COAT_INNER_SPEC, totalLengthCm: 85 },
   pants: { name: '베이지 스트레이트 팬츠', category: 'bottom', subcategory: '일반 긴바지', colorName: '베이지', colorHex: '#c5b28e', totalLengthCm: 103, waistWidthCm: 43, hipWidthCm: 55, inseamCm: 76 },
+  'blue-short-sleeve': {
+    name: '더스티 블루 반팔 티셔츠', category: 'top', subcategory: '반팔 티셔츠', colorName: '더스티 블루',
+    colorHex: '#557589', totalLengthCm: 52, shoulderWidthCm: 43, chestWidthCm: 52, sleeveLengthCm: 18,
+  },
+  'profile-test-pants': {
+    name: '베이지 스트레이트 팬츠', category: 'bottom', subcategory: '일반 긴바지', colorName: '베이지',
+    colorHex: '#c5b28e', totalLengthCm: 99, waistWidthCm: 45, hipWidthCm: 56, thighWidthCm: 34.5, inseamCm: 71,
+  },
 }
 
-/** 선택 사례의 이너/겉옷 총장 비율을 기록한다. 생성 이미지에서 측정한 비율이나 정확도 점수가 아니다. */
+/** 이너와 겉옷을 모두 선택한 사례의 합성 총장과 비율만 보고서에 기록한다. */
 export function getLookbookProportionLayerMeasurements(caseName: CaseName) {
   const entry = LOOKBOOK_PROPORTION_CASES.find((item) => item.name === caseName)!
   const garments = entry.references.map((reference) => REFERENCE_SPECS[reference])
-  const inner = garments.find((garment) => garment.category === 'top')!
-  const outer = garments.find((garment) => garment.category === 'outer')!
+  const inner = garments.find((garment) => garment.category === 'top')
+  const outer = garments.find((garment) => garment.category === 'outer')
+  if (!inner || !outer) return undefined
   return {
     innerTotalLengthCm: inner.totalLengthCm,
     outerTotalLengthCm: outer.totalLengthCm,
@@ -169,6 +225,12 @@ export function createLookbookProportionReferenceSvg(reference: ReferenceName) {
   if (reference === 'pants') {
     return frame(`<g stroke="#8c795b" stroke-width="3" stroke-linejoin="round"><path fill="${spec.colorHex}" d="M272.5 60H487.5L517.5 ${hemY}H399L380 205L361 ${hemY}H242.5Z"/><path fill="none" d="M272.5 88H487.5M380 88V205M304 94L293 167M456 94L467 167M280 ${hemY - 14}H360M400 ${hemY - 14}H502"/><circle cx="380" cy="75" r="4" fill="#8c795b"/></g>`)
   }
+  if (reference === 'profile-test-pants') {
+    const hipHalf = spec.hipWidthCm! * 2.5
+    const waistHalf = spec.waistWidthCm! * 2.5
+    const crotchY = hemY - spec.inseamCm! * 5
+    return frame(`<g stroke="#8c795b" stroke-width="3" stroke-linejoin="round"><path fill="${spec.colorHex}" d="M${380 - waistHalf} 60H${380 + waistHalf}L${380 + hipHalf} 145L503 ${hemY}H397L380 ${crotchY}L363 ${hemY}H257L${380 - hipHalf} 145Z"/><path fill="none" d="M260 88H500M380 88V${crotchY}M294 94L264 144M466 94L496 144M260 ${hemY - 12}H361M399 ${hemY - 12}H500"/><circle cx="380" cy="75" r="4" fill="#8c795b"/></g>`)
+  }
   const shoulderHalf = spec.shoulderWidthCm! * 2.5
   const chestHalf = spec.chestWidthCm! * 2.5
   const leftShoulder = 380 - shoulderHalf
@@ -176,6 +238,9 @@ export function createLookbookProportionReferenceSvg(reference: ReferenceName) {
   const leftBody = 380 - chestHalf
   const rightBody = 380 + chestHalf
   const cuffY = 60 + spec.sleeveLengthCm! * 4.6
+  if (reference === 'blue-short-sleeve') {
+    return frame(`<g stroke="#3c586a" stroke-width="3" stroke-linejoin="round"><path fill="${spec.colorHex}" d="M332 60Q380 93 428 60L${rightShoulder} 78L${rightShoulder + 63} ${cuffY}L${rightShoulder + 24} ${cuffY + 31}L${rightBody} 160V${hemY}H${leftBody}V160L${leftShoulder - 24} ${cuffY + 31}L${leftShoulder - 63} ${cuffY}L${leftShoulder} 78Z"/><path fill="none" d="M332 63Q380 105 428 63M${leftBody + 4} ${hemY - 10}H${rightBody - 4}"/></g>`)
+  }
   const coat = reference === 'coat'
   const stroke = coat ? '#745638' : reference === 'jacket' ? '#132235' : '#b1aea6'
   const silhouette = `<path fill="${spec.colorHex}" stroke="${stroke}" stroke-width="3" stroke-linejoin="round" d="M340 60Q380 91 420 60L${rightShoulder} 83L${rightShoulder + 119} ${cuffY}L${rightShoulder + 60} ${cuffY + 20}L${rightBody} 190L${rightBody + (coat ? 24 : 0)} ${hemY}H${leftBody - (coat ? 24 : 0)}L${leftBody} 190L${leftShoulder - 60} ${cuffY + 20}L${leftShoulder - 119} ${cuffY}L${leftShoulder} 83Z"/>`
@@ -227,7 +292,7 @@ function makeSyntheticItem(reference: ReferenceName, png: Buffer): WardrobeImage
     wearCount: 0, lastWornAt: null, archivedAt: null, updatedAt: at, createdAt: at, tags: [], brandName: null, sizeLabel: null,
     shoulderWidthCm: spec.shoulderWidthCm ?? null, chestWidthCm: spec.chestWidthCm ?? null, sleeveLengthCm: spec.sleeveLengthCm ?? null,
     totalLengthCm: spec.totalLengthCm, waistWidthCm: spec.waistWidthCm ?? null, hipWidthCm: spec.hipWidthCm ?? null, inseamCm: spec.inseamCm ?? null,
-    thighWidthCm: null, riseCm: null, hemWidthCm: null, displayImageAssetId: `fixture-${reference}`, originalImageAssetId: null,
+    thighWidthCm: spec.thighWidthCm ?? null, riseCm: null, hemWidthCm: null, displayImageAssetId: `fixture-${reference}`, originalImageAssetId: null,
     fashionAttributes: {
       layerRole: spec.category === 'outer' ? 'outer' : spec.category === 'top' ? 'base' : 'single',
       silhouette: 'regular', material: reference === 'coat' ? 'wool' : 'cotton', texture: 'smooth', pattern: 'solid',
@@ -250,10 +315,10 @@ interface CaseReport {
   name: CaseName
   body: SyntheticBody
   garments: ReferenceSpec[]
-  innerTotalLengthCm: number
-  outerTotalLengthCm: number
+  innerTotalLengthCm?: number
+  outerTotalLengthCm?: number
   /** 입력한 이너 총장 / 겉옷 총장이며 결과 이미지에서 측정한 값이 아니다. */
-  nominalLengthRatio: number
+  nominalLengthRatio?: number
   visualReviewCriteria: string[]
   visualReviewRequired: true
   visualAccuracyScore: null

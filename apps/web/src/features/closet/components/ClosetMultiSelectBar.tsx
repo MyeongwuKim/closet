@@ -4,6 +4,7 @@ import { ClosetItemVisual } from './ClosetItemVisual'
 
 interface ClosetMultiSelectBarProps {
   selectedItems: WardrobeItem[]
+  isReady: boolean
   onClear: () => void
   onViewInLookbook: () => void
   onSendToLookbook: () => void
@@ -11,12 +12,12 @@ interface ClosetMultiSelectBarProps {
 
 export function ClosetMultiSelectBar({
   selectedItems,
+  isReady,
   onClear,
   onViewInLookbook,
   onSendToLookbook,
 }: ClosetMultiSelectBarProps) {
   const selectedCount = selectedItems.length
-  const isReady = selectedCount >= 2
 
   return (
     <div className="selection-bar-enter fixed right-4 bottom-20 left-4 z-40 rounded-[1.75rem] border border-line bg-surface p-3.5 text-ink shadow-[0_18px_55px_rgba(27,27,24,0.2)] md:right-auto md:bottom-6 md:left-1/2 md:w-[460px] md:-translate-x-1/2">

@@ -14,18 +14,13 @@ import { PageTitle } from '../../../components/PageTitle'
 import { ToggleSwitch } from '../../../components/ToggleSwitch'
 import { useUiStore } from '../../../stores/useUiStore'
 import {
+  defaultWearReminderPreferences,
   useMeQuery,
   useUpdateWearReminderPreferencesMutation,
   ViewerSessionChangedError,
   type WearReminderPreferences,
 } from '../api/profileQueries'
 
-const defaultPreferences: WearReminderPreferences = {
-  enabled: false,
-  intervalDays: 7,
-  combinationReminderEnabled: true,
-  itemReminderEnabled: true,
-}
 const quickIntervals = [3, 7, 14, 30] as const
 
 interface ToggleRowProps {
@@ -247,7 +242,7 @@ function WearReminderSettingsForm({
 export function WearReminderSettingsPage() {
   const meQuery = useMeQuery()
   const preferences =
-    meQuery.data?.wearReminderPreferences ?? defaultPreferences
+    meQuery.data?.wearReminderPreferences ?? defaultWearReminderPreferences
 
   return (
     <section

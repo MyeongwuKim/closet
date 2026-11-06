@@ -712,6 +712,12 @@
   }
 }
 
+@media (width < 640px) {
+  .app-main:has(.plan-week-page) {
+    padding-bottom: 8px;
+  }
+}
+
 @media (max-width: 767px) and (max-height: 640px) {
   .plan-page .plan-period-header {
     margin-top: 4px;

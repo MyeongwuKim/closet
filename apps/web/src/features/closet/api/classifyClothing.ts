@@ -1,14 +1,9 @@
-import { useMutation } from '@tanstack/react-query'
 import type { ClothingClassificationResult } from '@closet/types'
+import { getAccessToken } from '../../../lib/auth'
 import {
   GraphqlRequestError,
   graphqlRequest,
 } from '../../../lib/graphql'
-
-export const clothingAnalysisMutationKey = [
-  'wardrobe',
-  'image-analysis',
-] as const
 
 export interface ClothingAnalysisResult extends ClothingClassificationResult {
   cutoutImageBase64: string | null
@@ -18,6 +13,11 @@ export interface ClothingAnalysisResult extends ClothingClassificationResult {
 export interface WardrobeImageCutout {
   imageBase64: string
   mimeType: string
+}
+
+interface ImageAnalysisRequest {
+  accessToken: string
+  signal: AbortSignal
 }
 
 export class ClothingAnalysisError extends Error {
@@ -30,19 +30,28 @@ export class ClothingAnalysisError extends Error {
   }
 }
 
-function readFileAsDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
+/** 파일을 읽는 중 취소되거나 계정이 바뀌면 사진을 서버로 보내지 않는다. */
+async function readAnalysisImage(file: File, { accessToken, signal }: ImageAnalysisRequest) {
+  signal.throwIfAborted()
+  const imageBase64 = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(String(reader.result))
     reader.onerror = () => reject(new Error('이미지 파일을 읽지 못했습니다.'))
     reader.readAsDataURL(file)
   })
+  signal.throwIfAborted()
+  if (accessToken !== getAccessToken()) {
+    throw new ClothingAnalysisError('로그인 상태가 바뀌었어요.', 'UNAUTHENTICATED')
+  }
+  return imageBase64
 }
 
+/** 선택한 옷의 분류 결과와 준비된 컷아웃을 읽는다. */
 export async function classifyClothing(
   file: File,
+  request: ImageAnalysisRequest,
 ): Promise<ClothingAnalysisResult> {
-  const imageBase64 = await readFileAsDataUrl(file)
+  const imageBase64 = await readAnalysisImage(file, request)
   try {
     const payload = await graphqlRequest<
       { classifyWardrobeImage: ClothingAnalysisResult },
@@ -93,6 +102,7 @@ export async function classifyClothing(
           filename: file.name,
         },
       },
+      request.signal,
     )
     return payload.classifyWardrobeImage
   } catch (error) {
@@ -108,8 +118,8 @@ export async function classifyClothing(
 }
 
 /** 분류 실패 또는 응답의 컷아웃 누락 시 같은 사진의 배경 제거를 요청하고 PNG base64를 돌려준다. */
-export async function removeClothingBackground(file: File): Promise<WardrobeImageCutout> {
-  const imageBase64 = await readFileAsDataUrl(file)
+export async function removeClothingBackground(file: File, request: ImageAnalysisRequest): Promise<WardrobeImageCutout> {
+  const imageBase64 = await readAnalysisImage(file, request)
   try {
     const payload = await graphqlRequest<
       { removeWardrobeImageBackground: WardrobeImageCutout },
@@ -121,6 +131,7 @@ export async function removeClothingBackground(file: File): Promise<WardrobeImag
         }
       `,
       { input: { imageBase64, mimeType: file.type, filename: file.name } },
+      request.signal,
     )
     return payload.removeWardrobeImageBackground
   } catch (error) {
@@ -129,23 +140,4 @@ export async function removeClothingBackground(file: File): Promise<WardrobeImag
     }
     throw new ClothingAnalysisError('사진 배경을 제거하지 못했습니다. 사진을 다시 추가해 주세요.')
   }
-}
-
-/** 별도 컷아웃 요청을 분류와 같은 분석 대기 상태에 포함한다. */
-export function useRemoveClothingBackgroundMutation() {
-  return useMutation({
-    mutationKey: clothingAnalysisMutationKey,
-    // 여러 사진과 별도 컷아웃 요청이 같은 분석 대기열을 사용한다.
-    scope: { id: 'wardrobe-image-analysis' },
-    mutationFn: removeClothingBackground,
-  })
-}
-
-export function useClassifyClothingMutation() {
-  return useMutation({
-    mutationKey: clothingAnalysisMutationKey,
-    // 여러 사진과 별도 컷아웃 요청이 같은 분석 대기열을 사용한다.
-    scope: { id: 'wardrobe-image-analysis' },
-    mutationFn: classifyClothing,
-  })
 }

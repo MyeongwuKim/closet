@@ -21,6 +21,7 @@ interface RecommendationExplanationDialogProps {
   /** false이면 요청한 색감 대신 기본 조합으로 추천한 이유를 알린다. */
   colorSchemeApplied?: boolean
   items: WardrobeItem[]
+  dayLabel?: '오늘' | '내일'
   closeLabel?: string
   backLabel?: string
   onClose: () => void
@@ -37,6 +38,7 @@ export function RecommendationExplanationDialog({
   colorScheme = 'auto',
   colorSchemeApplied = true,
   items,
+  dayLabel = '오늘',
   closeLabel = '추천 설명 닫기',
   backLabel,
   onClose,
@@ -183,7 +185,7 @@ export function RecommendationExplanationDialog({
             <span className="min-w-0 flex-1">
               <strong className="block text-sm">코디 구성 보기</strong>
               <span className="mt-0.5 block truncate text-[10px] text-white/70">
-                아이템을 바꾸거나 오늘 일정에 담을 수 있어요.
+                아이템을 바꾸거나 {dayLabel} 일정에 담을 수 있어요.
               </span>
             </span>
             <ChevronRight className="shrink-0" size={18} />

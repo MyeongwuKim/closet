@@ -71,6 +71,8 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     expect(mondayRecord.outfit?.items.map((item) => item.wardrobeItemId).sort()).toEqual(['a', 'b', 'c'])
     expect(mondayRecord.wornAt).toBe(wornAt)
 
+    await expect(page.getByRole('button', { name: '아우터 교체하기' })).toHaveCount(0)
+    await page.getByRole('button', { name: '착용 취소', exact: true }).click()
     await page.getByRole('button', { name: '아우터 교체하기' }).click()
     await picker.getByRole('button', { name: /D 재킷/ }).click()
     await picker.getByRole('button', { name: '1개 선택 완료' }).click()

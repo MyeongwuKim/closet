@@ -7,4 +7,5 @@ export interface WardrobeItemKindInput {
 }
 
 export const MAX_OUTFIT_ITEMS: 8
+export function hasMinimumOutfitItems(items: readonly Pick<WardrobeItemKindInput, 'category'>[]): boolean
 export function isBagItem(item: WardrobeItemKindInput): boolean

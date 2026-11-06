@@ -59,7 +59,7 @@ export function useAcknowledgePreviewJob() {
 /**
  * 새 요청은 잔액·광고 지급 확인 후 요청 번호를 기록하고 서버 작업을 접수한다. 완료 이미지 URL까지 기다린다.
  * 새로고침·연결 실패 후 재시도는 같은 작업에 연결하며, 서버가 완료·실패를 확정한 뒤의 만들기만 새 요청이다.
- * inputScope가 있으면 같은 계정·조합의 복원 확인과 진행 작업도 isPending에 포함하며, 다른 조합은 막지 않는다.
+ * 호출 화면에서 완성 코디의 inputScope를 넘기면 같은 계정·조합의 복원 확인과 진행 작업도 isPending에 포함한다.
  */
 export function useGenerateOutfitPreviewJobMutation(inputScope?: PreviewInput) {
   const me = useMeQuery()
@@ -80,7 +80,7 @@ export function useGenerateOutfitPreviewJobMutation(inputScope?: PreviewInput) {
   const isActive = Boolean(inputScope && (matchingMutations > 0 || matchingActiveJob || isActiveJob(knownPendingJob)))
   const completedJob = knownPendingJob?.status === 'completed' && inputScope && matchesPreview(knownPendingJob, inputScope)
     ? knownPendingJob : inputScope ? jobs.data?.find((job) => job.status === 'completed' && matchesPreview(job, inputScope)) : undefined
-  const completed = useCompletedOutfitPreview({ viewerId: ownerId, requestKey: scopeKey, enabled: Boolean(ownerId && new Set(inputScope?.selectedItemIds ?? []).size >= 2), active: isActive, completedJob, input: inputScope })
+  const completed = useCompletedOutfitPreview({ viewerId: ownerId, requestKey: scopeKey, enabled: Boolean(ownerId && inputScope?.selectedItemIds.length), active: isActive, completedJob, input: inputScope })
 
   // 서버가 실패·중단을 확정했다면 이전 요청 번호를 해제해 사용자의 다음 시도가 새 작업이 되게 한다.
   useEffect(() => {

@@ -95,7 +95,7 @@ for (const viewport of [
       await page.getByRole('button', { name: 'AI 코디 추천', exact: true }).click()
       const sheet = page.getByRole('dialog', { name: '오늘의 AI 코디 추천' })
       await expect(sheet).toBeVisible()
-      await sheet.getByRole('button', { name: '추천받기' }).click()
+      await sheet.getByRole('button', { name: '조건 바꾸기', exact: true }).click()
       const seasonHeight = await sheet.evaluate((element) => element.getBoundingClientRect().height)
       await testInfo.attach(`${viewport.name}-season-options`, {
         body: await page.screenshot({ animations: 'disabled' }),
@@ -183,7 +183,7 @@ test('옷 정보를 바꾼 뒤 다시 추천받으면 이전 기록 대신 갱�
   })
   const openRecommendation = async () => {
     await page.getByRole('button', { name: 'AI 코디 추천', exact: true }).click()
-    await page.getByRole('button', { name: '추천받기', exact: true }).click()
+    await page.getByRole('button', { name: '조건 바꾸기', exact: true }).click()
     await page.getByRole('button', { name: '봄', exact: true }).click()
     await page.getByRole('button', { name: '자동', exact: true }).click()
   }
@@ -225,7 +225,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     })
     await page.goto('/plan')
     await page.getByRole('button', { name: 'AI 코디 추천', exact: true }).click()
-    await page.getByRole('button', { name: '추천받기', exact: true }).click()
+    await page.getByRole('button', { name: '조건 바꾸기', exact: true }).click()
     await page.getByRole('button', { name: '봄', exact: true }).click()
     await page.getByRole('button', { name: '자동', exact: true }).click()
     await expect(page.getByRole('button', { name: '다른 조합 없음', exact: true })).toBeDisabled()

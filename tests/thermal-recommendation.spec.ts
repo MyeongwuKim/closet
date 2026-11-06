@@ -1,6 +1,9 @@
 import { expect, test } from './support/fixture'
 
-test('일평균과 개인 체감 근거를 먼저 확인한 뒤 현재 날씨 코디에 반영한다', async ({ page, mockApi }) => {
+test('오늘 날씨로 바로 추천하면 자동 색감과 개인 체감 근거를 적용한다', async ({ page, mockApi }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  const initialTime = new Date('2026-11-06T03:00:00Z')
+  await page.clock.install({ time: initialTime })
   await page.addInitScript(() => {
     window.ClosetRuntimeConfig = { isNativeWebView: true }
     window.ClosetNative = {
@@ -11,13 +14,16 @@ test('일평균과 개인 체감 근거를 먼저 확인한 뒤 현재 날씨 �
   const contexts: unknown[] = []
   const requests: Array<Record<string, any>> = []
   const thermalContext = { revision: 'cold-feedback-1', direction: 'warmer', strength: 0.4, sampleCount: 3 }
+  let refreshWeather = false
   await page.route('**/graphql', async (route) => {
     const { query, variables = {} } = route.request().postDataJSON()
     if (query.includes('query WeatherForecast')) {
       await route.fulfill({ json: { data: { weatherForecast: {
-        date: variables.input.date, temperatureC: 21, meanTemperatureC: 18, minTemperatureC: 14, maxTemperatureC: 23, apparentTemperatureC: 20,
+        date: variables.input.date, temperatureC: refreshWeather ? 22 : 21, meanTemperatureC: refreshWeather ? 19 : 18,
+        minTemperatureC: 14, maxTemperatureC: 23, apparentTemperatureC: 20,
         weatherCode: 0, precipitationProbability: 0, recommendedSeason: 'spring', summary: '맑음', source: 'open-meteo',
-        expiresAt: new Date(Date.now() + 600_000).toISOString(), attribution: 'Open-Meteo', attributionUrl: 'https://open-meteo.com/',
+        expiresAt: new Date(initialTime.getTime() + (refreshWeather ? 1_200_000 : 600_000)).toISOString(),
+        attribution: 'Open-Meteo', attributionUrl: 'https://open-meteo.com/',
       } } } })
     } else if (query.includes('query ThermalRecommendationContext')) {
       contexts.push(variables)
@@ -37,15 +43,24 @@ test('일평균과 개인 체감 근거를 먼저 확인한 뒤 현재 날씨 �
   await page.goto('/#/plan')
   await page.getByRole('button', { name: 'AI 코디 추천', exact: true }).click()
   const sheet = page.getByRole('dialog', { name: '오늘의 AI 코디 추천' })
-  await sheet.getByRole('button', { name: '추천받기', exact: true }).click()
-  await sheet.getByRole('button', { name: '현재 날씨로 받기', exact: true }).click()
-  await sheet.getByRole('button', { name: /자동/ }).click()
+  await expect(sheet.getByRole('button', { name: '오늘 날씨로 바로 추천', exact: true })).toBeEnabled()
+  await expect(sheet.getByRole('button', { name: '조건 바꾸기', exact: true })).toBeInViewport()
+  expect(requests).toHaveLength(0)
+  await page.screenshot({ path: testInfo.outputPath('weather-recommendation-intro.png'), animations: 'disabled' })
+  await sheet.getByRole('button', { name: '오늘 날씨로 바로 추천', exact: true }).click()
+  await expect(sheet.getByText('체감을 반영한 코디', { exact: true })).toBeVisible()
+  refreshWeather = true
+  await page.clock.fastForward(601_000)
+  await page.evaluate(() => window.dispatchEvent(new Event('closet:native-app-active')))
+  await expect(page.getByRole('button', { name: /오늘 22도/ })).toBeVisible()
   await expect(sheet.getByText('체감을 반영한 코디', { exact: true })).toBeVisible()
   await sheet.getByRole('button', { name: '설명 전체 보기', exact: true }).click()
   await expect(page.getByRole('dialog', { name: '이 조합을 추천한 이유' }).getByText('비슷한 평균 기온에서 남긴 체감 기록을 참고해 보온성을 더 고려했어요.', { exact: true })).toBeVisible()
   expect(contexts.length).toBeGreaterThan(0)
   expect((contexts[0] as { meanTemperatureC: number }).meanTemperatureC).toBe(18)
   expect(requests).toHaveLength(1)
+  expect(requests[0].colorScheme).toBe('auto')
+  expect(requests[0].season).toBe('spring')
 })
 
 test('체감 근거가 중간에 바뀌면 최신 근거를 다시 읽고 이전 추천을 표시하지 않는다', async ({ page, mockApi }) => {
@@ -83,9 +98,30 @@ test('체감 근거가 중간에 바뀌면 최신 근거를 다시 읽고 이전
   await page.goto('/#/plan')
   await page.getByRole('button', { name: 'AI 코디 추천', exact: true }).click()
   const sheet = page.getByRole('dialog', { name: '오늘의 AI 코디 추천' })
-  await sheet.getByRole('button', { name: '추천받기', exact: true }).click()
+  await sheet.getByRole('button', { name: '조건 바꾸기', exact: true }).click()
   await sheet.getByRole('button', { name: '현재 날씨로 받기', exact: true }).click()
   await sheet.getByRole('button', { name: /자동/ }).click()
   await expect(sheet.getByText('최신 체감으로 고른 코디', { exact: true })).toBeVisible()
   expect(requestedRevisions).toEqual(['old-context', 'fresh-context'])
+})
+
+test('위치 권한이 없으면 날씨 없는 추천을 보내지 않고 직접 조건을 고를 수 있다', async ({ page, mockApi }) => {
+  await page.addInitScript(() => {
+    window.ClosetRuntimeConfig = { isNativeWebView: true }
+    window.ClosetNative = {
+      getAppInfo: async () => ({ permissions: { location: 'denied' }, capabilities: [] }),
+      getCurrentLocation: async () => ({ status: 'permission-denied', canAskAgain: false }),
+    } as unknown as NonNullable<Window['ClosetNative']>
+  })
+  await page.goto('/#/plan')
+  await page.getByRole('button', { name: 'AI 코디 추천', exact: true }).click()
+  const sheet = page.getByRole('dialog', { name: '오늘의 AI 코디 추천' })
+  await sheet.getByRole('button', { name: '오늘 날씨로 바로 추천', exact: true }).click()
+  await expect(sheet.getByRole('alert')).toHaveText('기기 설정에서 위치 권한을 허용해 주세요.')
+  await expect(sheet.getByRole('button', { name: '다시 시도', exact: true })).toBeVisible()
+  await sheet.getByRole('button', { name: '조건 바꾸기', exact: true }).click()
+  await sheet.getByRole('button', { name: '봄', exact: true }).click()
+  await expect(sheet.getByRole('button', { name: '자동', exact: true })).toBeVisible()
+  expect(mockApi.operations).not.toContain('WeatherForecast')
+  expect(mockApi.operations).not.toContain('TodayOutfitRecommendation')
 })

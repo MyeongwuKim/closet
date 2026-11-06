@@ -37,13 +37,13 @@ API 기본 포트는 4000이며 `api:dev`는 시작 전 Prisma Client를 생성�
 
 웹에는 전용 `typecheck` 스크립트가 없다. 루트 `pnpm typecheck`는 네이티브 검사에 포함된 웹 빌드를 통해 웹 타입을 간접 검사하며 네이티브 환경 설정과 번들 생성이 필요하다. 루트 `pnpm lint`는 스크립트가 정의된 웹 패키지만 검사한다.
 
-`typecheck:e2e`는 브라우저 E2E와 AI 테스트용 tsconfig를 모두 검사하지만 브라우저·DB·AI 호출은 실행하지 않는다. [CI 검사](../../.github/workflows/regression.yml)는 main push에서 Node 22로 타입·빌드·모의 E2E를 실행한다.
+`typecheck:e2e`는 브라우저 E2E와 AI 테스트용 tsconfig를 모두 검사하지만 브라우저·DB·AI 호출은 실행하지 않는다. [CI 검사](../../.github/workflows/regression.yml)는 main push에서 Node 22로 타입, API·웹 단위 테스트, 빌드, 모의 E2E 순으로 실행한다. 실제 DB 통합 테스트는 별도 실행이 필요하다.
 
 ## 단위 테스트와 통합 테스트
 
 API 테스트는 주로 구현 옆의 `*.test.ts`, 웹 단위 테스트는 `apps/web/tests/*.test.ts`, 네이티브 테스트는 `apps/native/scripts/*.test.mjs`에 있다. API에 설치된 `tsx`로 TypeScript 테스트를 실행할 수 있다.
 
-웹 컴포넌트의 JSX를 불러오는 단위 검사는 웹의 JSX 설정도 지정한다. 전체 웹 단위 검사 예시는 `pnpm --filter @closet/api exec sh -c 'TSX_TSCONFIG_PATH=../../apps/web/tsconfig.app.json node --import tsx --test ../../apps/web/tests/*.test.ts'`다. API 작업 디렉터리에서 웹 설정을 읽으며 실제 API 서버를 띄우지 않는다.
+`pnpm test:unit:api`와 `pnpm test:unit:web`은 각각 API `src`와 웹 `tests` 아래의 `*.test.ts`를 재귀적으로 찾고 `*.integration.test.ts`는 제외한다. 둘 다 API의 `tsx`를 사용하고, 웹 단위 검사는 웹의 JSX 설정을 함께 읽는다. 처음 실행할 때는 `pnpm --filter @closet/api db:generate`로 Prisma Client를 준비한다. 단위 테스트에는 실제 API 서버나 DB 연결이 필요하지 않다.
 
 ```sh
 # API 단위 테스트 한 파일
@@ -67,14 +67,16 @@ GraphQL·알림 이동처럼 TypeScript를 직접 import하는 `.mjs`는 로컬 
 | --- | --- |
 | 공유 실행기·미리보기 작업·공통 사용권 | `AI_INTEGRATION_DATABASE`가 skip을 제어한다. DB 연결은 별도의 `DATABASE_URL`을 사용하며 플래그 자체가 주소를 테스트 DB로 바꾸지 않는다. |
 | 이미지 참조·고아·삭제 옷 사진 정리 | `TEST_DATABASE_URL`에 별도의 빈 `closet_image_orphan_test_숫자` MongoDB 주소를 지정한다. `image-orphan-cleanup.integration.test.ts`와 `archived-wardrobe-image-cleanup.integration.test.ts`는 각각 독립 프로세스·별도 빈 DB에서 실행한다. 트랜잭션을 지원하는 테스트 인스턴스가 필요하며 종료 시 소유한 전용 DB를 삭제한다. CF는 대체한다. |
-| 테스트 사용권 충전 | `TEST_CREDIT_REFILL_INTEGRATION_DATABASE`로 실행을 제어하고 별도 `DATABASE_URL`의 DB 이름이 `closet_credit_refill_test_숫자`인지 검사한다. 종료 시 해당 DB를 삭제한다. |
-| 착용 날씨 | `WEAR_WEATHER_INTEGRATION_DATABASE`로 실행을 제어한다. DB 이름이 `closet_wear_weather_test_숫자` 형식인지 검사하고 종료 시 해당 DB를 삭제한다. |
+| 테스트 사용권 충전 | `TEST_CREDIT_REFILL_INTEGRATION_DATABASE`로 실행을 제어하고 별도 `DATABASE_URL`의 DB 이름이 `closet_credit_refill_test_숫자`인지 검사한다. 종료 시 해당 DB를 삭제하므로 새로 만든 빈 DB만 지정한다. |
+| 착용 날씨 | `WEAR_WEATHER_INTEGRATION_DATABASE`로 실행을 제어한다. DB 이름이 `closet_wear_weather_test_숫자` 형식인지 검사한다. 종료 시 해당 DB를 삭제하므로 새로 만든 빈 DB만 지정한다. |
+| 최근 착용 리마인드 | `RECENT_WEAR_INTEGRATION_DATABASE`로 실행을 제어하며 별도 `DATABASE_URL`의 DB 이름이 `closet_recent_wear_test_숫자`인지 검사한다. 기존 컬렉션이 없는 DB에서만 테스트 사용자·착용 기록을 만들고 로그인 GraphQL 조회를 검증한다. 종료 시 해당 DB를 삭제한다. |
+| 스타일 프로필 허벅지 둘레 | `STYLE_PROFILE_INTEGRATION_DATABASE=1`과 별도의 빈 `DATABASE_URL`을 사용한다. `user-style-profile.integration.test.ts`는 DB 이름이 `closet_style_profile_test_숫자`이고 38바이트 이하인지, 컬렉션이 없는지 검사한다. 인증 GraphQL로 70cm 저장·조회, 생략 유지·null 삭제·범위 밖 거절을 확인하며 종료 시 소유한 전용 DB를 삭제한다. |
 
-첫 그룹의 예시는 `shared-ai-executor.integration.test.ts`, `preview-job.integration.test.ts`, `preview-credit.integration.test.ts`다. 실행 플래그만 켠 결과가 안전한 DB 격리를 보장하지는 않는다. 환경과 파일별 정리 절차에 따라 실제 인덱스·테스트 데이터가 변경되며, 조건이 없으면 검사를 건너뛴다.
+첫 그룹의 예시는 `shared-ai-executor.integration.test.ts`, `preview-job.integration.test.ts`, `preview-credit.integration.test.ts`다. 테스트 사용권 충전과 착용 날씨는 플래그에 `0`을 설정해도 실행된다. 검사를 건너뛸 때는 해당 변수를 설정하지 않는다. 환경과 파일별 정리 절차에 따라 실제 인덱스·테스트 데이터가 변경되므로 실행 전에 전용 DB 주소와 정리 범위를 확인한다.
 
 ## 브라우저 E2E
 
-[playwright.config.ts](../../playwright.config.ts)는 `127.0.0.1:4173`에 웹 서버를 띄운다. [tests/support/fixture.ts](../../tests/support/fixture.ts)는 테스트별 메모리 데이터를 만들고 GraphQL·업로드를 대체하며 허용되지 않은 외부 통신을 차단한다. 이 구성은 대체된 응답에 대한 웹 동작을 검사하며 실제 API·DB 처리를 검사하지 않는다.
+[playwright.config.ts](../../playwright.config.ts)는 `127.0.0.1:4173`에 웹 서버를 띄운다. 테스트에서 [mockApi fixture](../../tests/support/fixture.ts)를 사용하면 테스트별 메모리 데이터와 모의 로그인 토큰을 준비하고, GraphQL·업로드를 대체하며 허용되지 않은 외부 통신을 차단한다. 이 구성은 화면과 요청을 검증한다. 로그인 화면부터 시작할 때는 `test.use({ seedMockSession: false })`로 토큰 주입을 끈다. 실제 인증·권한·저장은 API 또는 DB 통합 테스트의 검증 범위다.
 
 개별 실행 예시는 `pnpm exec playwright test tests/plan.spec.ts`다. 기본 설정은 `tests/ai-api`를 제외한다.
 

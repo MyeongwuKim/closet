@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { WardrobeItem } from '@closet/types'
+import type { WardrobeItem, WeatherSnapshot } from '@closet/types'
 import { History, Sparkles, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
@@ -13,18 +13,25 @@ import { RecommendationIntroStep } from './steps/RecommendationIntroStep'
 import { RecommendationResultStep } from './steps/RecommendationResultStep'
 import { RecommendationSeasonStep } from './steps/RecommendationSeasonStep'
 import { RecommendationReadinessStatus } from './RecommendationReadinessStatus'
+import { recommendationDayLabels, type RecommendationMode } from './recommendationFlow'
 
 interface TodayOutfitRecommendationPopoverProps {
   date: string
   baseItem?: WardrobeItem
+  mode?: RecommendationMode
+  initialWeather?: WeatherSnapshot
   onClose: () => void
+  onApplied?: () => void
 }
 
-/** 상단 또는 옷 상세의 AI 추천 버튼에서 하단 시트를 연다. 모든 단계에서 같은 높이를 유지하고 바깥 클릭·닫기·Escape로 종료한다. 추천 조건과 조회는 흐름 Hook 및 각 단계에 맡긴다. */
+/** 상단·옷 상세·플래너의 추천 시트다. 내일 플래너에서 열면 해당 날짜의 예보와 자동 색감으로 추천을 시작한다. */
 export function TodayOutfitRecommendationPopover({
   date,
   baseItem,
+  mode = 'today',
+  initialWeather,
   onClose,
+  onApplied,
 }: TodayOutfitRecommendationPopoverProps) {
   const navigate = useNavigate()
   const popoverRef = useRef<HTMLElement>(null)
@@ -36,10 +43,12 @@ export function TodayOutfitRecommendationPopover({
     selectedSeason,
     meQuery,
     plannerWeekQuery,
-    hasTodayOutfit,
+    hasScheduledOutfit,
+    weather,
     locationWeather,
     actions,
-  } = useTodayOutfitRecommendationFlow({ date, baseItem })
+  } = useTodayOutfitRecommendationFlow({ date, baseItem, mode, initialWeather })
+  const dayLabel = recommendationDayLabels[mode]
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
@@ -66,12 +75,20 @@ export function TodayOutfitRecommendationPopover({
   }
 
   let stepContent
+  const isWeatherShortcut = step === 'weather-result'
 
   if (step === 'intro') {
-    stepContent = <RecommendationIntroStep onNext={actions.showSeasons} />
+    stepContent = (
+      <RecommendationIntroStep
+        dayLabel={dayLabel}
+        onRecommendWithWeather={actions.recommendWithWeather}
+        onChooseConditions={actions.showSeasons}
+      />
+    )
   } else if (step === 'season' || !seasonChoice || !selectedSeason) {
     stepContent = (
       <RecommendationSeasonStep
+        mode={mode}
         availableSeasons={baseItem?.seasons}
         onBack={baseItem ? onClose : actions.showIntro}
         onSelect={actions.selectSeason}
@@ -80,13 +97,14 @@ export function TodayOutfitRecommendationPopover({
   } else if (step === 'color-scheme' || !colorScheme) {
     stepContent = (
       <RecommendationColorSchemeStep
+        requiresCredit={!baseItem}
         onBack={actions.showSeasons}
         onSelect={actions.selectColorScheme}
       />
     )
   } else if (
     !meQuery.data || meQuery.isError ||
-    (seasonChoice === 'current-weather' && (!locationWeather.weather || locationWeather.isLoading))
+    (seasonChoice === 'current-weather' && (!weather || locationWeather.isLoading))
   ) {
     const weatherError = seasonChoice === 'current-weather' ? locationWeather.errorMessage : null
     stepContent = (
@@ -97,13 +115,15 @@ export function TodayOutfitRecommendationPopover({
           if (weatherError) locationWeather.actions.retry()
           else void meQuery.refetch()
         }}
-        onBack={actions.showColorSchemes}
-        backLabel="색감 다시 선택"
+        onBack={isWeatherShortcut ? actions.showSeasons : actions.showColorSchemes}
+        backLabel={isWeatherShortcut ? '조건 바꾸기' : '색감 다시 선택'}
+        loadingMessage={mode === 'tomorrow' ? '내일 예보와 추천에 필요한 정보를 확인하고 있어요' : undefined}
       />
     )
   } else if (plannerWeekQuery.isError || !plannerWeekQuery.data) {
     stepContent = (
       <RecommendationPlannerStatus
+        dayLabel={dayLabel}
         isError={plannerWeekQuery.isError}
         isRetrying={plannerWeekQuery.isFetching}
         onRetry={() => void plannerWeekQuery.refetch()}
@@ -116,20 +136,21 @@ export function TodayOutfitRecommendationPopover({
         date={date}
         season={selectedSeason}
         colorScheme={colorScheme}
-        hasTodayOutfit={hasTodayOutfit}
+        hasScheduledOutfit={hasScheduledOutfit}
+        mode={mode}
         baseItemId={baseItem?.id}
-        weather={
-          seasonChoice === 'current-weather' ? locationWeather.weather : null
-        }
+        weather={seasonChoice === 'current-weather' ? weather : null}
         onOpenCloset={openCloset}
-        onBack={actions.showColorSchemes}
+        onOpenLookbook={onClose}
+        onBack={isWeatherShortcut ? actions.showIntro : actions.showColorSchemes}
+        onApplied={onApplied}
       />
     )
   }
 
   return createPortal(
     <div
-      className={`fixed inset-0 flex items-end justify-center bg-ink/20 ${baseItem ? 'z-[70]' : 'z-[60]'}`}
+      className={`fixed inset-0 flex items-end justify-center bg-ink/20 ${mode === 'tomorrow' ? 'z-[85]' : baseItem ? 'z-[70]' : 'z-[60]'}`}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose()
       }}
@@ -139,29 +160,31 @@ export function TodayOutfitRecommendationPopover({
         className="ai-recommendation-sheet ai-recommendation-sheet--flow relative flex w-full max-w-xl flex-col overflow-hidden rounded-t-[1.75rem] border border-line border-b-0 bg-surface shadow-[0_-12px_48px_rgba(27,27,24,0.16)]"
         role="dialog"
         aria-modal="true"
-        aria-label={baseItem ? '이 옷으로 AI 코디 추천' : '오늘의 AI 코디 추천'}
+        aria-label={baseItem ? '이 옷으로 AI 코디 추천' : `${dayLabel}의 AI 코디 추천`}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <span className="mx-auto mt-2.5 h-1 w-9 shrink-0 rounded-full bg-line" aria-hidden="true" />
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-line bg-surface px-5 pt-2 pb-3">
           <div className="min-w-0">
             <h2 className="flex items-center gap-1.5 text-sm font-black">
-              <Sparkles className="text-accent" size={16} /> AI 추천 코디
+              <Sparkles className="text-accent" size={16} /> {mode === 'tomorrow' ? '내일 코디 추천' : 'AI 추천 코디'}
             </h2>
             <p className="mt-0.5 truncate text-[11px] text-muted">
-              {baseItem ? '선택한 옷에 어울리는 조합을 찾아요.' : '생각하기 귀찮을 때 추천받아보세요.'}
+              {mode === 'tomorrow' ? '내일 입을 조합을 골라보세요.' : baseItem ? '선택한 옷에 어울리는 조합을 찾아요.' : '생각하기 귀찮을 때 추천받아보세요.'}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setIsHistoryOpen(true)}
-              className="inline-flex h-9 items-center gap-1.5 rounded-full border border-line bg-white px-3 text-[11px] font-bold text-muted transition hover:border-ink hover:text-ink"
-              aria-label="추천 기록 보기"
-            >
-              <History size={14} />
-              기록
-            </button>
+            {mode === 'today' && (
+              <button
+                type="button"
+                onClick={() => setIsHistoryOpen(true)}
+                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-line bg-white px-3 text-[11px] font-bold text-muted transition hover:border-ink hover:text-ink"
+                aria-label="추천 기록 보기"
+              >
+                <History size={14} />
+                기록
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}
@@ -194,6 +217,7 @@ export function TodayOutfitRecommendationPopover({
           baseItemId={baseItem?.id}
           scope={baseItem ? 'current' : 'all'}
           onClose={() => setIsHistoryOpen(false)}
+          onOpenLookbook={onClose}
         />
       )}
     </div>,

@@ -32,6 +32,7 @@ export interface UpdateStyleProfileData {
   chestCircumferenceCm?: number | null
   waistCircumferenceCm?: number | null
   hipCircumferenceCm?: number | null
+  thighCircumferenceCm?: number | null
   shoulderWidthCm?: number | null
   inseamCm?: number | null
   preferredFit: PreferredFit
@@ -64,6 +65,7 @@ export const userRepository = {
         chestCircumferenceCm: input.chestCircumferenceCm,
         waistCircumferenceCm: input.waistCircumferenceCm,
         hipCircumferenceCm: input.hipCircumferenceCm,
+        thighCircumferenceCm: input.thighCircumferenceCm,
         shoulderWidthCm: input.shoulderWidthCm,
         inseamCm: input.inseamCm,
         preferredFit: input.preferredFit,
@@ -77,6 +79,7 @@ export const userRepository = {
         chestCircumferenceCm: input.chestCircumferenceCm,
         waistCircumferenceCm: input.waistCircumferenceCm,
         hipCircumferenceCm: input.hipCircumferenceCm,
+        thighCircumferenceCm: input.thighCircumferenceCm,
         shoulderWidthCm: input.shoulderWidthCm,
         inseamCm: input.inseamCm,
         preferredFit: input.preferredFit,

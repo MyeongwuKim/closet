@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict'
 import test, { type TestContext } from 'node:test'
-import type { Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { buildApp } from '../../app.js'
 import { prisma } from '../../lib/prisma.js'
+import { authService } from '../auth/auth.service.js'
+import { outfitRepository, type outfitInclude } from '../outfit/outfit.repository.js'
+import { outfitService } from '../outfit/outfit.service.js'
+import { wardrobeRepository } from '../wardrobe/wardrobe.repository.js'
 import { plannerRepository } from './planner.repository.js'
-import type { outfitInclude } from '../outfit/outfit.repository.js'
 import { plannerService } from './planner.service.js'
 
 const userId = '000000000000000000000001'
@@ -23,7 +26,7 @@ function week() {
   return { id: plannerWeekId, entries: [{ date, outfitId, wornAt: null, outfit: { id: outfitId, userId } }] } as unknown as NonNullable<Awaited<ReturnType<typeof plannerRepository.findWeek>>>
 }
 
-/** 실제 DB 대신 트랜잭션 경계의 항목과 쓰기만 기록한다. 읽은 기존 상태에 따른 초기화·중복 확인을 검사한다. */
+/** 실제 DB 대신 트랜잭션의 항목과 쓰기를 기록해 착용 상태별 수정 범위를 확인한다. */
 function repositoryFixture(t: TestContext, previousOutfitId: string | null = outfitId, wornAt: Date | null = confirmedAt) {
   type StoredOutfit = Prisma.OutfitGetPayload<{ include: typeof outfitInclude }>
   const makeOutfit = (id: string): StoredOutfit => ({
@@ -45,6 +48,7 @@ function repositoryFixture(t: TestContext, previousOutfitId: string | null = out
       count: async () => 1,
       upsert: async (args: Record<string, any>) => { writes.push({ kind: 'upsert', args }); return {} },
       update: async (args: Record<string, any>) => { writes.push({ kind: 'update', args }); return {} },
+      updateMany: async (args: Record<string, any>) => { writes.push({ kind: 'updateMany', args }); return { count: 1 } },
     },
     plannerWeek: { findUnique: async (input: { select?: unknown }) => input.select ? { userId } : week() },
     imageAsset: { findFirst: async () => ({ updatedAt: new Date(0) }), updateMany: async () => ({ count: 1 }) },
@@ -60,7 +64,7 @@ function repositoryFixture(t: TestContext, previousOutfitId: string | null = out
   const originalTransaction = prisma.$transaction
   prisma.$transaction = (async (run: (client: Prisma.TransactionClient) => Promise<unknown>) => run(transaction)) as typeof originalTransaction
   t.after(() => { prisma.$transaction = originalTransaction })
-  return { entries, writes, outfits }
+  return { entries, writes, outfits, transaction }
 }
 
 test('오늘의 내 코디만 확인하며 취소도 저장소로 전달한다', async (t) => {
@@ -136,12 +140,19 @@ test('저장 직전 다른 코디이면 쓰지 않는다', async (t) => {
   assert.equal(fixture.writes.length, 0)
 })
 
-test('코디 재배정은 확인·기온을 초기화하고 같은 코디 재저장은 유지한다', async (t) => {
+test('착용 완료 날짜는 같은 옷의 재저장을 허용하고 다른 옷 재배정은 거절한다', async (t) => {
   const fixture = repositoryFixture(t)
   await plannerRepository.setEntry({ plannerWeekId, date, outfitId, title: '같은 코디' })
   assert.equal('wornAt' in fixture.writes[0].args.update, false)
   assert.equal('wearFeeling' in fixture.writes[0].args.update, false)
-  await plannerRepository.setEntry({ plannerWeekId, date, outfitId: replacementId, title: '바뀐 코디' })
+  await assert.rejects(
+    plannerRepository.setEntry({ plannerWeekId, date, outfitId: replacementId, title: '바뀐 코디' }),
+    { code: 'PLANNER_WEAR_CONFIRMED' },
+  )
+  assert.equal(fixture.writes.length, 1)
+
+  fixture.entries[0].wornAt = null
+  await plannerRepository.setEntry({ plannerWeekId, date, outfitId: replacementId, title: '착용을 취소하고 바꾼 코디' })
   assert.equal(fixture.writes[1].args.update.wornAt, null)
   assert.equal(fixture.writes[1].args.update.wearFeeling, null)
   assert.equal(fixture.writes[1].args.update.wearTemperatureC, null)
@@ -162,14 +173,86 @@ test('옷이 같고 사진만 바뀌어 날짜 복사본이 새로 생겨도 착
   assert.equal('wearTemperatureC' in update, false)
 })
 
-test('날짜 이동에서 코디가 바뀌는 날짜만 확인을 초기화한다', async (t) => {
-  const fixture = repositoryFixture(t)
+test('미확정 코디의 날짜 이동에서 코디가 바뀌는 날짜만 착용 필드를 초기화한다', async (t) => {
+  const fixture = repositoryFixture(t, outfitId, null)
   await plannerRepository.moveEntryOutfits({ plannerWeekId, entries: [{ date, outfitId: replacementId, title: '옮긴 코디' }] })
   assert.equal(fixture.writes[0].args.update.wornAt, null)
   assert.equal(fixture.writes[0].args.update.wearFeeling, null)
   await plannerRepository.moveEntryOutfits({ plannerWeekId, entries: [{ date, outfitId, title: '기존 코디' }] })
   assert.equal('wornAt' in fixture.writes[1].args.update, false)
   assert.equal('wearFeeling' in fixture.writes[1].args.update, false)
+})
+
+test('비우기는 착용 완료 시 거절하고 착용 취소 후에만 저장한다', async (t) => {
+  const fixture = repositoryFixture(t)
+  await assert.rejects(plannerRepository.clearEntry(plannerWeekId, date), { code: 'PLANNER_WEAR_CONFIRMED' })
+  assert.equal(fixture.writes.length, 0)
+
+  fixture.entries[0].wornAt = null
+  await plannerRepository.clearEntry(plannerWeekId, date)
+  assert.equal(fixture.writes[0].args.data.outfitId, null)
+})
+
+for (const operation of [
+  { name: '재배정', method: 'upsert', run: () => plannerRepository.setEntry({ plannerWeekId, date, outfitId: replacementId }) },
+  { name: '비우기', method: 'updateMany', run: () => plannerRepository.clearEntry(plannerWeekId, date) },
+] as const) {
+  test(`${operation.name} 중 다른 기기의 착용 확인과 충돌하면 다시 읽고 기록을 보존한다`, async (t) => {
+    const fixture = repositoryFixture(t, outfitId, null)
+    const write = t.mock.method(fixture.transaction.plannerEntry, operation.method, async () => {
+      fixture.entries[0].wornAt = confirmedAt
+      throw new Prisma.PrismaClientKnownRequestError('write conflict', { code: 'P2034', clientVersion: 'test' })
+    })
+
+    await assert.rejects(operation.run, { code: 'PLANNER_WEAR_CONFIRMED' })
+    assert.equal(write.mock.callCount(), 1)
+    assert.equal(fixture.entries[0].wornAt, confirmedAt)
+    assert.equal(fixture.entries[0].outfitId, outfitId)
+  })
+}
+
+test('다른 기기의 착용 확인 뒤 오래된 화면에서 코디를 수정하거나 비우면 GraphQL 오류를 반환하고 기록을 유지한다', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-06T03:00:00Z') })
+  const { entries, outfits, transaction, writes } = repositoryFixture(t, outfitId, null)
+  t.mock.method(authService, 'getViewer', async () => ({ id: userId }))
+  t.mock.method(plannerRepository, 'findWeek', async () => ({ id: plannerWeekId, entries }))
+  t.mock.method(outfitRepository, 'findById', async () => outfits.get(replacementId))
+  t.mock.method(wardrobeRepository, 'findManyOwnedByIds', async () => [{ id: 'dress', category: 'dress', seasons: ['spring'] }])
+  t.mock.method(transaction.plannerEntry, 'update', async ({ data }: { data: Partial<(typeof entries)[number]> }) => Object.assign(entries[0], data))
+  const removeOutfit = t.mock.method(outfitService, 'remove', async () => undefined)
+
+  const app = await buildApp()
+  t.after(() => app.close())
+  const request = async (query: string, device = 'first-device') => {
+    const response = await app.inject({ method: 'POST', url: '/graphql', headers: { authorization: `Bearer ${device}` }, payload: { query } })
+    assert.equal(response.statusCode, 200)
+    return response.json()
+  }
+  const target = `weekStartsOn: "${weekStartsOn}", date: "2026-11-04"`
+  const readEntry = `{ plannerWeek(weekStartsOn: "${weekStartsOn}") { entries { date wornAt outfit { id } } } }`
+  const staleView = await request(readEntry)
+  assert.equal(staleView.errors, undefined)
+  assert.deepEqual(staleView.data.plannerWeek.entries, [{ date: '2026-11-04', wornAt: null, outfit: { id: outfitId } }])
+  const confirmation = await request(`mutation { setPlannerEntryWorn(input: { ${target}, outfitId: "${outfitId}", worn: true }) { id } }`, 'second-device')
+  assert.equal(confirmation.errors, undefined)
+  assert.equal(confirmation.data.setPlannerEntryWorn.id, plannerWeekId)
+  const savedAt = new Date().toISOString()
+
+  const attemptedChanges = [
+    `setPlannerEntry(input: { ${target}, outfitId: "${replacementId}" })`,
+    `setDirectPlannerEntry(input: { ${target}, itemIds: ["dress"] })`,
+    `movePlannerEntry(input: { weekStartsOn: "${weekStartsOn}", sourceDate: "2026-11-04", targetDate: "2026-11-05" })`,
+    `clearPlannerEntry(${target})`,
+  ]
+  for (const change of attemptedChanges) {
+    const result = await request(`mutation { ${change} { id } }`)
+    assert.equal(result.errors?.[0]?.extensions?.code, 'PLANNER_WEAR_CONFIRMED', change)
+  }
+  assert.equal(writes.length, 0)
+  assert.equal(removeOutfit.mock.callCount(), 0)
+  const refreshed = await request(readEntry)
+  assert.equal(refreshed.errors, undefined)
+  assert.deepEqual(refreshed.data.plannerWeek.entries, [{ date: '2026-11-04', wornAt: savedAt, outfit: { id: outfitId } }])
 })
 
 test('최근 착용 조회는 착용 확인이 있는 항목만 읽는다', async (t) => {

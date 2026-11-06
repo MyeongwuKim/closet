@@ -129,6 +129,61 @@ test('근육형과 큰 체격을 구분하고 체중으로 근육량·체지방�
   }
 })
 
+test('보통 체형도 키·체중을 우선하며 상세 둘레가 없다고 가는 허리로 정규화하지 않는다', () => {
+  const guide = getLookbookBodyProportionGuide({ bodyBuild: 'average', heightCm: 176, weightKg: 100 })
+  assert.match(guide, /heightCm=176; weightKg=100/)
+  assert.match(guide, /not a medium-weight or slim-waist preset/)
+  assert.match(guide, /preserve a broad waist and a rounded abdomen/)
+  assert.match(guide, /explicit body measurements first, then the height and weight/)
+  assert.match(guide, /Use the saved weight even when circumferences are missing/)
+  assert.match(guide, /without inventing exact girths, a body-fat percentage or a medical diagnosis/)
+  for (const body of [{ heightCm: 176 }, { heightCm: 0, weightKg: 100 }, { heightCm: 176, weightKg: Number.NaN }]) {
+    assert.doesNotMatch(getLookbookBodyProportionGuide(body), /Saved numeric body size:/)
+  }
+})
+
+test('여성 160cm·80kg의 체격은 기본 프로필에서 드러내고 상세 프로필은 부위별 실측을 우선한다', () => {
+  const profile = { gender: 'female', bodyBuild: 'average', heightCm: 160, weightKg: 80 } as const
+  const basic = getLookbookBodyProportionGuide(profile)
+  const light = getLookbookBodyProportionGuide({ ...profile, weightKg: 55 })
+  assert.match(basic, /No detailed body measurements were saved/)
+  assert.match(basic, /non-athletic adult woman/)
+  assert.match(basic, /visibly wider relative to the saved height/)
+  assert.doesNotMatch(light, /visibly wider relative to the saved height/)
+  assert.doesNotMatch(basic, /Waist-to-hip circumference ratio/)
+
+  const partial = getLookbookBodyProportionGuide({ ...profile, hipCircumferenceCm: 110 })
+  assert.match(partial, /separate shape anchor: hip circumference=110cm/)
+  assert.match(partial, /Let the unmeasured midsection carry a plausible share/)
+  assert.doesNotMatch(partial, /Waist-to-hip circumference ratio|a broad waist and a rounded abdomen/)
+
+  const measured = getLookbookBodyProportionGuide({
+    ...profile, waistCircumferenceCm: 80, hipCircumferenceCm: 110, inseamCm: 71,
+  })
+  assert.match(measured, /waist circumference=80cm, hip circumference=110cm, inseam=71cm/)
+  assert.match(measured, /Waist-to-hip circumference ratio=72\.7%/)
+  assert.doesNotMatch(measured, /unmeasured midsection|a broad waist and a rounded abdomen/)
+})
+
+test('상세 둘레가 없는 보통 체형은 키 대비 체중에 따라 복부·허리 볼륨을 구분한다', () => {
+  const profile = { bodyBuild: 'average' as const, heightCm: 176 }
+  const normal = getLookbookBodyProportionGuide({ ...profile, weightKg: 70 })
+  const fuller = getLookbookBodyProportionGuide({ ...profile, weightKg: 90 })
+  const heavier = getLookbookBodyProportionGuide({ ...profile, weightKg: 100 })
+  assert.doesNotMatch(normal, /use a visibly heavier-set build|use a clearly plus-size/)
+  assert.match(fuller, /heightMeters\^2 = 29\.1/)
+  assert.match(fuller, /use a visibly heavier-set build/)
+  assert.match(heavier, /heightMeters\^2 = 32\.3/)
+  assert.match(heavier, /use a clearly plus-size, full-bodied build/)
+  for (const guide of [
+    getLookbookBodyProportionGuide({ ...profile, weightKg: 100, waistCircumferenceCm: 80 }),
+    getLookbookBodyProportionGuide({ ...profile, weightKg: 100, bodyBuild: 'athletic' }),
+  ]) {
+    assert.doesNotMatch(guide, /use a clearly plus-size, full-bodied build/)
+    assert.match(guide, /do not infer abdominal fat or exact girths from this cue/)
+  }
+})
+
 test('옷 가슴 단면과 신체 둘레를 같은 단위로 비교하고 음의 여유도 숨기지 않는다', () => {
   const item = { category: 'top' as const, chestWidthCm: 55, shoulderWidthCm: 50 }
   const athletic = describeLookbookGarmentEase(item, { chestCircumferenceCm: 104, shoulderWidthCm: 48 })
@@ -142,4 +197,157 @@ test('옷 가슴 단면과 신체 둘레를 같은 단위로 비교하고 음의
   assert.equal(describeLookbookGarmentEase(item, null), null)
   assert.equal(describeLookbookGarmentEase({ category: 'bottom', chestWidthCm: 55 }, { chestCircumferenceCm: 88 }), null)
   assert.equal(describeLookbookGarmentEase({ category: 'top', chestWidthCm: Number.NaN }, { chestCircumferenceCm: 88 }), null)
+})
+
+test('같은 하의의 허리·엉덩이 여유가 신체 치수에 따라 20·10·1cm와 20·10·2cm로 달라진다', () => {
+  const item = { category: 'bottom' as const, waistWidthCm: 50, hipWidthCm: 60 }
+  const cases = [
+    { waistCircumferenceCm: 80, hipCircumferenceCm: 100, waistEase: 20, hipEase: 20, waistPercent: 25, hipPercent: 20, cue: 'roomy' },
+    { waistCircumferenceCm: 90, hipCircumferenceCm: 110, waistEase: 10, hipEase: 10, waistPercent: 11.1, hipPercent: 9.1, cue: 'moderate' },
+    { waistCircumferenceCm: 99, hipCircumferenceCm: 118, waistEase: 1, hipEase: 2, waistPercent: 1, hipPercent: 1.7, cue: 'close' },
+  ]
+  for (const body of cases) {
+    const guide = describeLookbookGarmentEase(item, body)!
+    assert.match(guide, new RegExp(`nominalWaistEaseCm=${body.waistEase} \\(`))
+    assert.match(guide, new RegExp(`nominalHipEaseCm=${body.hipEase} \\(`))
+    assert.ok(guide.includes(`nominalWaistEasePercent=${body.waistPercent}%`))
+    assert.ok(guide.includes(`nominalHipEasePercent=${body.hipPercent}%`))
+    assert.match(guide, new RegExp(`waistVisualCue=${body.cue}:`))
+    assert.match(guide, new RegExp(`hipVisualCue=${body.cue}:`))
+    assert.match(guide, /Near-zero ease should read as a closer, less spacious fit/)
+    assert.match(guide, /Larger positive ease should remain visible as more room/)
+    assert.match(guide, /waistband gaping or spare fabric around the hips/)
+    assert.match(guide, /not an exact fitting simulation/)
+    assert.doesNotMatch(guide, /nominalChestEaseCm|garmentMinusBodyShoulderWidthCm/)
+  }
+})
+
+test('하의의 0과 음의 여유를 유지하고 원단 근거 없는 신축이나 치수 변경으로 맞추지 않는다', () => {
+  const guide = describeLookbookGarmentEase(
+    { category: 'bottom', waistWidthCm: 50, hipWidthCm: 60 },
+    { waistCircumferenceCm: 100, hipCircumferenceCm: 124 },
+  )!
+  assert.match(guide, /nominalWaistEaseCm=0 \(/)
+  assert.match(guide, /nominalHipEaseCm=-4 \(/)
+  assert.match(guide, /nominalWaistEasePercent=0%/)
+  assert.match(guide, /waistVisualCue=close: keep the fabric close to the measured waist with minimal spare fabric/)
+  assert.match(guide, /nominalHipEasePercent=-3\.2%/)
+  assert.match(guide, /hipVisualCue=negative: there is nominally less garment circumference than the measured hip/)
+  assert.match(guide, /For negative ease, show plausible stretching, fabric tension or closure strain only when supported by the reference fabric and construction/)
+  assert.match(guide, /Do not force an impossibly closed waistband/)
+  assert.match(guide, /Do not shrink the wearer, enlarge the garment/)
+  assert.match(guide, /invent a belt, elastic or other fastening/)
+  assert.match(guide, /fabric, cut, rise and waistband position/)
+})
+
+test('하의는 실측 쌍이 있는 부위만 계산하며 나머지 치수나 허벅지 밀착도를 추정하지 않는다', () => {
+  const waistOnly = describeLookbookGarmentEase(
+    { category: 'bottom', waistWidthCm: 50, hipWidthCm: 60 },
+    { waistCircumferenceCm: 90 },
+  )!
+  assert.match(waistOnly, /nominalWaistEaseCm=10 \(/)
+  assert.doesNotMatch(waistOnly, /nominalHipEaseCm=/)
+  assert.match(waistOnly, /waistVisualCue=moderate:/)
+  assert.doesNotMatch(waistOnly, /nominalHipEasePercent=|hipVisualCue=/)
+  const hipsOnly = describeLookbookGarmentEase(
+    { category: 'bottom', hipWidthCm: 60 },
+    { waistCircumferenceCm: 90, hipCircumferenceCm: 110 },
+  )!
+  assert.match(hipsOnly, /nominalHipEaseCm=10 \(/)
+  assert.doesNotMatch(hipsOnly, /nominalWaistEaseCm=/)
+  assert.match(hipsOnly, /hipVisualCue=moderate:/)
+  assert.doesNotMatch(hipsOnly, /nominalWaistEasePercent=|waistVisualCue=/)
+  assert.match(hipsOnly, /Apply the fit cues only to the measured regions with computed ease/)
+  assert.match(hipsOnly, /do not infer an unmeasured waist, hip or body thigh circumference/)
+  assert.match(hipsOnly, /hip ease alone does not establish exact thigh tightness/)
+  assert.doesNotMatch(hipsOnly, /trousers|pants|fly|zipper/)
+  assert.equal(describeLookbookGarmentEase({ category: 'bottom', waistWidthCm: 50, hipWidthCm: 60 }, null), null)
+  assert.equal(describeLookbookGarmentEase({ category: 'bottom', waistWidthCm: 50 }, { hipCircumferenceCm: 110 }), null)
+})
+
+test('하의의 상대 여유 경계는 제품의 근사 그림 지침이며 부위별 결과를 직접 전달한다', () => {
+  for (const [flatWidth, expected] of [[51.5, 'close'], [51.55, 'moderate'], [57.45, 'moderate'], [57.5, 'roomy']] as const) {
+    const guide = describeLookbookGarmentEase(
+      { category: 'bottom', waistWidthCm: flatWidth },
+      { waistCircumferenceCm: 100 },
+    )!
+    assert.match(guide, new RegExp(`waistVisualCue=${expected}:`))
+    assert.match(guide, /product-specific rough rendering ranges/)
+    assert.match(guide, /visual heuristics, not apparel standards or real-world fit judgments/)
+    assert.match(guide, /Keep the measured body and garment unchanged/)
+    assert.match(guide, /Preserve the lower garment's leg or skirt shape/)
+  }
+  const mixed = describeLookbookGarmentEase(
+    { category: 'bottom', waistWidthCm: 50, hipWidthCm: 60 },
+    { waistCircumferenceCm: 99, hipCircumferenceCm: 100 },
+  )!
+  assert.match(mixed, /waistVisualCue=close:.*minimal spare fabric or gaping at this region/)
+  assert.match(mixed, /hipVisualCue=roomy: render visibly loose room and spare fabric around the measured hip/)
+  assert.match(mixed, /do not inflate this measured region into a baggy fit/)
+  assert.match(mixed, /do not make this region sit flush like a close fit/)
+  const moderate = describeLookbookGarmentEase({ category: 'bottom', waistWidthCm: 50 }, { waistCircumferenceCm: 90 })!
+  assert.match(moderate, /moderate: render noticeable but not excessive spare fabric/)
+  assert.match(moderate, /do not make it skin-tight or exaggerate it into oversized volume/)
+})
+
+test('하의의 누락·0·음수·NaN·무한대는 다른 부위의 유효한 여유 계산에 섞이지 않는다', () => {
+  for (const invalid of [undefined, null, 0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+    const invalidWaist = describeLookbookGarmentEase(
+      { category: 'bottom', waistWidthCm: invalid, hipWidthCm: 60 },
+      { waistCircumferenceCm: 90, hipCircumferenceCm: 110 },
+    )!
+    assert.doesNotMatch(invalidWaist, /nominalWaistEaseCm=/)
+    assert.match(invalidWaist, /nominalHipEaseCm=10 \(/)
+    const invalidBodyWaist = describeLookbookGarmentEase(
+      { category: 'bottom', waistWidthCm: 50, hipWidthCm: 60 },
+      { waistCircumferenceCm: invalid, hipCircumferenceCm: 110 },
+    )!
+    assert.doesNotMatch(invalidBodyWaist, /nominalWaistEaseCm=/)
+    assert.match(invalidBodyWaist, /nominalHipEaseCm=10 \(/)
+    assert.equal(describeLookbookGarmentEase(
+      { category: 'bottom', waistWidthCm: invalid, hipWidthCm: invalid },
+      { waistCircumferenceCm: 90, hipCircumferenceCm: 110 },
+    ), null)
+    assert.equal(describeLookbookGarmentEase(
+      { category: 'bottom', waistWidthCm: 50, hipWidthCm: 60 },
+      { waistCircumferenceCm: invalid, hipCircumferenceCm: invalid },
+    ), null)
+  }
+})
+
+test('허벅지 둘레 70cm는 한쪽 바지 단면 35·40·46cm와 비교해 밀착·중간·여유를 전달한다', () => {
+  for (const [flatWidth, ease, percent, cue] of [[35, 0, 0, 'close'], [40, 10, 14.3, 'moderate'], [46, 22, 31.4, 'roomy']] as const) {
+    const guide = describeLookbookGarmentEase(
+      { category: 'bottom', subcategory: '일반 긴바지', thighWidthCm: flatWidth },
+      { thighCircumferenceCm: 70 },
+    )!
+    assert.match(guide, new RegExp(`nominalThighEaseCm=${ease} \\(`))
+    assert.ok(guide.includes(`nominalThighEasePercent=${percent}%`))
+    assert.match(guide, new RegExp(`thighVisualCue=${cue}:`))
+    assert.match(guide, /ONE trouser leg/)
+    assert.match(guide, /ONE body thigh, never the hip circumference or the combined width of both legs/)
+    assert.match(guide, /Do not slim the body thigh or enlarge the trouser leg/)
+    assert.match(guide, /preserve the referenced knee, calf and hem cut/)
+    if (ease === 0) assert.match(guide, /ZERO nominal spare circumference/)
+    else assert.doesNotMatch(guide, /ZERO nominal spare circumference/)
+  }
+  const bodyGuide = getLookbookBodyProportionGuide({ thighCircumferenceCm: 70 })
+  assert.match(bodyGuide, /Saved body thigh circumference=70cm around ONE upper thigh/)
+  assert.match(bodyGuide, /Preserve this upper-leg volume/)
+})
+
+test('허벅지 비교는 신체·바지 실측 쌍이 있을 때만 하며 스커트와 미측정 부위에 적용하지 않는다', () => {
+  for (const invalid of [undefined, null, 0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.equal(describeLookbookGarmentEase({ category: 'bottom', thighWidthCm: invalid }, { thighCircumferenceCm: 70 }), null)
+    assert.equal(describeLookbookGarmentEase({ category: 'bottom', thighWidthCm: 35 }, { thighCircumferenceCm: invalid }), null)
+  }
+  assert.equal(describeLookbookGarmentEase({ category: 'bottom', subcategory: '미디 스커트', thighWidthCm: 35 }, { thighCircumferenceCm: 70 }), null)
+  assert.equal(describeLookbookGarmentEase({ category: 'top', thighWidthCm: 35 }, { thighCircumferenceCm: 70 }), null)
+  const negative = describeLookbookGarmentEase({ category: 'bottom', thighWidthCm: 34 }, { thighCircumferenceCm: 70 })!
+  assert.match(negative, /nominalThighEaseCm=-2 \(/)
+  assert.match(negative, /thighVisualCue=negative:/)
+  assert.match(negative, /only when supported by the reference fabric and construction/)
+  const independent = describeLookbookGarmentEase({ category: 'bottom', waistWidthCm: 50, thighWidthCm: 35 }, { waistCircumferenceCm: 80 })!
+  assert.match(independent, /waistVisualCue=roomy:/)
+  assert.doesNotMatch(independent, /nominalThighEaseCm=/)
 })

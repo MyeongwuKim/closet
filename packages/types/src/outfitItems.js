@@ -1,6 +1,14 @@
 /** 코디 선택·AI 생성에 전달할 수 있는 아이템의 최대 개수. */
 export const MAX_OUTFIT_ITEMS = 8
 
+/**
+ * 코디를 구성할 최소 옷 개수다. 원피스는 상의와 하의를 모두 대신하므로 한 벌도 충분하다.
+ * @param {readonly Pick<import('./outfitItems.js').WardrobeItemKindInput, 'category'>[]} items
+ */
+export function hasMinimumOutfitItems(items) {
+  return items.length >= 2 || items[0]?.category === 'dress'
+}
+
 const bagPattern = /가방|백팩|배낭|토트백|숄더백|크로스백|에코백|캔버스\s*백|메신저백|보스턴백|클러치|(?:\b(?:bag|handbag|backpack|rucksack|tote|crossbody)\b)/iu
 const genericSubcategories = new Set(['', '기타', '액세서리', '악세서리', 'accessory', 'other'])
 

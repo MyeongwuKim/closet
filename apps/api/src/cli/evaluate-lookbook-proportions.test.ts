@@ -41,6 +41,8 @@ test('두 남성 사례는 동일한 옷과 키로 체형·몸무게·둘레의 
   assert.equal(athletic.body.heightCm, slim.body.heightCm)
   assert.equal(athletic.body.gender, slim.body.gender)
   assert.ok(athletic.body.weightKg > slim.body.weightKg)
+  assert.ok(athletic.body.chestCircumferenceCm !== null && slim.body.chestCircumferenceCm !== null)
+  assert.ok(athletic.body.shoulderWidthCm !== null && slim.body.shoulderWidthCm !== null)
   assert.ok(athletic.body.chestCircumferenceCm > slim.body.chestCircumferenceCm)
   assert.ok(athletic.body.shoulderWidthCm > slim.body.shoulderWidthCm)
   assert.equal(LOOKBOOK_PROPORTION_CASES.find((entry) => entry.name === 'broad-coat')!.body.bodyBuild, 'broad')
@@ -56,12 +58,49 @@ test('코트 대조군은 같은 체형·코트·바지를 유지하며 이너 �
     assert.equal(entry.references[0], 'coat')
     assert.equal(entry.references[2], 'pants')
     const measurements = getLookbookProportionLayerMeasurements(name)
+    assert.ok(measurements)
     assert.equal(measurements.innerTotalLengthCm, expectedLengths[index])
     assert.equal(measurements.outerTotalLengthCm, 115)
     assert.equal(measurements.nominalLengthRatio, expectedLengths[index]! / 115)
     assert.match(entry.visualReviewCriteria.join(' '), /허리 안으로 넣거나/)
     assert.match(entry.visualReviewCriteria.join(' '), /밑단 깊이/)
     assert.match(entry.visualReviewCriteria.join(' '), /길어질수록 밑단이 순서대로 낮아지고/)
+  }
+})
+
+test('176cm 보통 체형의 체중 대조군은 상세 둘레 없이 체중만 바꾼다', () => {
+  const names = ['average-176-70-jacket', 'average-176-90-jacket', 'average-176-100-jacket']
+  assert.deepEqual(parseLookbookProportionArgs([`--cases=${names.join(',')}`]).caseNames, names)
+  const cases = names.map(name => LOOKBOOK_PROPORTION_CASES.find(entry => entry.name === name)!)
+  assert.deepEqual(cases.map(entry => entry.body.weightKg), [70, 90, 100])
+  for (const entry of cases) {
+    assert.deepEqual({ ...entry.body, weightKg: null }, { ...cases[0]!.body, weightKg: null })
+    assert.deepEqual(entry.references, cases[0]!.references)
+    assert.equal(entry.body.heightCm, 176)
+    assert.equal(entry.body.bodyBuild, 'average')
+    assert.equal(entry.body.waistCircumferenceCm, null)
+    assert.equal(entry.body.chestCircumferenceCm, null)
+  }
+})
+
+test('160cm 여성 사례는 같은 옷으로 체중 차이와 상세 치수 추가의 영향을 분리한다', () => {
+  const names = ['female-160-55-basic', 'female-160-80-basic', 'female-160-80-measured'] as const
+  assert.deepEqual(parseLookbookProportionArgs([`--cases=${names.join(',')}`]).caseNames, names)
+  const [lighter, heavier, measured] = names.map(name => LOOKBOOK_PROPORTION_CASES.find(entry => entry.name === name)!)
+  const basic = {
+    gender: 'female', bodyBuild: 'average', heightCm: 160, weightKg: 80,
+    shoulderWidthCm: null, chestCircumferenceCm: null, waistCircumferenceCm: null,
+    hipCircumferenceCm: null, thighCircumferenceCm: null, inseamCm: null,
+  }
+  assert.deepEqual(lighter!.body, { ...basic, weightKg: 55 })
+  assert.deepEqual(heavier!.body, basic)
+  assert.deepEqual(measured!.body, {
+    ...basic, shoulderWidthCm: 40, chestCircumferenceCm: 103, waistCircumferenceCm: 80,
+    hipCircumferenceCm: 110, thighCircumferenceCm: 67, inseamCm: 71,
+  })
+  for (const name of names) {
+    assert.deepEqual(LOOKBOOK_PROPORTION_CASES.find(entry => entry.name === name)!.references, ['blue-short-sleeve', 'profile-test-pants'])
+    assert.equal(getLookbookProportionLayerMeasurements(name), undefined)
   }
 })
 

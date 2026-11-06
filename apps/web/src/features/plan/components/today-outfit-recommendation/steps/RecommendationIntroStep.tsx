@@ -3,12 +3,16 @@ import { PreviewCreditSummary } from '../../../../lookbook/components/PreviewCre
 import { Sparkles } from 'lucide-react'
 
 interface RecommendationIntroStepProps {
-  onNext: () => void
+  dayLabel: '오늘' | '내일'
+  onRecommendWithWeather: () => void
+  onChooseConditions: () => void
 }
 
-/** 추천 시트의 소개 문구와 시작 버튼을 표시한다. 별도 카드 테두리 없이 시트 배경을 사용하며 시작을 누르면 부모에 계절 선택을 요청한다. */
+/** 대상 날짜의 날씨와 자동 색감으로 바로 추천하거나, 계절·색감을 직접 고르는 시작 단계다. */
 export function RecommendationIntroStep({
-  onNext,
+  dayLabel,
+  onRecommendWithWeather,
+  onChooseConditions,
 }: RecommendationIntroStepProps) {
   return (
     <section className="flex h-full flex-col justify-center py-2 text-center">
@@ -16,7 +20,7 @@ export function RecommendationIntroStep({
         <Sparkles size={21} />
       </span>
       <h3 className="mt-3 text-base font-black tracking-[-0.02em]">
-        오늘 입을 코디를 골라드릴까요?
+        {dayLabel} 입을 코디를 골라드릴까요?
       </h3>
       <p className="mx-auto mt-1.5 max-w-64 text-xs leading-5 text-muted">
         등록한 옷의 색과 핏 균형을 비교해 계절과 날씨에 맞는 조합을 추천해요.
@@ -28,13 +32,20 @@ export function RecommendationIntroStep({
       <div className="mt-3"><PreviewCreditSummary kind="recommendation" /></div>
       <AiCreditActionButton
         kind="recommendation"
-        label="추천받기"
+        label={`${dayLabel} 날씨로 바로 추천`}
         adLabel="광고 보고 추천받기"
-        onClick={onNext}
+        onClick={onRecommendWithWeather}
         className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-accent px-4 py-3 text-sm font-bold text-white transition hover:bg-accent/90"
       >
         <Sparkles size={17} />
       </AiCreditActionButton>
+      <button
+        type="button"
+        onClick={onChooseConditions}
+        className="mt-2 min-h-11 rounded-xl border border-line bg-surface px-4 py-2 text-sm font-bold text-ink transition hover:border-ink"
+      >
+        조건 바꾸기
+      </button>
     </section>
   )
 }

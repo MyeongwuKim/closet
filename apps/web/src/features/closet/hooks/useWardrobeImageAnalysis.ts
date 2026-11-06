@@ -1,10 +1,11 @@
-import { useIsMutating } from '@tanstack/react-query'
+import { create } from 'zustand'
+import { getAccessToken } from '../../../lib/auth'
 import { useUiStore } from '../../../stores/useUiStore'
 import {
   ClothingAnalysisError,
-  clothingAnalysisMutationKey,
-  useClassifyClothingMutation,
-  useRemoveClothingBackgroundMutation,
+  classifyClothing,
+  removeClothingBackground,
+  type ClothingAnalysisResult,
 } from '../api/classifyClothing'
 import {
   MAX_CLOTHING_IMAGE_SIZE,
@@ -16,15 +17,44 @@ const rejectedImageCodes = new Set([
   'FASHION_ITEM_NOT_DETECTED',
   'MULTIPLE_FASHION_ITEMS_DETECTED',
   'UNCLEAR_FASHION_IMAGE',
-  'AI_BUSY',
-  'AI_RATE_LIMITED',
-  'UNAUTHENTICATED',
   'INVALID_IMAGE_TYPE',
   'INVALID_IMAGE_SIZE',
   'INVALID_IMAGE_DATA',
 ])
 
-/** 서버가 돌려준 컷아웃 바이트를 확인 모달에서 읽을 수 있는 임시 URL로 바꾼다. */
+const stopClassificationCodes = new Set([
+  ...rejectedImageCodes,
+  'AI_BUSY',
+  'AI_RATE_LIMITED',
+  'UNAUTHENTICATED',
+])
+
+interface QueuedPhoto {
+  id: string
+  file: File
+}
+
+interface FailedWardrobePhoto extends QueuedPhoto {
+  message: string
+}
+
+interface PhotoAnalysisSession {
+  accessToken: string
+  controller: AbortController
+  photos: QueuedPhoto[]
+}
+
+interface WardrobeImageAnalysis {
+  /** 지금 분석 중이거나 차례를 기다리는 사진 수다. */
+  analyzingCount: number
+  failedPhotos: FailedWardrobePhoto[]
+  analyzeImages: (files: File[]) => boolean
+  retryPhoto: (id: string) => void
+  dismissPhoto: (id: string) => void
+  resetAnalysis: () => void
+}
+
+/** 서버의 컷아웃 바이트를 확인 모달에서 읽을 수 있는 임시 URL로 바꾼다. */
 function createImageObjectUrl(base64: string, mimeType: string) {
   const binary = window.atob(base64)
   const bytes = new Uint8Array(binary.length)
@@ -36,156 +66,179 @@ function createImageObjectUrl(base64: string, mimeType: string) {
   return URL.createObjectURL(new Blob([bytes], { type: mimeType }))
 }
 
+/** 분류와 컷아웃을 한 사진 단위로 처리한다. 분류만 실패하고 컷아웃을 받을 수 있으면 수동 등록으로 이어진다. */
+async function analyzePhoto(file: File, session: PhotoAnalysisSession) {
+  const { signal } = session.controller
+  const request = { signal, accessToken: session.accessToken }
+  let classification: ClothingAnalysisResult | null = null
+  let classificationError: unknown
+  try {
+    classification = await classifyClothing(file, request)
+  } catch (error) {
+    signal.throwIfAborted()
+    if (error instanceof ClothingAnalysisError && error.code && stopClassificationCodes.has(error.code)) {
+      throw error
+    }
+    classificationError = error
+  }
+
+  let cutout
+  try {
+    cutout = classification?.cutoutImageBase64 && classification.cutoutMimeType
+      ? { imageBase64: classification.cutoutImageBase64, mimeType: classification.cutoutMimeType }
+      : await removeClothingBackground(file, request)
+  } catch (error) {
+    if (error instanceof ClothingAnalysisError && error.code && stopClassificationCodes.has(error.code)) {
+      throw error
+    }
+    throw new Error('사진의 배경을 제거하지 못했어요.', { cause: error })
+  }
+  return { classification, classificationError, cutout }
+}
+
 /**
- * 옷장에 추가한 사진을 분류하고, 투명 컷아웃이 준비된 후보만 확인 모달의 대기열에 넣는다.
- * 분류만 실패하면 컷아웃을 별도로 받아 수동 입력을 유지하고, 배경 제거까지 실패하면 원본 URL을 해제한 뒤 등록을 중단한다.
- * analyzingCount는 진행 중인 분류·배경 제거 mutation의 수이며, 실제 저장은 이 훅에서 수행하지 않는다.
+ * 선택·드롭·촬영으로 들어온 사진을 로그인 세션별로 대기시켜 한 장씩 분석한다.
+ * 준비된 사진은 공통 확인 대기열에 넣고, 일시 실패한 파일은 옷장으로 돌아와 다시 시도할 수 있게 보관한다.
  */
-export function useWardrobeImageAnalysis() {
-  const enqueueClassification = useUiStore(
-    (state) => state.enqueueClassification,
-  )
-  const pushToast = useUiStore((state) => state.pushToast)
-  const classifyClothing = useClassifyClothingMutation()
-  const removeBackground = useRemoveClothingBackgroundMutation()
-  const analyzingCount = useIsMutating({
-    mutationKey: clothingAnalysisMutationKey,
-  })
+export const useWardrobeImageAnalysis = create<WardrobeImageAnalysis>((set, get) => {
+  let currentSession: PhotoAnalysisSession | null = null
 
-  /**
-   * 형식·크기 조건에 맞는 파일마다 비동기 분석을 시작한다.
-   * 반환값 true는 분석 요청을 시작했다는 뜻이며, 컷아웃 생성이나 옷장 저장 완료를 뜻하지 않는다.
-   */
-  const analyzeImages = (files: File[]) => {
-    if (files.length === 0) return false
+  const isCurrentSession = (session: PhotoAnalysisSession) => {
+    if (session !== currentSession) return false
+    if (session.accessToken === getAccessToken()) return true
+    get().resetAnalysis()
+    return false
+  }
 
-    const validFiles = files.filter(
-      (file) =>
-        SUPPORTED_CLOTHING_IMAGE_TYPES.some((type) => type === file.type) &&
-        file.size <= MAX_CLOTHING_IMAGE_SIZE,
-    )
+  /** 현재 세션에서만 컷아웃을 확인 대기열로 넘긴다. 그 전에 실패하면 임시 URL을 해제한다. */
+  async function processPhoto(session: PhotoAnalysisSession, photo: QueuedPhoto) {
+    let imageUrl: string | undefined
+    let originalImageUrl: string | undefined
+    const { enqueueClassification, pushToast } = useUiStore.getState()
 
-    if (validFiles.length === 0) {
-      pushToast('10MB 이하의 JPEG, PNG, WEBP만 추가할 수 있습니다.', 'error')
-      return false
-    }
+    try {
+      const { classification, classificationError, cutout } = await analyzePhoto(photo.file, session)
+      if (!isCurrentSession(session)) return
 
-    const createdAt = Date.now()
-    const pendingUploads = validFiles.map((file, index) => ({
-      id: `upload-${createdAt}-${index}`,
-      name: '새 옷',
-      imageUrl: URL.createObjectURL(file),
-    }))
+      imageUrl = createImageObjectUrl(cutout.imageBase64, cutout.mimeType)
+      originalImageUrl = URL.createObjectURL(photo.file)
+      const suggestedName = classification?.suggestedName.trim() ||
+        [classification?.colorName, classification?.subcategoryLabel]
+          .map((value) => value?.trim())
+          .filter(Boolean)
+          .join(' ')
 
-    pushToast('AI가 옷 사진을 살펴보고 있어요 👀', 'info')
-
-    if (validFiles.length !== files.length) {
-      pushToast('일부 파일은 형식 또는 10MB 제한 때문에 제외했습니다.', 'error')
-    }
-
-    validFiles.forEach((file, index) => {
-      const item = pendingUploads[index]
-      let cutoutImageUrl: string | null = null
-
-      // 분류 실패와 배경 제거 실패를 분리해, 컷아웃이 준비되면 기존 수동 입력을 유지한다.
-      void (async () => {
-        let classification: Awaited<ReturnType<typeof classifyClothing.mutateAsync>> | null = null
-        let classificationError: unknown = null
-        try {
-          classification = await classifyClothing.mutateAsync(file)
-        } catch (error) {
-          if (
-            error instanceof ClothingAnalysisError &&
-            error.code &&
-            rejectedImageCodes.has(error.code)
-          ) {
-            URL.revokeObjectURL(item.imageUrl)
-            pushToast(error.message, 'error')
-            return
-          }
-          classificationError = error
-        }
-
-        try {
-          if (classification?.cutoutImageBase64 && classification.cutoutMimeType) {
-            cutoutImageUrl = createImageObjectUrl(
-              classification.cutoutImageBase64,
-              classification.cutoutMimeType,
-            )
-          } else {
-            const cutout = await removeBackground.mutateAsync(file)
-            cutoutImageUrl = createImageObjectUrl(cutout.imageBase64, cutout.mimeType)
-          }
-        } catch {
-          URL.revokeObjectURL(item.imageUrl)
-          pushToast('사진의 배경을 제거하지 못했어요. 사진을 다시 추가해 주세요.', 'error')
-          return
-        }
-
-        if (!classification) {
-          pushToast(
-            classificationError instanceof Error
-              ? classificationError.message
-              : 'AI 분석에 실패했습니다. 옷 정보를 직접 입력해 주세요.',
-            'error',
-          )
-          enqueueClassification({
-            itemId: item.id,
-            imageUrl: cutoutImageUrl,
-            originalImageUrl: item.imageUrl,
-            originalFilename: file.name,
-            itemName: item.name,
-            category: null,
-            subcategory: '',
-            colorName: '',
-            colorDetailName: '',
-            colorHex: '#d9d5cc',
-            colorRgb: [217, 213, 204],
-            colorMode: null,
-            fashionAttributes: null,
-            confidence: null,
-            model: null,
-            candidates: [],
-            analysisFailed: true,
-          })
-          return
-        }
-
-        enqueueClassification({
-          itemId: item.id,
-          imageUrl: cutoutImageUrl,
-          originalImageUrl: item.imageUrl,
-          originalFilename: file.name,
-          itemName:
-            classification.suggestedName.trim() ||
-            [classification.colorName, classification.subcategoryLabel]
-              .map((value) => value.trim())
-              .filter(Boolean)
-              .join(' ') ||
-            '새 옷',
-          category: classification.category,
-          subcategory: classification.subcategoryLabel,
-          colorName: classification.colorName,
-          colorDetailName: classification.colorDetailName,
-          colorHex: classification.colorHex,
-          colorRgb: classification.colorRgb,
-          colorMode: classification.colorMode,
-          fashionAttributes: classification.fashionAttributes ?? null,
-          confidence: classification.confidence,
-          model: classification.model,
-          candidates: classification.candidates,
-          analysisFailed: false,
-        })
-      })().catch(() => {
-        // 큐에 넣기 전의 예외가 생겨도 임시 이미지 URL을 남기지 않는다.
-        URL.revokeObjectURL(item.imageUrl)
-        if (cutoutImageUrl) URL.revokeObjectURL(cutoutImageUrl)
-        pushToast('사진을 분석하지 못했어요. 사진을 다시 추가해 주세요.', 'error')
+      enqueueClassification({
+        itemId: photo.id,
+        imageUrl,
+        originalImageUrl,
+        originalFilename: photo.file.name,
+        itemName: suggestedName || '새 옷',
+        category: classification?.category ?? null,
+        subcategory: classification?.subcategoryLabel ?? '',
+        colorName: classification?.colorName ?? '',
+        colorDetailName: classification?.colorDetailName ?? '',
+        colorHex: classification?.colorHex ?? '#d9d5cc',
+        colorRgb: classification?.colorRgb ?? [217, 213, 204],
+        colorMode: classification?.colorMode ?? null,
+        fashionAttributes: classification?.fashionAttributes ?? null,
+        confidence: classification?.confidence ?? null,
+        model: classification?.model ?? null,
+        candidates: classification?.candidates ?? [],
+        analysisFailed: !classification,
       })
-    })
 
+      if (!classification) {
+        pushToast(
+          classificationError instanceof Error
+            ? classificationError.message
+            : 'AI 분석에 실패했습니다. 옷 정보를 직접 입력해 주세요.',
+          'error',
+        )
+      }
+    } catch (error) {
+      if (imageUrl) URL.revokeObjectURL(imageUrl)
+      if (originalImageUrl) URL.revokeObjectURL(originalImageUrl)
+      if (!isCurrentSession(session)) return
+
+      const message = error instanceof Error ? error.message : '사진을 분석하지 못했어요.'
+      if (error instanceof ClothingAnalysisError && error.code && rejectedImageCodes.has(error.code)) {
+        pushToast(`${photo.file.name}: ${message}`, 'error')
+        return
+      }
+
+      set((state) => ({ failedPhotos: [...state.failedPhotos, { ...photo, message }] }))
+    }
+  }
+
+  /** 여러 번 사진을 추가해도 같은 배열 뒤에 붙인다. 사진의 컷아웃 처리까지 끝난 뒤 다음 사진을 요청한다. */
+  function queuePhotos(photos: QueuedPhoto[]) {
+    const accessToken = getAccessToken()
+    if (!accessToken) return false
+    if (currentSession?.accessToken !== accessToken) {
+      if (currentSession) get().resetAnalysis()
+      currentSession = { accessToken, controller: new AbortController(), photos: [] }
+    }
+
+    const session = currentSession
+    const isProcessing = session.photos.length > 0
+    session.photos.push(...photos)
+    set({ analyzingCount: session.photos.length })
+    if (!isProcessing) {
+      void (async () => {
+        while (session.photos.length > 0 && isCurrentSession(session)) {
+          await processPhoto(session, session.photos[0])
+          session.photos.shift()
+          if (isCurrentSession(session)) set({ analyzingCount: session.photos.length })
+        }
+      })()
+    }
     return true
   }
 
-  return { analyzeImages, analyzingCount }
-}
+  return {
+    analyzingCount: 0,
+    failedPhotos: [],
+    /** 크기와 형식이 허용된 파일을 대기열에 넣으면 true를 반환한다. 등록 확인과 저장은 이후 별도 단계다. */
+    analyzeImages: (files) => {
+      if (files.length === 0) return false
+
+      const validFiles = files.filter(
+        (file) => SUPPORTED_CLOTHING_IMAGE_TYPES.some((type) => type === file.type) &&
+          file.size <= MAX_CLOTHING_IMAGE_SIZE,
+      )
+      const { pushToast } = useUiStore.getState()
+      if (validFiles.length === 0) {
+        pushToast('10MB 이하의 JPEG, PNG, WEBP만 추가할 수 있습니다.', 'error')
+        return false
+      }
+      if (validFiles.length !== files.length) {
+        pushToast('일부 파일은 형식 또는 10MB 제한 때문에 제외했습니다.', 'error')
+      }
+
+      return queuePhotos(validFiles.map((file) => ({ id: crypto.randomUUID(), file })))
+    },
+    /** 실패 목록의 원본을 그대로 다시 대기열에 넣는다. 성공한 사진과 다른 실패 사진은 건드리지 않는다. */
+    retryPhoto: (id) => {
+      if (!currentSession || !isCurrentSession(currentSession)) return
+      const photo = get().failedPhotos.find((entry) => entry.id === id)
+      if (!photo) return
+
+      get().dismissPhoto(id)
+      queuePhotos([{ id, file: photo.file }])
+    },
+    dismissPhoto: (id) => set((state) => ({
+      failedPhotos: state.failedPhotos.filter((photo) => photo.id !== id),
+    })),
+    /** 로그아웃·계정 변경 시 진행 중 요청을 중단하고 대기 중이거나 실패한 원본을 비운다. */
+    resetAnalysis: () => {
+      if (currentSession) {
+        currentSession.photos.length = 0
+        currentSession.controller.abort()
+      }
+      currentSession = null
+      set({ analyzingCount: 0, failedPhotos: [] })
+      useUiStore.getState().disposeClassificationImages()
+    },
+  }
+})

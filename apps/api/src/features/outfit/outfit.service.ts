@@ -1,4 +1,5 @@
 import type { OutfitSource, Season } from '@prisma/client'
+import { hasMinimumOutfitItems } from '@closet/types/outfit-items'
 import { ServiceError } from '../../graphql/errors.js'
 import { imageService } from '../image/image.service.js'
 import { wardrobeRepository } from '../wardrobe/wardrobe.repository.js'
@@ -56,6 +57,25 @@ function getCommonSeasons(items: Array<{ seasons: Season[] }>) {
   return items[0].seasons.filter((season) =>
     items.every((item) => item.seasons.includes(season)),
   )
+}
+
+/** 코디북과 날짜 코디 저장에 같은 소유권·활성 옷·구성 조건을 적용한다. 원피스는 단독 구성도 허용한다. */
+async function requireOutfitWardrobeItems(userId: string, itemIds: string[]) {
+  if (itemIds.length === 0 || new Set(itemIds).size !== itemIds.length) {
+    throw new ServiceError('코디에 넣을 옷을 중복 없이 선택해주세요.', 'INVALID_OUTFIT_ITEMS')
+  }
+
+  const wardrobeItems = await wardrobeRepository.findManyOwnedByIds(userId, itemIds)
+  if (wardrobeItems.length !== itemIds.length || wardrobeItems.some((item) => !item.category)) {
+    throw new ServiceError('분류가 완료된 내 옷장 아이템만 코디에 넣을 수 있습니다.', 'INVALID_OUTFIT_ITEMS')
+  }
+  if (!hasMinimumOutfitItems(wardrobeItems)) {
+    throw new ServiceError('원피스 한 벌 또는 서로 다른 옷을 두 개 이상 선택해주세요.', 'INVALID_OUTFIT_ITEMS')
+  }
+  if (!hasCompleteOutfitBase(wardrobeItems.map((item) => item.category!))) {
+    throw new ServiceError('상의나 아우터와 하의를 함께 선택해주세요. 원피스는 한 벌만 골라도 됩니다.', 'INCOMPLETE_OUTFIT_ITEMS')
+  }
+  return wardrobeItems
 }
 
 async function requireOutfit(userId: string, outfitId: string) {
@@ -150,9 +170,7 @@ export const outfitService = {
     const name = input.name.trim()
     const style = input.style.trim().replaceAll(/\s+/g, ' ')
     const seasons = normalizeSeasons(input.seasons)
-    const uniqueItemIds = [
-      ...new Set(input.items.map(({ wardrobeItemId }) => wardrobeItemId)),
-    ]
+    const itemIds = input.items.map(({ wardrobeItemId }) => wardrobeItemId)
 
     if (!name) {
       throw new ServiceError('코디 이름을 입력해주세요.', 'INVALID_OUTFIT')
@@ -163,37 +181,8 @@ export const outfitService = {
         'INVALID_OUTFIT_STYLE',
       )
     }
-    if (uniqueItemIds.length < 2 || uniqueItemIds.length !== input.items.length) {
-      throw new ServiceError(
-        '서로 다른 옷을 두 개 이상 선택해주세요.',
-        'INVALID_OUTFIT_ITEMS',
-      )
-    }
-
-    const wardrobeItems = await wardrobeRepository.findManyOwnedByIds(
-      userId,
-      uniqueItemIds,
-    )
-    if (
-      wardrobeItems.length !== uniqueItemIds.length ||
-      wardrobeItems.some((item) => !item.category)
-    ) {
-      throw new ServiceError(
-        '분류가 완료된 내 옷장 아이템만 코디에 넣을 수 있습니다.',
-        'INVALID_OUTFIT_ITEMS',
-      )
-    }
-    if (
-      !hasCompleteOutfitBase(
-        wardrobeItems.map((item) => item.category!),
-      )
-    ) {
-      throw new ServiceError(
-        '상의나 아우터와 하의를 함께 선택해주세요. 원피스는 상·하의를 모두 대신할 수 있습니다.',
-        'INCOMPLETE_OUTFIT_ITEMS',
-      )
-    }
-    const duplicate = await findSavedDuplicate(userId, uniqueItemIds)
+    const wardrobeItems = await requireOutfitWardrobeItems(userId, itemIds)
+    const duplicate = await findSavedDuplicate(userId, itemIds)
     if (duplicate) {
       throw new ServiceError(
         `같은 옷 조합이 이미 '${duplicate.name}' 코디로 저장되어 있습니다.`,
@@ -228,9 +217,9 @@ export const outfitService = {
           )
         : []
       if (
-        normalizedPreviewItemIds.length !== uniqueItemIds.length ||
+        normalizedPreviewItemIds.length !== itemIds.length ||
         normalizedPreviewItemIds.some(
-          (itemId) => !uniqueItemIds.includes(itemId),
+          (itemId) => !itemIds.includes(itemId),
         )
       ) {
         throw new ServiceError(
@@ -241,7 +230,7 @@ export const outfitService = {
     }
 
     const uploadedImageAsset = input.previewImage
-      ? await resolveOutfitPreviewImage(userId, input.previewImage, uniqueItemIds, style)
+      ? await resolveOutfitPreviewImage(userId, input.previewImage, itemIds, style)
       : null
     const imageAssetId = storedPreview?.assetId ?? uploadedImageAsset?.id
     const generationModel = storedPreview?.model ?? uploadedImageAsset?.model
@@ -274,33 +263,7 @@ export const outfitService = {
 
   /** 날짜 저장을 위한 입력을 검증한다. 실제 코디 생성과 날짜 연결은 플래너 트랜잭션에서 함께 처리한다. */
   async preparePlannerOutfit(userId: string, input: PlannerOnlyOutfitInput) {
-    const uniqueItemIds = [...new Set(input.itemIds)]
-    if (uniqueItemIds.length < 2 || uniqueItemIds.length !== input.itemIds.length) {
-      throw new ServiceError(
-        '서로 다른 옷을 두 개 이상 선택해주세요.',
-        'INVALID_OUTFIT_ITEMS',
-      )
-    }
-
-    const wardrobeItems = await wardrobeRepository.findManyOwnedByIds(
-      userId,
-      uniqueItemIds,
-    )
-    if (
-      wardrobeItems.length !== uniqueItemIds.length ||
-      wardrobeItems.some((item) => !item.category)
-    ) {
-      throw new ServiceError(
-        '분류가 완료된 내 옷장 아이템만 코디에 넣을 수 있습니다.',
-        'INVALID_OUTFIT_ITEMS',
-      )
-    }
-    if (!hasCompleteOutfitBase(wardrobeItems.map((item) => item.category!))) {
-      throw new ServiceError(
-        '상의나 아우터와 하의를 함께 선택해주세요.',
-        'INCOMPLETE_OUTFIT_ITEMS',
-      )
-    }
+    const wardrobeItems = await requireOutfitWardrobeItems(userId, input.itemIds)
 
     const model = input.previewImage?.model.trim()
     if (input.previewImage && !model) {
@@ -310,7 +273,7 @@ export const outfitService = {
       )
     }
     const imageAsset = input.previewImage
-      ? await resolveOutfitPreviewImage(userId, input.previewImage, uniqueItemIds, input.style?.trim() || '직접 구성')
+      ? await resolveOutfitPreviewImage(userId, input.previewImage, input.itemIds, input.style?.trim() || '직접 구성')
       : null
     const itemById = new Map(wardrobeItems.map((item) => [item.id, item]))
     const name = input.name?.trim() || '직접 고른 코디'
@@ -336,7 +299,7 @@ export const outfitService = {
       seasons: getCommonSeasons(wardrobeItems),
       source: input.source ?? (imageAsset ? 'ai' : 'manual'),
       plannerOnly: true,
-      items: uniqueItemIds.map((wardrobeItemId, layerOrder) => ({
+      items: input.itemIds.map((wardrobeItemId, layerOrder) => ({
         wardrobeItemId,
         slot: itemById.get(wardrobeItemId)!.category!,
         layerOrder,
@@ -395,9 +358,7 @@ export const outfitService = {
       input.seasons,
       currentOutfit.seasons.length === 0,
     )
-    const uniqueItemIds = [
-      ...new Set(input.items.map(({ wardrobeItemId }) => wardrobeItemId)),
-    ]
+    const itemIds = input.items.map(({ wardrobeItemId }) => wardrobeItemId)
 
     if (!name) {
       throw new ServiceError('코디 이름을 입력해주세요.', 'INVALID_OUTFIT')
@@ -408,39 +369,10 @@ export const outfitService = {
         'INVALID_OUTFIT_STYLE',
       )
     }
-    if (uniqueItemIds.length < 2 || uniqueItemIds.length !== input.items.length) {
-      throw new ServiceError(
-        '서로 다른 옷을 두 개 이상 선택해주세요.',
-        'INVALID_OUTFIT_ITEMS',
-      )
-    }
-
-    const wardrobeItems = await wardrobeRepository.findManyOwnedByIds(
-      userId,
-      uniqueItemIds,
-    )
-    if (
-      wardrobeItems.length !== uniqueItemIds.length ||
-      wardrobeItems.some((item) => !item.category)
-    ) {
-      throw new ServiceError(
-        '분류가 완료된 내 옷장 아이템만 코디에 넣을 수 있습니다.',
-        'INVALID_OUTFIT_ITEMS',
-      )
-    }
-    if (
-      !hasCompleteOutfitBase(
-        wardrobeItems.map((item) => item.category!),
-      )
-    ) {
-      throw new ServiceError(
-        '상의나 아우터와 하의를 함께 선택해주세요. 원피스는 상·하의를 모두 대신할 수 있습니다.',
-        'INCOMPLETE_OUTFIT_ITEMS',
-      )
-    }
+    const wardrobeItems = await requireOutfitWardrobeItems(userId, itemIds)
     const duplicate = await findSavedDuplicate(
       userId,
-      uniqueItemIds,
+      itemIds,
       outfitId,
     )
     if (duplicate) {
@@ -453,10 +385,9 @@ export const outfitService = {
     const currentItemIds = currentOutfit.items.map(
       (item) => item.wardrobeItemId,
     )
-    const nextItemIds = input.items.map((item) => item.wardrobeItemId)
     const itemsChanged =
-      currentItemIds.length !== nextItemIds.length ||
-      currentItemIds.some((itemId, index) => itemId !== nextItemIds[index])
+      currentItemIds.length !== itemIds.length ||
+      currentItemIds.some((itemId, index) => itemId !== itemIds[index])
     const model = input.previewImage?.model.trim()
     if (input.previewImage && !model) {
       throw new ServiceError(
@@ -466,7 +397,7 @@ export const outfitService = {
     }
 
     const imageAsset = input.previewImage
-      ? await resolveOutfitPreviewImage(userId, input.previewImage, uniqueItemIds, style)
+      ? await resolveOutfitPreviewImage(userId, input.previewImage, itemIds, style)
       : null
     const resetGenerations = itemsChanged && !imageAsset
     const itemById = new Map(wardrobeItems.map((item) => [item.id, item]))

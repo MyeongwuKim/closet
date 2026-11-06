@@ -9,47 +9,19 @@
  * 위치 설정 안내·조회·오류 상태 또는 작은 기온 배지를 표시한다.
  * 날씨의 상세 상태와 출처 표시는 배지 팝업에 맡긴다.
  */
-import { useEffect, useState } from 'react'
 import { CloudSun, LoaderCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { readNotificationWeatherPreferences } from '../../settings/utils/notificationWeatherPreferences'
-import { useLocationWeather } from '../../weather/hooks/useLocationWeather'
+import { usePlannerLocationWeather } from '../hooks/usePlannerLocationWeather'
 import { PlanWeatherBadge } from './PlanWeatherBadge'
-import { readLocationPermission } from '../../weather/utils/locationPermission'
 
 interface PlanTodayWeatherProps {
   date: string
 }
 
 export function PlanTodayWeather({ date }: PlanTodayWeatherProps) {
-  const preferences = readNotificationWeatherPreferences()
-  const [hasLocationPermission, setHasLocationPermission] = useState<boolean | null>(null)
-  const isEnabled =
-    !preferences.locationWeatherDisabled &&
-    (preferences.locationWeather || hasLocationPermission === true)
-  const { weather, isLoading, errorMessage, actions } = useLocationWeather(
-    date,
-    { autoLoad: isEnabled },
-  )
+  const { weather, isLoading, errorMessage, actions, isEnabled, isCheckingPermission } = usePlannerLocationWeather(date)
 
-  useEffect(() => {
-    if (preferences.locationWeather || preferences.locationWeatherDisabled) return
-
-    let active = true
-    void readLocationPermission()
-      .then((status) => {
-        if (active) setHasLocationPermission(status === 'granted')
-      })
-      .catch(() => {
-        if (active) setHasLocationPermission(false)
-      })
-
-    return () => {
-      active = false
-    }
-  }, [preferences.locationWeather, preferences.locationWeatherDisabled])
-
-  if (!isEnabled && hasLocationPermission === null && !preferences.locationWeatherDisabled) {
+  if (isCheckingPermission) {
     return (
       <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-muted" role="status" aria-label="위치 확인 중">
         <LoaderCircle size={14} className="animate-spin" />

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import type { WearFeeling } from '@closet/types'
-import { graphqlRequest } from '../../../lib/graphql'
+import { GraphqlRequestError, graphqlRequest } from '../../../lib/graphql'
 import { queryKeys } from '../../../lib/queryKeys'
 import { usePlanStore } from '../stores/usePlanStore'
 import { toOutfitPreviewImageInput, type OutfitPreviewImageInput } from '../../lookbook/utils/outfitPreviewInput'
@@ -37,9 +37,13 @@ interface PlannerWeekPayload {
   }>
 }
 
-function invalidatePlannerAndWearStats(queryClient: QueryClient) {
+function invalidatePlannerAndWearStats(queryClient: QueryClient, refreshRecommendation = true) {
   return Promise.all([
-    queryClient.invalidateQueries({ queryKey: queryKeys.planner.all }),
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.planner.all,
+      predicate: ({ queryKey }) => refreshRecommendation ||
+        (queryKey[1] !== 'today-recommendation' && queryKey[1] !== 'thermal-context'),
+    }),
     queryClient.invalidateQueries({ queryKey: queryKeys.wardrobe.all }),
   ])
 }
@@ -49,15 +53,36 @@ function invalidatePlannerAndPreviews(queryClient: QueryClient) {
   return Promise.all([invalidatePlannerAndWearStats(queryClient), invalidateCompletedOutfitPreviews(queryClient)])
 }
 
+/** 다른 기기에서 먼저 착용을 완료했다면 다시 조회해 편집 화면에도 보호 상태를 반영한다. */
+function refreshProtectedPlanner(queryClient: QueryClient, error: unknown) {
+  if (error instanceof GraphqlRequestError && error.code === 'PLANNER_WEAR_CONFIRMED') {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.planner.all })
+  }
+}
+
 /** 플래너 편집과 하루·기간 조회에 동일한 서버 결과를 반영한 뒤 착용 관련 조회를 갱신한다. */
-function applyPlannerWearResult(queryClient: QueryClient, weekStartsOn: string, entries: PlanEntry[]) {
+function applyPlannerWearResult(queryClient: QueryClient, weekStartsOn: string, entries: PlanEntry[], refreshRecommendation = true) {
   queryClient.setQueryData(queryKeys.planner.week(weekStartsOn), entries)
   const entryByDate = new Map(entries.map((entry) => [entry.date, entry]))
   queryClient.setQueriesData<PlanEntry[]>({ queryKey: ['planner', 'entries'] }, (current) =>
     current?.map((entry) => entryByDate.get(entry.date) ?? entry),
   )
   usePlanStore.getState().hydrateEntries(entries)
-  return invalidatePlannerAndWearStats(queryClient)
+  return invalidatePlannerAndWearStats(queryClient, refreshRecommendation)
+}
+
+/** 빈 하루에도 서버가 배정한 코디를 즉시 넣고, 같은 주의 상세와 착용 관련 조회를 갱신한다. */
+function applyPlannerAssignmentResult(queryClient: QueryClient, input: { weekStartsOn: string; date: string }, entries: PlanEntry[]) {
+  const savedEntry = entries.find((entry) => entry.date === input.date)
+  if (savedEntry?.outfitId) {
+    queryClient.setQueriesData<PlanEntry[]>(
+      { queryKey: queryKeys.planner.entries(input.date, input.date), exact: true },
+      [savedEntry],
+    )
+  }
+  // 배정은 착용 근거를 바꾸지 않으므로 열린 추천을 새로 실행하지 않는다.
+  void applyPlannerWearResult(queryClient, input.weekStartsOn, entries, false)
+  void invalidateCompletedOutfitPreviews(queryClient)
 }
 
 export interface SetPlannerEntryVariables {
@@ -276,8 +301,10 @@ export function useSetDirectPlannerEntryMutation() {
       )
       return data.setDirectPlannerEntry.entries.map(toPlanEntry)
     },
-    onSuccess: () =>
-      invalidatePlannerAndPreviews(queryClient),
+    onError: (error) => refreshProtectedPlanner(queryClient, error),
+    onSuccess: (entries, input) => {
+      applyPlannerAssignmentResult(queryClient, input, mergeWeeklyPlanEntries(input.weekStartsOn, entries))
+    },
   })
 }
 
@@ -476,10 +503,8 @@ export function useSetPlannerEntryMutation() {
       `, { input })
       return mergeWeeklyPlanEntries(data.setPlannerEntry.weekStartsOn, data.setPlannerEntry.entries.map(toPlanEntry))
     },
-    onSuccess: (entries, input) => {
-      applyPlannerWearResult(queryClient, input.weekStartsOn, entries)
-      void invalidateCompletedOutfitPreviews(queryClient)
-    },
+    onError: (error) => refreshProtectedPlanner(queryClient, error),
+    onSuccess: (entries, input) => applyPlannerAssignmentResult(queryClient, input, entries),
   })
 }
 
@@ -504,6 +529,7 @@ export function useClearPlannerEntryMutation() {
       )
       return variables
     },
+    onError: (error) => refreshProtectedPlanner(queryClient, error),
     onSuccess: () =>
       invalidatePlannerAndPreviews(queryClient),
   })

@@ -1,8 +1,9 @@
 import { useEffect } from 'react'
 import { matchPath, Outlet, ScrollRestoration, useLocation } from 'react-router-dom'
 import { GlobalUi } from '../GlobalUi'
+import { getAccessToken } from '../../lib/auth'
+import { useWardrobeImageAnalysis } from '../../features/closet/hooks/useWardrobeImageAnalysis'
 import { useClosetStore } from '../../features/closet/stores/useClosetStore'
-import { useUiStore } from '../../stores/useUiStore'
 import { OutfitRecommendationActions } from '../../features/plan/components/OutfitRecommendationActions'
 import { AppHeader } from './AppHeader'
 import { MobileTabBar } from './MobileTabBar'
@@ -29,17 +30,24 @@ export function AppLayout() {
   const disposeUploadedImages = useClosetStore(
     (state) => state.disposeUploadedImages,
   )
-  const disposeClassificationImages = useUiStore(
-    (state) => state.disposeClassificationImages,
-  )
+  const resetAnalysis = useWardrobeImageAnalysis((state) => state.resetAnalysis)
 
-  useEffect(
-    () => () => {
+  // 탭 간 로그인 변경과 보호된 화면 종료에서 이전 계정의 사진을 정리한다.
+  useEffect(() => {
+    let accessToken = getAccessToken()
+    const handleStorage = () => {
+      const nextAccessToken = getAccessToken()
+      if (nextAccessToken === accessToken) return
+      accessToken = nextAccessToken
+      resetAnalysis()
+    }
+    window.addEventListener('storage', handleStorage)
+    return () => {
+      window.removeEventListener('storage', handleStorage)
       disposeUploadedImages()
-      disposeClassificationImages()
-    },
-    [disposeClassificationImages, disposeUploadedImages],
-  )
+      resetAnalysis()
+    }
+  }, [disposeUploadedImages, resetAnalysis])
 
   return (
     <div className="app-layout flow-root min-h-dvh bg-canvas text-ink">

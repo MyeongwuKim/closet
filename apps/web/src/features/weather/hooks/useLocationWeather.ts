@@ -4,11 +4,12 @@
  *
  * 동작 방식:
  * 네이티브 브리지 또는 브라우저에서 좌표를 받은 뒤 날씨 쿼리를 활성화한다.
- * 화면 진입과 브라우저·네이티브 앱 복귀 때 만료된 예보만 다시 조회한다.
+ * 자동 조회를 사용하는 화면의 진입과 브라우저·네이티브 앱 복귀 때 만료된 예보만 다시 조회한다.
  * 갱신 전에는 위치도 다시 확인하며, 동시에 도착한 복귀 이벤트는 한 요청으로 처리한다.
  * 위치·날씨 조회 실패는 안내 문구로 반환하고 이전 날씨를 현재 값으로 표시하지 않는다.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { WeatherSnapshot } from '@closet/types'
 import { useQueryClient } from '@tanstack/react-query'
 import { getCurrentLocation } from '../../../native-bridge'
 import {
@@ -37,7 +38,11 @@ function getLocationErrorMessage(
 
 export function useLocationWeather(
   date: string,
-  options: { autoLoad?: boolean } = {},
+  options: {
+    autoLoad?: boolean
+    /** 명시적 요청이 반환한 예보를 유지해 다른 화면의 자동 갱신이 추천 조건을 바꾸지 않게 한다. */
+    keepRequestedSnapshot?: boolean
+  } = {},
 ) {
   const queryClient = useQueryClient()
   // 마지막으로 확인한 좌표로 예보를 구독한다. 위치 확인 실패 시 null로 비운다.
@@ -46,7 +51,9 @@ export function useLocationWeather(
   const [locationError, setLocationError] = useState<string | null>(null)
   // 자동 조회를 끈 화면에서도 명시적인 날씨 선택 이후에는 복귀 갱신을 사용한다.
   const [hasRequested, setHasRequested] = useState(false)
-  const enabled = options.autoLoad ?? hasRequested
+  const [requestedWeather, setRequestedWeather] = useState<WeatherSnapshot | null>(null)
+  const keepRequestedSnapshot = options.keepRequestedSnapshot ?? false
+  const enabled = !keepRequestedSnapshot && (options.autoLoad ?? hasRequested)
   const weatherQuery = useWeatherForecastQuery(date, coordinates, enabled)
   // 진행 중인 조회의 표식이다. 날짜 변경·화면 해제 뒤 이전 결과의 UI 반영을 막는다.
   const pendingRequest = useRef<object | null>(null)
@@ -77,7 +84,10 @@ export function useLocationWeather(
       }
       setCoordinates(nextCoordinates)
       // 같은 좌표여도 fetchQuery가 서버 만료 시각을 확인해 만료된 예보를 갱신한다.
-      await queryClient.fetchQuery(weatherForecastQueryOptions(date, nextCoordinates))
+      const forecast = await queryClient.fetchQuery(weatherForecastQueryOptions(date, nextCoordinates))
+      if (keepRequestedSnapshot && pendingRequest.current === request) {
+        setRequestedWeather(forecast)
+      }
     } catch (error) {
       if (pendingRequest.current !== request) return
       setLocationError(
@@ -89,7 +99,7 @@ export function useLocationWeather(
         setIsLocating(false)
       }
     }
-  }, [date, queryClient])
+  }, [date, keepRequestedSnapshot, queryClient])
 
   useEffect(() => {
     if (!options.autoLoad) return
@@ -113,15 +123,16 @@ export function useLocationWeather(
   }
 
   const errorMessage = locationError ??
-    (weatherQuery.isError
+    (!keepRequestedSnapshot && weatherQuery.isError
       ? weatherQuery.error instanceof Error
         ? weatherQuery.error.message
         : '현재 위치의 날씨를 불러오지 못했어요.'
       : null)
 
+  const weather = keepRequestedSnapshot ? requestedWeather : weatherQuery.data
   return {
-    weather: errorMessage ? null : weatherQuery.data ?? null,
-    isLoading: isLocating || weatherQuery.isFetching,
+    weather: !errorMessage && weather?.date === date ? weather : null,
+    isLoading: isLocating || (!keepRequestedSnapshot && weatherQuery.isFetching),
     errorMessage,
     actions: { loadWeather, retry },
   }

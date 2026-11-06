@@ -332,6 +332,27 @@
   color: var(--color-ink);
 }
 
+.composer-look-canvas--review .composer-look-canvas__selected {
+  margin-top: 14px;
+}
+
+.composer-look-canvas--review .composer-look-canvas__selected-label {
+  margin-bottom: 8px;
+}
+
+.composer-look-canvas--review .composer-look-canvas__selected-list {
+  flex-wrap: wrap;
+  gap: 8px;
+  overflow-x: visible;
+  padding: 0;
+}
+
+.composer-look-canvas--review .composer-look-canvas__selected-chip {
+  max-width: 100%;
+  min-height: 36px;
+  padding: 8px 11px;
+}
+
 .composer-look-canvas__empty-note {
   margin: 11px 0 0;
   color: var(--color-muted);

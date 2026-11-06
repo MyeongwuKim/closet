@@ -2,19 +2,19 @@
  * 사용 위치: 플래너 화면 → 상단 제목 영역
  *
  * 용도:
- * 옷장·코디북과 같은 제목 규격으로 플래너 이름과 주간 편집 버튼을 표시한다.
- * 제목 옆의 작은 날씨 배지에서 오늘의 기온을 보여주고 자세한 날씨를 열 수 있다.
+ * 옷장·코디북과 같은 제목 규격으로 플래너 이름을 표시한다.
+ * 제목 옆 날씨 배지는 오늘의 기온을 보여준다. 내일 예보가 본문에 있는 동안에는 배지를 생략한다.
  *
  * 구조:
- * 하루·주간·월간 모두 같은 제목과 조작을 제공한다. 주간 편집을 열 기준 날짜는 부모 화면에서 정한다.
+ * 주간 보기에서 편집 콜백을 받으면 주간 편집 버튼을 표시한다.
  */
 import { CalendarDays } from 'lucide-react'
 import { CollectionHeading } from '../../../components/CollectionHeading'
 import { PlanTodayWeather } from './PlanTodayWeather'
 
 interface PlanPageHeaderProps {
-  today: string
-  onEditWeek: () => void
+  today?: string
+  onEditWeek?: () => void
 }
 
 export function PlanPageHeader({
@@ -25,8 +25,8 @@ export function PlanPageHeader({
     <div>
       <CollectionHeading
         title="플래너"
-        titleAccessory={<PlanTodayWeather date={today} />}
-        actions={
+        titleAccessory={today && <PlanTodayWeather date={today} />}
+        actions={onEditWeek && (
           <button
             type="button"
             onClick={onEditWeek}
@@ -38,7 +38,7 @@ export function PlanPageHeader({
             <CalendarDays size={14} strokeWidth={1.8} />
             <span>주간 편집</span>
           </button>
-        }
+        )}
       />
     </div>
   )

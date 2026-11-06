@@ -22,6 +22,7 @@ export interface UpdateMyStyleProfileInput {
   chestCircumferenceCm?: number | null
   waistCircumferenceCm?: number | null
   hipCircumferenceCm?: number | null
+  thighCircumferenceCm?: number | null
   shoulderWidthCm?: number | null
   inseamCm?: number | null
   preferredFit: PreferredFit
@@ -74,6 +75,8 @@ export function toViewerResponse(viewer: ViewerRecord) {
         viewer.styleProfile?.waistCircumferenceCm ?? null,
       hipCircumferenceCm:
         viewer.styleProfile?.hipCircumferenceCm ?? null,
+      thighCircumferenceCm:
+        viewer.styleProfile?.thighCircumferenceCm ?? null,
       shoulderWidthCm: viewer.styleProfile?.shoulderWidthCm ?? null,
       inseamCm: viewer.styleProfile?.inseamCm ?? null,
       preferredFit: viewer.styleProfile?.preferredFit ?? 'regular',
@@ -105,6 +108,7 @@ export const userService = {
     validateBodyValue(input.chestCircumferenceCm, 40, 200, '가슴둘레')
     validateBodyValue(input.waistCircumferenceCm, 40, 200, '허리둘레')
     validateBodyValue(input.hipCircumferenceCm, 40, 200, '엉덩이둘레')
+    validateBodyValue(input.thighCircumferenceCm, 20, 150, '허벅지둘레')
     validateBodyValue(input.shoulderWidthCm, 20, 80, '어깨너비')
     validateBodyValue(input.inseamCm, 40, 130, '인심')
 

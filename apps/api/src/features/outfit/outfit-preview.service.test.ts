@@ -97,6 +97,7 @@ test('신발을 고르지 않은 룩북에는 임의의 운동화나 양말을 �
   assert.match(String(form.get('prompt')), /No footwear was selected/)
   assert.match(String(form.get('prompt')), /Show the model barefoot/)
   assert.match(String(form.get('prompt')), /Do not invent shoes, sneakers, sandals or socks/)
+  assert.doesNotMatch(String(form.get('prompt')), /Critical garment-to-body fit|nominalWaistEaseCm=/)
 })
 
 test('브이넥 니트와 다른 상의를 함께 선택했으면 추가 이너를 만들지 않는다', () => {
@@ -167,7 +168,7 @@ async function requestMockPreview(
   attributes?: unknown,
   extraItems: ReturnType<typeof createPreviewItem>[] = [],
   profile: Awaited<ReturnType<typeof userRepository.findViewerById>> = null,
-  measurements: Record<string, { totalLengthCm?: number; chestWidthCm?: number; shoulderWidthCm?: number; sleeveLengthCm?: number }> = {},
+  measurements: Record<string, { totalLengthCm?: number; chestWidthCm?: number; shoulderWidthCm?: number; sleeveLengthCm?: number; waistWidthCm?: number; hipWidthCm?: number; thighWidthCm?: number }> = {},
 ) {
   const items = [createPreviewItem('top', 'top', attributes), createPreviewItem('bottom', 'bottom'), ...extraItems]
     .map((item) => ({ ...item, ...measurements[item.id] }))
@@ -202,24 +203,139 @@ test('실제 생성 요청에 최신 신체 수치·옷 여유·재킷과 이너
     styleProfile: {
       gender: 'male', bodyBuild: 'athletic', heightCm: 180, weightKg: 85,
       shoulderWidthCm: 48, chestCircumferenceCm: 104, waistCircumferenceCm: 82,
-      hipCircumferenceCm: 100, inseamCm: 82, preferredFit: 'wide',
+      hipCircumferenceCm: 100, thighCircumferenceCm: 70, inseamCm: 82, preferredFit: 'wide',
     },
   } as Awaited<ReturnType<typeof userRepository.findViewerById>>
   const jacket = { ...createPreviewItem('jacket', 'outer'), name: '짧은 재킷', subcategory: '재킷' }
   const form = await requestMockPreview(t, undefined, [jacket], profile, {
     top: { totalLengthCm: 74, chestWidthCm: 55, shoulderWidthCm: 50, sleeveLengthCm: 56 },
+    bottom: { totalLengthCm: 103, waistWidthCm: 50, hipWidthCm: 60, thighWidthCm: 35 },
     jacket: { totalLengthCm: 58, chestWidthCm: 60 },
   })
   const prompt = String(form.get('prompt'))
   assert.match(prompt, /키 180cm, 몸무게 85kg, 어깨너비 48cm, 가슴둘레 104cm/)
-  assert.match(prompt, /허리둘레 82cm, 엉덩이둘레 100cm, 인심 82cm/)
+  assert.match(prompt, /허리둘레 82cm, 엉덩이둘레 100cm, 허벅지둘레 70cm, 인심 82cm/)
   assert.match(prompt, /naturally trained muscular build/)
   assert.match(prompt, /참조 이미지 1.*총장 74cm/)
   assert.match(prompt, /참조 이미지 1.*nominalChestEaseCm=6/)
+  assert.match(prompt, /참조 이미지 2.*nominalWaistEaseCm=18/)
+  assert.match(prompt, /참조 이미지 2.*nominalHipEaseCm=20/)
+  assert.match(prompt, /참조 이미지 2.*nominalThighEaseCm=0/)
+  assert.match(prompt, /참조 이미지 2.*thighVisualCue=close:/)
+  assert.match(prompt, /ZERO nominal spare circumference/)
+  assert.match(prompt, /Saved body thigh circumference=70cm around ONE upper thigh/)
+  assert.match(prompt, /허벅지 단면 35cm/)
+  assert.match(prompt, /참조 이미지 2.*허리 단면 50cm, 엉덩이 단면 60cm/)
+  assert.ok(prompt.indexOf('Critical garment-to-body fit') < prompt.indexOf('Reference garment order'))
+  assert.match(prompt, /fit cues take priority over the preferred styling fit/)
   assert.match(prompt, /참조 이미지 1.*bodyLengthCm=74; sleeveLengthCm=56; nominalBodyMinusSleeveLengthCm=18/)
   assert.match(prompt, /Inner reference image 1 totalLengthCm=74; outer reference image 3 totalLengthCm=58/)
   assert.match(prompt, /inner garment is nominally 16 cm longer/)
-  assert.match(prompt, /Garment measurements and visible garment proportions always take priority/)
+  assert.match(prompt, /The body profile, garment measurements and visible garment proportions always take priority/)
+})
+
+test('같은 옷을 다시 생성하면 변경된 체형·키·둘레·선호 핏을 새 요청에 반영한다', async (t) => {
+  let profile = {
+    styleProfile: {
+      gender: 'male', bodyBuild: 'slim', heightCm: 160, weightKg: 50,
+      shoulderWidthCm: 40, chestCircumferenceCm: 80, waistCircumferenceCm: 65,
+      hipCircumferenceCm: 85, thighCircumferenceCm: 50, inseamCm: 70, preferredFit: 'skinny',
+    },
+  } as Awaited<ReturnType<typeof userRepository.findViewerById>>
+  const items = [
+    { ...createPreviewItem('top', 'top'), totalLengthCm: 72, chestWidthCm: 55 },
+    { ...createPreviewItem('bottom', 'bottom'), waistWidthCm: 50, hipWidthCm: 60, thighWidthCm: 35 },
+  ]
+  const viewer = t.mock.method(userRepository, 'findViewerById', async () => profile)
+  t.mock.method(wardrobeRepository, 'findManyOwnedWithImagesByIds', async () => items)
+  const prompts: string[] = []
+  t.mock.method(globalThis, 'fetch', async (url: unknown, options?: RequestInit) => {
+    if (items.some((item) => item.displayImageAsset.deliveryUrl === url)) {
+      return new Response('mock-reference', { headers: { 'content-type': 'image/png' } })
+    }
+    assert.equal(url, 'https://api.openai.com/v1/images/edits')
+    assert.ok(options?.body instanceof FormData)
+    prompts.push(String(options.body.get('prompt')))
+    return Response.json({ data: [{ b64_json: Buffer.from('mock-preview').toString('base64') }] })
+  })
+  const previousKey = process.env.OPENAI_API_KEY
+  process.env.OPENAI_API_KEY = 'test-key'
+  t.after(() => {
+    if (previousKey === undefined) delete process.env.OPENAI_API_KEY
+    else process.env.OPENAI_API_KEY = previousKey
+  })
+
+  await outfitPreviewService.generate('viewer', ['top', 'bottom'])
+  profile = {
+    styleProfile: {
+      gender: 'male', bodyBuild: 'broad', heightCm: 185, weightKg: 95,
+      shoulderWidthCm: 50, chestCircumferenceCm: 110, waistCircumferenceCm: 92,
+      hipCircumferenceCm: 108, thighCircumferenceCm: 70, inseamCm: 85, preferredFit: 'wide',
+    },
+  } as typeof profile
+  await outfitPreviewService.generate('viewer', ['top', 'bottom'])
+
+  assert.equal(viewer.mock.callCount(), 2)
+  assert.equal(prompts.length, 2)
+  assert.match(prompts[0]!, /마른 체형, 키 160cm, 몸무게 50kg/)
+  assert.match(prompts[0]!, /nominalChestEaseCm=30/)
+  assert.match(prompts[0]!, /nominalWaistEaseCm=35/)
+  assert.match(prompts[0]!, /nominalHipEaseCm=35/)
+  assert.match(prompts[0]!, /nominalThighEaseCm=20/)
+  assert.match(prompts[0]!, /garmentLengthToModelHeight=45\.0%/)
+  assert.match(prompts[1]!, /골격과 체격이 큰 체형, 키 185cm, 몸무게 95kg/)
+  assert.match(prompts[1]!, /어깨너비 50cm, 가슴둘레 110cm, 허리둘레 92cm, 엉덩이둘레 108cm, 허벅지둘레 70cm, 인심 85cm/)
+  assert.match(prompts[1]!, /Preferred styling fit: 여유로운 착용감/)
+  assert.match(prompts[1]!, /nominalChestEaseCm=0/)
+  assert.match(prompts[1]!, /nominalWaistEaseCm=8/)
+  assert.match(prompts[1]!, /nominalHipEaseCm=12/)
+  assert.match(prompts[1]!, /nominalThighEaseCm=0/)
+  assert.match(prompts[1]!, /garmentLengthToModelHeight=38\.9%/)
+  assert.doesNotMatch(prompts[1]!, /키 160cm|몸무게 50kg|가슴둘레 80cm/)
+})
+
+test('176cm·100kg의 보통 체형은 상세 둘레 없이도 옷 도안보다 체격 지침을 우선한다', async (t) => {
+  const profile = { styleProfile: {
+    gender: 'male', bodyBuild: 'average', heightCm: 176, weightKg: 100,
+    shoulderWidthCm: null, chestCircumferenceCm: null, waistCircumferenceCm: null,
+    hipCircumferenceCm: null, inseamCm: null, preferredFit: 'regular',
+  } } as Awaited<ReturnType<typeof userRepository.findViewerById>>
+  const form = await requestMockPreview(t, undefined, [], profile)
+  const prompt = String(form.get('prompt'))
+  assert.match(prompt, /키 176cm, 몸무게 100kg/)
+  assert.match(prompt, /heightCm=176; weightKg=100/)
+  assert.match(prompt, /not a medium-weight or slim-waist preset/)
+  assert.match(prompt, /describe the garments, not the wearer's body or body width/)
+  assert.match(prompt, /preserve a broad waist and a rounded abdomen/)
+  assert.ok(prompt.indexOf('Critical model body size') < prompt.indexOf('Reference garment order'))
+  assert.doesNotMatch(prompt, /가슴둘레 \d+cm|허리둘레 \d+cm|엉덩이둘레 \d+cm/)
+})
+
+test('같은 여성 160cm·80kg 프로필에 상세 치수를 추가하면 요청에 부위별 윤곽과 실측 핏을 전달한다', async (t) => {
+  const styleProfile = { gender: 'female', bodyBuild: 'average', heightCm: 160, weightKg: 80 }
+  const measurements = { bottom: { waistWidthCm: 45, hipWidthCm: 56, thighWidthCm: 34.5 } }
+  const asViewer = (body: object) => ({ styleProfile: { ...styleProfile, ...body } }) as Awaited<ReturnType<typeof userRepository.findViewerById>>
+
+  await t.test('기본 프로필은 체격을 표현하고 실측 핏을 추정하지 않는다', async (t) => {
+    const form = await requestMockPreview(t, undefined, [], asViewer({}), measurements)
+    const prompt = String(form.get('prompt'))
+    assert.match(prompt, /Model gender constraint: Use one adult woman only/)
+    assert.match(prompt, /No detailed body measurements were saved/)
+    assert.match(prompt, /visibly wider relative to the saved height/)
+    assert.doesNotMatch(prompt, /Critical garment-to-body fit|nominal(?:Waist|Hip|Thigh)EaseCm=/)
+  })
+
+  await t.test('상세 프로필은 각 부위의 실측과 옷 여유를 함께 반영한다', async (t) => {
+    const body = asViewer({ waistCircumferenceCm: 80, hipCircumferenceCm: 110, thighCircumferenceCm: 67 })
+    const form = await requestMockPreview(t, undefined, [], body, measurements)
+    const prompt = String(form.get('prompt'))
+    assert.match(prompt, /Body profile basis: measured regional silhouette/)
+    assert.match(prompt, /Waist-to-hip circumference ratio=72\.7%/)
+    assert.doesNotMatch(prompt, /preserve a broad waist and a rounded abdomen/)
+    assert.match(prompt, /nominalWaistEaseCm=10.*waistVisualCue=moderate:/)
+    assert.match(prompt, /nominalHipEaseCm=2.*hipVisualCue=close:/)
+    assert.match(prompt, /nominalThighEaseCm=2.*thighVisualCue=close:/)
+  })
 })
 
 test('앞이 열리는 코트에는 실측 보조 도식을 사진 뒤에 추가하고 이너 밑단을 바지 앞에 두도록 전달한다', async (t) => {

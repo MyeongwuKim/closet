@@ -30,15 +30,25 @@ export function formatWearDate(value: string) {
   return `${Number(match[2])}월 ${Number(match[3])}일`
 }
 
+function getDaysSinceWear(wornDate: string, today: string) {
+  const wornTimestamp = getDateOnlyTimestamp(wornDate)
+  const todayTimestamp = getDateOnlyTimestamp(today)
+  if (wornTimestamp === null || todayTimestamp === null) return null
+  return (todayTimestamp - wornTimestamp) / DAY_IN_MS
+}
+
+/** 오늘부터 설정 일수 전까지의 실제 착용 날짜만 최근으로 본다. 날짜가 없거나 잘못된 값은 숨기지 않는다. */
+export function isRecentlyWorn(wornDate: string | undefined, intervalDays: number, today: string) {
+  const daysAgo = wornDate ? getDaysSinceWear(wornDate, today) : null
+  return daysAgo !== null && daysAgo >= 0 && daysAgo <= intervalDays
+}
+
 export function formatRecentWearLabel(
   wornDate: string,
   today = formatLocalDateOnly(new Date()),
 ) {
-  const wornTimestamp = getDateOnlyTimestamp(wornDate)
-  const todayTimestamp = getDateOnlyTimestamp(today)
-  if (wornTimestamp === null || todayTimestamp === null) return null
-
-  const daysAgo = Math.round((todayTimestamp - wornTimestamp) / DAY_IN_MS)
+  const daysAgo = getDaysSinceWear(wornDate, today)
+  if (daysAgo === null) return null
   if (daysAgo === 0) return '오늘 착용'
   if (daysAgo === 1) return '어제 착용'
   if (daysAgo >= 2 && daysAgo <= 6) return `${daysAgo}일 전 착용`

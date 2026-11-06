@@ -40,7 +40,7 @@ for (const viewport of [{ width: 320, height: 668 }, { width: 390, height: 844 }
       await page.getByRole('button', { name: 'AI 코디 추천', exact: true }).click()
       const recommendation = page.getByRole('dialog', { name: '오늘의 AI 코디 추천' })
       await expect(recommendation.getByText('AI 사용권 5/5', { exact: true })).toBeVisible()
-      await expect(recommendation.getByRole('button', { name: '추천받기', exact: true })).toBeEnabled()
+      await expect(recommendation.getByRole('button', { name: '오늘 날씨로 바로 추천', exact: true })).toBeEnabled()
       expect(recommendationReads).toBe(0)
       expect(mockApi.operations).not.toContain('TodayOutfitRecommendation')
       expect(mockApi.operations).not.toContain('StartOutfitPreview')

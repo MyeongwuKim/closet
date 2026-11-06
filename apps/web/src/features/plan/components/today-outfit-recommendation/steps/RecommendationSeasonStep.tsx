@@ -5,16 +5,18 @@ import {
   RecommendationAssistantMessage,
   RecommendationQuickReply,
 } from '../RecommendationChatUi'
-import type { SeasonChoice } from '../recommendationFlow'
+import type { RecommendationMode, SeasonChoice } from '../recommendationFlow'
 
 interface RecommendationSeasonStepProps {
+  mode: RecommendationMode
   availableSeasons?: Season[]
   onBack: () => void
   onSelect: (choice: SeasonChoice) => void
 }
 
-/** 추천 시작 다음에 현재 날씨 또는 옷에 등록된 계절을 고른다. 선택값은 부모의 추천 흐름으로 전달한다. */
+/** 추천에 사용할 날짜의 예보 또는 옷에 등록된 계절을 고른다. */
 export function RecommendationSeasonStep({
+  mode,
   availableSeasons,
   onBack,
   onSelect,
@@ -22,6 +24,7 @@ export function RecommendationSeasonStep({
   const options = availableSeasons
     ? seasonOptions.filter((option) => availableSeasons.includes(option.value as Season))
     : seasonOptions
+  const weatherLabel = mode === 'tomorrow' ? '내일 예보' : '현재 날씨'
 
   return (
     <section
@@ -35,7 +38,7 @@ export function RecommendationSeasonStep({
             <p className="mt-0.5 text-muted">
               {availableSeasons
                 ? '기준 옷에 등록된 계절 중에서 골라주세요.'
-                : '현재 날씨를 선택하거나 계절을 직접 골라주세요.'}
+                : `${weatherLabel}를 선택하거나 계절을 직접 골라주세요.`}
             </p>
           </RecommendationAssistantMessage>
 
@@ -46,7 +49,7 @@ export function RecommendationSeasonStep({
                   delayMs={80}
                   onClick={() => onSelect('current-weather')}
                 >
-                  현재 날씨로 받기
+                  {weatherLabel}로 받기
                 </RecommendationQuickReply>
               </div>
             )}

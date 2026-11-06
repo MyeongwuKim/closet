@@ -6,6 +6,7 @@ import {
   BookHeart,
   ChevronLeft,
   ImagePlus,
+  Images,
   LoaderCircle,
   Sparkles,
   Trash2,
@@ -34,8 +35,12 @@ import {
 } from '../data/weeklyPlan'
 import { useRecentWearReminder } from '../hooks/useRecentWearReminder'
 import { usePlanStore } from '../stores/usePlanStore'
+import { PlannerOutfitPicker } from '../components/PlannerOutfitPicker'
 import { PlannerWearAction } from '../components/PlannerWearAction'
+import { PlanTomorrowForecast } from '../components/PlanTomorrowForecast'
+import { useKoreaPlannerToday } from '../hooks/useKoreaPlannerToday'
 import { getPlanEntryItems } from '../utils/plannerItems'
+import { getKoreaPlannerTomorrow } from '../utils/plannerWear'
 
 /** 아직 생성하지 않았거나 구성이 바뀐 플래너 미리보기의 닫힌 초기 상태를 만든다. */
 function createPreviewDialogState(): OutfitPreviewState {
@@ -51,11 +56,12 @@ function completedPreviewDialog(preview: OutfitPreview, compositionKey: string, 
   }
 }
 
-/** 플래너 → 날짜별 코디 설정. 옷 구성·저장·AI 룩북의 진행·결과 팝업과 실제 착용 확인·취소를 제공하며, 저장 전 편집 코디는 착용으로 확인하지 않는다. */
+/** 플래너 → 날짜별 코디 설정. 직접 편집, 코디북 배정, 내일 예보 추천을 제공하고 실제 착용 기록과 저장한 이미지를 관리한다. */
 export function PlanDetailPage() {
   const navigate = useNavigate()
   const { date } = useParams()
   const [searchParams] = useSearchParams()
+  const today = useKoreaPlannerToday()
   const items = useClosetStore((state) => state.items)
   const entries = usePlanStore((state) => state.entries)
   const setWeek = usePlanStore((state) => state.setWeek)
@@ -63,6 +69,9 @@ export function PlanDetailPage() {
   const setEntryItems = usePlanStore((state) => state.setEntryItems)
   const clearOutfit = usePlanStore((state) => state.clearOutfit)
   const pushToast = useUiStore((state) => state.pushToast)
+  const [isOutfitPickerOpen, setIsOutfitPickerOpen] = useState(false)
+  const [isTomorrowRecommendationOpen, setIsTomorrowRecommendationOpen] = useState(false)
+  const detailDialogRef = useRef<HTMLElement>(null)
   const [isLookbookOpen, setIsLookbookOpen] = useState(false)
   const [isRemoveConfirmOpen, setIsRemoveConfirmOpen] = useState(false)
   const [generatedPreview, setGeneratedPreview] = useState<OutfitPreview | null>(
@@ -94,7 +103,14 @@ export function PlanDetailPage() {
     entries.find((plan) => plan.date === date) ??
     plannerWeekQuery.data?.find((plan) => plan.date === date) ??
     fallbackEntry
-  const generatePreview = useGenerateOutfitPreviewMutation({ selectedItemIds: entry?.itemIds ?? [], style: entry?.outfitStyle })
+  const activeItems = items.filter((item) => !item.archivedAt)
+  const outfitItems = entry ? getPlanEntryItems(entry, activeItems) : []
+  const outfitCompletionMessage = getOutfitCompletionMessage(outfitItems)
+  const generatePreview = useGenerateOutfitPreviewMutation(
+    entry && !outfitCompletionMessage
+      ? { selectedItemIds: entry.itemIds, style: entry.outfitStyle }
+      : undefined,
+  )
   const requestedBackPath = searchParams.get('from')
   const backPath =
     requestedBackPath?.startsWith('/') && !requestedBackPath.startsWith('//')
@@ -116,7 +132,7 @@ export function PlanDetailPage() {
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
-      if (event.defaultPrevented) return
+      if (event.defaultPrevented || detailDialogRef.current?.inert) return
       if (useUiStore.getState().recentWearConfirmation) return
       if (previewDialog.isOpen) {
         setPreviewDialog((current) => ({ ...current, isOpen: false }))
@@ -143,11 +159,8 @@ export function PlanDetailPage() {
 
   if (!entry) return null
 
-  const activeItems = items.filter((item) => !item.archivedAt)
-  const outfitItems = getPlanEntryItems(entry, activeItems)
   const hasArchivedItems = outfitItems.some((item) => item.archivedAt)
   const isEmpty = outfitItems.length === 0
-  const outfitCompletionMessage = getOutfitCompletionMessage(outfitItems)
   const currentPreviewKey = `${entry.date}:${getOutfitPreviewCompositionKey(entry.itemIds, entry.outfitStyle ?? '')}`
   const currentGeneratedPreview = previewDialog.compositionKey === currentPreviewKey ? generatedPreview : null
   // 다른 화면의 공용 완료 결과는 명시적으로 열기 전까지 이 날짜의 저장 사진을 대신하지 않는다.
@@ -169,12 +182,22 @@ export function PlanDetailPage() {
   const recordKey = `${entry.date}:${entry.outfitId ?? ''}:${currentPreviewKey}:${entry.previewImageAssetId ?? entry.previewImageUrl ?? ''}`
   const isCopiedToLookbook = copiedRecordKey === recordKey
   const hasPlannerOutfit = Boolean(entry.outfitId || entry.itemIds.length > 0)
+  const isWearProtected = Boolean(entry.wornAt)
+  const isTomorrow = entry.date === getKoreaPlannerTomorrow(today)
   const entryDate = new Date(`${entry.date}T00:00:00`)
   const formattedDate = new Intl.DateTimeFormat('ko-KR', {
     month: 'long',
     day: 'numeric',
   }).format(entryDate)
   const entryTitle = entry.title || '코디를 설정해주세요'
+
+  /** 코디북 배정이 성공하면 이전 초안의 AI 결과가 새 날짜 코디에 붙지 않도록 초기화한다. */
+  const resetPreviewAfterAssignment = () => {
+    previewRequestVersionRef.current += 1
+    setGeneratedPreview(null)
+    setPreviewDialog(createPreviewDialogState())
+    setCopiedRecordKey(null)
+  }
 
   const openAiLookbook = async (forceNew = false) => {
     if (previewInFlightRef.current === currentPreviewKey) {
@@ -304,6 +327,10 @@ export function PlanDetailPage() {
 
   const removeFromPlanner = async () => {
     if (clearPlannerEntry.isPending) return
+    if (isWearProtected) {
+      setIsRemoveConfirmOpen(false)
+      return
+    }
 
     try {
       if (entry.outfitId && /^[a-f\d]{24}$/i.test(entry.outfitId)) {
@@ -329,10 +356,12 @@ export function PlanDetailPage() {
 
   return createPortal(
     <section
+      ref={detailDialogRef}
       className="classification-page-enter fixed inset-0 z-[80] flex h-dvh flex-col overflow-hidden bg-canvas"
       role="dialog"
       aria-modal="true"
       aria-label={`${entryTitle} 상세`}
+      inert={isOutfitPickerOpen || (isTomorrow && isTomorrowRecommendationOpen)}
     >
       <header className="shrink-0 border-b border-line bg-canvas/95 backdrop-blur">
         <div className="mx-auto flex min-h-16 max-w-3xl items-center gap-2 px-3 py-2 sm:min-h-18 sm:px-5">
@@ -354,12 +383,21 @@ export function PlanDetailPage() {
               {entry.occasion ? ` · ${entry.occasion}` : ''}
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => setIsOutfitPickerOpen(true)}
+            disabled={isWearProtected || plannerWeekQuery.isPending || plannerWeekQuery.isError || isCheckingRecentWear || setDirectPlannerEntry.isPending || saveToLookbook.isPending || clearPlannerEntry.isPending}
+            className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-xs font-bold text-accent hover:border-accent disabled:opacity-50"
+          >
+            <Images size={15} aria-hidden="true" />
+            코디북에서 고르기
+          </button>
           {hasPlannerOutfit && (
             <button
               type="button"
               onClick={() => setIsRemoveConfirmOpen(true)}
-              disabled={clearPlannerEntry.isPending}
-              className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-sage hover:text-accent disabled:cursor-wait disabled:opacity-40"
+              disabled={isWearProtected || clearPlannerEntry.isPending}
+              className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-sage hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
               aria-label="이 날짜에서 코디 빼기"
             >
               {clearPlannerEntry.isPending ? (
@@ -373,16 +411,29 @@ export function PlanDetailPage() {
       </header>
 
       <div className="mx-auto w-full max-w-3xl shrink-0">
+        {isTomorrow && (
+          <div className="px-3 pt-2 sm:px-5">
+            <PlanTomorrowForecast
+              key={entry.date}
+              date={entry.date}
+              onOpenChange={setIsTomorrowRecommendationOpen}
+              onApplied={resetPreviewAfterAssignment}
+            />
+          </div>
+        )}
         <PlannerWearAction entry={entry} />
+        {isWearProtected && <p className="px-4 py-2 text-xs leading-4 text-muted">코디를 수정하거나 빼려면 먼저 ‘착용 취소’를 눌러주세요.</p>}
         {hasArchivedItems && <p className="px-4 py-2 text-center text-[11px] text-muted">삭제한 옷도 이 날짜의 기록에는 남아 있어요.</p>}
       </div>
 
       <div className="min-h-0 flex-1 px-3 py-3 sm:px-6 sm:py-6">
         <div className="mx-auto h-full max-w-3xl">
           <OutfitSlotEditor
+            key={`${entry.date}:${isWearProtected}`}
             items={activeItems}
             selectedItems={outfitItems}
             showArchivedStatus
+            readOnly={isWearProtected}
             onChange={(nextItems) => {
               const nextItemIds = nextItems.map((item) => item.id)
               if (
@@ -412,8 +463,8 @@ export function PlanDetailPage() {
           <div className="col-span-2"><PreviewCreditSummary /></div>
           <AiCreditActionButton
             requiresCredit={!hasCompletedImage && !isCompletedLookupError && !hasCurrentPendingPreview && !generatePreview.willResume}
-            label={hasCurrentPendingPreview ? '생성 과정 보기' : hasCompletedImage ? 'AI 룩북 보기' : isCompletedLookupError ? '이미지 다시 불러오기' : generatePreview.isPending ? '만드는 중...' : 'AI 룩북 만들기'}
-            adLabel="광고 보고 룩북 만들기"
+            label={hasCurrentPendingPreview ? '생성 과정 보기' : hasCompletedImage ? 'AI 룩북 보기' : isCompletedLookupError ? '이미지 다시 불러오기' : generatePreview.isPending ? '만드는 중...' : 'AI 착장 이미지 만들기'}
+            adLabel="광고 보고 AI 이미지 만들기"
             onClick={() => void openAiLookbook()}
             disabled={isPreviewActionDisabled}
             className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-canvas px-3 py-3 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40"
@@ -459,6 +510,16 @@ export function PlanDetailPage() {
           )}
         </div>
       </footer>
+
+      {isOutfitPickerOpen && (
+        <PlannerOutfitPicker
+          key={entry.date}
+          dayEntry={entry}
+          lockBodyScroll={false}
+          onClose={() => setIsOutfitPickerOpen(false)}
+          onAssigned={resetPreviewAfterAssignment}
+        />
+      )}
 
       {isRemoveConfirmOpen && (
         <ConfirmDialog

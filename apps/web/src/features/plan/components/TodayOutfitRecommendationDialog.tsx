@@ -1,6 +1,6 @@
 import { AiCreditActionButton } from '../../lookbook/components/AiCreditActionButton'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { OutfitPreview, WardrobeItem } from '@closet/types'
+import type { OutfitPreview, Season, WardrobeItem } from '@closet/types'
 import type { OutfitStyle } from '../../../constants/styleOptions'
 import {
   CalendarPlus,
@@ -17,11 +17,13 @@ import { useGenerateOutfitPreviewMutation } from '../../lookbook/api/lookbookQue
 import type { OutfitPreviewState } from '../../lookbook/contexts/OutfitComposerContext'
 import { getOutfitCompletionMessage } from '../../lookbook/utils/outfitComposition'
 import { useUiStore } from '../../../stores/useUiStore'
+import { RecommendationLookbookSave } from './today-outfit-recommendation/RecommendationLookbookSave'
 import {
   cacheRecommendationPreview,
   getRecommendationPreviewKey,
   readRecommendationPreview,
 } from '../utils/recommendationPreviewCache'
+import { recommendationDayLabels, type RecommendationMode } from './today-outfit-recommendation/recommendationFlow'
 
 interface TodayOutfitRecommendationDialogProps {
   viewerId: string
@@ -31,10 +33,13 @@ interface TodayOutfitRecommendationDialogProps {
   items: WardrobeItem[]
   initialItems: WardrobeItem[]
   style: OutfitStyle | null
-  hasTodayOutfit: boolean
+  season: Season
+  hasScheduledOutfit: boolean
+  mode?: RecommendationMode
   isSaving: boolean
   onClose: () => void
   onApplied?: () => void
+  onOpenLookbook?: () => void
   onApply: (
     items: WardrobeItem[],
     previewImage?: OutfitPreview,
@@ -71,21 +76,30 @@ function createPreviewState(
   }
 }
 
-/** AI 추천 썸네일·설명에서 연 코디 구성을 전체화면으로 표시한다. 뒤로가기와 하단 버튼을 고정하고 슬롯 영역만 스크롤하며 옷 교체·룩북 생성·일정 적용은 기존 편집 흐름에 맡긴다. */
+/** AI 추천 조합을 전체화면으로 편집한다. 옷 교체, 착장 이미지 생성, 대상 날짜에 적용, 코디북 저장을 제공한다. */
 export function TodayOutfitRecommendationDialog({
   viewerId,
   date,
-  title = '오늘의 추천 코디',
+  title,
   backLabel = '추천 코디로 돌아가기',
   items,
   initialItems,
   style,
-  hasTodayOutfit,
+  season,
+  hasScheduledOutfit,
+  mode = 'today',
   isSaving,
   onClose,
   onApplied,
   onApply,
+  onOpenLookbook,
 }: TodayOutfitRecommendationDialogProps) {
+  const dayLabel = recommendationDayLabels[mode]
+  const dialogTitle = title ?? `${dayLabel}의 추천 코디`
+  const applyLabel = hasScheduledOutfit
+    ? `${dayLabel} 코디 바꾸기`
+    : mode === 'tomorrow' ? '내일 일정에 담기' : '오늘 일정에 추가'
+  const detailDialogRef = useRef<HTMLElement>(null)
   const [selectedItems, setSelectedItems] = useState(initialItems)
   const initialPreviewKey = getRecommendationPreviewKey(
     viewerId,
@@ -95,13 +109,13 @@ export function TodayOutfitRecommendationDialog({
   const [preview, setPreview] = useState(() =>
     createPreviewState(readRecommendationPreview(initialPreviewKey)),
   )
-  const generateOutfitPreview = useGenerateOutfitPreviewMutation({ selectedItemIds: selectedItems.map((item) => item.id), style: style ?? undefined })
+  const completionMessage = getOutfitCompletionMessage(selectedItems)
+  const generateOutfitPreview = useGenerateOutfitPreviewMutation(completionMessage ? undefined : { selectedItemIds: selectedItems.map((item) => item.id), style: style ?? undefined })
   const availableItems = useMemo(() => {
     const itemById = new Map(items.map((item) => [item.id, item]))
     initialItems.forEach((item) => itemById.set(item.id, item))
     return [...itemById.values()]
   }, [initialItems, items])
-  const completionMessage = getOutfitCompletionMessage(selectedItems)
   const previewKey = getRecommendationPreviewKey(
     viewerId,
     style,
@@ -163,7 +177,8 @@ export function TodayOutfitRecommendationDialog({
         if (previewKeyRef.current !== requestedPreviewKey) return
 
         setPreview((current) => ({
-          isOpen: restoreCompleted ? current.isOpen : true,
+          // 창을 닫은 뒤 완료되어도 코디북 저장 화면 위에 다시 열지 않는다.
+          isOpen: current.isOpen,
           status: 'success',
           imageUrl: result.imageUrl ?? `data:${result.mimeType};base64,${result.imageBase64}`,
           imageBase64: result.imageBase64,
@@ -177,8 +192,8 @@ export function TodayOutfitRecommendationDialog({
       .catch((error: unknown) => {
         if (previewKeyRef.current !== requestedPreviewKey) return
 
-        setPreview({
-          isOpen: true,
+        setPreview((current) => ({
+          isOpen: current.isOpen,
           status: 'error',
           imageUrl: null,
           imageBase64: null,
@@ -190,7 +205,7 @@ export function TodayOutfitRecommendationDialog({
             error instanceof Error
               ? error.message
               : 'AI 룩북을 만들지 못했어요.',
-        })
+        }))
       })
   }
 
@@ -226,7 +241,9 @@ export function TodayOutfitRecommendationDialog({
         !event.defaultPrevented &&
         !useUiStore.getState().recentWearConfirmation
       ) {
-        onClose()
+        const dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]')
+        // 포털로 열린 저장 화면과 옷 선택창은 자체적으로 Escape를 처리한다.
+        if (detailDialogRef.current?.contains(dialogs.item(dialogs.length - 1))) onClose()
       }
     }
 
@@ -239,17 +256,18 @@ export function TodayOutfitRecommendationDialog({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[80] bg-canvas"
+      className={`fixed inset-0 bg-canvas ${mode === 'tomorrow' ? 'z-[90]' : 'z-[80]'}`}
       onMouseDown={(event) => {
         event.stopPropagation()
         if (event.target === event.currentTarget) onClose()
       }}
     >
       <section
+        ref={detailDialogRef}
         className="classification-page-enter flex h-dvh w-full flex-col overflow-hidden bg-canvas"
         role="dialog"
         aria-modal="true"
-        aria-label="오늘의 추천 코디 상세"
+        aria-label={`${dayLabel}의 추천 코디 상세`}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="shrink-0 border-b border-line bg-canvas pt-[env(safe-area-inset-top)]">
@@ -266,8 +284,8 @@ export function TodayOutfitRecommendationDialog({
             <div className="min-w-0 flex-1">
               <h1 className="flex min-w-0 items-center gap-1.5 text-base font-black tracking-[-0.03em]">
                 <Sparkles className="shrink-0 text-accent" size={18} />
-                <span className="min-w-0 flex-1 truncate" title={title}>
-                  {title}
+                <span className="min-w-0 flex-1 truncate" title={dialogTitle}>
+                  {dialogTitle}
                 </span>
               </h1>
               <p className="mt-0.5 truncate text-xs text-muted">
@@ -312,8 +330,8 @@ export function TodayOutfitRecommendationDialog({
             <div className="grid grid-cols-2 gap-2">
               <AiCreditActionButton
                 requiresCredit={!hasRestorablePreview && !(preview.status === 'success' && preview.imageUrl) && !generateOutfitPreview.willResume}
-                label={hasRestorablePreview || (preview.status === 'success' && preview.imageUrl) ? 'AI 룩북 보기' : 'AI 룩북 만들기'}
-                adLabel="광고 보고 룩북 만들기"
+                label={hasRestorablePreview || (preview.status === 'success' && preview.imageUrl) ? 'AI 룩북 보기' : 'AI 착장 이미지 만들기'}
+                adLabel="광고 보고 AI 이미지 만들기"
                 onClick={openOrGeneratePreview}
                 disabled={Boolean(completionMessage) || (!hasRestorablePreview && !(preview.status === 'success' && preview.imageUrl) && (generateOutfitPreview.isPending || generateOutfitPreview.isRestoringCompleted))}
                 className="flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-line bg-canvas px-3 py-3.5 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40"
@@ -332,7 +350,7 @@ export function TodayOutfitRecommendationDialog({
                   if (didApply) handleApplied()
                 }}
                 disabled={Boolean(completionMessage) || isSaving}
-                className="flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl bg-accent px-3 py-3.5 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
+                className="flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-line bg-canvas px-3 py-3.5 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
               >
                 {isSaving ? (
                   <LoaderCircle className="shrink-0 animate-spin" size={18} />
@@ -341,10 +359,18 @@ export function TodayOutfitRecommendationDialog({
                 )}
                 <span className="min-w-0 break-keep text-balance">{isSaving
                   ? '일정에 담는 중...'
-                  : hasTodayOutfit
-                    ? '오늘 코디 바꾸기'
-                    : '오늘 일정에 추가'}</span>
+                  : applyLabel}</span>
               </button>
+              <RecommendationLookbookSave
+                date={date}
+                name={dialogTitle}
+                season={season}
+                style={style}
+                items={selectedItems}
+                preview={generatedPreview}
+                disabled={isSaving}
+                onOpenLookbook={onOpenLookbook}
+              />
             </div>
           </div>
         </footer>
@@ -364,7 +390,7 @@ export function TodayOutfitRecommendationDialog({
               handleApplied()
             })
           }}
-          primaryLabel={hasTodayOutfit ? '오늘 코디 바꾸기' : '오늘 일정에 추가'}
+          primaryLabel={applyLabel}
           isPrimaryPending={isSaving}
         />
       </section>

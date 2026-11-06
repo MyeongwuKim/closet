@@ -6,6 +6,8 @@
 
 GraphQL 계약은 [schema.ts](../../apps/api/src/graphql/schema.ts), 기능별 resolver 조합은 [resolvers.ts](../../apps/api/src/graphql/resolvers.ts)에 있다. 기존 처리 흐름은 resolver → service → repository → Prisma다.
 
+`StyleProfile.thighCircumferenceCm`와 `UpdateMyStyleProfileInput.thighCircumferenceCm`는 선택적인 한쪽 허벅지 둘레(cm)다. 입력 범위는 20~150cm이며, 업데이트에서 생략하면 기존 값을 유지하고 `null`이면 지운다. 저장값이 없는 기존 프로필은 `null`로 조회한다. 바지의 `thighWidthCm`는 옷의 단면으로 별도 관리하며, 두 값의 비교와 생성 지침은 [룩북 체형과 기장](lookbook-proportions.md)에 있다.
+
 [errors.ts](../../apps/api/src/graphql/errors.ts)는 `ServiceError.code`를 GraphQL의 `extensions.code`로 전달한다. 웹의 로그인 만료·사용권 부족·작업 복원 분기가 이 코드를 사용한다. GraphQL 요청 전체의 크기 제한과 이미지 개별 입력 검증은 서로 다른 단계에 있다.
 
 ## 인증 현황
@@ -13,6 +15,8 @@ GraphQL 계약은 [schema.ts](../../apps/api/src/graphql/schema.ts), 기능별 r
 [context.ts](../../apps/api/src/graphql/context.ts)는 Bearer 토큰에서 요청별 사용자 조회를 제공한다. [auth.service.ts](../../apps/api/src/features/auth/auth.service.ts)의 테스트 로그인은 기존 계정을 검증하거나 새 ID의 계정을 생성하고 서버 세션을 저장한다. 테스트 로그인도 실제 API DB를 사용한다.
 
 토큰은 임의 문자열이며 서버에는 [sessionToken.ts](../../apps/api/src/features/auth/sessionToken.ts)의 해시로 저장된다. JWT 검증 구조가 아니다. 로그아웃은 세션과 해당 세션의 푸시 기기 등록을 함께 제거한다.
+
+[auth.resolvers.test.ts](../../apps/api/src/features/auth/auth.resolvers.test.ts)는 메모리 계정·세션 저장소를 사용해 GraphQL에서 잘못된 비밀번호, 만료된 세션, 로그아웃한 토큰을 거절하는지와 같은 계정의 다른 세션이 유지되는지 확인한다.
 
 네이티브 Apple·Google 로그인은 아직 연결되지 않았고, `apps/native/src/auth/nativeProviderAuth.ts`에서 연결 전 오류를 반환한다. 루트 README에는 로그인·저장·날씨·AI 연결 전 단계의 설명이 남아 있어 현재 코드와 차이가 있다.
 
@@ -38,6 +42,8 @@ GraphQL `WardrobeItem.archivedAt`은 nullable ISO 문자열이며 기존 누락 
 `WardrobeRediscovery` 모델은 사용자 ID를 MongoDB 기본키로 사용하며 당일 선택 ID·마지막 노출일 맵·낙관적 잠금 버전을 보관한다. 조회 시 하루 선택만 준비하고 `markWardrobeRediscoverySeen`에서 실제 보인 옷의 노출일을 갱신한다. 오늘 선정한 현재 계정의 활성 옷만 확인할 수 있고 중복 확인은 다시 쓰지 않는다. 날짜는 한국 기준이며 이 기록은 옷의 `updatedAt`·AI 추천 캐시·사용권과 별개다. 규칙·서비스 검사는 같은 폴더의 `wardrobe-rediscovery.*.test.ts`에 있다.
 
 코디북과 날짜별 `plannerOnly` 복사본은 서로 독립된 코디다. 코디북 수정·삭제 전에는 기존 직접 연결 날짜도 분리 보존하며, 플래너에서 코디북 저장은 별도 복사로 처리한다. 코디 삭제의 이전 이미지는 현재 날짜·다른 코디의 참조 검사를 거쳐 정리한다. 이미지의 임시·영구 보관과 사용권은 [이미지와 생성 작업](media-jobs.md)에 있다.
+
+원피스 한 벌은 코디북과 플래너 날짜에 코디로 저장할 수 있다. 새 구성은 보유 중인 활성 옷과 완성 조건을 검증한다. 플래너의 착용 완료 기록을 변경하는 조건은 [플래너와 날씨](planner-weather.md#일정과-착용-데이터)에 있다.
 
 ## DB와 공용 계약
 

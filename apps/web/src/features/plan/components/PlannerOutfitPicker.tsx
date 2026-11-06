@@ -28,16 +28,22 @@ import {
   useClearPlannerEntryMutation,
   useSetPlannerEntryMutation,
 } from '../api/plannerQueries'
+import { getCurrentWeekStart, type PlanEntry } from '../data/weeklyPlan'
 import { useRecentWearReminder } from '../hooks/useRecentWearReminder'
 import { usePlanStore } from '../stores/usePlanStore'
 import { WeeklyPlanDayButton } from './WeeklyPlanDayButton'
 
-interface WeeklyPlanEditorProps {
+interface PlannerOutfitPickerProps {
+  /** 지정하면 해당 날짜에만 배정한다. 생략하면 현재 주의 요일을 선택해 편집한다. */
+  dayEntry?: PlanEntry
   onClose: () => void
+  onAssigned?: () => void
+  /** 날짜 상세처럼 이미 배경 스크롤을 잠근 화면 안에서는 끈다. */
+  lockBodyScroll?: boolean
 }
 
-/** 플래너의 현재 탭 위에 전체 화면으로 열어 Store의 일주일 날짜에 코디를 배치하거나 비운다. 요일 선택은 내부에서 관리하고 저장·삭제는 플래너 mutation에 맡기며, 닫을 때는 부모 콜백만 호출한다. */
-export function WeeklyPlanEditor({ onClose }: WeeklyPlanEditorProps) {
+/** 코디북 검색과 날짜별 배정을 제공한다. 착용 완료 날짜는 안내만 표시하고, 주간 편집에서는 다른 요일을 이어서 고를 수 있다. */
+export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScroll = true }: PlannerOutfitPickerProps) {
   const navigate = useNavigate()
   const items = useClosetStore((state) => state.items)
   const outfits = useLookbookStore((state) => state.outfits)
@@ -48,7 +54,7 @@ export function WeeklyPlanEditor({ onClose }: WeeklyPlanEditorProps) {
   const clearPlannerEntry = useClearPlannerEntryMutation()
   const { confirmRecentWear, isCheckingRecentWear } =
     useRecentWearReminder()
-  const [activeDate, setActiveDate] = useState(entries[0]?.date ?? '')
+  const [activeWeekDate, setActiveWeekDate] = useState(entries[0]?.date ?? '')
   const [activeStyle, setActiveStyle] = useState('all')
   const [activeSeason, setActiveSeason] = useState<Season | null>(null)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
@@ -56,7 +62,14 @@ export function WeeklyPlanEditor({ onClose }: WeeklyPlanEditorProps) {
   const wearSummaries = useOutfitWearSummaries(
     outfits.map((outfit) => outfit.id),
   )
-  const activeEntry = entries.find((entry) => entry.date === activeDate)
+  const activeEntry = dayEntry ?? entries.find((entry) => entry.date === activeWeekDate)
+  const isWearConfirmed = Boolean(activeEntry?.wornAt)
+  const formattedDay = dayEntry
+    ? new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric' })
+        .format(new Date(`${dayEntry.date}T00:00:00`))
+    : null
+  const dialogTitle = dayEntry ? '하루 코디 선택' : '주간 코디 편집'
+  const isSavingDay = Boolean(dayEntry && setPlannerEntry.isPending)
   const visibleStyleOptions = getVisibleOutfitStyleOptions(outfits)
   const visibleOutfits = filterSavedOutfits({
     outfits,
@@ -68,11 +81,12 @@ export function WeeklyPlanEditor({ onClose }: WeeklyPlanEditorProps) {
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    if (lockBodyScroll) document.body.style.overflow = 'hidden'
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (
         event.key === 'Escape' &&
+        !isSavingDay &&
         !useUiStore.getState().recentWearConfirmation
       ) {
         onClose()
@@ -81,15 +95,22 @@ export function WeeklyPlanEditor({ onClose }: WeeklyPlanEditorProps) {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => {
-      document.body.style.overflow = previousOverflow
+      if (lockBodyScroll) document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [onClose])
+  }, [isSavingDay, lockBodyScroll, onClose])
 
   const chooseOutfit = async (outfit: (typeof outfits)[number]) => {
+    if (!activeEntry || isWearConfirmed) return
+    const { date, occasion } = activeEntry
+    const weekStartsOn = dayEntry
+      ? getCurrentWeekStart(new Date(`${date}T00:00:00`))
+      : entries[0]?.date
+    if (!weekStartsOn) return
+
     const confirmed = await confirmRecentWear({
       itemIds: outfit.layers.map((layer) => layer.wardrobeItemId),
-      targetDate: activeDate,
+      targetDate: date,
       confirmLabel: '그래도 추가',
       cancelLabel: '다른 코디 고르기',
     })
@@ -97,26 +118,31 @@ export function WeeklyPlanEditor({ onClose }: WeeklyPlanEditorProps) {
 
     try {
       await setPlannerEntry.mutateAsync({
-        weekStartsOn: entries[0].date,
-        date: activeDate,
+        weekStartsOn,
+        date,
         outfitId: outfit.id,
         title: outfit.name,
-        occasion: activeEntry?.occasion,
+        occasion,
       })
     } catch (error) {
       pushToast(error instanceof Error ? error.message : '플래너를 저장하지 못했습니다.', 'error')
       return
     }
 
-    pushToast(`${activeEntry?.dayLabel}요일 코디를 설정했습니다.`, 'success')
+    pushToast(`${formattedDay ?? `${activeEntry.dayLabel}요일`} 코디를 설정했습니다.`, 'success')
+    if (dayEntry) {
+      onAssigned?.()
+      onClose()
+    }
   }
 
   const removeOutfit = async () => {
-    if (activeEntry?.outfitId && /^[a-f\d]{24}$/i.test(activeEntry.outfitId)) {
+    if (!activeEntry || isWearConfirmed) return
+    if (activeEntry.outfitId && /^[a-f\d]{24}$/i.test(activeEntry.outfitId)) {
       try {
         await clearPlannerEntry.mutateAsync({
           weekStartsOn: entries[0].date,
-          date: activeDate,
+          date: activeWeekDate,
         })
       } catch (error) {
         pushToast(
@@ -126,7 +152,7 @@ export function WeeklyPlanEditor({ onClose }: WeeklyPlanEditorProps) {
         return
       }
     }
-    clearOutfit(activeDate)
+    clearOutfit(activeWeekDate)
   }
 
   const toggleSearch = () => {
@@ -139,51 +165,56 @@ export function WeeklyPlanEditor({ onClose }: WeeklyPlanEditorProps) {
       className="classification-page-enter fixed inset-0 z-[80] flex h-dvh flex-col overflow-hidden bg-canvas"
       role="dialog"
       aria-modal="true"
-      aria-label="주간 코디 편집"
+      aria-label={dialogTitle}
     >
       <header className="shrink-0 border-b border-line bg-canvas/95 backdrop-blur">
         <div className="mx-auto flex min-h-16 max-w-4xl items-center gap-3 px-3 py-2 sm:px-5">
           <button
             type="button"
             onClick={onClose}
-            className="flex size-10 items-center justify-center rounded-full hover:bg-surface"
-            aria-label="주간 옷 설정 닫기"
+            disabled={isSavingDay}
+            className="flex size-10 items-center justify-center rounded-full hover:bg-surface disabled:opacity-50"
+            aria-label={dayEntry ? '하루 코디 선택 닫기' : '주간 옷 설정 닫기'}
             autoFocus
           >
             <ChevronLeft size={25} />
           </button>
           <div>
-            <h1 className="text-lg font-black">주간 코디 편집</h1>
-            <p className="text-xs text-muted">요일을 고른 뒤 코디북의 코디를 배치하세요.</p>
+            <h1 className="text-lg font-black">{dialogTitle}</h1>
+            <p className="text-xs text-muted">
+              {dayEntry ? '코디북에 저장한 코디를 골라주세요.' : '요일을 고른 뒤 코디북의 코디를 배치하세요.'}
+            </p>
           </div>
         </div>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
         <div className="mx-auto max-w-4xl">
-          <div className="scrollbar-hidden flex gap-2 overflow-x-auto pb-2" aria-label="설정할 요일">
-            {entries.map((entry) => (
-              <WeeklyPlanDayButton
-                key={entry.date}
-                entry={entry}
-                items={items}
-                isActive={entry.date === activeDate}
-                onSelect={setActiveDate}
-              />
-            ))}
-          </div>
+          {!dayEntry && (
+            <div className="scrollbar-hidden flex gap-2 overflow-x-auto pb-2" aria-label="설정할 요일">
+              {entries.map((entry) => (
+                <WeeklyPlanDayButton
+                  key={entry.date}
+                  entry={entry}
+                  items={items}
+                  isActive={entry.date === activeWeekDate}
+                  onSelect={setActiveWeekDate}
+                />
+              ))}
+            </div>
+          )}
 
-          <div className="mt-6 flex items-center justify-between gap-3">
+          <div className={`flex items-center justify-between gap-3 ${dayEntry ? '' : 'mt-6'}`}>
             <div>
               <h2 className="text-xl font-black">
-                {activeEntry?.dayLabel}요일에 입을 코디
+                {formattedDay ? `${formattedDay}에 넣을 코디` : `${activeEntry?.dayLabel ?? ''}요일에 입을 코디`}
               </h2>
               <p className="mt-1 text-sm text-muted">
-                저장된 코디 하나를 선택할 수 있어요.
+                {isWearConfirmed ? '실제로 입은 코디가 기록되어 있어요.' : '저장된 코디 하나를 선택할 수 있어요.'}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              {outfits.length > 0 && (
+              {!isWearConfirmed && outfits.length > 0 && (
                 <button
                   type="button"
                   onClick={toggleSearch}
@@ -199,7 +230,7 @@ export function WeeklyPlanEditor({ onClose }: WeeklyPlanEditorProps) {
                   <Search size={17} />
                 </button>
               )}
-              {activeEntry && activeEntry.itemIds.length > 0 && (
+              {!isWearConfirmed && !dayEntry && activeEntry && activeEntry.itemIds.length > 0 && (
                 <button
                   type="button"
                   onClick={() => void removeOutfit()}
@@ -211,7 +242,12 @@ export function WeeklyPlanEditor({ onClose }: WeeklyPlanEditorProps) {
             </div>
           </div>
 
-          {outfits.length === 0 ? (
+          {isWearConfirmed ? (
+            <div className="mt-5 rounded-3xl border border-line bg-surface p-5">
+              <h3 className="font-bold text-ink">착용 완료</h3>
+              <p className="mt-1 text-sm text-muted">코디를 바꾸거나 비우려면 날짜 상세에서 먼저 착용을 취소해 주세요.</p>
+            </div>
+          ) : outfits.length === 0 ? (
             <div className="mt-5 rounded-3xl border border-dashed border-line bg-surface p-8 text-center">
               <span className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-sage">
                 <Images size={22} />
@@ -220,7 +256,7 @@ export function WeeklyPlanEditor({ onClose }: WeeklyPlanEditorProps) {
                 먼저 코디북에 코디를 저장해주세요
               </h3>
               <p className="mt-2 text-sm text-muted">
-                저장한 코디를 요일별로 빠르게 배치할 수 있어요.
+                {dayEntry ? '저장한 코디를 선택한 날짜에 바로 넣을 수 있어요.' : '저장한 코디를 요일별로 빠르게 배치할 수 있어요.'}
               </p>
               <button
                 type="button"

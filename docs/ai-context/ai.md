@@ -24,6 +24,10 @@
 
 공용 색상 규칙 버전은 `packages/types/src/outfitColors.js`와 웹의 [queryKeys.ts](../../apps/web/src/lib/queryKeys.ts)로 연결된다. [todayOutfitQueries.ts](../../apps/web/src/features/plan/api/todayOutfitQueries.ts)는 기준 옷이 실제 결과에 포함됐는지 검증하고, [todayRecommendationHistory.ts](../../apps/web/src/features/plan/utils/todayRecommendationHistory.ts)는 이전 기록을 보존하면서 현재 버전의 초기 캐시와 분리한다.
 
+일반 추천의 ‘오늘 날씨로 바로 추천’은 사용권을 확인한 뒤 위치 기반 예보와 자동 색감으로 시작한다. 예보가 없으면 재시도와 ‘조건 바꾸기’를 안내한다. ‘조건 바꾸기’에서 계절·날씨와 색감을 직접 고를 수 있으며, 열어 둔 추천은 선택할 때 받은 예보를 유지한다. 화면 복귀 시 플래너 예보가 갱신돼도 추천을 자동으로 실행하지 않는다.
+
+플래너의 ‘내일 코디 추천’은 해당 날짜의 유효한 예보를 받아 기존 추천 경로를 사용한다. 추천·예보 응답은 선택한 날짜가 일치할 때만 사용하고 캐시와 기록도 날짜별로 나눈다. 플래너 배정 후에는 해당 일정과 착용 관련 조회를 갱신하되 열어 둔 추천을 다시 실행하지 않는다.
+
 스타일 제안의 [outfitRecommendationQueries.ts](../../apps/web/src/features/lookbook/api/outfitRecommendationQueries.ts)는 계정·선택 옷·대상 종류·옷장 변경 revision별로 결과를 보관한다. 옷 생성·수정·보관·브랜드 삭제 성공은 `outfitRecommendationCache.ts`의 번호만 증가시키며 이전 결과와 진행 응답을 분리한다. 조회는 비활성 상태로 두고 사용권 확인 뒤 명시적 클릭에서만 시작해, 수정·포커스 복귀·결과 재열기가 유료 요청을 자동 실행하지 않게 한다.
 
 ## 개인 체감과 날씨 추천

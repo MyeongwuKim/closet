@@ -5,6 +5,7 @@ import {
   defaultWearReminderPreferences,
   toViewerResponse,
   userService,
+  type UpdateMyStyleProfileInput,
   type UpdateWearReminderPreferencesInput,
 } from './user.service.js'
 
@@ -78,4 +79,31 @@ test('검증한 최근 착용 리마인드 설정을 사용자 계정에 저장�
 
   assert.equal(update.mock.callCount(), 1)
   assert.deepEqual(toViewerResponse(viewer).wearReminderPreferences, input)
+})
+
+test('허벅지둘레는 선택값이며 허용 범위 밖의 수치는 저장 전에 거절한다', async (t) => {
+  const update = t.mock.method(userRepository, 'updateStyleProfile', async () => createViewer())
+  const input: UpdateMyStyleProfileInput = {
+    gender: 'male', bodyBuild: 'average', preferredFit: 'regular', preferredStyles: [],
+  }
+  for (const thighCircumferenceCm of [19.9, 150.1, Number.NaN, Number.POSITIVE_INFINITY]) {
+    await assert.rejects(userService.updateStyleProfile('viewer', { ...input, thighCircumferenceCm }), {
+      code: 'INVALID_STYLE_PROFILE',
+      message: '허벅지둘레 값은 20에서 150 사이여야 합니다.',
+    })
+  }
+  assert.equal(update.mock.callCount(), 0)
+  for (const thighCircumferenceCm of [20, 70, 150, null, undefined]) {
+    await userService.updateStyleProfile('viewer', { ...input, thighCircumferenceCm })
+  }
+  assert.equal(update.mock.callCount(), 5)
+})
+
+test('새 허벅지둘레가 없는 기존 프로필도 null로 응답한다', () => {
+  assert.equal(toViewerResponse(createViewer()).styleProfile.thighCircumferenceCm, null)
+  const legacyViewer = {
+    ...createViewer(),
+    styleProfile: { gender: 'male', bodyBuild: 'average', preferredFit: 'regular' },
+  } as ViewerRecord
+  assert.equal(toViewerResponse(legacyViewer).styleProfile.thighCircumferenceCm, null)
 })

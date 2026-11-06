@@ -8,19 +8,29 @@
 
 API 진입점은 [planner.service.ts](../../apps/api/src/features/planner/planner.service.ts), 데이터 접근은 같은 폴더의 `planner.repository.ts`다. 웹은 `apps/web/src/features/plan`이며 [plannerQueries.ts](../../apps/web/src/features/plan/api/plannerQueries.ts)의 일정 변경은 플래너와 옷장·착용 통계 쿼리 갱신으로 이어진다.
 
+하루·월간 보기에서 이미 조회한 같은 주의 주간 보기나 편집으로 이동하면 화면에 반영된 주간 코디를 유지한다. 주가 바뀔 때만 빈 날짜를 준비하고 해당 주의 조회 결과를 적용한다.
+
+하루 보기와 날짜별 상세에서 현재 날짜에 코디북 코디를 배정하거나 교체한다. 주간 편집은 주간 탭에서만 열고, 월간은 날짜별 상세로 이동한다. 모두 같은 코디북 선택 화면·최근 착용 확인·날짜별 복사 저장을 사용한다. 단일 날짜 배정이 끝나면 열었던 화면으로 돌아오며, 날짜별 상세에서는 이전 편집의 AI 미리보기 초안을 초기화한다.
+
+하루 보기의 빈 날짜는 옷장·코디북 조회 결과에 따라 첫 사진 추가, 선택한 날짜의 직접 구성, 코디북 배정을 안내한다. 첫 사진 추가는 옷장의 기존 추가창을 바로 연다. 조회 실패에는 재시도를 표시하고, 활성 옷이 없어도 기존 코디가 있으면 보조 버튼으로 배정할 수 있다.
+
+날짜 상세를 열 때 `from`에 원래 보기 경로를 전달한다. 주간에서 열면 상세를 닫은 뒤 주간 탭과 열었던 주를 유지한다.
+
 옷장 보관 삭제는 날짜 코디·착용·체감·AI 사진 연결을 지우지 않는다. 웹은 응답의 옷 관계를 `PlanEntry.outfitItems`에 유지해 활성 옷장 목록에 없는 옷도 표시하고, `archivedAt`으로 ‘삭제된 옷’을 구분한다. 삭제된 옷은 새 선택 목록에 복구하지 않는다. 날짜 이동·초안 편집·일정 해제의 관계 정보 처리는 `plannerItems.test.ts`와 `weeklyPlan.test.ts`, 화면 복귀·새로고침은 `tests/planner-archived-items.spec.ts`로 확인한다.
 
 원본·AI 사진의 정리 조건과 새 연결의 동시 처리 보호를 바꾸면 [이미지 보관과 정리 배치](media-jobs.md#이미지-보관교체정리-배치)를 함께 확인한다.
 
 플래너 배정과 실제 착용은 별개다. `PlannerEntry.wornAt`은 사용자가 ‘입었어요’로 확인한 시각이며 null·필드 누락은 미확정이다. 기존 일정도 자동 확정하지 않는다. `setPlannerEntryWorn`은 해당 주·날짜·현재 코디 ID를 검증한 뒤 오늘 또는 과거 일정의 확인·취소를 저장한다. 미래 확인은 한국 날짜 기준으로 거절하며 같은 상태의 중복 요청은 확인 시각을 바꾸지 않는다.
 
-하루 카드·날짜 상세의 `PlannerWearAction`에서 확인·취소하고 주간·월간 보기에 완료 배지를 표시한다. 옷 구성이 바뀌거나 날짜가 이동하면 해당 날짜의 확인과 착용 기온을 초기화한다. 같은 옷 조합의 재저장·AI 사진·이름 변경은 확인과 체감·기온을 유지한다. 변경 후 플래너·옷별 착용·통계·룩북 이력·잊고 있던 옷 조회를 갱신한다.
+하루 카드·날짜 상세의 `PlannerWearAction`에서 확인·취소하고 주간·월간 보기에 완료 배지를 표시한다. 착용 완료 날짜를 포함하는 주간 이동과 그 날짜의 비우기·다른 옷 조합 배정은 저장 시점에 `PLANNER_WEAR_CONFIRMED`로 거절한다. 정정할 때는 먼저 착용을 취소한다. 같은 옷 조합의 재저장·AI 사진·이름 변경은 확인과 체감·기온을 유지한다. 변경 후 플래너·옷별 착용·통계·룩북 이력·잊고 있던 옷 조회를 갱신한다.
+
+다른 기기에서 먼저 착용을 확정하면 오래 열린 화면의 수정 요청에도 GraphQL 오류 코드가 전달된다. 웹은 해당 코드를 받으면 플래너를 다시 조회해 기존 코디와 착용 상태를 표시한다. API의 `planner-wear.service.test.ts`는 오류 코드와 저장 상태를, `tests/planner-wear-completion.spec.ts`는 실패 안내와 재조회 후 편집 제한을 확인한다.
 
 코디북의 착용 이력·순위는 현재 옷 ID 집합과 정확히 같은 날짜 복사본만 연결한다. ABC를 ABD로 수정하면 ABC 착용을 ABD 횟수로 표시하지 않으며 이름·사진만 변경하면 같은 조합의 이력은 유지한다. 옷별 횟수·최근 착용·체감 추천은 날짜 복사본의 실제 구성과 확인 기록을 읽는다.
 
 실제 착용을 확인한 날짜에는 `wearFeeling`으로 체감 기록을 남긴다. 값은 `cold`(추웠어요)·`comfortable`(적당했어요)·`hot`(더웠어요)이며 null·누락은 미기록이다. 하루 카드·날짜 상세에서 선택·변경·지우기를 제공하고, 같은 코디라도 날짜별로 따로 저장한다. 체감은 사용자의 주관적 기록이며 예보나 `wearTemperatureC`에서 추정하지 않는다.
 
-`setPlannerEntryWearFeeling`은 해당 주·날짜·코디 ID와 요청 시점의 `wornAt`을 검증해 지금도 같은 착용 완료 상태일 때만 저장한다. 미확정·미래 일정과 취소 후 다시 확인한 일정의 오래된 요청은 거절한다. 체감만 바꾸면 착용 확인 시각·횟수·기온은 유지한다. 확인 취소·다른 코디 교체·날짜 이동에서는 체감도 초기화하며, 같은 코디 재저장과 중복 착용 확인에서는 유지한다.
+`setPlannerEntryWearFeeling`은 해당 주·날짜·코디 ID와 요청 시점의 `wornAt`을 검증해 지금도 같은 착용 완료 상태일 때만 저장한다. 미확정·미래 일정과 취소 후 다시 확인한 일정의 오래된 요청은 거절한다. 체감만 바꾸면 착용 확인 시각·횟수·기온은 유지한다. 착용을 직접 취소하면 체감과 기온도 초기화한다.
 
 실제 일평균 기온이 기록된 지난 착용의 체감은 이후 비슷한 예보 일평균의 날씨 코디 추천에 반영한다. `WeatherSnapshot.meanTemperatureC`는 현재 순간 기온과 별도로 보존한 예보 일평균이며, 기록이 없는 기온은 추정하지 않는다. 개인 보정의 범위·순위·캐시 계약은 [AI 기능](ai.md#개인-체감과-날씨-추천)에 있다.
 
@@ -36,6 +46,8 @@ API 진입점은 [planner.service.ts](../../apps/api/src/features/planner/planne
 
 [weather.service.ts](../../apps/api/src/features/weather/weather.service.ts)는 Open-Meteo 예보와 지난 날짜의 하루 평균 기온을 조회한다. 예보 결과는 지역·날짜별 캐시와 `expiresAt`을 갖고, 캐시 재사용은 만료 시각을 연장하지 않는다.
 
+하루 보기에서 한국 시간 기준 내일을 선택하거나 주간·월간에서 내일 날짜 상세를 열면 최저·최고 기온과 강수 확률을 표시한다. ‘내일 코디 추천’은 해당 날짜의 예보와 자동 색감으로 추천을 시작한다. ‘내일 일정에 담기’는 그 날짜와 해당 주에만 배정하고, 화면에는 저장 응답의 코디를 재조회 전에 반영한다.
+
 | 필드 | 의미 |
 | --- | --- |
 | `temperatureC` | 플래너 배정 시 전달받아 저장한 기온 |
@@ -49,6 +61,6 @@ API 진입점은 [planner.service.ts](../../apps/api/src/features/planner/planne
 
 ## 관련 검사
 
-`tests/planner-snapshots.spec.ts`, `tests/plan.spec.ts`, `tests/planner-wear-completion.spec.ts`, `tests/planner-wear-feeling.spec.ts`, `tests/lookbook-wear-weather.spec.ts`, `apps/web/tests/plannerWear.test.ts`, `apps/web/tests/outfitWearSummary.test.ts`와 API의 `planner-outfit-wear-history.test.ts`·`planner-move-weather.test.ts`·`planner-wear.service.test.ts`·`planner-wear-feeling.service.test.ts`·`planner-wear-consumers.test.ts`·최근 착용·날씨 테스트가 관련된다.
+`tests/planner-tomorrow-recommendation.spec.ts`, `tests/planner-snapshots.spec.ts`, `tests/plan.spec.ts`, `tests/planner-wear-completion.spec.ts`, `tests/planner-wear-feeling.spec.ts`, `tests/lookbook-wear-weather.spec.ts`, `apps/web/tests/plannerWear.test.ts`, `apps/web/tests/outfitWearSummary.test.ts`와 API의 `planner-outfit-wear-history.test.ts`·`planner-move-weather.test.ts`·`planner-wear.service.test.ts`·`planner-wear-feeling.service.test.ts`·`planner-wear-consumers.test.ts`·최근 착용·날씨 테스트가 관련된다.
 
 `wear-weather.integration.test.ts`는 실행 플래그·테스트 DB 이름을 확인하고 종료 시 해당 DB를 삭제한다. 조건과 다른 통합 검사의 차이는 [개발과 검증](development.md#단위-테스트와-통합-테스트)에 있다.

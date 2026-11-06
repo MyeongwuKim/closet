@@ -116,7 +116,7 @@ export function OutfitDetailModal({
     .sort((left, right) => left.order - right.order)
     .map((layer) => layer.wardrobeItemId)
   const draftItemIds = draftItems.map((item) => item.id)
-  const generateOutfitPreview = useGenerateOutfitPreviewMutation({ selectedItemIds: draftItemIds, style: draftStyle })
+  const generateOutfitPreview = useGenerateOutfitPreviewMutation(outfitCompletionMessage ? undefined : { selectedItemIds: draftItemIds, style: draftStyle })
   const currentPreviewKey = getOutfitPreviewCompositionKey(draftItemIds, draftStyle)
   const previewKeyRef = useRef<string | null>(currentPreviewKey)
   useEffect(() => {
@@ -371,8 +371,8 @@ export function OutfitDetailModal({
           <div className="col-span-2"><PreviewCreditSummary /></div>
           <AiCreditActionButton
             requiresCredit={!hasRestorablePreview && !hasCurrentDraftPreview && !(outfit.previewImageUrl && !itemsChanged) && !generateOutfitPreview.willResume}
-            label={hasRestorablePreview || hasCurrentDraftPreview || (outfit.previewImageUrl && !itemsChanged) ? 'AI 룩북 보기' : outfit.previewImageUrl ? '새 AI 룩 만들기' : 'AI 룩 만들기'}
-            adLabel="광고 보고 룩북 만들기"
+            label={hasRestorablePreview || hasCurrentDraftPreview || (outfit.previewImageUrl && !itemsChanged) ? 'AI 룩북 보기' : 'AI 착장 이미지 만들기'}
+            adLabel="광고 보고 AI 이미지 만들기"
             onClick={() => {
               if (hasCurrentDraftPreview) {
                 setDraftPreview((current) => ({ ...current, isOpen: true }))

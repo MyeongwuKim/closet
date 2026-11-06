@@ -1,19 +1,19 @@
 import { useMemo, useState } from 'react'
 import type { Season, WardrobeItem } from '@closet/types'
 import { Search, SlidersHorizontal, X } from 'lucide-react'
-import { seasonOptions } from '../../../constants/seasons'
 import { CatalogSearchField } from '../../../components/CatalogSearchField'
 import { ClothingCategoryIcon } from '../../../components/ClothingCategoryIcon'
 import { ClosetItemVisual } from '../../closet/components/ClosetItemVisual'
 import { OutfitWardrobeCard } from './OutfitWardrobeCard'
+import { OutfitWardrobeFilters } from './OutfitWardrobeFilters'
 import { OutfitWardrobeSkeleton } from './OutfitWardrobeSkeleton'
+import { useOutfitRecentWearFilter } from '../hooks/useOutfitRecentWearFilter'
 import { useOutfitWardrobeResultTransition } from '../hooks/useOutfitWardrobeResultTransition'
 import { outfitSelectionLabels, type OutfitSelectionCategory } from '../utils/outfitSelection'
 import {
   filterOutfitItems,
   getOutfitItemFilterOptions,
 } from '../utils/outfitItemFilters'
-import './OutfitItemBrowser.css'
 
 /** 현재 카테고리 옷장에 적용한 색상 이름과 목록에 보여줄 색상값. */
 export interface OutfitColorFilter {
@@ -39,32 +39,7 @@ interface OutfitItemBrowserProps {
   onOpenCloset: () => void
 }
 
-function FilterChip({
-  active,
-  children,
-  onClick,
-}: {
-  active: boolean
-  children: React.ReactNode
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`outfit-item-browser__chip shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-bold ${
-        active
-          ? 'border-ink bg-ink text-white'
-          : 'border-line bg-surface text-muted hover:border-ink hover:text-ink'
-      }`}
-    >
-      {children}
-    </button>
-  )
-}
-
-/** 코디 편집에서 선택한 종류의 보유 옷을 검색·계절·색상으로 좁혀 격자로 보여준다. 아이템 선택과 옷장 이동은 부모에 맡긴다. */
+/** 코디 편집에서 선택한 종류의 옷을 검색·계절·색상·최근 착용 조건으로 좁힌다. 아이템 선택과 옷장 이동은 부모에 맡긴다. */
 export function OutfitItemBrowser({
   category,
   categoryLabel: categoryLabelOverride,
@@ -81,6 +56,8 @@ export function OutfitItemBrowser({
   const [season, setSeason] = useState<Season | null>(null)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const { recentWearDays, today, hideRecentlyWorn, setHideRecentlyWorn } =
+    useOutfitRecentWearFilter()
   const filterOptions = useMemo(() => getOutfitItemFilterOptions(items), [items])
   const visibleItems = useMemo(
     () => filterOutfitItems(items, {
@@ -88,13 +65,17 @@ export function OutfitItemBrowser({
       season,
       color: colorFilter?.name ?? null,
       includeColorAliases: colorFilter?.source === 'recommendation',
+      recentWear: hideRecentlyWorn ? { intervalDays: recentWearDays, today } : undefined,
     }),
-    [colorFilter?.name, colorFilter?.source, items, query, season],
+    [colorFilter?.name, colorFilter?.source, hideRecentlyWorn, items, query, recentWearDays, season, today],
   )
-  const activeFilterCount = Number(Boolean(season)) + Number(Boolean(colorFilter))
+  const activeFilterCount = Number(Boolean(season)) + Number(Boolean(colorFilter)) + Number(hideRecentlyWorn)
   const hasActiveConditions = Boolean(query.trim() || activeFilterCount)
   const categoryLabel = categoryLabelOverride ?? outfitSelectionLabels[category]
-  const filterKey = JSON.stringify([query, season, colorFilter?.name ?? null])
+  const filterKey = JSON.stringify([
+    query, season, colorFilter?.name ?? null,
+    hideRecentlyWorn ? [recentWearDays, today] : null,
+  ])
   const isResultsPending = useOutfitWardrobeResultTransition(
     filterKey,
     items.length > 0,
@@ -104,6 +85,7 @@ export function OutfitItemBrowser({
   const clearConditions = () => {
     setQuery('')
     setSeason(null)
+    setHideRecentlyWorn(false)
     onColorFilterChange(null)
   }
 
@@ -213,77 +195,19 @@ export function OutfitItemBrowser({
         onChange={setQuery}
       />
 
-      <div
+      <OutfitWardrobeFilters
         id="outfit-item-browser-filters"
-        className="outfit-item-browser__filter-panel"
-        data-open={isFilterOpen}
-        inert={!isFilterOpen}
-        aria-hidden={!isFilterOpen}
-      >
-        <div className="outfit-item-browser__filter-clip">
-          <div className="outfit-item-browser__filter-content space-y-3">
-            {filterOptions.seasons.size > 0 && (
-              <div>
-                <p className="px-0.5 text-[10px] font-bold text-muted">계절</p>
-                <div className="scrollbar-hidden mt-1.5 flex gap-1.5 overflow-x-auto">
-                  {seasonOptions
-                    .filter((option) => filterOptions.seasons.has(option.value))
-                    .map((option) => (
-                      <FilterChip
-                        active={season === option.value}
-                        onClick={() =>
-                          setSeason((current) =>
-                            current === option.value ? null : option.value,
-                          )
-                        }
-                        key={option.value}
-                      >
-                        {option.label}
-                      </FilterChip>
-                    ))}
-                </div>
-              </div>
-            )}
-
-            {filterOptions.colors.length > 0 && (
-              <div>
-                <p className="px-0.5 text-[10px] font-bold text-muted">색상</p>
-                <div className="scrollbar-hidden mt-1.5 flex gap-1.5 overflow-x-auto">
-                  {filterOptions.colors.map((option) => (
-                    <FilterChip
-                      active={colorFilter?.name === option.name}
-                      onClick={() =>
-                        onColorFilterChange(
-                          colorFilter?.name === option.name ? null : option,
-                        )
-                      }
-                      key={option.name}
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <span
-                          className="size-2.5 rounded-full border border-black/10"
-                          style={{ backgroundColor: option.hex }}
-                        />
-                        {option.name}
-                      </span>
-                    </FilterChip>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {activeFilterCount > 0 && (
-              <button
-                type="button"
-                onClick={clearConditions}
-                className="text-[11px] font-bold text-muted underline underline-offset-2"
-              >
-                필터 초기화
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+        isOpen={isFilterOpen}
+        options={filterOptions}
+        season={season}
+        color={colorFilter?.name ?? null}
+        recentWearDays={recentWearDays}
+        hideRecentlyWorn={hideRecentlyWorn}
+        onSeasonChange={setSeason}
+        onColorChange={onColorFilterChange}
+        onHideRecentlyWornChange={setHideRecentlyWorn}
+        onClear={clearConditions}
+      />
 
       <div className="outfit-item-browser__results" aria-busy={isResultsPending}>
         {items.length === 0 ? (
@@ -320,10 +244,12 @@ export function OutfitItemBrowser({
         ) : (
           <div className="outfit-item-browser__empty mt-3 rounded-2xl border border-dashed border-line px-5 py-8 text-center">
             <strong className="text-sm font-black">
-              {colorFilter ? `${colorFilter.name} 색상의 ${categoryLabel} 아이템이 없어요` : '조건에 맞는 옷이 없어요'}
+              {colorFilter && !hideRecentlyWorn ? `${colorFilter.name} 색상의 ${categoryLabel} 아이템이 없어요` : '조건에 맞는 옷이 없어요'}
             </strong>
             <p className="mt-1 text-xs text-muted">
-              {colorFilter ? '다른 색을 고르거나 전체 목록으로 돌아가세요.' : '검색어나 필터를 바꿔보세요.'}
+              {hideRecentlyWorn
+                ? '최근 착용 숨기기를 끄거나 다른 조건을 골라보세요.'
+                : colorFilter ? '다른 색을 고르거나 전체 목록으로 돌아가세요.' : '검색어나 필터를 바꿔보세요.'}
             </p>
             <button
               type="button"

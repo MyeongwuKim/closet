@@ -15,6 +15,7 @@ import { WardrobeEmptyStateIllustration } from '../../../components/WardrobeEmpt
 import { seasonLabels } from '../../../constants/seasons'
 import { getOutfitStyleLabel } from '../../../constants/styleOptions'
 import { useClosetStore } from '../../closet/stores/useClosetStore'
+import { useSavedOutfitQuery } from '../api/lookbookQueries'
 import { LookbookOutfitCard } from '../components/LookbookOutfitCard'
 import { OutfitDetailModal } from '../components/OutfitDetailModal'
 import { OutfitFilterControls } from '../components/OutfitFilterControls'
@@ -27,7 +28,7 @@ import {
 } from '../utils/outfitFilters'
 import { createOutfitComposerPath } from '../utils/outfitComposerNavigation'
 
-/** 코디북 메뉴 → 저장한 코디 목록. 계절·스타일·색상·검색 조건으로 조회하고, URL의 view 옵션으로 같은 코디의 AI 이미지와 옷 사진 표현을 전환한다. */
+/** 저장 코디를 조건별로 보여준다. 기존 코디 링크는 목록의 필터나 페이지에 관계없이 해당 상세를 연다. */
 export function LookbookPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -40,6 +41,7 @@ export function LookbookPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const settledSearch = useDebouncedValue(searchQuery)
   const [selectedOutfitId, setSelectedOutfitId] = useState<string | null>(null)
+  const linkedOutfitId = searchParams.get('outfit') ?? ''
   const sortOrder = searchParams.get('sort') === 'oldest' ? 'oldest' : 'latest'
   // URL에 저장한 보기 옵션. ai가 기본이며 조회 조건이나 저장된 코디 데이터에는 포함하지 않는다.
   const viewMode: LookbookViewMode = searchParams.get('view') === 'items' ? 'items' : 'ai'
@@ -59,8 +61,11 @@ export function LookbookPage() {
   const wardrobeTransition = useWardrobeTransition(isWaitingForOutfits || (outfitsQuery.isFetching && outfits.length === 0))
   const filterOptions = useOutfitFilterOptions()
   const totalCount = filterOptions.data?.totalCount ?? outfitsQuery.data?.pages[0]?.totalCount ?? 0
+  const listedOutfit = outfits.find((outfit) => outfit.id === (selectedOutfitId ?? linkedOutfitId))
+  const linkedOutfitQuery = useSavedOutfitQuery(selectedOutfitId || listedOutfit ? '' : linkedOutfitId)
+  const selectedOutfit = listedOutfit ?? linkedOutfitQuery.data
   const wearSummaries = useOutfitWearSummaries(
-    outfits.map((outfit) => outfit.id),
+    [...outfits.map((outfit) => outfit.id), ...(selectedOutfit && !listedOutfit ? [selectedOutfit.id] : [])],
     { includeUnworn: true },
   )
   const visibleStyleOptions = [
@@ -72,9 +77,13 @@ export function LookbookPage() {
   const colorOptions = filterOptions.data?.colors ?? []
   const searchTokens = createOutfitSearchTokens(searchQuery)
   const visibleOutfits = outfits
-  const selectedOutfit = outfits.find(
-    (outfit) => outfit.id === selectedOutfitId,
-  )
+  const closeOutfit = () => {
+    setSelectedOutfitId(null)
+    if (!linkedOutfitId) return
+    const nextSearchParams = new URLSearchParams(searchParams)
+    nextSearchParams.delete('outfit')
+    setSearchParams(nextSearchParams, { replace: true })
+  }
 
   const clearItemFilter = () => {
     const nextSearchParams = new URLSearchParams(searchParams)
@@ -119,6 +128,19 @@ export function LookbookPage() {
         onToggleSearch={toggleSearch}
         onCreate={() => navigate('/lookbook/new')}
       />
+      {linkedOutfitId && !selectedOutfitId && !selectedOutfit && (
+        linkedOutfitQuery.isPending ? (
+          <p role="status" className="mt-4 text-sm text-muted">저장한 코디를 불러오는 중이에요.</p>
+        ) : (
+          <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface p-3 text-sm">
+            <p role="alert" className="mr-auto">저장한 코디를 열지 못했어요.</p>
+            {linkedOutfitQuery.isError && (
+              <button type="button" className="min-h-10 px-2 font-semibold text-accent" onClick={() => void linkedOutfitQuery.refetch()}>다시 시도</button>
+            )}
+            <button type="button" className="min-h-10 px-2 text-muted" onClick={closeOutfit}>닫기</button>
+          </div>
+        )
+      )}
 
       {totalCount > 0 && (
         <OutfitFilterControls
@@ -276,10 +298,11 @@ export function LookbookPage() {
       </CatalogScrollRegion>
       {selectedOutfit && (
         <OutfitDetailModal
+          key={selectedOutfit.id}
           outfit={selectedOutfit}
           wearSummary={wearSummaries.get(selectedOutfit.id)}
           items={items}
-          onClose={() => setSelectedOutfitId(null)}
+          onClose={closeOutfit}
         />
       )}
     </section>

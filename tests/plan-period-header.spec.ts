@@ -55,6 +55,7 @@ for (const viewport of [
     await expect(header.getByText('2026년 · 월간 플래너')).toBeVisible()
     await expect(title).toHaveText('9월')
     await expect(title).toHaveAttribute('aria-label', '2026년 9월')
+    await expect(header.getByText('날짜를 눌러 코디를 설정하세요')).toBeVisible()
     await checkTitleFits('이전 달')
     await testInfo.attach(`${viewport.name}-month-period`, {
       body: await page.screenshot({ animations: 'disabled' }),
@@ -64,6 +65,10 @@ for (const viewport of [
     await header.getByRole('button', { name: '다음 달' }).click()
     await expect(title).toHaveText('10월')
     await header.getByRole('button', { name: '이전 달' }).click()
+    await expect(title).toHaveText('9월')
+    await page.getByRole('link', { name: '2026-09-02, 저장된 코디 없음', exact: true }).click()
+    await page.getByRole('button', { name: '플래너로 돌아가기' }).click()
+    await expect(page.getByRole('radio', { name: '월간' })).toHaveAttribute('aria-checked', 'true')
     await expect(title).toHaveText('9월')
     expect(mockApi.operations).toContain('PlannerWeek')
   })

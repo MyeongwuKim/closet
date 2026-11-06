@@ -43,6 +43,16 @@ test('해당 계정과 옷 조합의 완료 이미지가 없으면 null을 반�
   assert.equal(read.mock.callCount(), 0)
 })
 
+test('원피스 한 벌의 완료 이미지를 같은 조합으로 조회한다', async (t) => {
+  const dress = { ...items[0]!, id: 'dress', category: 'dress' as const }
+  t.mock.method(wardrobeRepository, 'findManyOwnedWithImagesByIds', async () => [dress])
+  const latest = t.mock.method(imageRepository, 'findLatestGeneratedPreviewForItems', async () => asset)
+  t.mock.method(imageService, 'getGeneratedImage', async () => image)
+  const result = await previewJobService.latestForItems(userId, ['dress'])
+  assert.equal(result?.assetId, image.assetId)
+  assert.deepEqual(latest.mock.calls[0]?.arguments, [userId, ['dress'], null])
+})
+
 test('내 활성 옷이나 기본 구성을 검증하지 못하면 이미지 저장소에 접근하지 않는다', async (t) => {
   t.mock.method(wardrobeRepository, 'findManyOwnedWithImagesByIds', async () => [items[0]!])
   const latest = t.mock.method(imageRepository, 'findLatestGeneratedPreviewForItems', async () => asset)

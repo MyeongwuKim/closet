@@ -17,8 +17,13 @@ interface PlanState {
 
 export const usePlanStore = create<PlanState>((set) => ({
   entries: createEmptyWeeklyPlan(getCurrentWeekStart()),
+  /** 다른 주로 이동할 때만 빈 날짜를 준비한다. 같은 주를 다시 열면 이미 조회한 코디를 유지한다. */
   setWeek: (weekStartsOn) =>
-    set({ entries: createEmptyWeeklyPlan(weekStartsOn) }),
+    set((state) =>
+      state.entries[0]?.date === weekStartsOn
+        ? state
+        : { entries: createEmptyWeeklyPlan(weekStartsOn) },
+    ),
   hydrateEntries: (entries) =>
     set((state) => {
       const remoteByDate = new Map(entries.map((entry) => [entry.date, entry]))

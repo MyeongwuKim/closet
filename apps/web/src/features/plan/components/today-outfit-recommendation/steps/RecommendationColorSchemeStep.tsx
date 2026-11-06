@@ -1,4 +1,5 @@
 import { ChevronLeft } from 'lucide-react'
+import { useAiCreditAction } from '../../../../lookbook/hooks/useAiCreditAction'
 import { colorSchemeOptions, type ColorScheme } from '../../../data/colorSchemes'
 import {
   RecommendationAssistantMessage,
@@ -6,15 +7,20 @@ import {
 } from '../RecommendationChatUi'
 
 interface RecommendationColorSchemeStepProps {
+  /** 기준 옷 추천은 결과에서 캐시를 확인한 뒤 새 추천에만 사용권을 확인한다. */
+  requiresCredit: boolean
   onBack: () => void
   onSelect: (colorScheme: ColorScheme) => void
 }
 
 /** 계절 선택 다음에 색 조합 방향을 고른다. 예시 색상은 선택지를 설명하며 실제 보유 옷 색을 뜻하지 않는다. */
 export function RecommendationColorSchemeStep({
+  requiresCredit,
   onBack,
   onSelect,
 }: RecommendationColorSchemeStepProps) {
+  const credit = useAiCreditAction('recommendation', requiresCredit)
+
   return (
     <section className="flex h-full flex-col gap-2 py-1" aria-live="polite">
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -31,7 +37,8 @@ export function RecommendationColorSchemeStep({
               <RecommendationQuickReply
                 key={option.value}
                 delayMs={80 + index * 45}
-                onClick={() => onSelect(option.value)}
+                disabled={credit.isChecking || credit.isPending}
+                onClick={() => void credit.execute(() => onSelect(option.value))}
               >
                 <span className="flex items-center gap-2 text-left">
                   <span className="flex shrink-0 -space-x-1" aria-hidden="true">

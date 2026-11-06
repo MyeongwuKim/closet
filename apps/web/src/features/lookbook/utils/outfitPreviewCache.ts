@@ -4,8 +4,8 @@
  *
  * 동작 방식:
  * 사용자, 스타일, 아이템 ID로 키를 만들고 서버 이미지 ID와 URL만
- * 브라우저 저장소에 최대 1시간·최근 10개까지 유지한다. 처음 스타일을 고르면
- * replacesCompositionKey의 무스타일 항목을 새 스타일 키로 옮긴다.
+ * 브라우저 저장소에 최대 1시간·최근 10개까지 유지한다. 저장할 스타일을 고르면
+ * replacesCompositionKey의 이전 항목을 새 스타일 키로 옮긴다.
  */
 import type { StoredOutfitPreview } from '@closet/types'
 

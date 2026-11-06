@@ -1,17 +1,20 @@
 /**
  * 용도:
- * 직접 코디에서 고를 수 있는 옷을 검색어와 계절, 색상 조건으로 추린다.
+ * 직접 코디에서 고를 수 있는 옷을 검색어와 계절, 색상, 최근 착용 조건으로 추린다.
  *
  * 동작 방식:
  * 이름과 분류·색상·태그를 검색하고 선택된 계절과 색상을 함께 적용한다.
  * 추천 색 필터에서는 의미가 분명한 하위 색상 이름만 대표색에 포함한다.
  */
 import type { Season, WardrobeItem } from '@closet/types'
+import { isRecentlyWorn } from '../../../utils/wearDate'
 
 export interface OutfitItemFilters {
   query: string
   season: Season | null
   color: string | null
+  /** 켜진 경우 한국의 오늘 날짜와 설정 기간을 기준으로 최근 착용 옷을 숨긴다. */
+  recentWear?: { intervalDays: number; today: string }
   /** 추천 팔레트 색을 고른 경우에만 이름이 명확한 하위 색상도 함께 찾는다. */
   includeColorAliases?: boolean
 }
@@ -30,12 +33,13 @@ function normalizeSearchText(value: string) {
 
 export function filterOutfitItems(
   items: WardrobeItem[],
-  { query, season, color, includeColorAliases = false }: OutfitItemFilters,
+  { query, season, color, recentWear, includeColorAliases = false }: OutfitItemFilters,
 ) {
   const normalizedQuery = normalizeSearchText(query)
   const normalizedColor = color ? normalizeSearchText(color) : null
 
   return items.filter((item) => {
+    if (recentWear && isRecentlyWorn(item.lastWornAt, recentWear.intervalDays, recentWear.today)) return false
     if (season && !item.seasons.includes(season)) return false
     if (normalizedColor) {
       const itemColor = normalizeSearchText(item.colorName)

@@ -95,7 +95,8 @@ test('배경 제거까지 실패하면 원본 사진을 옷장에 저장하지 �
   await page.goto('/closet')
   await selectWardrobePhoto(page)
 
-  await expect(page.getByText('사진의 배경을 제거하지 못했어요. 사진을 다시 추가해 주세요.')).toBeVisible()
+  await expect(page.getByText('사진의 배경을 제거하지 못했어요.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'e2e-shirt-0.png 다시 시도' })).toBeVisible()
   await expect(page.getByRole('dialog', { name: 'AI 분석 결과' })).toHaveCount(0)
   expect(mockApi.operations).toContain('RemoveWardrobeImageBackground')
   expect(mockApi.operations).not.toContain('CreateWardrobeItem')
@@ -168,6 +169,57 @@ test('여러 사진을 골라도 분류 요청은 한 번에 하나씩 실행한
   expect(peak).toBe(1)
   expect(mockApi.operations).not.toContain('RemoveWardrobeImageBackground')
   await expect(page.getByRole('dialog', { name: 'AI 분석 결과' })).toBeVisible()
+})
+
+test('세 장 중 일시 실패한 사진만 원본 선택 없이 다시 등록할 수 있다', async ({ page, mockApi }) => {
+  mockApi.wardrobeItems = []
+  const requests: string[] = []
+  await page.route('**/graphql', async (route) => {
+    const { query, variables } = route.request().postDataJSON()
+    if (!query.includes('mutation ClassifyWardrobeImage')) {
+      await route.fallback()
+      return
+    }
+
+    const filename = variables.input.filename as string
+    const firstAttempt = !requests.includes(filename)
+    requests.push(filename)
+    if (filename === 'e2e-shirt-1.png' && firstAttempt) {
+      await route.fulfill({ json: { errors: [{ message: '다른 AI 작업이 진행 중이에요.', extensions: { code: 'AI_BUSY' } }] } })
+      return
+    }
+    await route.fulfill({ json: { data: { classifyWardrobeImage: {
+      category: 'top', categoryLabel: '상의', subcategory: 'shirt', subcategoryLabel: '셔츠',
+      suggestedName: filename, colorName: '네이비', colorDetailName: '네이비', colorHex: '#24364a',
+      colorRgb: [36, 54, 74], colorMode: 'solid', fashionAttributes: null,
+      confidence: 0.9, model: 'e2e-mock', candidates: [],
+      cutoutImageBase64: onePixelPng.toString('base64'), cutoutMimeType: 'image/png',
+    } } } })
+  })
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/closet')
+  await selectWardrobePhoto(page, 3)
+  const dialog = page.getByRole('dialog', { name: 'AI 분석 결과' })
+  const savePhoto = async (filename: string) => {
+    await expect(dialog.getByRole('textbox', { name: '아이템 이름' })).toHaveValue(filename)
+    await dialog.getByRole('group', { name: '입을 계절' }).getByRole('button', { name: '봄' }).click()
+    await dialog.getByRole('button', { name: '옷장에 추가', exact: true }).click()
+  }
+  await savePhoto('e2e-shirt-0.png')
+  await savePhoto('e2e-shirt-2.png')
+  await expect(dialog).toHaveCount(0)
+
+  const retry = page.getByRole('button', { name: 'e2e-shirt-1.png 다시 시도' })
+  await expect(retry).toBeVisible()
+  await expect(page.getByText('다른 AI 작업이 진행 중이에요.', { exact: true })).toBeVisible()
+  await retry.click()
+  await savePhoto('e2e-shirt-1.png')
+  await expect(dialog).toHaveCount(0)
+  await expect(retry).toHaveCount(0)
+  expect(requests).toEqual(['e2e-shirt-0.png', 'e2e-shirt-1.png', 'e2e-shirt-2.png', 'e2e-shirt-1.png'])
+  expect(mockApi.wardrobeItems.map((item) => item.name)).toEqual(expect.arrayContaining(requests))
+  expect(mockApi.wardrobeItems).toHaveLength(3)
 })
 
 test('AI 사용량 제한 응답에는 추가 컷아웃 요청을 보내지 않는다', async ({ page, mockApi }) => {

@@ -260,6 +260,7 @@ export const typeDefs = `#graphql
     chestCircumferenceCm: Float
     waistCircumferenceCm: Float
     hipCircumferenceCm: Float
+    thighCircumferenceCm: Float
     shoulderWidthCm: Float
     inseamCm: Float
     preferredFit: PreferredFit!
@@ -301,6 +302,7 @@ export const typeDefs = `#graphql
     chestCircumferenceCm: Float
     waistCircumferenceCm: Float
     hipCircumferenceCm: Float
+    thighCircumferenceCm: Float
     shoulderWidthCm: Float
     inseamCm: Float
     preferredFit: PreferredFit!

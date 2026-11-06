@@ -52,6 +52,11 @@ export function PlanPeriodHeader({
             </p>
           )}
         </div>
+        {viewMode === 'month' && (
+          <p className="mt-0.5 text-[11px] leading-4 text-muted sm:text-xs">
+            날짜를 눌러 코디를 설정하세요
+          </p>
+        )}
       </div>
 
       <div className="flex shrink-0 gap-1.5 sm:gap-2">
