@@ -21,7 +21,7 @@ export async function withRecommendationCredit<T>(userId: string, input: unknown
   try {
     const result = await operation()
     if (!await recommendationCreditRepository.settle(userId, reservation.id, reservation.token, result === null ? null : JSON.stringify(result))) {
-      throw new ServiceError('추천 요청이 만료됐어요. 횟수는 차감되지 않았습니다. 다시 시도해 주세요.', 'AI_INTERRUPTED')
+      throw new ServiceError('추천 요청이 만료됐어요. 횟수는 차감되지 않았어요. 다시 시도해주세요.', 'AI_INTERRUPTED')
     }
     return result
   } catch (error) {

@@ -49,6 +49,7 @@ import {
 import { usePlanStore } from '../stores/usePlanStore'
 import { useKoreaPlannerToday } from '../hooks/useKoreaPlannerToday'
 import { getKoreaPlannerTomorrow } from '../utils/plannerWear'
+import { PlanWearHistoryLink } from '../../wear-history/components/PlanWearHistoryLink'
 
 const weeklyPlanDndOptions = {
   enableMouseEvents: true,
@@ -399,7 +400,7 @@ export function PlanPage() {
         {isTomorrowView && <PlanTomorrowForecast key={selectedDate} date={selectedDate} />}
         {viewMode === 'today' && plannerDayQuery.isError ? (
           <div className="mt-4 rounded-3xl border border-dashed border-line px-6 py-12 text-center">
-            <h2 className="text-sm font-black">
+            <h2 className="text-sm font-semibold">
               선택한 날짜의 플래너를 불러오지 못했어요
             </h2>
             <button
@@ -413,12 +414,14 @@ export function PlanPage() {
         ) : viewMode === 'today' && plannerDayQuery.isPending ? (
           <PlanPeriodSkeleton viewMode="today" />
         ) : viewMode === 'today' ? (
-          <PlanTodayCard
-            entry={selectedDayEntry}
-            items={selectedDayItems}
-            isToday={selectedDate === today}
-            onChooseOutfit={() => setOutfitPickerView('today')}
-          />
+          <>
+            <PlanTodayCard
+              entry={selectedDayEntry}
+              items={selectedDayItems}
+              isToday={selectedDate === today}
+              onChooseOutfit={() => setOutfitPickerView('today')}
+            />
+          </>
         ) : viewMode === 'week' && plannerWeekQuery.isPending ? (
           <PlanPeriodSkeleton viewMode="week" />
         ) : viewMode === 'week' ? (
@@ -467,7 +470,7 @@ export function PlanPage() {
           </DndProvider>
         ) : plannerEntriesQuery.isError ? (
           <div className="mt-4 rounded-3xl border border-dashed border-line px-6 py-12 text-center">
-            <h2 className="text-sm font-black">
+            <h2 className="text-sm font-semibold">
               월간 플래너를 불러오지 못했어요
             </h2>
             <button
@@ -489,6 +492,7 @@ export function PlanPage() {
             today={today}
           />
         )}
+        {viewMode === 'today' && <PlanWearHistoryLink date={selectedDate} today={today} />}
       </div>
 
       {outfitPickerView === viewMode && (

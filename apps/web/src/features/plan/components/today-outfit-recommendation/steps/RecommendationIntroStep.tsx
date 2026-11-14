@@ -19,7 +19,7 @@ export function RecommendationIntroStep({
       <span className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-sage text-ink">
         <Sparkles size={21} />
       </span>
-      <h3 className="mt-3 text-base font-black tracking-[-0.02em]">
+      <h3 className="mt-3 text-base font-semibold tracking-[-0.02em]">
         {dayLabel} 입을 코디를 골라드릴까요?
       </h3>
       <p className="mx-auto mt-1.5 max-w-64 text-xs leading-5 text-muted">

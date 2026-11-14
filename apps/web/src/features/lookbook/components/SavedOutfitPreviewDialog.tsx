@@ -20,7 +20,7 @@ export function SavedOutfitPreviewDialog({
 }: SavedOutfitPreviewDialogProps) {
   return (
     <div
-      className="classification-page-enter fixed inset-0 z-[130] flex items-center justify-center bg-black/45 p-3 backdrop-blur-[2px] sm:p-6"
+      className="classification-page-enter fixed inset-0 z-[130] flex items-center justify-center bg-ink/40 p-3 backdrop-blur-[2px] sm:p-6"
       data-ai-preview-asset-id={assetId ?? undefined}
       role="dialog"
       aria-modal="true"
@@ -35,7 +35,7 @@ export function SavedOutfitPreviewDialog({
             <Sparkles size={19} />
           </span>
           <div className="min-w-0 flex-1">
-            <h2 id="saved-lookbook-title" className="text-base font-black">
+            <h2 id="saved-lookbook-title" className="text-base font-semibold">
               AI 룩북
             </h2>
             <p className="mt-0.5 truncate text-[11px] text-muted">

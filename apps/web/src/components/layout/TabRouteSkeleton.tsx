@@ -1,7 +1,19 @@
-import { useSearchParams } from 'react-router-dom'
+import type { Season } from '@closet/types'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import { CatalogCardSkeletonGrid } from '../CatalogCardSkeletonGrid'
+import { CatalogScrollRegion } from '../CatalogScrollRegion'
+import { CatalogSearchField } from '../CatalogSearchField'
 import { CollectionHeading } from '../CollectionHeading'
+import { SeasonFilter } from '../SeasonFilter'
+import { WardrobeCabinet } from '../WardrobeCabinet'
+import { seasonLabels } from '../../constants/seasons'
+import { outfitStyleOptions } from '../../constants/styleOptions'
+import { OutfitFilterControls } from '../../features/lookbook/components/OutfitFilterControls'
+import { ClosetFilterSelection } from '../../features/closet/components/ClosetFilterSelection'
+import { closetCategoryLabels } from '../../features/closet/constants'
+import { readWardrobeFilterSelection } from '../../features/closet/utils/wardrobeFilters'
 import { PlanPeriodSkeleton } from '../../features/plan/components/PlanPeriodSkeleton'
+import { WearHistoryLink } from '../../features/wear-history/components/WearHistoryLink'
 
 const block = 'rounded-full bg-line/50'
 
@@ -35,53 +47,92 @@ export function PlanRouteSkeleton() {
           <PlanPeriodSkeleton viewMode="month" />
         </div>
       ) : (
-        <PlanPeriodSkeleton viewMode={viewMode} />
+        <>
+          <PlanPeriodSkeleton viewMode={viewMode} />
+          {viewMode === 'today' && <WearHistoryLink planner from={`/plan?${searchParams}`} date={searchParams.get('date') ?? undefined} />}
+        </>
       )}
     </section>
   )
 }
 
+/** 코드 로딩 중에도 실제 계절·필터 행과 목록 컨테이너를 사용한다. URL 조건이 차지하는 검색·결과 안내 공간도 미리 둔다. */
 function CatalogRouteSkeleton({ variant }: { variant: 'wardrobe' | 'outfit' }) {
+  const [searchParams] = useSearchParams()
+  const location = useLocation()
   const isWardrobe = variant === 'wardrobe'
+  const requestedSeason = searchParams.get('season')
+  const activeSeason = isWardrobe && requestedSeason && requestedSeason in seasonLabels ? requestedSeason as Season : null
+  const searchQuery = isWardrobe ? searchParams.get('q') ?? '' : ''
+  const filterSelection = readWardrobeFilterSelection(searchParams)
+  const requestedCategory = searchParams.get('category')
+  const hasWardrobeFilters = Boolean((requestedCategory && requestedCategory in closetCategoryLabels) || activeSeason || filterSelection.length || searchQuery.trim())
+  const ignoreChange = () => undefined
   const catalog = (
-    <div className="catalog-scroll-region" aria-label={isWardrobe ? '옷장 화면 로딩 중' : '코디북 화면 로딩 중'}>
-      <div className="wardrobe-cabinet">
-        <div className="wardrobe-cabinet-toolbar animate-pulse" aria-hidden="true">
-          <span className={`block h-5 w-28 ${block}`} />
-          <span className={`block h-4 w-16 ${block}`} />
-        </div>
-        <div className="wardrobe-cabinet-contents">
-          <CatalogCardSkeletonGrid variant={variant} />
-        </div>
-      </div>
-    </div>
+    <CatalogScrollRegion label={isWardrobe ? '옷장 화면 로딩 중' : '코디북 화면 로딩 중'} resetKey="loading">
+      {!isWardrobe && <WearHistoryLink from={`/lookbook${location.search}`} />}
+      {isWardrobe && location.pathname === '/closet' && !hasWardrobeFilters && (
+        <div className="mb-4" aria-hidden="true"><span className="block h-10 w-44 animate-pulse rounded-full bg-line/40" /></div>
+      )}
+      <WardrobeCabinet
+        label={isWardrobe ? (activeSeason ? `${seasonLabels[activeSeason]}에 입는 옷` : '전체 옷장') : '모아둔 코디'}
+        countLabel="불러오는 중"
+      >
+        {isWardrobe && (searchQuery.trim() || filterSelection.some((item) => item.kind === 'tag')) && (
+          <p className="mt-4 px-1 text-xs font-bold text-muted">검색 결과를 불러오는 중</p>
+        )}
+        <CatalogCardSkeletonGrid variant={variant} />
+      </WardrobeCabinet>
+    </CatalogScrollRegion>
   )
 
   return (
     <section className={isWardrobe ? 'closet-page' : 'lookbook-page'} aria-busy="true">
       <CollectionHeading
-        title={isWardrobe ? '내 옷장' : '나의 코디북'}
-        actions={<span className="block size-10 rounded-xl bg-line/45" aria-hidden="true" />}
+        title={isWardrobe ? '내 옷장' : '내 코디북'}
+        actions={<>{Array.from({ length: 3 }, (_, index) => <span key={index} className="block size-11 rounded-xl bg-line/45" aria-hidden="true" />)}</>}
       />
-      <div className="season-filter-rail mt-6 flex h-12 animate-pulse gap-1 p-1" aria-hidden="true">
-        {Array.from({ length: 5 }, (_, index) => <span className="flex-1 rounded-xl bg-surface/65" key={index} />)}
-      </div>
-      {isWardrobe && (
-        <div className="mt-3 flex gap-2 overflow-hidden" aria-hidden="true">
-          {Array.from({ length: 4 }, (_, index) => <span className="h-9 w-20 shrink-0 rounded-full bg-line/40" key={index} />)}
-        </div>
+      {isWardrobe ? (
+        <>
+          <div className="contents" inert><CatalogSearchField isOpen={Boolean(searchQuery.trim())} value={searchQuery} onChange={ignoreChange} label="옷장 검색 준비 중" placeholder="이름, 브랜드, 종류, 색상 검색" /></div>
+          <div className="contents" inert><SeasonFilter className="mt-6" value={activeSeason} onChange={ignoreChange} /></div>
+          <div className="closet-catalog">
+            <div className="closet-filter-row mt-2 flex min-h-10 items-center gap-2" aria-hidden="true">
+              <div className="flex min-w-0 flex-1 gap-2 overflow-hidden pb-1">
+                {Array.from({ length: 4 }, (_, index) => <span className="h-9 w-16 shrink-0 animate-pulse rounded-full bg-line/40" key={index} />)}
+              </div>
+            </div>
+            <div className="contents" inert><ClosetFilterSelection selection={filterSelection} colors={[]} onToggle={ignoreChange} label="적용한 옷장 필터 준비 중" /></div>
+            {catalog}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="contents" inert>
+            <OutfitFilterControls
+              activeSeason={null} activeStyle="all" isSearchOpen={false} searchQuery=""
+              styleOptions={outfitStyleOptions}
+              onSeasonChange={ignoreChange} onStyleChange={ignoreChange} onSearchChange={ignoreChange} onSortOrderChange={ignoreChange}
+            />
+          </div>
+          {searchParams.get('items') && (
+            <div className="mt-4 flex items-center gap-3 rounded-2xl border border-accent/30 bg-accent/5 px-4 py-3" aria-hidden="true">
+              <span className="h-4 flex-1 animate-pulse rounded-full bg-line/40" /><span className="size-8 shrink-0 rounded-full bg-line/30" />
+            </div>
+          )}
+          {catalog}
+        </>
       )}
-      {isWardrobe ? <div className="closet-catalog">{catalog}</div> : catalog}
     </section>
   )
 }
 
-/** 옷장 코드 로딩 중 필터와 옷 사진 카드의 배치를 유지한다. */
+/** 옷장 코드 로딩 중에도 URL의 검색·계절과 카테고리 행·접힌 하이라이트 공간을 확보해 사진 카드가 내려가지 않게 한다. */
 export function ClosetRouteSkeleton() {
   return <CatalogRouteSkeleton variant="wardrobe" />
 }
 
-/** 코디북 코드 로딩 중 필터와 표지 카드의 배치를 유지한다. */
+/** 코디북의 실제 필터·보기 전환 배치를 재사용하고, 그 아래 표지 위치에 코드 로딩 카드를 표시한다. */
 export function LookbookRouteSkeleton() {
   return <CatalogRouteSkeleton variant="outfit" />
 }

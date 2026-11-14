@@ -25,7 +25,7 @@ export const weatherResolvers = {
       } catch (error) {
         throw toGraphQLError(
           error,
-          '현재 위치의 날씨를 불러오지 못했습니다.',
+          '현재 위치의 날씨를 불러오지 못했어요.',
           'WEATHER_FORECAST_LOAD_FAILED',
         )
       }

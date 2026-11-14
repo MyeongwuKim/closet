@@ -22,12 +22,12 @@ export const previewJobRepository = {
       }
       const active = await tx.aiPreviewJob.findFirst({ where: { userId: input.userId, fingerprint: input.fingerprint, status: { in: ['queued', 'processing'] }, expiresAt: { gt: now } } })
       if (active) {
-        if (active.requestKeys.length >= 50) throw new ServiceError('요청이 많아요. 진행 중인 작업을 확인해 주세요.', 'AI_BUSY')
+        if (active.requestKeys.length >= 50) throw new ServiceError('요청이 많아요. 진행 중인 작업을 확인해주세요.', 'AI_BUSY')
         return tx.aiPreviewJob.update({ where: { id: active.id }, data: { requestKeys: { push: input.requestKey } } })
       }
       if (await tx.aiPreviewJob.count({ where: { userId: input.userId, status: { in: ['queued', 'processing'] }, expiresAt: { gt: now } } }) >= 3 ||
         await tx.aiPreviewJob.count({ where: { status: { in: ['queued', 'processing'] }, expiresAt: { gt: now } } }) >= 100) {
-        throw new ServiceError('진행 중인 AI 작업이 많아요. 완료 후 다시 시도해 주세요.', 'AI_BUSY')
+        throw new ServiceError('진행 중인 AI 작업이 많아요. 완료 후 다시 시도해주세요.', 'AI_BUSY')
       }
       await lockWardrobeItemsForReference(tx, input.userId, input.selectedItemIds)
       const credit = await reservePreviewCredit(tx, input.userId, now)

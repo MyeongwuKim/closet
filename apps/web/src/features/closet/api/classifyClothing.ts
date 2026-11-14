@@ -36,7 +36,7 @@ async function readAnalysisImage(file: File, { accessToken, signal }: ImageAnaly
   const imageBase64 = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(String(reader.result))
-    reader.onerror = () => reject(new Error('이미지 파일을 읽지 못했습니다.'))
+    reader.onerror = () => reject(new Error('이미지 파일을 읽지 못했어요.'))
     reader.readAsDataURL(file)
   })
   signal.throwIfAborted()
@@ -112,7 +112,7 @@ export async function classifyClothing(
     throw new ClothingAnalysisError(
       error instanceof Error
         ? error.message
-        : '이미지 분석을 완료하지 못했습니다.',
+        : '이미지 분석을 완료하지 못했어요.',
     )
   }
 }
@@ -138,6 +138,6 @@ export async function removeClothingBackground(file: File, request: ImageAnalysi
     if (error instanceof GraphqlRequestError) {
       throw new ClothingAnalysisError(error.message, error.code)
     }
-    throw new ClothingAnalysisError('사진 배경을 제거하지 못했습니다. 사진을 다시 추가해 주세요.')
+    throw new ClothingAnalysisError('사진 배경을 제거하지 못했어요. 사진을 다시 추가해주세요.')
   }
 }

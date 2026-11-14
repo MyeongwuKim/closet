@@ -74,7 +74,7 @@ function validateCoordinates(input: WeatherForecastInput) {
     input.longitude > 180
   ) {
     throw new ServiceError(
-      '올바른 현재 위치가 필요합니다.',
+      '올바른 현재 위치가 필요해요.',
       'INVALID_WEATHER_LOCATION',
     )
   }
@@ -84,7 +84,7 @@ function validateCoordinates(input: WeatherForecastInput) {
 function getNumberAt(value: unknown, index: number, label: string) {
   if (!Array.isArray(value) || !Number.isFinite(value[index])) {
     throw new ServiceError(
-      `${label} 예보를 확인하지 못했습니다.`,
+      `${label} 예보를 확인하지 못했어요.`,
       'WEATHER_PROVIDER_INVALID_RESPONSE',
     )
   }
@@ -181,13 +181,13 @@ async function fetchWeatherForecast(
     })
   } catch {
     throw new ServiceError(
-      '날씨 서버에 연결하지 못했습니다.',
+      '날씨 서버에 연결하지 못했어요.',
       'WEATHER_PROVIDER_UNAVAILABLE',
     )
   }
   if (!response.ok) {
     throw new ServiceError(
-      '해당 날짜의 날씨 예보를 불러오지 못했습니다.',
+      '해당 날짜의 날씨 예보를 불러오지 못했어요.',
       'WEATHER_FORECAST_UNAVAILABLE',
     )
   }
@@ -198,7 +198,7 @@ async function fetchWeatherForecast(
   const dateIndex = dates.indexOf(input.date)
   if (!daily || dateIndex < 0) {
     throw new ServiceError(
-      '해당 날짜의 날씨 예보가 아직 제공되지 않습니다.',
+      '해당 날짜의 날씨 예보가 아직 제공되지 않아요.',
       'WEATHER_FORECAST_UNAVAILABLE',
     )
   }
@@ -275,7 +275,7 @@ export const weatherService = {
   async getPastDailyTemperature(input: WeatherForecastInput) {
     validateCoordinates(input)
     const daysAgo = (getKoreaTodayUtc().getTime() - parseDateOnly(input.date).getTime()) / 86_400_000
-    if (daysAgo <= 0) throw new ServiceError('지난 날짜의 기온만 기록할 수 있습니다.', 'INVALID_WEAR_WEATHER_DATE')
+    if (daysAgo <= 0) throw new ServiceError('지난 날짜의 기온만 기록할 수 있어요.', 'INVALID_WEAR_WEATHER_DATE')
     const url = daysAgo <= 7 ? createWeatherUrl(input) : new URL(
       process.env.WEATHER_ARCHIVE_API_BASE_URL?.trim() || (process.env.WEATHER_API_KEY?.trim() ? 'https://customer-archive-api.open-meteo.com/v1/archive' : 'https://archive-api.open-meteo.com/v1/archive'),
     )
@@ -290,7 +290,7 @@ export const weatherService = {
     const apiKey = process.env.WEATHER_API_KEY?.trim()
     if (apiKey) url.searchParams.set('apikey', apiKey)
     const response = await fetch(url, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(10_000) })
-    if (!response.ok) throw new ServiceError('착용일의 기온을 확인하지 못했습니다.', 'WEAR_WEATHER_UNAVAILABLE')
+    if (!response.ok) throw new ServiceError('착용일의 기온을 확인하지 못했어요.', 'WEAR_WEATHER_UNAVAILABLE')
     const payload = await response.json() as OpenMeteoResponse
     const index = Array.isArray(payload.daily?.time) ? payload.daily.time.indexOf(input.date) : -1
     const temperature = getNumberAt(payload.daily?.temperature_2m_mean, index, '착용일 평균 기온')

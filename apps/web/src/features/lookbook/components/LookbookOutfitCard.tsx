@@ -48,14 +48,14 @@ export function LookbookOutfitCard({
           className="size-full"
         />
         {viewMode === 'ai' && outfit.previewImageUrl && (
-          <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 bg-surface/90 px-1.5 py-1 text-[9px] font-medium text-ink backdrop-blur">
-            <Sparkles size={10} /> AI 룩
+          <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 bg-surface/90 px-1.5 py-1 text-xs font-medium text-ink backdrop-blur">
+            <Sparkles size={12} /> AI 룩북
           </span>
         )}
       </div>
       <div className="lookbook-cover-label flex min-w-0 w-full flex-1 flex-col">
         <h2 className="truncate text-sm font-semibold leading-5 tracking-[-.025em]" title={outfit.name}>{outfit.name}</h2>
-        <div className="mt-1 flex min-w-0 items-center justify-between gap-2 overflow-hidden text-[10px] text-muted">
+        <div className="mt-1 flex min-w-0 items-center justify-between gap-2 overflow-hidden text-xs text-muted">
           <span className="truncate">
             {getOutfitStyleLabel(outfit.style)}
           </span>

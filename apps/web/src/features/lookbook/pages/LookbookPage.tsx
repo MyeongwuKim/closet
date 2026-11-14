@@ -3,6 +3,7 @@ import type { Season } from '@closet/types'
 import { X } from 'lucide-react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { LookbookPageHeader } from '../components/LookbookPageHeader'
+import { LookbookFilters } from '../components/LookbookFilters'
 import { LookbookViewSwitch } from '../components/LookbookViewSwitch'
 import type { LookbookViewMode } from '../types'
 import { CatalogCardSkeletonGrid } from '../../../components/CatalogCardSkeletonGrid'
@@ -27,6 +28,7 @@ import {
   createOutfitSearchTokens,
 } from '../utils/outfitFilters'
 import { createOutfitComposerPath } from '../utils/outfitComposerNavigation'
+import { WearHistoryLink } from '../../wear-history/components/WearHistoryLink'
 
 /** 저장 코디를 조건별로 보여준다. 기존 코디 링크는 목록의 필터나 페이지에 관계없이 해당 상세를 연다. */
 export function LookbookPage() {
@@ -123,10 +125,11 @@ export function LookbookPage() {
   return (
     <section className="lookbook-page">
       <LookbookPageHeader
-        outfitCount={totalCount}
         isSearchOpen={isSearchOpen}
         onToggleSearch={toggleSearch}
         onCreate={() => navigate('/lookbook/new')}
+        filterControl={<LookbookFilters color={activeColor} colors={colorOptions} isLoading={filterOptions.isPending} sortOrder={sortOrder} onColorChange={setActiveColor} onSortChange={changeSortOrder}
+          viewControl={<LookbookViewSwitch value={viewMode} onChange={changeViewMode} />} />}
       />
       {linkedOutfitId && !selectedOutfitId && !selectedOutfit && (
         linkedOutfitQuery.isPending ? (
@@ -142,26 +145,18 @@ export function LookbookPage() {
         )
       )}
 
-      {totalCount > 0 && (
-        <OutfitFilterControls
-          activeSeason={activeSeason}
-          activeStyle={activeStyle}
-          activeColor={activeColor}
-          colorOptions={colorOptions}
-          isSearchOpen={isSearchOpen}
-          searchQuery={searchQuery}
-          sortOrder={sortOrder}
-          styleOptions={visibleStyleOptions}
-          onSeasonChange={(season) => {
-            if (season !== activeSeason || wardrobeTransition.phase !== 'idle') wardrobeTransition.changeSeason(() => setActiveSeason(season))
-          }}
-          onStyleChange={setActiveStyle}
-          onColorChange={setActiveColor}
-          onSearchChange={setSearchQuery}
-          onSortOrderChange={changeSortOrder}
-          viewControl={<LookbookViewSwitch value={viewMode} onChange={changeViewMode} />}
-        />
-      )}
+      <OutfitFilterControls
+        activeSeason={activeSeason}
+        activeStyle={activeStyle}
+        isSearchOpen={isSearchOpen}
+        searchQuery={searchQuery}
+        styleOptions={visibleStyleOptions}
+        onSeasonChange={(season) => {
+          if (season !== activeSeason || wardrobeTransition.phase !== 'idle') wardrobeTransition.changeSeason(() => setActiveSeason(season))
+        }}
+        onStyleChange={setActiveStyle}
+        onSearchChange={setSearchQuery}
+      />
 
       {selectedItemIds.length > 0 && (
         <div className="mt-4 flex items-center gap-3 rounded-2xl border border-accent/30 bg-accent/5 px-4 py-3">
@@ -188,10 +183,11 @@ export function LookbookPage() {
         label="코디북 목록"
         resetKey={JSON.stringify([activeSeason, activeStyle, activeColor, settledSearch, sortOrder, selectedItemIds])}
       >
+        <WearHistoryLink from={`${location.pathname}${location.search}`} />
         <WardrobeCabinet
           key={activeSeason ?? 'all'}
           label={activeSeason ? `${seasonLabels[activeSeason]}에 입을 코디` : '모아둔 코디'}
-          countLabel={`${outfitsQuery.data?.pages[0]?.totalCount ?? 0}개의 코디`}
+          countLabel={outfitsQuery.isPending ? '불러오는 중' : `${outfitsQuery.data?.pages[0]?.totalCount ?? 0}개의 코디`}
           phase={wardrobeTransition.phase}
           isContentLoading={isSearchPending}
         >
@@ -214,7 +210,7 @@ export function LookbookPage() {
                 className="mx-auto size-28"
                 variant="lookbook"
               />
-              <h2 className="mt-5 text-xl font-black">
+              <h2 className="mt-5 text-xl font-semibold">
                 {selectedItemIds.length > 0
                   ? '이 옷이 들어간 코디가 아직 없어요'
                   : '아직 저장한 코디가 없어요'}
@@ -254,7 +250,7 @@ export function LookbookPage() {
                 className="mx-auto size-28"
                 variant="lookbook"
               />
-              <h2 className="mt-5 text-lg font-black">
+              <h2 className="mt-5 text-lg font-semibold">
                 {searchTokens.length > 0
                   ? '검색 결과가 없어요'
                   : selectedItemIds.length > 0
@@ -269,7 +265,7 @@ export function LookbookPage() {
               </h2>
               <p className="mt-2 text-sm text-muted">
                 {searchTokens.length > 0
-                  ? '다른 코디명이나 옷 이름, 색상으로 다시 검색해보세요.'
+                  ? '다른 코디 이름이나 옷 이름, 색상으로 다시 검색해보세요.'
                   : selectedItemIds.length > 0
                   ? '선택한 아이템을 그대로 넣어 새 코디를 만들어보세요.'
                   : '코디를 만들고 이 스타일로 저장해보세요.'}

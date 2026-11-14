@@ -58,7 +58,7 @@ export function WardrobeImageSourceDialog({
             <ImagePlus size={19} aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1">
-            <h2 id={titleId} className="text-xl font-black">
+            <h2 id={titleId} className="text-xl font-semibold">
               옷 사진 추가
             </h2>
             <p id={descriptionId} className="mt-1 text-xs leading-5 text-muted">
@@ -93,7 +93,7 @@ export function WardrobeImageSourceDialog({
             </span>
             <span className="min-w-0">
               <span className="block text-sm font-black">
-                {isCapturing ? '카메라 여는 중...' : '사진 촬영'}
+                {isCapturing ? '카메라 여는 중…' : '사진 촬영'}
               </span>
               <span className="mt-0.5 block text-xs leading-5 text-muted">
                 옷 한 벌이 잘 보이게 촬영해보세요.
@@ -163,7 +163,7 @@ export function WardrobePhotoReviewDialog({
       >
         <header className="flex shrink-0 items-start gap-3 border-b border-line px-5 py-4">
           <div className="min-w-0 flex-1">
-            <h2 id={titleId} className="text-xl font-black">
+            <h2 id={titleId} className="text-xl font-semibold">
               이 사진을 사용할까요?
             </h2>
             <p id={descriptionId} className="mt-1 text-xs leading-5 text-muted">

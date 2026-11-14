@@ -27,11 +27,11 @@ function getLocationErrorMessage(
 ) {
   if (result.status === 'permission-denied') {
     return result.canAskAgain
-      ? '현재 날씨를 사용하려면 위치 접근을 허용해 주세요.'
-      : '기기 설정에서 위치 권한을 허용해 주세요.'
+      ? '현재 날씨를 사용하려면 위치 접근을 허용해주세요.'
+      : '기기 설정에서 위치 권한을 허용해주세요.'
   }
   if (result.status === 'services-disabled') {
-    return '기기의 위치 서비스를 켠 뒤 다시 시도해 주세요.'
+    return '기기의 위치 서비스를 켠 뒤 다시 시도해주세요.'
   }
   return result.message || '현재 위치를 확인하지 못했어요.'
 }

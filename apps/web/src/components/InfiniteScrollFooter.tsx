@@ -26,7 +26,7 @@ export function InfiniteScrollFooter({ hasNextPage, isFetching, isError, onLoadM
     <div ref={sentinel} className="flex min-h-20 items-center justify-center py-6" aria-live="polite">
       {isFetching ? (
         <span role="status" className="flex items-center gap-2" aria-label="더 불러오는 중">
-          <span className="sr-only">더 불러오는 중...</span>
+          <span className="sr-only">더 불러오는 중…</span>
           <span className="h-2 w-10 animate-pulse rounded-full bg-line/70" />
           <span className="h-2 w-16 animate-pulse rounded-full bg-line/55 [animation-delay:120ms]" />
           <span className="h-2 w-10 animate-pulse rounded-full bg-line/40 [animation-delay:240ms]" />

@@ -39,7 +39,7 @@ function readFileAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(String(reader.result))
-    reader.onerror = () => reject(new Error('이미지 파일을 읽지 못했습니다.'))
+    reader.onerror = () => reject(new Error('이미지 파일을 읽지 못했어요.'))
     reader.readAsDataURL(file)
   })
 }
@@ -104,7 +104,7 @@ export async function analyzeGarmentSizeChart({
     throw new GarmentSizeChartAnalysisError(
       error instanceof Error
         ? error.message
-        : '사이즈표를 분석하지 못했습니다.',
+        : '사이즈표를 분석하지 못했어요.',
     )
   }
 }

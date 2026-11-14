@@ -40,7 +40,7 @@ export function sameOutfitSnapshot(left: CreateOutfitData, right: CreateOutfitDa
 export async function createOutfitSnapshot(tx: Prisma.TransactionClient, data: CreateOutfitData, plannerOnly: boolean, options = { allowArchived: true }) {
   await lockWardrobeItemsForReference(tx, data.userId, data.items.map((item) => item.wardrobeItemId), options)
   if (data.generation) {
-    if (data.generation.userId !== data.userId) throw new ServiceError('내 이미지로만 코디를 저장할 수 있습니다.', 'OUTFIT_PREVIEW_NOT_FOUND')
+    if (data.generation.userId !== data.userId) throw new ServiceError('내 이미지로만 코디를 저장할 수 있어요.', 'OUTFIT_PREVIEW_NOT_FOUND')
     await lockGeneratedImageForReference(tx, data.userId, data.generation.imageAssetId)
   }
   return tx.outfit.create({ data: {
@@ -59,6 +59,6 @@ export async function preservePlannerSnapshots(tx: Prisma.TransactionClient, sou
   for (const entry of entries) {
     const copy = await createOutfitSnapshot(tx, data, true)
     const updated = await tx.plannerEntry.updateMany({ where: { id: entry.id, outfitId: source.id }, data: { outfitId: copy.id } })
-    if (updated.count !== 1) throw new ServiceError('플래너가 변경됐습니다. 다시 확인해주세요.', 'PLANNER_ENTRY_CHANGED')
+    if (updated.count !== 1) throw new ServiceError('플래너가 바뀌었어요. 다시 확인해주세요.', 'PLANNER_ENTRY_CHANGED')
   }
 }

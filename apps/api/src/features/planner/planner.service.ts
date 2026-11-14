@@ -25,6 +25,8 @@ export interface SetPlannerEntryInput {
   weekStartsOn: string
   date: string
   outfitId: string
+  /** 착용 기록을 다시 담을 때 삭제된 옷의 새 배정을 막는다. 기존 날짜 표시·복사 계약은 유지한다. */
+  activeItemsOnly?: boolean | null
   title?: string | null
   occasion?: string | null
   weatherSummary?: string | null
@@ -52,6 +54,9 @@ export interface SetDirectPlannerEntryInput {
   weekStartsOn: string
   date: string
   itemIds: string[]
+  /** 직접 구성하거나 착용 기록에서 바꿔 담은 코디의 이름·스타일. 추천 메타데이터와 구분한다. */
+  name?: string | null
+  style?: string | null
   previewImage?: CreateOutfitInput['previewImage']
   recommendationName?: string | null
   /** 새 추천의 표시명(옷장 추천) 또는 이전 추천의 스타일명. 저장할 코디의 분류와 중복 확인에 사용한다. */
@@ -85,7 +90,7 @@ function validateRecentWearConflictInput(input: RecentWearConflictInput) {
     input.intervalDays > 30
   ) {
     throw new ServiceError(
-      '최근 착용 알림 간격은 1일에서 30일 사이여야 합니다.',
+      '최근 착용 알림 간격은 1일에서 30일 사이여야 해요.',
       'INVALID_WEAR_REMINDER_INTERVAL',
     )
   }
@@ -97,19 +102,19 @@ function validateRecentWearConflictInput(input: RecentWearConflictInput) {
   }
   if (input.itemIds.length > 20) {
     throw new ServiceError(
-      '최근 착용은 옷을 최대 20개까지 확인할 수 있습니다.',
+      '최근 착용은 옷을 최대 20개까지 확인할 수 있어요.',
       'WEAR_REMINDER_ITEM_LIMIT_EXCEEDED',
     )
   }
   if (input.itemIds.some((itemId) => !objectIdPattern.test(itemId))) {
     throw new ServiceError(
-      '올바르지 않은 옷장 아이템이 포함되어 있습니다.',
+      '올바르지 않은 옷장 아이템이 포함되어 있어요.',
       'INVALID_WARDROBE_ITEM_ID',
     )
   }
   if (new Set(input.itemIds).size !== input.itemIds.length) {
     throw new ServiceError(
-      '같은 옷을 중복해서 확인할 수 없습니다.',
+      '같은 옷을 중복해서 확인할 수 없어요.',
       'DUPLICATE_WEAR_REMINDER_ITEM',
     )
   }
@@ -131,7 +136,7 @@ function parseWeekAndDate(weekStartsOnValue: string, dateValue: string) {
 
   if (!Number.isInteger(dayOffset) || dayOffset < 0 || dayOffset > 6) {
     throw new ServiceError(
-      '선택한 날짜가 해당 주간에 포함되지 않습니다.',
+      '선택한 날짜가 해당 주간에 포함되지 않아요.',
       'DATE_OUTSIDE_PLANNER_WEEK',
     )
   }
@@ -149,13 +154,13 @@ export const plannerService = {
     const wornAt = new Date(input.wornAt)
     if (typeof input.wornAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(input.wornAt)
       || Number.isNaN(wornAt.getTime()) || wornAt.toISOString() !== input.wornAt) {
-      throw new ServiceError('올바른 착용 확인 시각이 필요합니다.', 'INVALID_WEAR_CONFIRMATION')
+      throw new ServiceError('올바른 착용 확인 시각이 필요해요.', 'INVALID_WEAR_CONFIRMATION')
     }
     if (input.feeling !== null && !['cold', 'comfortable', 'hot'].includes(input.feeling)) {
       throw new ServiceError('체감은 추웠어요·적당했어요·더웠어요 중에서 선택해주세요.', 'INVALID_WEAR_FEELING')
     }
     if (date > getKoreaTodayUtc()) {
-      throw new ServiceError('미래 코디에는 체감을 기록할 수 없습니다.', 'FUTURE_PLANNER_WEAR')
+      throw new ServiceError('미래 코디에는 체감을 기록할 수 없어요.', 'FUTURE_PLANNER_WEAR')
     }
     const week = await plannerRepository.findWeek(userId, weekStartsOn)
     const entry = week?.entries.find((candidate) => candidate.date.getTime() === date.getTime())
@@ -165,7 +170,7 @@ export const plannerService = {
     }
     const updatedWeek = await plannerRepository.setEntryWearFeeling(week.id, date, input.outfitId, wornAt, input.feeling)
     if (!updatedWeek) {
-      throw new ServiceError('착용 기록이 변경됐습니다. 다시 확인해주세요.', 'PLANNER_WEAR_CHANGED')
+      throw new ServiceError('착용 기록이 바뀌었어요. 다시 확인해주세요.', 'PLANNER_WEAR_CHANGED')
     }
     return updatedWeek
   },
@@ -176,7 +181,7 @@ export const plannerService = {
       throw new ServiceError('올바르지 않은 코디입니다.', 'INVALID_OUTFIT_ID')
     }
     if (input.worn && date > getKoreaTodayUtc()) {
-      throw new ServiceError('미래의 코디는 아직 착용 완료로 표시할 수 없습니다.', 'FUTURE_PLANNER_WEAR')
+      throw new ServiceError('미래의 코디는 아직 착용 완료로 표시할 수 없어요.', 'FUTURE_PLANNER_WEAR')
     }
     const week = await plannerRepository.findWeek(userId, weekStartsOn)
     const entry = week?.entries.find((candidate) => candidate.date.getTime() === date.getTime())
@@ -185,7 +190,7 @@ export const plannerService = {
     }
     const updatedWeek = await plannerRepository.setEntryWorn(week.id, date, input.outfitId, input.worn, new Date())
     if (!updatedWeek) {
-      throw new ServiceError('코디가 변경됐습니다. 다시 확인해주세요.', 'PLANNER_OUTFIT_CHANGED')
+      throw new ServiceError('코디가 바뀌었어요. 다시 확인해주세요.', 'PLANNER_OUTFIT_CHANGED')
     }
     return updatedWeek
   },
@@ -204,7 +209,7 @@ export const plannerService = {
 
     if (!Number.isInteger(daySpan) || daySpan < 0 || daySpan > 41) {
       throw new ServiceError(
-        '플래너는 최대 42일까지 조회할 수 있습니다.',
+        '플래너는 최대 42일까지 조회할 수 있어요.',
         'INVALID_PLANNER_RANGE',
       )
     }
@@ -217,14 +222,14 @@ export const plannerService = {
 
     if (uniqueOutfitIds.some((outfitId) => !/^[a-f\d]{24}$/i.test(outfitId))) {
       throw new ServiceError(
-        '올바르지 않은 코디가 포함되어 있습니다.',
+        '올바르지 않은 코디가 포함되어 있어요.',
         'INVALID_OUTFIT_ID',
       )
     }
 
     if (uniqueOutfitIds.length > 100) {
       throw new ServiceError(
-        '코디 착용 기록은 한 번에 최대 100개까지 조회할 수 있습니다.',
+        '코디 착용 기록은 한 번에 최대 100개까지 조회할 수 있어요.',
         'OUTFIT_HISTORY_LIMIT_EXCEEDED',
       )
     }
@@ -275,7 +280,7 @@ export const plannerService = {
     )
     const outfit = await outfitRepository.findById(userId, input.outfitId)
     if (!outfit) {
-      throw new ServiceError('코디를 찾을 수 없습니다.', 'OUTFIT_NOT_FOUND')
+      throw new ServiceError('코디를 찾을 수 없어요.', 'OUTFIT_NOT_FOUND')
     }
 
     const currentWeek = await plannerRepository.findWeek(userId, weekStartsOn)
@@ -289,6 +294,7 @@ export const plannerService = {
       plannerWeekId: week.id,
       date,
       outfitId: outfit.id,
+      activeItemsOnly: input.activeItemsOnly ?? false,
       title: input.title?.trim() || outfit.name,
       occasion: input.occasion?.trim() || null,
       weatherSummary: input.weatherSummary?.trim() || null,
@@ -314,9 +320,10 @@ export const plannerService = {
     const outfit = await outfitService.preparePlannerOutfit(userId, {
       itemIds: input.itemIds,
       previewImage: input.previewImage,
-      name: input.recommendationName ?? previousOutfit?.name,
-      style: input.recommendationStyle ?? previousOutfit?.style,
-      source: input.previewImage || input.recommendationStyle ? 'ai' : previousOutfit?.source,
+      name: input.name ?? input.recommendationName ?? previousOutfit?.name,
+      style: input.style ?? input.recommendationStyle ?? previousOutfit?.style,
+      source: input.previewImage || input.recommendationStyle ? 'ai'
+        : input.name != null || input.style != null ? 'manual' : previousOutfit?.source,
     })
     const week =
       currentWeek ?? (await plannerRepository.upsertWeek(userId, weekStartsOn))
@@ -360,7 +367,7 @@ export const plannerService = {
     const week = await plannerRepository.findWeek(userId, source.weekStartsOn)
     if (!week) {
       throw new ServiceError(
-        '옮길 플래너를 찾을 수 없습니다.',
+        '옮길 플래너를 찾을 수 없어요.',
         'PLANNER_WEEK_NOT_FOUND',
       )
     }
@@ -370,7 +377,7 @@ export const plannerService = {
     )
     if (!sourceEntry?.outfitId) {
       throw new ServiceError(
-        '옮길 코디가 없습니다.',
+        '옮길 코디가 없어요.',
         'PLANNER_OUTFIT_NOT_FOUND',
       )
     }

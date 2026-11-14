@@ -67,13 +67,13 @@ async function requireOutfitWardrobeItems(userId: string, itemIds: string[]) {
 
   const wardrobeItems = await wardrobeRepository.findManyOwnedByIds(userId, itemIds)
   if (wardrobeItems.length !== itemIds.length || wardrobeItems.some((item) => !item.category)) {
-    throw new ServiceError('분류가 완료된 내 옷장 아이템만 코디에 넣을 수 있습니다.', 'INVALID_OUTFIT_ITEMS')
+    throw new ServiceError('분류가 완료된 내 옷장 아이템만 코디에 넣을 수 있어요.', 'INVALID_OUTFIT_ITEMS')
   }
   if (!hasMinimumOutfitItems(wardrobeItems)) {
     throw new ServiceError('원피스 한 벌 또는 서로 다른 옷을 두 개 이상 선택해주세요.', 'INVALID_OUTFIT_ITEMS')
   }
   if (!hasCompleteOutfitBase(wardrobeItems.map((item) => item.category!))) {
-    throw new ServiceError('상의나 아우터와 하의를 함께 선택해주세요. 원피스는 한 벌만 골라도 됩니다.', 'INCOMPLETE_OUTFIT_ITEMS')
+    throw new ServiceError('상의나 아우터와 하의를 함께 선택해주세요. 원피스는 한 벌만 골라도 돼요.', 'INCOMPLETE_OUTFIT_ITEMS')
   }
   return wardrobeItems
 }
@@ -81,7 +81,7 @@ async function requireOutfitWardrobeItems(userId: string, itemIds: string[]) {
 async function requireOutfit(userId: string, outfitId: string) {
   const outfit = await outfitRepository.findById(userId, outfitId)
   if (!outfit) {
-    throw new ServiceError('코디를 찾을 수 없습니다.', 'OUTFIT_NOT_FOUND')
+    throw new ServiceError('코디를 찾을 수 없어요.', 'OUTFIT_NOT_FOUND')
   }
   return outfit
 }
@@ -119,7 +119,7 @@ async function addOutfitPreview(
   const model = previewImage.model.trim()
   if (!model) {
     throw new ServiceError(
-      'AI 이미지 생성 모델 정보가 없습니다.',
+      'AI 룩북 생성 모델 정보가 없어요.',
       'INVALID_GENERATED_IMAGE',
     )
   }
@@ -185,7 +185,7 @@ export const outfitService = {
     const duplicate = await findSavedDuplicate(userId, itemIds)
     if (duplicate) {
       throw new ServiceError(
-        `같은 옷 조합이 이미 '${duplicate.name}' 코디로 저장되어 있습니다.`,
+        `같은 옷 조합이 이미 '${duplicate.name}' 코디로 저장되어 있어요.`,
         'DUPLICATE_OUTFIT',
       )
     }
@@ -193,7 +193,7 @@ export const outfitService = {
     const itemById = new Map(wardrobeItems.map((item) => [item.id, item]))
     if (input.previewImage && input.previewImageAssetId) {
       throw new ServiceError(
-        'AI 이미지는 한 가지 방식으로만 저장할 수 있습니다.',
+        'AI 룩북은 한 가지 방식으로만 저장할 수 있어요.',
         'INVALID_GENERATED_IMAGE',
       )
     }
@@ -201,7 +201,7 @@ export const outfitService = {
     const model = input.previewImage?.model.trim()
     if (input.previewImage && !model) {
       throw new ServiceError(
-        'AI 이미지 생성 모델 정보가 없습니다.',
+        'AI 룩북 생성 모델 정보가 없어요.',
         'INVALID_GENERATED_IMAGE',
       )
     }
@@ -223,7 +223,7 @@ export const outfitService = {
         )
       ) {
         throw new ServiceError(
-          '선택한 옷과 AI 이미지의 옷 구성이 일치하지 않습니다.',
+          '선택한 옷과 AI 룩북의 옷 구성이 일치하지 않아요.',
           'INVALID_GENERATED_IMAGE',
         )
       }
@@ -268,7 +268,7 @@ export const outfitService = {
     const model = input.previewImage?.model.trim()
     if (input.previewImage && !model) {
       throw new ServiceError(
-        'AI 이미지 생성 모델 정보가 없습니다.',
+        'AI 룩북 생성 모델 정보가 없어요.',
         'INVALID_GENERATED_IMAGE',
       )
     }
@@ -337,7 +337,7 @@ export const outfitService = {
     const model = previewImage?.model.trim()
     if (previewImage && !model) {
       throw new ServiceError(
-        'AI 이미지 생성 모델 정보가 없습니다.',
+        'AI 룩북 생성 모델 정보가 없어요.',
         'INVALID_GENERATED_IMAGE',
       )
     }
@@ -377,7 +377,7 @@ export const outfitService = {
     )
     if (duplicate) {
       throw new ServiceError(
-        `같은 옷 조합이 이미 '${duplicate.name}' 코디로 저장되어 있습니다.`,
+        `같은 옷 조합이 이미 '${duplicate.name}' 코디로 저장되어 있어요.`,
         'DUPLICATE_OUTFIT',
       )
     }
@@ -391,7 +391,7 @@ export const outfitService = {
     const model = input.previewImage?.model.trim()
     if (input.previewImage && !model) {
       throw new ServiceError(
-        'AI 이미지 생성 모델 정보가 없습니다.',
+        'AI 룩북 생성 모델 정보가 없어요.',
         'INVALID_GENERATED_IMAGE',
       )
     }

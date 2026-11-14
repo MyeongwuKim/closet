@@ -125,11 +125,11 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
         occasion,
       })
     } catch (error) {
-      pushToast(error instanceof Error ? error.message : '플래너를 저장하지 못했습니다.', 'error')
+      pushToast(error instanceof Error ? error.message : '플래너를 저장하지 못했어요.', 'error')
       return
     }
 
-    pushToast(`${formattedDay ?? `${activeEntry.dayLabel}요일`} 코디를 설정했습니다.`, 'success')
+    pushToast(`${formattedDay ?? `${activeEntry.dayLabel}요일`} 코디를 설정했어요.`, 'success')
     if (dayEntry) {
       onAssigned?.()
       onClose()
@@ -146,7 +146,7 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
         })
       } catch (error) {
         pushToast(
-          error instanceof Error ? error.message : '플래너를 비우지 못했습니다.',
+          error instanceof Error ? error.message : '플래너를 비우지 못했어요.',
           'error',
         )
         return
@@ -180,9 +180,9 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
             <ChevronLeft size={25} />
           </button>
           <div>
-            <h1 className="text-lg font-black">{dialogTitle}</h1>
+            <h1 className="text-lg font-semibold">{dialogTitle}</h1>
             <p className="text-xs text-muted">
-              {dayEntry ? '코디북에 저장한 코디를 골라주세요.' : '요일을 고른 뒤 코디북의 코디를 배치하세요.'}
+              {dayEntry ? '코디북에 저장한 코디를 골라주세요.' : '요일을 고른 뒤 코디북의 코디를 배치해주세요.'}
             </p>
           </div>
         </div>
@@ -206,7 +206,7 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
 
           <div className={`flex items-center justify-between gap-3 ${dayEntry ? '' : 'mt-6'}`}>
             <div>
-              <h2 className="text-xl font-black">
+              <h2 className="text-xl font-semibold">
                 {formattedDay ? `${formattedDay}에 넣을 코디` : `${activeEntry?.dayLabel ?? ''}요일에 입을 코디`}
               </h2>
               <p className="mt-1 text-sm text-muted">
@@ -245,14 +245,14 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
           {isWearConfirmed ? (
             <div className="mt-5 rounded-3xl border border-line bg-surface p-5">
               <h3 className="font-bold text-ink">착용 완료</h3>
-              <p className="mt-1 text-sm text-muted">코디를 바꾸거나 비우려면 날짜 상세에서 먼저 착용을 취소해 주세요.</p>
+              <p className="mt-1 text-sm text-muted">코디를 바꾸거나 비우려면 날짜 상세에서 먼저 착용을 취소해주세요.</p>
             </div>
           ) : outfits.length === 0 ? (
             <div className="mt-5 rounded-3xl border border-dashed border-line bg-surface p-8 text-center">
               <span className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-sage">
                 <Images size={22} />
               </span>
-              <h3 className="mt-4 font-black">
+              <h3 className="mt-4 font-semibold">
                 먼저 코디북에 코디를 저장해주세요
               </h3>
               <p className="mt-2 text-sm text-muted">
@@ -281,7 +281,7 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
 
               {visibleOutfits.length === 0 ? (
                 <div className="mt-5 rounded-3xl border border-dashed border-line bg-surface p-8 text-center">
-                  <h3 className="font-black">
+                  <h3 className="font-semibold">
                     {searchQuery.trim()
                       ? '검색 결과가 없어요'
                       : activeSeason
@@ -326,7 +326,7 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
                           />
                           {outfit.previewImageUrl && (
                             <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-black/65 px-2.5 py-1 text-[9px] font-bold text-white backdrop-blur">
-                              <Sparkles size={10} /> AI 룩
+                              <Sparkles size={10} /> AI 룩북
                             </span>
                           )}
                         </div>

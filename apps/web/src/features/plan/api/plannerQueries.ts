@@ -89,6 +89,8 @@ export interface SetPlannerEntryVariables {
   weekStartsOn: string
   date: string
   outfitId: string
+  /** 온도별 기록을 새 날짜에 담을 때 현재 옷장에 있는 옷만 허용한다. */
+  activeItemsOnly?: boolean
   title?: string
   occasion?: string
 }
@@ -97,6 +99,8 @@ export interface SetDirectPlannerEntryVariables {
   weekStartsOn: string
   date: string
   itemIds: string[]
+  name?: string
+  style?: string
   previewImage?: OutfitPreviewImageInput
   recommendationName?: string
   recommendationStyle?: string

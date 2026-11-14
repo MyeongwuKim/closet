@@ -18,7 +18,7 @@ export const authResolvers = {
       } catch (error) {
         throw toGraphQLError(
           error,
-          '테스트 로그인에 실패했습니다.',
+          '테스트 로그인에 실패했어요.',
           'TEST_LOGIN_FAILED',
         )
       }
@@ -32,7 +32,7 @@ export const authResolvers = {
         await authService.logout(context.accessToken)
         return true
       } catch (error) {
-        throw toGraphQLError(error, '로그아웃하지 못했습니다.', 'LOGOUT_FAILED')
+        throw toGraphQLError(error, '로그아웃하지 못했어요.', 'LOGOUT_FAILED')
       }
     },
   },

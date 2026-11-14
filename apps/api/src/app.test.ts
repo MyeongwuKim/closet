@@ -98,7 +98,7 @@ test('기준 아이템 검증 실패를 GraphQL 오류 코드와 함께 전달�
     assert.equal(userId, 'viewer')
     assert.equal(input.baseItemId, 'invalid-item')
     throw new ServiceError(
-      '분류가 완료된 내 옷장 아이템만 추천 기준으로 사용할 수 있습니다.',
+      '분류가 완료된 내 옷장 아이템만 추천 기준으로 사용할 수 있어요.',
       'INVALID_OUTFIT_RECOMMENDATION',
     )
   })

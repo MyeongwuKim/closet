@@ -89,7 +89,7 @@ test('허벅지둘레는 선택값이며 허용 범위 밖의 수치는 저장 �
   for (const thighCircumferenceCm of [19.9, 150.1, Number.NaN, Number.POSITIVE_INFINITY]) {
     await assert.rejects(userService.updateStyleProfile('viewer', { ...input, thighCircumferenceCm }), {
       code: 'INVALID_STYLE_PROFILE',
-      message: '허벅지둘레 값은 20에서 150 사이여야 합니다.',
+      message: '허벅지둘레 값은 20에서 150 사이여야 해요.',
     })
   }
   assert.equal(update.mock.callCount(), 0)

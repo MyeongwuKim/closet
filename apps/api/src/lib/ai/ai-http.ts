@@ -36,7 +36,7 @@ export async function requestAiJson<T = unknown>(
         durationMs: Date.now() - startedAt, usage: payload?.usage,
       })
       if (response.ok) {
-        if (!payload || (payload.status !== undefined && payload.status !== 'completed')) throw new ServiceError('AI 응답을 확인하지 못했어요. 다시 시도해 주세요.', 'AI_INVALID_RESPONSE')
+        if (!payload || (payload.status !== undefined && payload.status !== 'completed')) throw new ServiceError('AI 응답을 확인하지 못했어요. 다시 시도해주세요.', 'AI_INVALID_RESPONSE')
         return payload as T
       }
       const quotaError = ['insufficient_quota', 'billing_hard_limit_reached', 'usage_limit_reached'].includes(payload?.error?.code ?? '')
@@ -53,7 +53,7 @@ export async function requestAiJson<T = unknown>(
       )
     }
   } catch (error) {
-    if (signal.aborted) throw new ServiceError('AI 처리 시간이 초과됐어요. 잠시 후 다시 시도해 주세요.', 'AI_TIMEOUT')
+    if (signal.aborted) throw new ServiceError('AI 처리 시간이 초과됐어요. 잠시 후 다시 시도해주세요.', 'AI_TIMEOUT')
     throw error
   }
   throw new ServiceError('AI 요청을 완료하지 못했어요.', 'AI_UPSTREAM_ERROR')

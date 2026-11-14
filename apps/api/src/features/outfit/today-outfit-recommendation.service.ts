@@ -85,7 +85,7 @@ const colorSchemeLabels: Record<TodayOutfitColorScheme, string> = {
 function parseColorScheme(value: string | null | undefined): TodayOutfitColorScheme {
   if (value === null || value === undefined) return 'auto'
   if (Object.hasOwn(colorSchemeLabels, value)) return value as TodayOutfitColorScheme
-  throw new ServiceError('올바른 색감 선택이 필요합니다.', 'INVALID_COLOR_SCHEME')
+  throw new ServiceError('올바른 색감 선택이 필요해요.', 'INVALID_COLOR_SCHEME')
 }
 
 const categoryLabels: Record<
@@ -483,7 +483,7 @@ function normalizeWeatherSnapshot(
     weather.source !== 'open-meteo'
   ) {
     throw new ServiceError(
-      '올바른 날씨 정보가 필요합니다.',
+      '올바른 날씨 정보가 필요해요.',
       'INVALID_WEATHER_SNAPSHOT',
     )
   }
@@ -518,7 +518,7 @@ export const todayOutfitRecommendationService = {
       ? await getThermalRecommendationContext(userId, input.date, weather.meanTemperatureC)
       : null
     if (input.thermalContextRevision != null && input.thermalContextRevision !== thermalContext?.revision) {
-      throw new ServiceError('체감 기록이 바뀌었습니다. 최신 기록으로 다시 추천해주세요.', 'THERMAL_CONTEXT_CHANGED')
+      throw new ServiceError('체감 기록이 바뀌었어요. 최신 기록으로 다시 추천해주세요.', 'THERMAL_CONTEXT_CHANGED')
     }
     const variation = Math.max(0, Math.min(Math.trunc(input.variation ?? 0), 20))
     const season = input.season
@@ -535,7 +535,7 @@ export const todayOutfitRecommendationService = {
     )
     if (baseItemId !== undefined && !baseItem) {
       throw new ServiceError(
-        '분류가 완료된 내 옷장 아이템만 추천 기준으로 사용할 수 있습니다.',
+        '분류가 완료된 내 옷장 아이템만 추천 기준으로 사용할 수 있어요.',
         'INVALID_OUTFIT_RECOMMENDATION',
       )
     }

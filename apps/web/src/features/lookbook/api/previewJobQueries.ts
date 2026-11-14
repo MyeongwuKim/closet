@@ -90,7 +90,7 @@ export function useGenerateOutfitPreviewJobMutation(inputScope?: PreviewInput) {
   const mutation = useMutation({
     mutationKey: ['outfit-preview-generation', ownerId],
     mutationFn: async (input: PreviewInput) => {
-      if (!me.data) throw new Error('계정 정보를 확인한 뒤 다시 시도해 주세요.')
+      if (!me.data) throw new Error('계정 정보를 확인한 뒤 다시 시도해주세요.')
       const viewerId = me.data.id
       const key = previewRequestKey(viewerId, input.selectedItemIds, input.style)
       const existingRequest = inFlightPreviews.get(key)
@@ -143,7 +143,7 @@ export function useGenerateOutfitPreviewJobMutation(inputScope?: PreviewInput) {
   const resumeMutation = useMutation({
     mutationKey: ['outfit-preview-generation', ownerId],
     mutationFn: async (input: PreviewInput & { knownJobId?: string }) => {
-      if (!ownerId) throw new Error('계정 정보를 확인한 뒤 다시 시도해 주세요.')
+      if (!ownerId) throw new Error('계정 정보를 확인한 뒤 다시 시도해주세요.')
       const key = previewRequestKey(ownerId, input.selectedItemIds, input.style)
       const assertActive = () => {
         if (client.getQueryData<{ id: string }>(queryKeys.me)?.id !== ownerId) throw new Error('계정이 바뀌었어요. 현재 계정에서 다시 확인해주세요.')

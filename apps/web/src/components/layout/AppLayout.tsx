@@ -19,6 +19,7 @@ export function AppLayout() {
     '/plan/:date/item/:itemId',
     '/closet/:itemId',
     '/lookbook/new',
+    '/wear-history',
     '/settings/style-profile',
     '/settings/statistics',
     '/settings/wear-reminder',

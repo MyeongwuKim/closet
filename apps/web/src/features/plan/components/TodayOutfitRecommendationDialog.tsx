@@ -282,7 +282,7 @@ export function TodayOutfitRecommendationDialog({
               <ChevronLeft size={25} strokeWidth={2.2} />
             </button>
             <div className="min-w-0 flex-1">
-              <h1 className="flex min-w-0 items-center gap-1.5 text-base font-black tracking-[-0.03em]">
+              <h1 className="flex min-w-0 items-center gap-1.5 text-base font-semibold tracking-[-0.03em]">
                 <Sparkles className="shrink-0 text-accent" size={18} />
                 <span className="min-w-0 flex-1 truncate" title={dialogTitle}>
                   {dialogTitle}
@@ -330,8 +330,8 @@ export function TodayOutfitRecommendationDialog({
             <div className="grid grid-cols-2 gap-2">
               <AiCreditActionButton
                 requiresCredit={!hasRestorablePreview && !(preview.status === 'success' && preview.imageUrl) && !generateOutfitPreview.willResume}
-                label={hasRestorablePreview || (preview.status === 'success' && preview.imageUrl) ? 'AI 룩북 보기' : 'AI 착장 이미지 만들기'}
-                adLabel="광고 보고 AI 이미지 만들기"
+                label={hasRestorablePreview || (preview.status === 'success' && preview.imageUrl) ? 'AI 룩북 보기' : 'AI 룩북 만들기'}
+                adLabel="광고 보고 AI 룩북 만들기"
                 onClick={openOrGeneratePreview}
                 disabled={Boolean(completionMessage) || (!hasRestorablePreview && !(preview.status === 'success' && preview.imageUrl) && (generateOutfitPreview.isPending || generateOutfitPreview.isRestoringCompleted))}
                 className="flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-line bg-canvas px-3 py-3.5 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40"
@@ -358,7 +358,7 @@ export function TodayOutfitRecommendationDialog({
                   <CalendarPlus className="shrink-0" size={18} />
                 )}
                 <span className="min-w-0 break-keep text-balance">{isSaving
-                  ? '일정에 담는 중...'
+                  ? '일정에 담는 중…'
                   : applyLabel}</span>
               </button>
               <RecommendationLookbookSave

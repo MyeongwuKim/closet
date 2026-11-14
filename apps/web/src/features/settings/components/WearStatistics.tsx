@@ -20,13 +20,13 @@ function StatisticsOutfitDetail({ id, onClose }: { id: string; onClose: () => vo
       <section className="fixed inset-0 z-[90] flex h-dvh flex-col bg-canvas" role="dialog" aria-modal="true" aria-label="코디 상세">
         <header className="flex min-h-16 shrink-0 items-center gap-2 border-b border-line px-3">
           <button type="button" onClick={onClose} autoFocus aria-label="통계로 돌아가기" className="flex size-10 items-center justify-center rounded-full hover:bg-surface"><ChevronLeft size={24} /></button>
-          <h2 className="font-black">코디 상세</h2>
+          <h2 className="font-semibold">코디 상세</h2>
         </header>
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
           {query.isError ? <>
-            <p role="alert" className="text-sm text-muted">코디를 불러오지 못했어요. 삭제된 코디이거나 연결에 문제가 있을 수 있어요.</p>
+            <p role="alert" className="text-sm text-muted">코디를 불러오지 못했어요. 코디가 삭제됐거나 연결에 문제가 있을 수 있어요.</p>
             <button type="button" onClick={() => void query.refetch()} className="rounded-full bg-ink px-5 py-2 text-sm font-bold text-white">다시 시도</button>
-          </> : <p role="status" className="text-sm text-muted">코디를 불러오는 중...</p>}
+          </> : <p role="status" className="text-sm text-muted">코디를 불러오는 중…</p>}
         </div>
       </section>
     )
@@ -44,7 +44,7 @@ export function WearStatistics({ data }: { data: WardrobeStatistics }) {
 
   return (
     <section className="rounded-3xl border border-line bg-surface p-5 sm:p-6">
-      <h2 className="text-base font-black">가장 자주 입은 {activeTab === 'item' ? '옷' : '코디'}</h2>
+      <h2 className="text-base font-semibold">가장 자주 입은 {activeTab === 'item' ? '옷' : '코디'}</h2>
       <div role="tablist" aria-label="착용 순위 기준" className="mt-4 grid grid-cols-2 gap-1 rounded-xl bg-canvas p-1">
         {wearTabs.map((tab, index) => (
           <button

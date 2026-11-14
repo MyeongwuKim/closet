@@ -101,7 +101,7 @@ export function createCloudflareOrphanCleanupService(dependencies: Dependencies)
       while (pagesRead < maxPages) {
         const page = await dependencies.listImages(continuationToken)
         if (!page || !Array.isArray(page.images) || page.images.length > 1000 || (page.continuationToken !== undefined && (typeof page.continuationToken !== 'string' || !page.continuationToken || page.continuationToken.length > 32))) {
-          throw new ServiceError('Cloudflare Images 목록 응답을 확인할 수 없습니다.', 'CLOUDFLARE_INVALID_PAGE')
+          throw new ServiceError('Cloudflare Images 목록 응답을 확인할 수 없어요.', 'CLOUDFLARE_INVALID_PAGE')
         }
         pagesRead++
         for (const value of page.images) {

@@ -4,7 +4,7 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '../../lib/prisma.js'
 import { plannerRepository } from './planner.repository.js'
 
-function installTransaction(t: TestContext, lockCount = 1) {
+function installTransaction(t: TestContext, lockCount = 1, archived = false) {
   const writes: string[] = []
   const entryWrites: Array<Record<string, any>> = []
   const source = { id: 'outfit', userId: 'viewer', name: '저장 코디', style: 'casual', source: 'ai', seasons: ['spring'], note: null, plannerOnly: false,
@@ -14,7 +14,7 @@ function installTransaction(t: TestContext, lockCount = 1) {
   const transaction = {
     aiLease: { upsert: async () => ({}) },
     wardrobeItem: {
-      findFirst: async ({ where }: { where: { id: string } }) => ({ id: where.id, archivedAt: null, updatedAt: new Date(0), displayImageAssetId: null, originalImageAssetId: null }),
+      findFirst: async ({ where }: { where: { id: string; OR?: unknown } }) => archived && where.OR ? null : ({ id: where.id, archivedAt: archived ? new Date(0) : null, updatedAt: new Date(0), displayImageAssetId: null, originalImageAssetId: null }),
     },
     plannerWeek: { findUnique: async (input: { select?: unknown }) => input.select ? { userId: 'viewer' } : { id: 'week', entries: [] } },
     outfit: { findFirst: async (input: { where: { userId: string } }) => { assert.equal(input.where.userId, 'viewer'); return source },
@@ -51,6 +51,21 @@ test('이미 삭제 claim된 이미지에는 플래너 참조를 새로 만들�
   const { writes } = installTransaction(t, 0)
   await assert.rejects(plannerRepository.setEntry({ plannerWeekId: 'week', date: new Date('2026-11-04'), outfitId: 'outfit' }))
   assert.deepEqual(writes, ['lock-source', 'lock-image'])
+})
+
+test('착용 기록을 다시 담을 때 잠금 안에서 삭제된 옷을 거절하고 새 코디·날짜를 만들지 않는다', async t => {
+  const { writes, entryWrites } = installTransaction(t, 1, true)
+  await assert.rejects(plannerRepository.setEntry({ plannerWeekId: 'week', date: new Date('2026-11-14'), outfitId: 'outfit', activeItemsOnly: true }), { code: 'INVALID_OUTFIT_ITEMS' })
+  assert.deepEqual(writes, ['lock-source'])
+  assert.equal(entryWrites.length, 0)
+})
+
+test('활성 옷으로 다시 담으면 기존 사진을 잠그고 독립 복사본을 만들며 검사 옵션은 DB에 쓰지 않는다', async t => {
+  const { entryWrites } = installTransaction(t)
+  await plannerRepository.setEntry({ plannerWeekId: 'week', date: new Date('2026-11-14'), outfitId: 'outfit', activeItemsOnly: true })
+  assert.equal(entryWrites[0].create.outfitId, 'date-snapshot')
+  assert.equal(entryWrites[0].create.wornAt, null)
+  assert.equal(entryWrites[0].create.activeItemsOnly, undefined)
 })
 
 test('일정을 이동할 때 공유 이미지를 한 번 잠근 뒤 양쪽 배정을 저장한다', async (t) => {

@@ -24,13 +24,19 @@ export const savedOutfitWhere = {
 export interface WardrobePageInput extends PageInput {
   category?: ClothingCategory | null
   subcategory?: string | null
-  /** 선택한 브랜드명. null·빈 값은 전체 브랜드이며 다른 목록 조건과 함께 적용한다. */
+  /** 기존 단일 브랜드 입력. 복수 brandNames와 함께 전달하면 합친다. */
   brandName?: string | null
   /** true이면 브랜드가 없는 옷만 조회하며 brandName보다 우선한다. */
   unbrandedOnly?: boolean | null
+  /** 같은 항목의 여러 선택은 OR로 묶는다. 기존 단일 브랜드명과 함께 전달하면 합친다. */
+  brandNames?: string[] | null
+  /** 선택한 브랜드들과 브랜드 미지정 옷을 함께 조회한다. unbrandedOnly의 단독 조회 동작은 유지한다. */
+  includeUnbranded?: boolean | null
   season?: Season | null
   color?: string | null
+  colors?: string[] | null
   tag?: string | null
+  tags?: string[] | null
   search?: string | null
 }
 export interface OutfitPageInput extends PageInput {
@@ -50,21 +56,40 @@ function categoryWhere(category: ClothingCategory): Prisma.WardrobeItemWhereInpu
   return { OR: [{ category }, { additionalCategories: { has: category } }] }
 }
 
-/** 사용자의 보관 중인 옷에 목록 조건을 함께 적용한다. 브랜드는 공백·유니코드를 정리한 전체 이름으로 대소문자 없이 비교하며, 페이지 조회와 개수 집계에 같은 조건을 사용한다. */
+/** 단일·복수 입력을 합치고 공백·중복을 제거한다. 브랜드는 유니코드·연속 공백도 정리한다. */
+function filterValues(single: string | null | undefined, multiple: string[] | null | undefined, isBrand = false) {
+  const values = new Map<string, string>()
+  for (const raw of [...(single ? [single] : []), ...(multiple ?? [])]) {
+    const value = isBrand ? raw.normalize('NFKC').replace(/\s+/g, ' ').trim() : raw.trim()
+    const key = isBrand ? normalize(value) : value
+    if (value && !values.has(key)) values.set(key, value)
+  }
+  return [...values.values()]
+}
+
+/** 보관 중인 내 옷에 항목 간 AND·같은 항목의 OR를 적용한다. 기존 단일 필터와 미지정 단독 조건을 유지하며 조회·개수 집계가 같은 조건을 사용한다. */
 export function wardrobePageWhere(userId: string, input: WardrobePageInput, tags: string[] = []): Prisma.WardrobeItemWhereInput {
-  const brandName = input.brandName?.normalize('NFKC').replace(/\s+/g, ' ').trim()
+  const brands = filterValues(input.brandName, input.brandNames, true)
+  const colors = filterValues(input.color, input.colors)
+  const selectedTags = new Set(filterValues(input.tag, input.tags).map(normalize))
+  const missingBrand: Prisma.WardrobeItemWhereInput[] = [
+    { brandName: null }, { brandName: { isSet: false } }, { brandName: '' },
+  ]
+  const brandOptions: Prisma.WardrobeItemWhereInput[] = brands.map((brandName) => ({ brandName: { equals: brandName, mode: 'insensitive' } }))
+  if (input.includeUnbranded) brandOptions.push(...missingBrand)
+  const brandWhere = input.unbrandedOnly ? { OR: missingBrand }
+    : brandOptions.length === 1 ? brandOptions[0]
+      : brandOptions.length > 1 ? { OR: brandOptions } : null
   return {
     userId,
     AND: [
       activeWardrobeWhere,
       ...(input.category ? [categoryWhere(input.category)] : []),
       ...(input.subcategory ? [{ subcategory: input.subcategory }] : []),
-      ...(input.unbrandedOnly ? [{ OR: [
-        { brandName: null }, { brandName: { isSet: false } }, { brandName: '' },
-      ] }] : brandName ? [{ brandName: { equals: brandName, mode: 'insensitive' as const } }] : []),
+      ...(brandWhere ? [brandWhere] : []),
       ...(input.season ? [{ seasons: { has: input.season } }] : []),
-      ...(input.color ? [{ colorName: input.color }] : []),
-      ...(input.tag ? [{ tags: { hasSome: tags.filter((tag) => normalize(tag) === normalize(input.tag!)) } }] : []),
+      ...(colors.length ? [{ colorName: colors.length === 1 ? colors[0] : { in: colors } }] : []),
+      ...(selectedTags.size ? [{ tags: { hasSome: tags.filter((tag) => selectedTags.has(normalize(tag))) } }] : []),
       ...tokens(input.search).map((term) => ({ OR: [
         { name: contains(term) }, { subcategory: contains(term) },
         { brandName: contains(term) },
@@ -81,7 +106,7 @@ export function wardrobePageWhere(userId: string, input: WardrobePageInput, tags
 export function outfitPageWhere(userId: string, input: OutfitPageInput): Prisma.OutfitWhereInput {
   const itemIds = [...new Set(input.wardrobeItemIds ?? [])]
   if (itemIds.some((id) => !/^[a-f\d]{24}$/i.test(id))) {
-    throw new ServiceError('옷 아이템 ID가 올바르지 않습니다.', 'INVALID_OUTFIT_FILTER')
+    throw new ServiceError('옷 아이템 ID가 올바르지 않아요.', 'INVALID_OUTFIT_FILTER')
   }
   return {
     userId,
@@ -113,7 +138,7 @@ function colorOptions(items: Array<{ colorName: string | null; colorHex: string 
 export const catalogService = {
   async wardrobePage(userId: string, input: WardrobePageInput = {}) {
     const page = readPageInput(input)
-    const tags = input.search || input.tag ? (await prisma.wardrobeItem.findMany({
+    const tags = input.search || input.tag || input.tags?.length ? (await prisma.wardrobeItem.findMany({
       where: { userId, ...activeWardrobeWhere }, select: { tags: true },
     })).flatMap((item) => item.tags) : []
     const where = wardrobePageWhere(userId, input, tags)

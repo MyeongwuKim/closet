@@ -338,7 +338,7 @@ export async function classifyWardrobeImageWithOpenAi(
   const apiKey = process.env.OPENAI_API_KEY?.trim()
   if (!apiKey) {
     throw new ServiceError(
-      'AI 이미지 분석 설정을 확인해주세요.',
+      '사진 분석을 준비하지 못했어요. 잠시 후 다시 시도해주세요.',
       'AI_CONFIGURATION_ERROR',
     )
   }

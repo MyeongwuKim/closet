@@ -9,7 +9,12 @@ import { useLookbookStore } from '../features/lookbook/stores/useLookbookStore'
 
 export interface CatalogPage<T> { items: T[]; totalCount: number; hasNextPage: boolean; nextCursor: string | null }
 interface CommonFilters { season?: Season | null; color?: string | null; search?: string; sort?: 'latest' | 'oldest' }
-export interface WardrobeFilters extends CommonFilters { category?: ClothingCategory | null; subcategory?: string | null; brandName?: string | null; unbrandedOnly?: boolean; tag?: string | null }
+export interface WardrobeFilters extends CommonFilters {
+  category?: ClothingCategory | null; subcategory?: string | null
+  brandName?: string | null; unbrandedOnly?: boolean; tag?: string | null
+  /** 같은 항목은 OR, 다른 항목은 AND로 조회한다. 단일 필터 입력은 기존 호출부를 위해 유지한다. */
+  colors?: string[]; brandNames?: string[]; tags?: string[]; includeUnbranded?: boolean
+}
 export interface OutfitFilters extends CommonFilters { style?: string; wardrobeItemIds?: string[] }
 const pageFields = 'totalCount hasNextPage nextCursor'
 

@@ -4,12 +4,13 @@ import { useDeleteWardrobeBrandMutation } from '../api/wardrobeQueries'
 import { getWardrobeBrandKey } from '../utils/wardrobeBrands'
 
 interface WardrobeBrandManagementOptions {
-  selectedBrand: string | null
-  onSelectedBrandDeleted: () => void
+  selectedBrand?: string | null
+  selectedBrands?: string[]
+  onSelectedBrandDeleted: (brandName: string) => void
 }
 
-/** 브랜드 창의 관리 모드와 삭제 확인 대상을 관리한다. 선택 중인 브랜드를 삭제하면 부모에 필터 변경을 맡기고, 실패하면 확인 대상을 유지해 재시도할 수 있게 한다. */
-export function useWardrobeBrandManagement({ selectedBrand, onSelectedBrandDeleted }: WardrobeBrandManagementOptions) {
+/** 브랜드의 관리 모드와 삭제 확인 대상을 관리한다. 단일 또는 복수 선택 중인 브랜드를 삭제하면 그 이름을 부모에 전달하고, 실패하면 확인 대상을 유지해 재시도할 수 있게 한다. */
+export function useWardrobeBrandManagement({ selectedBrand, selectedBrands, onSelectedBrandDeleted }: WardrobeBrandManagementOptions) {
   const [isManaging, setIsManaging] = useState(false)
   /** 확인창에 표시할 브랜드명. null이면 삭제를 요청하지 않은 상태다. */
   const [brandToDelete, setBrandToDelete] = useState<string | null>(null)
@@ -38,8 +39,8 @@ export function useWardrobeBrandManagement({ selectedBrand, onSelectedBrandDelet
     if (!brandToDelete || deleteMutation.isPending) return
     try {
       await deleteMutation.mutateAsync(brandToDelete)
-      if (selectedBrand && getWardrobeBrandKey(selectedBrand) === getWardrobeBrandKey(brandToDelete)) {
-        onSelectedBrandDeleted()
+      if ((selectedBrands ?? (selectedBrand ? [selectedBrand] : [])).some((brand) => getWardrobeBrandKey(brand) === getWardrobeBrandKey(brandToDelete))) {
+        onSelectedBrandDeleted(brandToDelete)
       }
       setBrandToDelete(null)
       pushToast('브랜드를 삭제했어요. 연결된 옷은 브랜드 미지정으로 바뀌었어요.', 'success')

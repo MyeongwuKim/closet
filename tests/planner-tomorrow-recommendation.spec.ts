@@ -192,7 +192,7 @@ test('내일 예보를 위한 위치 권한이 없으면 날씨 없는 추천을
   await tomorrowForecast.getByRole('button', { name: '내일 코디 추천', exact: true }).click()
 
   const sheet = page.getByRole('dialog', { name: '내일의 AI 코디 추천', exact: true })
-  await expect(sheet.getByRole('alert')).toHaveText('기기 설정에서 위치 권한을 허용해 주세요.')
+  await expect(sheet.getByRole('alert')).toHaveText('기기 설정에서 위치 권한을 허용해주세요.')
   await expect(sheet.getByRole('button', { name: '다시 시도', exact: true })).toBeVisible()
   await expect(sheet.getByRole('button', { name: '조건 바꾸기', exact: true })).toBeVisible()
   expect(requests.weatherDates).toEqual([])

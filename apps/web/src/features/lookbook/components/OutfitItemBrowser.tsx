@@ -96,7 +96,7 @@ export function OutfitItemBrowser({
           <span className="text-[10px] font-black tracking-[0.08em] text-accent">
             내 옷장
           </span>
-          <h3 id="target-closet-title" className="text-sm font-black">
+          <h3 id="target-closet-title" className="text-sm font-semibold">
             {categoryLabel} {replacingItem ? '바꾸기' : '목록'}
           </h3>
         </div>

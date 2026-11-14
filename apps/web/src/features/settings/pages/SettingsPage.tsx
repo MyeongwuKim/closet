@@ -10,6 +10,7 @@
 import { useState } from 'react'
 import {
   ChevronLeft,
+  ChevronDown,
   ChevronRight,
   LogOut,
   Ruler,
@@ -86,6 +87,7 @@ interface StyleProfileFormProps {
   initialProfile: StyleProfile
 }
 
+/** 필수 성별·체형과 선택 치수를 구분한다. 접힌 치수도 유지해 저장하고, 유효하지 않은 치수는 펼쳐서 고치게 한다. */
 function StyleProfileForm({ initialProfile }: StyleProfileFormProps) {
   const pushToast = useUiStore((state) => state.pushToast)
   const updateStyleProfile = useUpdateStyleProfileMutation()
@@ -163,13 +165,13 @@ function StyleProfileForm({ initialProfile }: StyleProfileFormProps) {
         preferredFit,
         preferredStyles: [],
       })
-      pushToast('스타일 프로필을 저장했습니다.', 'success')
+      pushToast('스타일 프로필을 저장했어요.', 'success')
     } catch (error) {
       if (error instanceof ViewerSessionChangedError) return
       pushToast(
         error instanceof Error
           ? error.message
-          : '스타일 프로필을 저장하지 못했습니다.',
+          : '스타일 프로필을 저장하지 못했어요.',
         'error',
       )
     }
@@ -185,13 +187,13 @@ function StyleProfileForm({ initialProfile }: StyleProfileFormProps) {
           <div className="overflow-hidden rounded-3xl border border-line bg-surface">
             <div className="space-y-8 p-5 sm:p-6">
               <fieldset>
-                <legend className="text-sm font-semibold">신체 정보</legend>
+                <legend className="text-sm font-semibold">기본 정보</legend>
                 <p className="mt-1 text-xs text-muted">
                   AI 룩북에서 체형과 옷의 착용감을 표현할 때 참고해요.
                 </p>
 
                 <div className="mt-4">
-                  <p className="mb-2 text-xs font-bold text-muted">성별</p>
+                  <p className="mb-2 flex items-center gap-2 text-xs font-semibold">성별 <span className="text-accent">필수</span></p>
                   <SegmentedControl
                     ariaLabel="성별"
                     value={gender}
@@ -201,7 +203,7 @@ function StyleProfileForm({ initialProfile }: StyleProfileFormProps) {
                 </div>
 
                 <div className="mt-4">
-                  <p className="mb-2 text-xs font-bold text-muted">체형</p>
+                  <p className="mb-2 flex items-center gap-2 text-xs font-semibold">체형 <span className="text-accent">필수</span></p>
                   <SegmentedControl
                     ariaLabel="체형"
                     value={bodyBuild}
@@ -213,7 +215,7 @@ function StyleProfileForm({ initialProfile }: StyleProfileFormProps) {
                 <div className="mt-4 grid grid-cols-2 gap-3">
                   <label className="block">
                     <span className="mb-2 flex items-center gap-1.5 text-xs font-bold text-muted">
-                      <Ruler size={14} /> 키
+                      <Ruler size={14} /> 키 <span className="ml-auto font-normal">선택</span>
                     </span>
                     <span className="relative block">
                       <input
@@ -235,7 +237,7 @@ function StyleProfileForm({ initialProfile }: StyleProfileFormProps) {
 
                   <label className="block">
                     <span className="mb-2 flex items-center gap-1.5 text-xs font-bold text-muted">
-                      <Weight size={14} /> 몸무게
+                      <Weight size={14} /> 몸무게 <span className="ml-auto font-normal">선택</span>
                     </span>
                     <span className="relative block">
                       <input
@@ -256,8 +258,12 @@ function StyleProfileForm({ initialProfile }: StyleProfileFormProps) {
                   </label>
                 </div>
 
-                <div className="mt-5 border-t border-line pt-5">
-                  <p className="text-xs font-semibold">상세 신체 치수</p>
+                <details className="group mt-5 border-t border-line pt-3" onInvalidCapture={(event) => { event.currentTarget.open = true }}>
+                  <summary className="flex min-h-12 cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">
+                    <span className="flex-1"><span className="block text-sm font-semibold">상세 신체 치수 <span className="ml-1 text-xs font-normal text-muted">선택</span></span><span className="mt-1 block text-xs text-muted">{Object.values(bodyMeasurements).some(Boolean) ? `${Object.values(bodyMeasurements).filter(Boolean).length}개 치수 입력됨` : '필요할 때 입력해도 괜찮아요.'}</span></span>
+                    <ChevronDown size={18} className="shrink-0 text-muted transition-transform group-open:rotate-180" aria-hidden="true" />
+                  </summary>
+                  <p className="mt-2 text-xs leading-5 text-muted">모르는 항목은 비워두세요. 입력한 치수는 접어도 유지돼요.</p>
                   <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {detailedBodyFields.map((field) => (
                       <label className="block" key={field.key}>
@@ -288,11 +294,11 @@ function StyleProfileForm({ initialProfile }: StyleProfileFormProps) {
                       </label>
                     ))}
                   </div>
-                </div>
+                </details>
               </fieldset>
 
               <fieldset>
-                <legend className="text-sm font-semibold">룩북에서 참고할 핏</legend>
+                <legend className="text-sm font-semibold">룩북에서 참고할 핏 <span className="ml-1 text-xs font-normal text-muted">선택</span></legend>
                 <p className="mt-1 text-xs leading-5 text-muted">
                   옷 사진과 실측으로 핏을 알기 어려울 때만 참고해요. 코디 추천에는 사용하지 않아요.
                 </p>
@@ -341,7 +347,7 @@ function StyleProfileForm({ initialProfile }: StyleProfileFormProps) {
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3 text-sm font-bold text-white"
           >
             <Save size={17} />
-            {updateStyleProfile.isPending ? '저장 중...' : '프로필 저장'}
+            {updateStyleProfile.isPending ? '저장 중…' : '프로필 저장'}
           </button>
         </div>
       </div>
@@ -399,7 +405,7 @@ export function StyleProfilePage() {
           </Link>
           <PageTitle
             title="스타일 프로필"
-            description="신체 정보와 취향을 관리해보세요."
+            description="신체 정보와 선호하는 핏을 설정해요."
             compact
           />
         </div>
@@ -438,7 +444,7 @@ export function SettingsPage() {
         >
           <LogOut className="settings-logout-icon" size={22} strokeWidth={1.6} aria-hidden="true" />
           <span className="settings-logout-copy">
-            <strong>{logout.isPending ? '로그아웃 중...' : '로그아웃'}</strong>
+            <strong>{logout.isPending ? '로그아웃 중…' : '로그아웃'}</strong>
             {accountName && <span>{accountName}</span>}
           </span>
           <ChevronRight className="settings-menu-arrow" size={19} strokeWidth={1.6} aria-hidden="true" />

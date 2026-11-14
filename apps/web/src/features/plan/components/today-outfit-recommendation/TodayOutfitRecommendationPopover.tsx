@@ -166,7 +166,7 @@ export function TodayOutfitRecommendationPopover({
         <span className="mx-auto mt-2.5 h-1 w-9 shrink-0 rounded-full bg-line" aria-hidden="true" />
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-line bg-surface px-5 pt-2 pb-3">
           <div className="min-w-0">
-            <h2 className="flex items-center gap-1.5 text-sm font-black">
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold">
               <Sparkles className="text-accent" size={16} /> {mode === 'tomorrow' ? '내일 코디 추천' : 'AI 추천 코디'}
             </h2>
             <p className="mt-0.5 truncate text-[11px] text-muted">

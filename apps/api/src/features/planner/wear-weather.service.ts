@@ -6,7 +6,7 @@ import { wearWeatherRepository, type WearWeatherLocation } from './wear-weather.
 /** 허용된 위치를 약 1km 단위로 반올림해 이후 일정에 연결한다. null은 날씨 사용 해제다. */
 export async function syncWearWeatherLocation(userId: string, location: WearWeatherLocation | null) {
   if (location && (!Number.isFinite(location.latitude) || Math.abs(location.latitude) > 90 || !Number.isFinite(location.longitude) || Math.abs(location.longitude) > 180)) {
-    throw new ServiceError('올바른 날씨 지역이 필요합니다.', 'INVALID_WEATHER_LOCATION')
+    throw new ServiceError('올바른 날씨 지역이 필요해요.', 'INVALID_WEATHER_LOCATION')
   }
   const rounded = location ? { latitude: Math.round(location.latitude * 100) / 100, longitude: Math.round(location.longitude * 100) / 100 } : null
   await wearWeatherRepository.saveLocation(userId, rounded, getKoreaTodayUtc())

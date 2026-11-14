@@ -247,7 +247,7 @@ export function OutfitMatchPanel({ isWardrobeExpanded, onWardrobeExpandedChange 
       <section className="flex h-full min-h-0 w-full flex-col bg-canvas">
         <div className="shrink-0 px-5 pt-2">
           <span className="text-[10px] font-black tracking-[0.12em] text-accent">MY CLOSET</span>
-          <h2 className="mt-0.5 text-base font-black">첫 아이템을 골라주세요</h2>
+          <h2 className="mt-0.5 text-base font-semibold">첫 아이템을 골라주세요</h2>
           <p className="mt-0.5 text-[11px] text-muted">어떤 옷부터 시작해도 좋아요.</p>
         </div>
 
@@ -337,7 +337,7 @@ export function OutfitMatchPanel({ isWardrobeExpanded, onWardrobeExpandedChange 
               <span className="outfit-step-light inline-flex rounded-full px-2 py-1 text-[10px] font-black tracking-[0.1em] text-accent">
                 {lastCategoryLabel} 선택됨 · {selectedItems.length}개
               </span>
-              <h2 className="mt-1 text-base leading-6 font-black">Look에 무엇을 더할까요?</h2>
+              <h2 className="mt-1 text-base leading-6 font-semibold">코디에 무엇을 더할까요?</h2>
             </div>
           )}
           <div

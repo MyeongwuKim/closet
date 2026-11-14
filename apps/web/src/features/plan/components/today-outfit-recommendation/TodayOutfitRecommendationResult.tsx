@@ -51,7 +51,7 @@ function RecommendationRefreshLoading({
       className="ai-recommendation-chat-enter flex min-h-0 flex-1 items-center gap-3 p-3"
       role="status"
       aria-live="polite"
-      aria-label="다른 추천 코디를 고르고 있습니다"
+      aria-label="다른 추천 코디를 고르고 있어요"
     >
       <div
         className="relative grid size-24 shrink-0 grid-cols-2 gap-1 overflow-hidden rounded-xl bg-canvas p-1.5"
@@ -78,11 +78,11 @@ function RecommendationRefreshLoading({
         <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-1 text-[10px] font-black text-accent">
           <Sparkles size={11} /> {seasonLabels[season]} · {colorScheme === 'auto' ? '옷장 추천' : getColorSchemeLabel(colorScheme)}
         </span>
-        <h2 className="mt-2 text-sm leading-5 font-black tracking-[-0.02em]">
+        <h2 className="mt-2 text-sm leading-5 font-semibold tracking-[-0.02em]">
           다른 조합을 맞춰보고 있어요
         </h2>
         <p className="mt-1 text-[11px] leading-4 text-muted">
-          실루엣과 아이템 궁합을 다시 살펴보는 중이에요
+          선택한 조건에 맞는 조합을 찾고 있어요.
           <span className="ml-1 inline-flex gap-0.5" aria-hidden="true">
             <span className="ai-outfit-loading-dot">.</span>
             <span className="ai-outfit-loading-dot">.</span>
@@ -180,7 +180,7 @@ export function TodayOutfitRecommendationResult({
             <p className="text-[11px] font-black tracking-[0.08em] text-accent">
               {dayLabel}의 추천
             </p>
-            <h2 className="mt-1 text-base font-black">
+            <h2 className="mt-1 text-base font-semibold">
               {formatRecommendationHeadline(recommendation.headline)}
             </h2>
             <p className="mt-1 text-xs leading-5 text-muted">
@@ -258,7 +258,7 @@ export function TodayOutfitRecommendationResult({
                 </span>
               </div>
               <h2
-                className="ai-recommendation-chat-enter mt-2 line-clamp-2 break-keep text-sm leading-5 font-black tracking-[-0.02em] [overflow-wrap:anywhere]"
+                className="ai-recommendation-chat-enter mt-2 line-clamp-2 break-keep text-sm leading-5 font-semibold tracking-[-0.02em] [overflow-wrap:anywhere]"
                 style={{ animationDelay: '210ms' }}
               >
                 {formatRecommendationHeadline(recommendation.headline)}

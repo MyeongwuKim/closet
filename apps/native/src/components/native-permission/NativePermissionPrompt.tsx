@@ -125,7 +125,7 @@ export function NativePermissionPrompt({
                   ]}
                 >
                   <Text style={styles.primaryButtonText}>
-                    {isRequesting ? '권한 확인 중...' : '허용하기'}
+                    {isRequesting ? '권한 확인 중…' : '허용하기'}
                   </Text>
                 </Pressable>
               </View>

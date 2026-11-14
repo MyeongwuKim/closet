@@ -137,7 +137,7 @@ function normalizeFashionAttributes(
 
   if (!isValid) {
     throw new ServiceError(
-      'AI 패션 속성값이 올바르지 않습니다.',
+      'AI 패션 속성값이 올바르지 않아요.',
       'INVALID_FASHION_ATTRIBUTES',
     )
   }
@@ -202,7 +202,7 @@ function validateGarmentMeasurements(
     if (value === null || value === undefined) return
     if (!Number.isFinite(value) || value <= 0 || value > 300) {
       throw new ServiceError(
-        `${label}는 0cm보다 크고 300cm 이하여야 합니다.`,
+        `${label}는 0cm보다 크고 300cm 이하여야 해요.`,
         'INVALID_WARDROBE_SIZE',
       )
     }
@@ -304,7 +304,7 @@ function normalizeColorHex(value: string | null | undefined) {
   const colorHex = value.trim().toUpperCase()
   if (!/^#[0-9A-F]{6}$/.test(colorHex)) {
     throw new ServiceError(
-      '대표 색상은 #RRGGBB 형식이어야 합니다.',
+      '대표 색상은 #RRGGBB 형식이어야 해요.',
       'INVALID_WARDROBE_COLOR',
     )
   }
@@ -350,7 +350,7 @@ function normalizeTags(tags: string[] | undefined) {
 
   if (normalizedTags.length > 5) {
     throw new ServiceError(
-      '태그는 다섯 개까지 추가할 수 있습니다.',
+      '태그는 다섯 개까지 추가할 수 있어요.',
       'INVALID_WARDROBE_TAGS',
     )
   }
@@ -374,7 +374,7 @@ function normalizeAdditionalCategories(
   }
   if (uniqueCategories.length > 2) {
     throw new ServiceError(
-      '카테고리는 대표 카테고리를 포함해 세 개까지 선택할 수 있습니다.',
+      '카테고리는 대표 카테고리를 포함해 세 개까지 선택할 수 있어요.',
       'INVALID_WARDROBE_CATEGORIES',
     )
   }
@@ -385,7 +385,7 @@ function normalizeAdditionalCategories(
 async function requireWardrobeItem(userId: string, itemId: string) {
   const item = await wardrobeRepository.findById(userId, itemId)
   if (!item) {
-    throw new ServiceError('옷장 아이템을 찾을 수 없습니다.', 'WARDROBE_ITEM_NOT_FOUND')
+    throw new ServiceError('옷장 아이템을 찾을 수 없어요.', 'WARDROBE_ITEM_NOT_FOUND')
   }
   return item
 }
@@ -475,12 +475,12 @@ export const wardrobeService = {
     const assets = await imageRepository.findOwnedByIds(userId, assetIds)
 
     if (assets.length !== new Set(assetIds).size) {
-      throw new ServiceError('등록할 이미지 자산을 찾을 수 없습니다.', 'IMAGE_NOT_FOUND')
+      throw new ServiceError('등록할 이미지 자산을 찾을 수 없어요.', 'IMAGE_NOT_FOUND')
     }
 
     if (assets.some((asset) => asset.uploadStatus !== 'ready')) {
       throw new ServiceError(
-        'Cloudflare 이미지 업로드 확인이 완료되지 않았습니다.',
+        'Cloudflare 이미지 업로드 확인이 완료되지 않았어요.',
         'IMAGE_UPLOAD_NOT_READY',
       )
     }
@@ -488,12 +488,12 @@ export const wardrobeService = {
     const displayAsset = assets.find((asset) => asset.id === input.displayImageAssetId)
     if (displayAsset?.kind !== 'wardrobeCutout' || displayAsset.mimeType !== 'image/png') {
       throw new ServiceError(
-        '배경이 제거된 PNG 사진으로 다시 등록해 주세요.',
+        '배경이 제거된 PNG 사진으로 다시 등록해주세요.',
         'WARDROBE_CUTOUT_REQUIRED',
       )
     }
     if (input.originalImageAssetId && assets.find((asset) => asset.id === input.originalImageAssetId)?.kind !== 'wardrobeOriginal') {
-      throw new ServiceError('옷 원본 사진으로 업로드한 이미지만 연결할 수 있습니다.', 'INVALID_IMAGE_KIND')
+      throw new ServiceError('옷 원본 사진으로 업로드한 이미지만 연결할 수 있어요.', 'INVALID_IMAGE_KIND')
     }
 
     return wardrobeRepository.create({

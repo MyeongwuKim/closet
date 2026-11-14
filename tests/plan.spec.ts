@@ -96,11 +96,11 @@ test('주간 편집에서는 착용 완료 날짜를 옮기거나 빠르게 비�
   mockApi.plannerEntries = [wornEntry]
 
   await page.goto('/plan?view=week')
-  await expect(page.getByRole('button', { name: '월요일은 착용 완료하여 옮길 수 없습니다' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '월요일은 착용 완료하여 옮길 수 없어요' })).toBeDisabled()
   await expect(page.getByText('착용 완료 날짜를 포함한 범위는 옮길 수 없어요.')).toBeVisible()
   await page.getByRole('button', { name: '일주일 코디 설정' }).click()
   const editor = page.getByRole('dialog', { name: '주간 코디 편집' })
-  await expect(editor.getByText('코디를 바꾸거나 비우려면 날짜 상세에서 먼저 착용을 취소해 주세요.')).toBeVisible()
+  await expect(editor.getByText('코디를 바꾸거나 비우려면 날짜 상세에서 먼저 착용을 취소해주세요.')).toBeVisible()
   await expect(editor.getByRole('button', { name: '비우기', exact: true })).toHaveCount(0)
   expect(mockApi.operations).not.toContain('ClearPlannerEntry')
   expect(mockApi.operations).not.toContain('MovePlannerEntry')

@@ -35,20 +35,20 @@ function renderActions(hasAvailableLookbook: boolean, message: string | null, re
   )
 }
 
-test('이미지가 있는 중복 코디는 AI 룩과 기존 코디를 열 수 있다', () => {
+test('이미지가 있는 중복 코디는 AI 룩북과 기존 코디를 열 수 있다', () => {
   const markup = renderActions(true, duplicateMessage)
 
   assert.match(markup, /출근 코디/)
-  assert.match(markup, /AI 룩 보기/)
+  assert.match(markup, /AI 룩북 보기/)
   assert.match(markup, /기존 코디 열기/)
   assert.ok(markup.includes(`href="${existingOutfitPath}"`))
-  assert.doesNotMatch(markup, /AI 착장 이미지 만들기|코디 저장하기/)
+  assert.doesNotMatch(markup, /AI 룩북 만들기|코디 저장하기/)
 })
 
 test('이미지가 없는 중복 코디는 AI 이미지를 만들거나 기존 코디를 열 수 있다', () => {
   const markup = renderActions(false, duplicateMessage)
 
-  assert.match(markup, /AI 착장 이미지 만들기/)
+  assert.match(markup, /AI 룩북 만들기/)
   assert.match(markup, /기존 코디 열기/)
   assert.doesNotMatch(markup, /코디 저장하기/)
 })
@@ -56,7 +56,7 @@ test('이미지가 없는 중복 코디는 AI 이미지를 만들거나 기존 �
 test('새 코디는 AI 이미지 생성과 일반 저장을 각각 표시한다', () => {
   const markup = renderActions(false, null)
 
-  assert.match(markup, /AI 착장 이미지 만들기/)
+  assert.match(markup, /AI 룩북 만들기/)
   assert.match(markup, /코디 저장하기/)
   assert.doesNotMatch(markup, /기존 코디 열기/)
 })
@@ -91,9 +91,9 @@ test('이미지 생성권이 없으면 만들기 전에 광고 동작을 표시�
   assert.match(renderActions(false, null, 0), /광고 보고 충전/)
 })
 
-test('이미지 생성권이 0회여도 저장된 AI 룩은 광고 없이 열 수 있다', () => {
+test('이미지 생성권이 0회여도 저장된 AI 룩북은 광고 없이 열 수 있다', () => {
   const markup = renderActions(true, duplicateMessage, 0)
-  assert.match(markup, /AI 룩 보기/)
+  assert.match(markup, /AI 룩북 보기/)
   assert.doesNotMatch(markup, /광고 보고 충전/)
   assert.doesNotMatch(markup, / disabled=""/)
 })

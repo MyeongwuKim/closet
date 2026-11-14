@@ -87,7 +87,7 @@ function generationChanges(outfit: StoredOutfit, generation?: GenerationAttachme
 /** 첨부와 삭제 claim이 같은 자산 문서에 쓰도록 잠근다. 다른 계정의 이미지 연결도 차단한다. */
 async function lockAttachment(tx: Prisma.TransactionClient, ownerId: string, generation?: GenerationAttachment) {
   if (!generation) return
-  if (generation.userId !== ownerId) throw new ServiceError('내 이미지로만 코디를 저장할 수 있습니다.', 'OUTFIT_PREVIEW_NOT_FOUND')
+  if (generation.userId !== ownerId) throw new ServiceError('내 이미지로만 코디를 저장할 수 있어요.', 'OUTFIT_PREVIEW_NOT_FOUND')
   await lockGeneratedImageForReference(tx, ownerId, generation.imageAssetId)
 }
 

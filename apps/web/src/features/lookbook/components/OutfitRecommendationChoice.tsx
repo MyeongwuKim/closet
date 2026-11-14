@@ -31,9 +31,9 @@ export function OutfitRecommendationChoice({
       <header className="outfit-recommendation-choice__header">
         <div className="outfit-recommendation-choice__heading">
           <span className="outfit-recommendation-choice__eyebrow">STYLE ASSIST</span>
-          <h2 id="outfit-style-choice-title">컬러와 옷을 함께 추천해요</h2>
+          <h2 id="outfit-style-choice-title">색상과 옷을 함께 추천해요</h2>
           <p id="outfit-style-choice-description">
-            지금 만드는 Look에 어울리는 {categoryLabel} 아이템과 색을 찾아보세요.
+            지금 만드는 코디에 어울리는 {categoryLabel} 아이템과 색을 찾아보세요.
           </p>
         </div>
         <button
@@ -59,7 +59,7 @@ export function OutfitRecommendationChoice({
                 <strong>내 옷장에서 찾기</strong>
                 <span>
                   {hasClosetCandidates
-                    ? '옷장에서 지금 Look에 맞는 아이템 찾기'
+                    ? '옷장에서 지금 코디에 맞는 아이템 찾기'
                     : `더 고를 ${categoryLabel} 아이템이 없어요`}
                 </span>
               </span>
@@ -82,8 +82,8 @@ export function OutfitRecommendationChoice({
             </span>
             <span className="outfit-recommendation-choice__card-main">
               <span className="outfit-recommendation-choice__card-copy">
-                <strong>어울리는 컬러 찾기</strong>
-                <span>지금 Look과 어울리는 색 조합 살펴보기</span>
+                <strong>어울리는 색상 찾기</strong>
+                <span>지금 코디와 어울리는 색 조합 보기</span>
               </span>
               <span className="outfit-recommendation-choice__palette-art" aria-hidden="true">
                 <span className="outfit-recommendation-choice__swatch outfit-recommendation-choice__swatch--one" />
@@ -102,7 +102,7 @@ export function OutfitRecommendationChoice({
         <AiCreditActionButton
           kind="recommendation"
           requiresCredit={!hasExistingRequest}
-          label={hasExistingRequest ? '추천 결과 다시 보기' : '컬러·옷장 함께 추천받기'}
+          label={hasExistingRequest ? '추천 결과 다시 보기' : '색상·옷장 함께 추천받기'}
           adLabel="광고 보고 사용권 얻기"
           onClick={onRecommend}
           autoFocus

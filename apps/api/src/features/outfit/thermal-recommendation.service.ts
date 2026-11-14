@@ -16,7 +16,7 @@ export async function getThermalRecommendationContext(
 ): Promise<ThermalRecommendationContext> {
   const targetDate = parseDateOnly(date, '추천 날짜')
   if (meanTemperatureC != null && !Number.isFinite(meanTemperatureC)) {
-    throw new ServiceError('올바른 하루 평균 기온이 필요합니다.', 'INVALID_THERMAL_TEMPERATURE')
+    throw new ServiceError('올바른 하루 평균 기온이 필요해요.', 'INVALID_THERMAL_TEMPERATURE')
   }
   const today = getKoreaTodayUtc()
   const mean = meanTemperatureC ?? null

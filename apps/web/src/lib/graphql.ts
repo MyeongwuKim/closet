@@ -63,7 +63,7 @@ export async function graphqlRequest<
       }
     }
     throw new GraphqlRequestError(
-      error?.message ?? '서버 요청을 완료하지 못했습니다.',
+      error?.message ?? '서버 요청을 완료하지 못했어요.',
       error?.extensions?.code,
     )
   }

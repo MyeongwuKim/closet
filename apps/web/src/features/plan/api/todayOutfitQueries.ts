@@ -71,7 +71,7 @@ function matchesRecommendationDate(recommendation: TodayOutfitRecommendation, da
 
 function validateRecommendationDate(recommendation: TodayOutfitRecommendation, date: string) {
   if (!matchesRecommendationDate(recommendation, date)) {
-    throw new Error('추천 날짜가 플래너에서 선택한 날짜와 달라요. 다시 시도해 주세요.')
+    throw new Error('추천 날짜가 플래너에서 선택한 날짜와 달라요. 다시 시도해주세요.')
   }
 }
 
@@ -243,7 +243,7 @@ export function useTodayOutfitRecommendationQuery(
       )
       validateRecommendationDate(recommendation, date)
       if (!matchesPreferences(recommendation)) throw new Error('추천 보류 설정이 바뀌었어요. 다시 추천받아주세요.')
-      if (!matchesThermalRecommendationContext(recommendation, thermalContextRevision)) throw new Error('추천에 반영된 착용 체감을 확인하지 못했어요. 다시 시도해 주세요.')
+      if (!matchesThermalRecommendationContext(recommendation, thermalContextRevision)) throw new Error('추천에 반영된 착용 체감을 확인하지 못했어요. 다시 시도해주세요.')
       if (recommendation.ready && recommendation.items.length > 0) {
         storeTodayRecommendation(
           viewerId,

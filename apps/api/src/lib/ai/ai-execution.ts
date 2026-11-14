@@ -66,7 +66,7 @@ export function createAiExecutor({
     if (existing) return structuredClone(await existing) as T
 
     if (pending.size >= maxConcurrent || (active.get(userId) ?? 0) >= maxPerUser) {
-      throw new ServiceError('다른 AI 작업이 진행 중이에요. 완료 후 다시 시도해 주세요.', 'AI_BUSY')
+      throw new ServiceError('다른 AI 작업이 진행 중이에요. 완료 후 다시 시도해주세요.', 'AI_BUSY')
     }
     const usageKey = aiInputKey([userId, kind])
     const counts = usage.get(usageKey) ?? { minuteStart: timestamp, minute: 0, dayStart: timestamp, day: 0 }
@@ -76,10 +76,10 @@ export function createAiExecutor({
     }
     const limits = getAiLimits(kind)
     if (counts.minute >= limits.minute || counts.day >= limits.day) {
-      throw new ServiceError('AI 사용 횟수 제한에 도달했어요. 시간이 지난 뒤 다시 시도해 주세요.', 'AI_RATE_LIMITED')
+      throw new ServiceError('AI 사용 횟수 제한에 도달했어요. 시간이 지난 뒤 다시 시도해주세요.', 'AI_RATE_LIMITED')
     }
     if (usage.size >= 10_000 && !usage.has(usageKey)) {
-      throw new ServiceError('AI 요청이 많아요. 잠시 후 다시 시도해 주세요.', 'AI_BUSY')
+      throw new ServiceError('AI 요청이 많아요. 잠시 후 다시 시도해주세요.', 'AI_BUSY')
     }
     counts.minute += 1
     counts.day += 1
@@ -126,7 +126,7 @@ export function installAiExecutor(executor: AiExecutor) {
 export const aiExecutor: AiExecutor = {
   run: (...args) => {
     const executor = installedExecutor ?? (process.env.NODE_TEST_CONTEXT ? testExecutor : null)
-    if (!executor) throw new ServiceError('AI 작업 저장소가 초기화되지 않았습니다.', 'AI_STORAGE_UNAVAILABLE')
+    if (!executor) throw new ServiceError('AI 작업 저장소가 초기화되지 않았어요.', 'AI_STORAGE_UNAVAILABLE')
     return executor.run(...args)
   },
 }

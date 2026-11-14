@@ -56,7 +56,7 @@ export function WardrobeStatisticsPage() {
         </div>
       </header>
       {query.isPending ? (
-        <p role="status" className="py-16 text-center text-muted">통계를 불러오는 중...</p>
+        <p role="status" className="py-16 text-center text-muted">통계를 불러오는 중…</p>
       ) : query.isError ? (
         <div role="alert" className="mx-auto mt-6 w-[calc(100%-2.5rem)] max-w-3xl rounded-3xl border border-line bg-surface p-8 text-center">
           <p>통계를 불러오지 못했어요.</p>

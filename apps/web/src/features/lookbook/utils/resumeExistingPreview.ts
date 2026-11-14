@@ -55,6 +55,6 @@ export async function resumeExistingPreview(input: ExistingPreviewInput, source:
   source.assertActive()
   const image = await source.readAsset(completed.imageAssetId!)
   source.assertActive()
-  if (image.assetId !== completed.imageAssetId) throw new PreviewJobError('완료된 AI 이미지를 다시 확인해주세요.', 'OUTFIT_PREVIEW_NOT_FOUND')
+  if (image.assetId !== completed.imageAssetId) throw new PreviewJobError('완료된 AI 룩북을 다시 확인해주세요.', 'OUTFIT_PREVIEW_NOT_FOUND')
   return { ...image, imageBase64: '' }
 }

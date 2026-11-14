@@ -415,7 +415,7 @@ test('이미지 API의 빈 성공 응답은 중복 과금을 피하도록 자동
     })
   })
 
-  await assert.rejects(outfitPreviewService.generate('viewer', ['top', 'bottom']), /AI 룩 이미지를 만들지 못했습니다/)
+  await assert.rejects(outfitPreviewService.generate('viewer', ['top', 'bottom']), /AI 룩북을 만들지 못했어요/)
   assert.equal(openAiRequestCount, 1)
 })
 

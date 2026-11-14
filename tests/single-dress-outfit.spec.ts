@@ -12,7 +12,7 @@ test('옷장에서 원피스만 골라도 코디북에 저장하고 다시 열 �
   await page.getByRole('button', { name: '코디 만들기', exact: true }).click()
   const composer = page.getByRole('dialog', { name: '코디 맞춰보기' })
   await composer.getByRole('button', { name: '코디 저장하기', exact: true }).click()
-  const save = page.getByRole('dialog', { name: '이 Look으로 저장할까요?' })
+  const save = page.getByRole('dialog', { name: '이 코디를 저장할까요?' })
   await save.getByRole('textbox', { name: '코디 이름' }).fill('원피스 한 벌 코디')
   await save.getByRole('button', { name: '캐주얼', exact: true }).click()
   await save.getByRole('button', { name: '코디북에 저장', exact: true }).click()

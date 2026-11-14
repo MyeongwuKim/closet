@@ -9,6 +9,7 @@
 | 의존성 설치 | `pnpm install` |
 | 웹·API 개발 | `pnpm dev` |
 | 개별 개발 | `pnpm web:dev` / `pnpm api:dev` |
+| 로컬 API | `pnpm api:local` |
 | Expo 개발 클라이언트 | `pnpm native:dev` |
 | 네이티브 웹 번들 생성·반영 | `pnpm native:bundle` / `pnpm native:web:sync` |
 | iOS 로컬·실기기 | `pnpm native:ios:local` / `pnpm native:ios:device` |
@@ -16,11 +17,13 @@
 
 | 환경 | 참고 파일 | 주요 값·조건 |
 | --- | --- | --- |
-| API | [apps/api/.env.example](../../apps/api/.env.example) | 현재 예제는 광고 설정만 포함한다. `DATABASE_URL`, 사용할 `OPENAI_API_KEY`·이미지 저장소 등의 서버 설정은 별도 준비 대상이다. |
+| API | `apps/api/.env`, `apps/api/.env.development`, `apps/api/.env.local` | `.env`는 공통 설정이며 환경별 파일에는 `DATABASE_URL` 등 달라지는 값만 둔다. 사용할 `OPENAI_API_KEY`·이미지 저장소 등의 서버 설정은 별도 준비 대상이다. 실제 환경 파일은 Git에서 제외한다. |
 | 웹 | [apps/web/.env.example](../../apps/web/.env.example) | `VITE_API_URL`. 전송 함수의 미설정 기본 주소는 `http://localhost:4000`이다. |
 | 네이티브 | [apps/native/.env.example](../../apps/native/.env.example) | `EXPO_PUBLIC_API_URL`과 선택한 앱 환경. 실제 기기에서 접근 가능한 API 주소가 필요하다. |
 
-API 기본 포트는 4000이며 `api:dev`는 시작 전 Prisma Client를 생성한다. 서버 시작은 DB 저장소·인덱스 준비와 worker 실행도 포함한다. API를 띄우는 것만으로 격리된 테스트 환경이 만들어지지는 않는다.
+API 기본 포트는 4000이다. `pnpm api:dev`와 `pnpm dev`의 API는 `.env` 다음 `.env.development`를, `pnpm api:local`은 `.env` 다음 `.env.local`을 읽는다. 환경 파일 경로는 `apps/api` 기준이며 공통 파일과 선택한 환경 파일이 모두 필요하다. 같은 키는 환경별 파일의 값이 우선하며, 셸에서 이미 설정한 환경변수가 있으면 그 값이 최우선이다. 파일을 바꾼 뒤에는 명령을 다시 실행한다.
+
+두 API 명령 모두 시작 전 Prisma Client를 생성하고 watch 모드로 실행한다. 환경변수는 애플리케이션 모듈을 읽기 전에 로드한다. `start`, `db:*`, 정리·평가 CLI에는 이 환경 선택을 적용하지 않는다. 서버 시작은 DB 저장소·인덱스 준비와 worker 실행도 포함한다. API를 띄우는 것만으로 격리된 테스트 환경이 만들어지지는 않는다.
 
 `db:push`는 DB 스키마를 반영한다. 이미지 정리 CLI는 기본적으로 삭제 후보만 확인하고 `--execute`에서 실제 삭제한다. 환경 선택과 번들 전달 구조는 [네이티브](native.md#빌드-환경과-검사)에 있다.
 

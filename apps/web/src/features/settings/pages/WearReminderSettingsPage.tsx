@@ -5,7 +5,7 @@
  * 최근에 사용한 코디 조합과 개별 옷을 다시 선택할 때 보여줄 리마인드 기준을 관리한다.
  *
  * 구조:
- * 전체 사용 여부, 알림 기간, 조합·개별 옷 기준과 저장 영역으로 구성되어 있다.
+ * 전체 사용 여부는 스위치에서 바로 저장한다. 기간과 확인 기준은 하단 버튼으로 저장한다.
  */
 import { useState } from 'react'
 import { ChevronLeft, Save } from 'lucide-react'
@@ -14,7 +14,6 @@ import { PageTitle } from '../../../components/PageTitle'
 import { ToggleSwitch } from '../../../components/ToggleSwitch'
 import { useUiStore } from '../../../stores/useUiStore'
 import {
-  defaultWearReminderPreferences,
   useMeQuery,
   useUpdateWearReminderPreferencesMutation,
   ViewerSessionChangedError,
@@ -55,57 +54,57 @@ function ToggleRow({
 }
 
 interface WearReminderSettingsFormProps {
-  initialPreferences: WearReminderPreferences
-  isLoading: boolean
+  preferences: WearReminderPreferences
 }
 
-function WearReminderSettingsForm({
-  initialPreferences,
-  isLoading,
-}: WearReminderSettingsFormProps) {
+function WearReminderSettingsForm({ preferences }: WearReminderSettingsFormProps) {
   const pushToast = useUiStore((state) => state.pushToast)
   const updatePreferences = useUpdateWearReminderPreferencesMutation()
-  const [enabled, setEnabled] = useState(initialPreferences.enabled)
-  const [intervalDays, setIntervalDays] = useState(
-    initialPreferences.intervalDays.toString(),
-  )
-  const [combinationReminderEnabled, setCombinationReminderEnabled] = useState(
-    initialPreferences.combinationReminderEnabled,
-  )
-  const [itemReminderEnabled, setItemReminderEnabled] = useState(
-    initialPreferences.itemReminderEnabled,
-  )
-  const isPending = isLoading || updatePreferences.isPending
+  // 입력한 항목만 초안에 두어 스위치 저장 응답이나 재조회가 입력 중인 값을 덮지 않게 한다.
+  const [draft, setDraft] = useState<{
+    intervalDays?: string
+    combinationReminderEnabled?: boolean
+    itemReminderEnabled?: boolean
+  }>({})
+  const { enabled } = preferences
+  const intervalDays = draft.intervalDays ?? preferences.intervalDays.toString()
+  const combinationReminderEnabled = draft.combinationReminderEnabled ?? preferences.combinationReminderEnabled
+  const itemReminderEnabled = draft.itemReminderEnabled ?? preferences.itemReminderEnabled
+  const { isPending } = updatePreferences
   const selectedInterval = Number(intervalDays)
 
-  const savePreferences = async () => {
-    const parsedIntervalDays = Number(intervalDays)
-    if (
-      !Number.isInteger(parsedIntervalDays) ||
-      parsedIntervalDays < 1 ||
-      parsedIntervalDays > 30
-    ) {
+  /** 서버가 저장을 확인한 경우에만 호출부에서 세부 설정의 초안을 지운다. */
+  const savePreferences = async (input: WearReminderPreferences) => {
+    try {
+      await updatePreferences.mutateAsync(input)
+      pushToast('최근 착용 리마인드 설정을 저장했어요.', 'success')
+      return true
+    } catch (error) {
+      if (error instanceof ViewerSessionChangedError) return false
+      pushToast(
+        error instanceof Error
+          ? error.message
+          : '최근 착용 리마인드 설정을 저장하지 못했어요.',
+        'error',
+      )
+      return false
+    }
+  }
+
+  const saveDetails = async () => {
+    if (isPending) return
+    if (!Number.isInteger(selectedInterval) || selectedInterval < 1 || selectedInterval > 30) {
       pushToast('알림 기간은 1일에서 30일 사이로 입력해주세요.', 'error')
       return
     }
 
-    try {
-      await updatePreferences.mutateAsync({
-        enabled,
-        intervalDays: parsedIntervalDays,
-        combinationReminderEnabled,
-        itemReminderEnabled,
-      })
-      pushToast('최근 착용 리마인드 설정을 저장했습니다.', 'success')
-    } catch (error) {
-      if (error instanceof ViewerSessionChangedError) return
-      pushToast(
-        error instanceof Error
-          ? error.message
-          : '최근 착용 리마인드 설정을 저장하지 못했습니다.',
-        'error',
-      )
-    }
+    const saved = await savePreferences({
+      enabled,
+      intervalDays: selectedInterval,
+      combinationReminderEnabled,
+      itemReminderEnabled,
+    })
+    if (saved) setDraft({})
   }
 
   return (
@@ -113,7 +112,7 @@ function WearReminderSettingsForm({
       className="relative flex min-h-0 flex-1 flex-col"
       onSubmit={(event) => {
         event.preventDefault()
-        void savePreferences()
+        void saveDetails()
       }}
     >
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
@@ -121,10 +120,10 @@ function WearReminderSettingsForm({
           <section className="overflow-hidden rounded-3xl border border-line bg-surface">
             <ToggleRow
               title="최근 착용 리마인드"
-              description="설정한 기간 안에 입었던 조합이나 옷을 다시 고르면 한 번 더 확인해요."
+              description="설정한 기간 안에 입었던 조합이나 옷을 다시 고르면 한 번 더 확인해요. 켜기와 끄기는 바로 저장돼요."
               checked={enabled}
               disabled={isPending}
-              onChange={setEnabled}
+              onChange={(checked) => void savePreferences({ ...preferences, enabled: checked })}
             />
           </section>
 
@@ -150,7 +149,7 @@ function WearReminderSettingsForm({
                     max="30"
                     step="1"
                     value={intervalDays}
-                    onChange={(event) => setIntervalDays(event.target.value)}
+                    onChange={(event) => setDraft({ ...draft, intervalDays: event.target.value })}
                     className="w-full rounded-xl border border-line bg-canvas px-4 py-3 pr-12 text-sm font-bold outline-none transition focus:border-ink disabled:cursor-not-allowed"
                     aria-label="최근 착용 알림 기간"
                   />
@@ -164,7 +163,7 @@ function WearReminderSettingsForm({
                 {quickIntervals.map((days) => (
                   <button
                     type="button"
-                    onClick={() => setIntervalDays(days.toString())}
+                    onClick={() => setDraft({ ...draft, intervalDays: days.toString() })}
                     aria-pressed={selectedInterval === days}
                     className={`rounded-xl border px-2 py-2.5 text-xs font-bold transition ${
                       selectedInterval === days
@@ -195,14 +194,14 @@ function WearReminderSettingsForm({
                 description="최근에 함께 입었던 핵심 옷 조합이 겹치면 알려줘요."
                 checked={combinationReminderEnabled}
                 disabled={!enabled || isPending}
-                onChange={setCombinationReminderEnabled}
+                onChange={(checked) => setDraft({ ...draft, combinationReminderEnabled: checked })}
               />
               <ToggleRow
                 title="개별 옷"
                 description="선택한 상의·하의·아우터 등 핵심 옷 중 최근에 입은 옷이 있으면 알려줘요."
                 checked={itemReminderEnabled}
                 disabled={!enabled || isPending}
-                onChange={setItemReminderEnabled}
+                onChange={(checked) => setDraft({ ...draft, itemReminderEnabled: checked })}
               />
             </div>
           </fieldset>
@@ -231,7 +230,7 @@ function WearReminderSettingsForm({
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3 text-sm font-bold text-white disabled:cursor-wait disabled:opacity-60"
           >
             <Save size={17} />
-            {isPending ? '저장 중...' : '리마인드 설정 저장'}
+            {isPending ? '저장 중…' : '리마인드 설정 저장'}
           </button>
         </div>
       </div>
@@ -241,8 +240,7 @@ function WearReminderSettingsForm({
 
 export function WearReminderSettingsPage() {
   const meQuery = useMeQuery()
-  const preferences =
-    meQuery.data?.wearReminderPreferences ?? defaultWearReminderPreferences
+  const viewer = meQuery.data
 
   return (
     <section
@@ -263,17 +261,31 @@ export function WearReminderSettingsPage() {
           </Link>
           <PageTitle
             title="최근 착용 리마인드"
-            description="반복 착용을 확인할 기준을 관리해보세요."
+            description="최근 착용을 확인할 기간과 대상을 정해요."
             compact
           />
         </div>
       </header>
 
-      <WearReminderSettingsForm
-        key={meQuery.dataUpdatedAt || 'wear-reminder-defaults'}
-        initialPreferences={preferences}
-        isLoading={meQuery.isLoading}
-      />
+      {viewer ? (
+        <WearReminderSettingsForm key={viewer.id} preferences={viewer.wearReminderPreferences} />
+      ) : meQuery.isError ? (
+        <div className="px-5 py-16 text-center">
+          <p role="alert" className="text-sm text-muted">리마인드 설정을 불러오지 못했어요.</p>
+          <button
+            type="button"
+            onClick={() => void meQuery.refetch()}
+            disabled={meQuery.isFetching}
+            className="mt-4 rounded-full bg-ink px-5 py-2 text-sm font-bold text-white"
+          >
+            다시 시도
+          </button>
+        </div>
+      ) : (
+        <p role="status" className="px-5 py-16 text-center text-sm text-muted">
+          리마인드 설정을 불러오는 중…
+        </p>
+      )}
     </section>
   )
 }

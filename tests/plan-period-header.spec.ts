@@ -55,7 +55,7 @@ for (const viewport of [
     await expect(header.getByText('2026년 · 월간 플래너')).toBeVisible()
     await expect(title).toHaveText('9월')
     await expect(title).toHaveAttribute('aria-label', '2026년 9월')
-    await expect(header.getByText('날짜를 눌러 코디를 설정하세요')).toBeVisible()
+    await expect(header.getByText('날짜를 눌러 코디를 설정해주세요')).toBeVisible()
     await checkTitleFits('이전 달')
     await testInfo.attach(`${viewport.name}-month-period`, {
       body: await page.screenshot({ animations: 'disabled' }),

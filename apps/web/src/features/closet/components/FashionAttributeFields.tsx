@@ -41,7 +41,7 @@ export function FashionAttributeFields({
   return (
     <section className="grid gap-4 rounded-2xl border border-line bg-surface p-4">
       <div>
-        <h3 className="text-sm font-black">소재 및 보온 정보</h3>
+        <h3 className="text-sm font-semibold">소재 및 보온 정보</h3>
         <p className="mt-1 text-xs leading-5 text-muted">
           AI가 사진으로 고른 값이에요. 실제 옷과 다르면 바꿔주세요.
         </p>

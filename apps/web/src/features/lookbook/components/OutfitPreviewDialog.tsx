@@ -11,10 +11,10 @@ import {
 } from '../contexts/OutfitComposerContext'
 
 const loadingMessages = [
-  '선택한 옷의 색과 소재를 살펴보고 있어요',
-  '옷의 길이와 실루엣을 맞추고 있어요',
-  '한 벌의 룩으로 자연스럽게 조합하고 있어요',
-  '룩북 조명과 구도를 다듬고 있어요',
+  'AI 룩북을 만들고 있어요.',
+  '생성 결과를 기다리고 있어요.',
+  '완성되면 이미지를 확인할 수 있어요.',
+  '창을 닫아도 생성은 계속돼요.',
 ]
 
 interface OutfitPreviewDialogViewProps {
@@ -59,7 +59,7 @@ export function OutfitPreviewDialogView({
 
   return (
     <div
-      className="classification-page-enter fixed inset-0 z-[130] flex items-center justify-center bg-black/45 p-3 backdrop-blur-[2px] sm:p-6"
+      className="classification-page-enter fixed inset-0 z-[130] flex items-center justify-center bg-ink/40 p-3 backdrop-blur-[2px] sm:p-6"
       role="dialog"
       aria-modal="true"
       aria-labelledby="outfit-preview-title"
@@ -75,11 +75,11 @@ export function OutfitPreviewDialogView({
             <Sparkles size={19} />
           </span>
           <div className="min-w-0 flex-1">
-            <h2 id="outfit-preview-title" className="text-base font-black">
+            <h2 id="outfit-preview-title" className="text-base font-semibold">
               {isLoading
                 ? 'AI가 룩북을 만들고 있어요'
                 : isSuccess
-                  ? 'AI 룩 미리보기'
+                  ? 'AI 룩북 미리보기'
                   : '미리보기를 만들지 못했어요'}
             </h2>
             <p className="mt-0.5 text-[11px] text-muted">
@@ -90,7 +90,7 @@ export function OutfitPreviewDialogView({
             type="button"
             onClick={closePreview}
             className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-canvas hover:text-ink"
-            aria-label="AI 룩 미리보기 닫기"
+            aria-label="AI 룩북 미리보기 닫기"
           >
             <X size={18} />
           </button>
@@ -127,8 +127,8 @@ export function OutfitPreviewDialogView({
               </strong>
               <p className="mt-2 max-w-64 text-xs leading-5 text-muted">
                 {isNativeWebViewRuntime()
-                  ? '앱을 닫아도 생성은 계속돼요. 앱을 보고 있으면 완료 안내가 뜨고, 나가 있으면 푸시로 알려드려요.'
-                  : '옷 사진과 입력한 실루엣 수치를 참고하고 있어요. 생성에는 시간이 조금 걸릴 수 있어요.'}
+                  ? '앱을 닫아도 생성은 계속돼요. 알림을 허용하면 완료 알림을 받을 수 있어요.'
+                  : '이미지 생성에는 시간이 조금 걸릴 수 있어요.'}
               </p>
 
               <div className="mt-6 flex gap-1.5" aria-hidden="true">
@@ -149,7 +149,7 @@ export function OutfitPreviewDialogView({
               <div className="relative aspect-[2/3] min-h-0 overflow-hidden rounded-3xl bg-canvas shadow-[inset_0_0_0_1px_#dedad1]">
                 <img
                   src={preview.imageUrl!}
-                  alt="선택한 옷으로 생성한 AI 룩 미리보기"
+                  alt="선택한 옷으로 생성한 AI 룩북 미리보기"
                   className="size-full object-contain"
                 />
                 <span className="absolute bottom-3 left-3 rounded-full bg-black/65 px-3 py-1.5 text-[10px] font-bold text-white backdrop-blur">
@@ -199,7 +199,7 @@ export function OutfitPreviewDialogView({
                     <BookPlus size={15} />
                   )}
                   {primaryAction === 'save' && isPrimaryPending
-                    ? '저장 중...'
+                    ? '저장 중…'
                     : primaryLabel}
                 </>
               ) : (

@@ -5,7 +5,7 @@ export function captureWardrobePhoto(): Promise<NativeCaptureWardrobePhotoResult
 
   if (!capture) {
     return Promise.reject(
-      new Error('현재 앱에서는 카메라 기능을 사용할 수 없습니다.'),
+      new Error('현재 앱에서는 카메라 기능을 사용할 수 없어요.'),
     )
   }
 

@@ -35,6 +35,8 @@ GraphQL 계약은 [schema.ts](../../apps/api/src/graphql/schema.ts), 기능별 r
 
 GraphQL `WardrobeItem.archivedAt`은 nullable ISO 문자열이며 기존 누락 필드는 null로 반환한다. 코디북·플래너 코디의 옷 관계는 보관 삭제한 옷도 반환해 이름·사진과 삭제 상태를 유지한다. 일반 옷장 조회·새 선택·추천의 활성 필터는 그대로 적용한다. 계약 검사는 `features/wardrobe/wardrobe.resolvers.test.ts`에 있다.
 
+`WardrobePageInput.colors`·`brandNames`·`tags`는 같은 항목 안에서 OR, 항목 사이에서는 AND로 적용한다. `includeUnbranded`는 선택한 브랜드와 미지정 옷을 함께 포함한다. 기존 `color`·`brandName`·`tag`도 복수 입력과 합쳐 처리하며, `unbrandedOnly`의 미지정 단독 조회 우선순위는 유지한다. `catalog.service.ts`의 페이지 조회와 개수 집계는 같은 사용자·활성 옷 조건을 사용하며, `catalog.service.test.ts`에서 복수 조건·기존 입력 호환·GraphQL 입력·태그 조회 경로를 검사한다.
+
 보관 삭제한 옷의 원본·누끼 사진은 실제 코디·날짜·진행 작업 참조가 모두 없어진 뒤 기존 이미지 배치에서 정리한다. 새 참조 저장과 정리는 `features/wardrobe/wardrobe-image-lifecycle.ts`의 전용 DB 잠금 키를 같은 트랜잭션 안에서 사용한다. CF 삭제 성공 후 사진 연결만 해제하고 옷 메타데이터는 남긴다. 자세한 후보·재시도·실행 조건은 [이미지 정리](media-jobs.md#이미지-보관교체정리-배치)를 따른다.
 
 `wardrobeRediscovery`는 `features/wardrobe/wardrobe-rediscovery.service.ts`에서 전체 활성 옷장과 오늘까지 실제 착용을 확인한 플래너 기록(`wornAt`)을 읽는다. 배정만 된 일정은 착용 이력·통계·최근 착용과 하이라이트 선정에 반영하지 않는다. 등록 후 30일 이상 지났고 최근 30일간 착용 기록이 없는 분류 완료 옷 중 최대 세 벌을 고른다. 노출되지 않았거나 가장 오래전에 노출된 옷부터 순환하고, 노출일이 같으면 현재 계절·오래된 착용일·등록일 순으로 정렬한다. `other`·카테고리/계절 미지정 옷은 제외한다.

@@ -12,6 +12,7 @@ import { WardrobeBatchRegistrationDialog } from '../features/closet/components/W
 import { ToastViewport } from './ToastViewport'
 import { useSaveWardrobeItemMutation } from '../features/closet/api/saveWardrobeItem'
 import { useWardrobeItemsQuery } from '../features/closet/api/wardrobeQueries'
+import type { WardrobeComparisonCatalog } from '../features/closet/components/SimilarWardrobeItems'
 import { useClosetStore } from '../features/closet/stores/useClosetStore'
 import { useOutfitsQuery } from '../features/lookbook/api/lookbookQueries'
 import { useLookbookStore } from '../features/lookbook/stores/useLookbookStore'
@@ -34,12 +35,30 @@ export function GlobalUi() {
   const mergeItems = useClosetStore((state) => state.mergeItems)
   const hydrateItems = useClosetStore((state) => state.hydrateItems)
   const pushToast = useUiStore((state) => state.pushToast)
-  // Only the planner/composer need the full catalog for their editing controls.
+  // 플래너·코디 작성과 옷 추가 비교에 전체 옷장 목록을 조회한다.
   const needsCatalog = pathname.startsWith('/plan') || pathname === '/lookbook/new'
   const wardrobeItemsQuery = useWardrobeItemsQuery(needsCatalog || batchMode || Boolean(candidate))
   const outfitsQuery = useOutfitsQuery(needsCatalog)
   const hydrateOutfits = useLookbookStore((state) => state.hydrateOutfits)
   const saveWardrobeItem = useSaveWardrobeItemMutation()
+
+  // 이전 조회 결과가 캐시에 있어도 재조회가 끝나야 전체 목록의 비교 결과를 표시한다.
+  let wardrobeComparison: WardrobeComparisonCatalog
+  if (
+    wardrobeItemsQuery.isPaused ||
+    (wardrobeItemsQuery.isError && !wardrobeItemsQuery.isFetching)
+  ) {
+    wardrobeComparison = {
+      status: 'error',
+      retry: () => {
+        void wardrobeItemsQuery.refetch()
+      },
+    }
+  } else if (wardrobeItemsQuery.isSuccess && !wardrobeItemsQuery.isFetching) {
+    wardrobeComparison = { status: 'ready', items: wardrobeItemsQuery.data }
+  } else {
+    wardrobeComparison = { status: 'loading' }
+  }
 
   useEffect(() => {
     if ((needsCatalog || candidate) && wardrobeItemsQuery.data) hydrateItems(wardrobeItemsQuery.data)
@@ -78,11 +97,11 @@ export function GlobalUi() {
       })
       if (getAccessToken() !== token) throw new Error('로그인 상태가 바뀌었어요.')
       mergeItems([item])
-      pushToast('옷장에 추가했습니다.', 'success')
+      pushToast('옷장에 추가했어요.', 'success')
     } catch (error) {
       if (getAccessToken() !== token) throw error
       pushToast(
-        error instanceof Error ? error.message : '옷장 저장에 실패했습니다.',
+        error instanceof Error ? error.message : '옷장 저장에 실패했어요.',
         'error',
       )
       throw error
@@ -91,12 +110,13 @@ export function GlobalUi() {
 
   return (
     <>
-      {batchMode && <WardrobeBatchRegistrationDialog candidates={candidates} wardrobeItems={wardrobeItems} />}
+      {batchMode && <WardrobeBatchRegistrationDialog candidates={candidates} wardrobeItems={wardrobeItems} wardrobeComparison={wardrobeComparison} />}
       {candidate && !batchMode && (
         <ClassificationConfirmModal
           key={candidate.itemId}
           candidate={candidate}
           wardrobeItems={wardrobeItems}
+          wardrobeComparison={wardrobeComparison}
           onConfirm={handleConfirm}
         />
       )}

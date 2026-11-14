@@ -240,10 +240,10 @@ export function PlanDayRow({
         }`}
         aria-label={
           entry.wornAt
-            ? `${entry.dayLabel}요일은 착용 완료하여 옮길 수 없습니다`
+            ? `${entry.dayLabel}요일은 착용 완료하여 옮길 수 없어요`
             : entry.outfitId
               ? `${entry.dayLabel}요일 코디 위치 옮기기`
-              : `${entry.dayLabel}요일에는 옮길 코디가 없습니다`
+              : `${entry.dayLabel}요일에는 옮길 코디가 없어요`
         }
       >
         {entry.wornAt ? <Lock className="size-3.5" aria-hidden="true" /> : <GripVertical className="size-4" aria-hidden="true" />}

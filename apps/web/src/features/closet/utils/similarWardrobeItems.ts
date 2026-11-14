@@ -3,13 +3,14 @@
  * 새로 등록할 옷과 옷장 아이템의 색상 및 관찰 가능한 형태 속성을 비교한다.
  *
  * 동작 방식:
- * 같은 세부 카테고리 안에서 색차와 형태 속성을 따로 계산하고,
- * 넥라인·여밈·포켓처럼 구분력이 높은 정보가 부족하면 점수를 보수적으로 낮춘다.
+ * 같은 세부 카테고리 안에서 대표색과 형태를 따로 비교한다.
+ * 형태 근거가 부족하면 점수를 낮추고, 패턴·다색 옷은 대표색만으로 종합 일치를 판정하지 않는다.
  */
 import type {
   ClothingCategory,
   ColorMode,
   FashionItemAttributes,
+  FashionPattern,
   FashionTexture,
   WardrobeItem,
 } from '@closet/types'
@@ -41,6 +42,7 @@ export interface SimilarWardrobeItemMatch {
   kind: SimilarWardrobeItemKind
   colorDistance: number
   colorSimilarityPercent: number
+  usesRepresentativeColorOnly: boolean
   designSimilarityPercent: number | null
   similarityPercent: number
   reasons: string[]
@@ -218,6 +220,22 @@ function getColorSimilarity(
 
 function isKnownAttribute(value: unknown): value is string {
   return typeof value === 'string' && value !== 'unknown'
+}
+
+/** 패턴·다색으로 분류했거나 관찰한 패턴이 있으면 HEX 하나로 옷 전체의 배색을 비교할 수 없다. */
+function hasPatternOrMultipleColors(
+  colorMode: ColorMode | null | undefined,
+  pattern: FashionPattern | undefined,
+) {
+  return (
+    colorMode === 'patterned' ||
+    colorMode === 'multicolor' ||
+    (isKnownAttribute(pattern) && pattern !== 'solid')
+  )
+}
+
+function hasDifferentPatterns(first: FashionPattern, second: FashionPattern) {
+  return isKnownAttribute(first) && isKnownAttribute(second) && first !== second
 }
 
 function inferTextureFromName(value: string): FashionTexture {
@@ -464,13 +482,26 @@ function getDesignSimilarity(
     0,
   )
   const evidenceCoverage = totalWeight / allWeight
-  const evidenceMultiplier = isBottom || hasUpperStructure
-    ? 0.35 + evidenceCoverage * 0.65
-    : 1
-
-  return Math.round(
+  const evidenceMultiplier = 0.35 + evidenceCoverage * 0.65
+  // 구조 속성이 없는 종류는 실루엣과 충분한 공통 속성이 있어야 형태를 판단한다.
+  if (
+    !isBottom &&
+    !hasUpperStructure &&
+    (
+      !isKnownAttribute(target.silhouette) ||
+      !isKnownAttribute(item.silhouette) ||
+      Math.round(evidenceMultiplier * 100) < SIMILAR_DESIGN_PERCENT
+    )
+  ) {
+    return null
+  }
+  const score = Math.round(
     (weightedSimilarity / totalWeight) * evidenceMultiplier * 100,
   )
+  // 패턴이 실제로 다르면 나머지 형태가 같아도 디자인 일치로 분류하지 않는다.
+  return hasDifferentPatterns(target.pattern, item.pattern)
+    ? Math.min(score, SIMILAR_DESIGN_PERCENT - 1)
+    : score
 }
 
 const silhouetteLabels: Record<string, string> = {
@@ -572,23 +603,31 @@ function getSimilarityReasons(
   item: WardrobeItem,
   colorSimilarityPercent: number,
   designSimilarityPercent: number | null,
+  usesRepresentativeColorOnly: boolean,
+  sameSubcategory: boolean,
 ) {
-  const reasons = [`같은 ${input.subcategory}`]
+  const reasons = sameSubcategory ? [`같은 ${input.subcategory}`] : []
+  const colorLabel = usesRepresentativeColorOnly ? '대표색' : '색상'
 
   if (colorSimilarityPercent >= VERY_SIMILAR_COLOR_PERCENT) {
-    reasons.push('매우 비슷한 색상')
+    reasons.push(`매우 비슷한 ${colorLabel}`)
   } else if (colorSimilarityPercent >= SIMILAR_COLOR_PERCENT) {
-    reasons.push('비슷한 색상')
+    reasons.push(`비슷한 ${colorLabel}`)
   } else if (
     designSimilarityPercent !== null &&
     designSimilarityPercent >= SIMILAR_DESIGN_PERCENT
   ) {
-    reasons.push('다른 색상')
+    reasons.push(`다른 ${colorLabel}`)
   }
 
   const target = input.fashionAttributes
   const current = item.fashionAttributes
   if (!target || !current) return reasons
+  if (hasDifferentPatterns(target.pattern, current.pattern)) {
+    reasons.push(
+      `${patternLabels[target.pattern]}·${patternLabels[current.pattern]} 차이`,
+    )
+  }
 
   const targetTexture = resolveTexture(target, input.itemName ?? '')
   const itemTexture = resolveTexture(current, item.name)
@@ -656,6 +695,7 @@ function getSimilarityReasons(
   return reasons.slice(0, 4)
 }
 
+/** 일치 기준을 넘은 옷을 판정과 점수순으로 정렬해 limit개까지 반환한다. */
 export function findSimilarWardrobeItems(
   input: SimilarWardrobeItemInput,
   wardrobeItems: WardrobeItem[],
@@ -670,11 +710,18 @@ export function findSimilarWardrobeItems(
     .flatMap((item): SimilarWardrobeItemMatch[] => {
       if (
         item.classificationStatus !== 'classified' ||
-        !wardrobeItemHasCategory(item, input.category) ||
-        normalizeSubcategory(item.subcategory ?? '') !== targetSubcategory
+        !wardrobeItemHasCategory(item, input.category)
       ) {
         return []
       }
+
+      const itemSubcategory = normalizeSubcategory(item.subcategory ?? '')
+      const sameSubcategory = itemSubcategory === targetSubcategory
+      // 예전 등록의 '팬츠'는 세부 종류가 없는 긴바지다. 현재 긴바지 분류와는 형태가 확인될 때만 연결한다.
+      const compareLegacyPantsShape = input.category === 'bottom' &&
+        itemSubcategory === '팬츠' &&
+        (targetSubcategory === '일반 긴바지' || targetSubcategory === '와이드 팬츠')
+      if (!sameSubcategory && !compareLegacyPantsShape) return []
 
       const color = getColorSimilarity(input, item, targetColor)
       if (!color) return []
@@ -686,14 +733,24 @@ export function findSimilarWardrobeItems(
         input.category,
       )
       const hasSimilarColor =
-        color.colorSimilarityPercent >= SIMILAR_COLOR_PERCENT
+        sameSubcategory && color.colorSimilarityPercent >= SIMILAR_COLOR_PERCENT
       const hasSimilarDesign =
         designSimilarityPercent !== null &&
         designSimilarityPercent >= SIMILAR_DESIGN_PERCENT
 
       if (!hasSimilarColor && !hasSimilarDesign) return []
 
+      const usesRepresentativeColorOnly =
+        hasPatternOrMultipleColors(
+          input.colorMode,
+          input.fashionAttributes?.pattern,
+        ) ||
+        hasPatternOrMultipleColors(
+          item.colorMode,
+          item.fashionAttributes?.pattern,
+        )
       const kind: SimilarWardrobeItemKind =
+        sameSubcategory && !usesRepresentativeColorOnly &&
         color.colorSimilarityPercent >= VERY_SIMILAR_COLOR_PERCENT &&
         designSimilarityPercent !== null &&
         designSimilarityPercent >= VERY_SIMILAR_DESIGN_PERCENT
@@ -715,6 +772,7 @@ export function findSimilarWardrobeItems(
           kind,
           colorDistance: color.colorDistance,
           colorSimilarityPercent: color.colorSimilarityPercent,
+          usesRepresentativeColorOnly,
           designSimilarityPercent,
           similarityPercent,
           reasons: getSimilarityReasons(
@@ -722,6 +780,8 @@ export function findSimilarWardrobeItems(
             item,
             color.colorSimilarityPercent,
             designSimilarityPercent,
+            usesRepresentativeColorOnly,
+            sameSubcategory,
           ),
         },
       ]

@@ -30,7 +30,7 @@ export async function registerPushToken(accessToken: string) {
   const projectId =
     Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId
   if (typeof projectId !== 'string' || !projectId) {
-    throw new Error('Expo 프로젝트 ID를 찾을 수 없습니다.')
+    throw new Error('알림 설정 정보를 확인하지 못했어요.')
   }
 
   const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data
@@ -46,6 +46,6 @@ export async function registerPushToken(accessToken: string) {
     errors?: Array<{ message?: string }>
   }
   if (!response.ok || result.data?.registerMyPushToken !== true) {
-    throw new Error(result.errors?.[0]?.message ?? '푸시 토큰을 등록하지 못했습니다.')
+    throw new Error(result.errors?.[0]?.message ?? '알림을 받을 기기를 등록하지 못했어요.')
   }
 }

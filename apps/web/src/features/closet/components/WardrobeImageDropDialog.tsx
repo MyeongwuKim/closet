@@ -86,7 +86,7 @@ export function WardrobeImageDropDialog({
             <span className="mt-3 text-xs text-muted">복사한 이미지는 <kbd className="font-sans font-medium text-ink">⌘V</kbd> / <kbd className="font-sans font-medium text-ink">Ctrl+V</kbd></span>
             <span className="mt-4 text-[10px] text-muted">JPEG · PNG · WEBP / 장당 최대 10MB</span>
           </button>
-          <p className="mt-4 text-center text-xs leading-5 text-muted">사진을 넣으면 AI가 종류와 색상을 살펴봐요.</p>
+          <p className="mt-4 text-center text-xs leading-5 text-muted">사진에서 옷 종류와 색상을 자동으로 찾아요.</p>
         </div>
       </section>
     </div>,

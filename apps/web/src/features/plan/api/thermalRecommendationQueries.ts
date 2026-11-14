@@ -14,7 +14,7 @@ export function thermalRecommendationContextQueryOptions(viewerId: string, date:
     refetchOnWindowFocus: false,
     retry: false,
     queryFn: async ({ signal }): Promise<ThermalRecommendationContext> => {
-      if (meanTemperatureC === null || !Number.isFinite(meanTemperatureC)) throw new Error('예보의 하루 평균 기온이 필요합니다.')
+      if (meanTemperatureC === null || !Number.isFinite(meanTemperatureC)) throw new Error('예보의 하루 평균 기온이 필요해요.')
       const data = await graphqlRequest<{ thermalRecommendationContext: ThermalRecommendationContext }>(`
         query ThermalRecommendationContext($date: String!, $meanTemperatureC: Float!) {
           thermalRecommendationContext(date: $date, meanTemperatureC: $meanTemperatureC) {
@@ -22,7 +22,7 @@ export function thermalRecommendationContextQueryOptions(viewerId: string, date:
           }
         }
       `, { date, meanTemperatureC }, signal)
-      if (!isThermalRecommendationContext(data.thermalRecommendationContext)) throw new Error('착용 체감 정보를 확인하지 못했습니다. 다시 시도해 주세요.')
+      if (!isThermalRecommendationContext(data.thermalRecommendationContext)) throw new Error('착용 체감 정보를 확인하지 못했어요. 다시 시도해주세요.')
       return data.thermalRecommendationContext
     },
   })

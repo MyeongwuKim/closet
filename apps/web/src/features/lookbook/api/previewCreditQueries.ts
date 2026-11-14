@@ -20,10 +20,10 @@ export function useRefillTestAiCreditsMutation() {
   return useMutation({
     mutationFn: async () => {
       const ownerId = client.getQueryData<{ id: string }>(queryKeys.me)?.id
-      if (!ownerId) throw new Error('로그인한 뒤 테스트 충전을 사용해 주세요.')
+      if (!ownerId) throw new Error('로그인한 뒤 테스트 충전을 사용해주세요.')
       const data = await graphqlRequest<{ refillTestAiCredits: PreviewCredits }>(`mutation RefillTestAiCredits { refillTestAiCredits { ${creditFields} } }`)
       await client.cancelQueries({ queryKey: [...previewCreditKeys.all, ownerId] })
-      if (client.getQueryData<{ id: string }>(queryKeys.me)?.id !== ownerId) throw new Error('계정이 바뀌었어요. 현재 계정의 사용권을 다시 확인해 주세요.')
+      if (client.getQueryData<{ id: string }>(queryKeys.me)?.id !== ownerId) throw new Error('계정이 바뀌었어요. 현재 계정의 사용권을 다시 확인해주세요.')
       return { ownerId, credits: data.refillTestAiCredits }
     },
     onSuccess: ({ ownerId, credits }) => {
@@ -65,8 +65,8 @@ export function useEarnPreviewCreditMutation(kind: AiCreditKind = 'preview') {
   return useMutation({ mutationFn: async () => {
     if (!window.ClosetNative?.showRewardedAd || !isNativeWebViewRuntime()) throw new Error('광고 보상은 iOS 앱에서 이용할 수 있어요.')
     const ownerId = client.getQueryData<{ id: string }>(queryKeys.me)?.id
-    if (!ownerId) throw new Error('로그인한 뒤 광고를 시청해 주세요.')
-    const assertOwner = () => { if (client.getQueryData<{ id: string }>(queryKeys.me)?.id !== ownerId) throw new Error('계정이 바뀌었어요. 현재 계정에서 다시 시도해 주세요.') }
+    if (!ownerId) throw new Error('로그인한 뒤 광고를 시청해주세요.')
+    const assertOwner = () => { if (client.getQueryData<{ id: string }>(queryKeys.me)?.id !== ownerId) throw new Error('계정이 바뀌었어요. 현재 계정에서 다시 시도해주세요.') }
     const balance = await getPreviewCredits(kind)
     assertOwner()
     if (balance.totalRemaining > 0) return { ownerId, balance }
@@ -77,8 +77,8 @@ export function useEarnPreviewCreditMutation(kind: AiCreditKind = 'preview') {
       assertOwner()
       const result = await window.ClosetNative.showRewardedAd(session.id)
       assertOwner()
-      if (result.status === 'cancelled') throw new Error('광고 시청을 취소했어요. 이용권은 차감되지 않았습니다.')
-      if (result.status !== 'earned') throw new Error(result.message ?? '지금은 광고를 불러올 수 없어요. 잠시 후 다시 시도해 주세요.')
+      if (result.status === 'cancelled') throw new Error('광고 시청을 취소했어요. 사용권은 차감되지 않았어요.')
+      if (result.status !== 'earned') throw new Error(result.message ?? '지금은 광고를 불러올 수 없어요. 잠시 후 다시 시도해주세요.')
     }
     await waitForPreviewReward(sessionId)
     const updated = await getPreviewCredits(kind)

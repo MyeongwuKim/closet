@@ -79,7 +79,7 @@ export function ColorFilter({
       {isVisible &&
         createPortal(
           <div
-            className="option-picker-backdrop fixed inset-0 z-[130] flex items-end justify-center bg-black/45 backdrop-blur-[2px] sm:items-center sm:p-6"
+            className="option-picker-backdrop fixed inset-0 z-[130] flex items-end justify-center bg-ink/40 backdrop-blur-[2px] sm:items-center sm:p-6"
             onMouseDown={(event) => {
               if (event.target === event.currentTarget) close()
             }}
@@ -96,11 +96,11 @@ export function ColorFilter({
                   <Palette size={17} aria-hidden="true" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <h2 id={titleId} className="text-base font-black">
+                  <h2 id={titleId} className="text-base font-semibold">
                     색상별로 보기
                   </h2>
                   <p className="mt-1 text-xs text-muted">
-                    찾고 싶은 대표 색상을 선택하세요.
+                    찾고 싶은 대표 색상을 골라주세요.
                   </p>
                 </div>
                 <button

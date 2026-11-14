@@ -27,7 +27,7 @@ export async function showPreviewRewardedAd(session: { id: string; mode: string;
     const { default: mobileAds, AdsConsent, RewardedAd, RewardedAdEventType, AdEventType, TestIds } = await import('react-native-google-mobile-ads')
     try {
       const consent = await AdsConsent.gatherConsent()
-      if (!consent.canRequestAds) return { status: 'unavailable', message: '광고 개인정보 설정을 확인한 뒤 다시 시도해 주세요.' }
+      if (!consent.canRequestAds) return { status: 'unavailable', message: '광고 개인정보 설정을 확인한 뒤 다시 시도해주세요.' }
     } catch {
       // Google의 공개 테스트 앱에는 운영 동의 양식이 없다. 실제 광고에서는 동의 조회 실패를 우회하지 않는다.
       if (session.mode !== 'test') return { status: 'unavailable', message: '광고 개인정보 설정을 불러오지 못했어요.' }
@@ -45,7 +45,7 @@ export async function showPreviewRewardedAd(session: { id: string; mode: string;
       load: () => ad.load(), show: () => ad.show(),
     })
   } catch {
-    return { status: 'unavailable', message: '광고 기능을 실행하지 못했어요. 앱을 최신 빌드로 다시 설치한 뒤 확인해 주세요.' }
+    return { status: 'unavailable', message: '이 앱에서는 광고 기능을 사용할 수 없어요. 앱을 업데이트한 뒤 다시 시도해주세요.' }
   } finally { presenting = false }
 }
 

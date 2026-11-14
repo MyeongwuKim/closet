@@ -22,7 +22,7 @@ export function OutfitWardrobeCard({ item, onSelect, actionLabel = '추가' }: O
       type="button"
       onClick={() => onSelect(item)}
       className="collection-clipped-card group block min-w-0 w-full text-left transition-transform hover:-translate-y-0.5 focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
-      aria-label={actionLabel === '바꾸기' ? `${item.name} 아이템으로 바꾸기` : `${item.name} Look에 추가`}
+      aria-label={actionLabel === '바꾸기' ? `${item.name} 아이템으로 바꾸기` : `${item.name} 코디에 추가`}
     >
       <span className="collection-photo block">
         <WoodCardClip />

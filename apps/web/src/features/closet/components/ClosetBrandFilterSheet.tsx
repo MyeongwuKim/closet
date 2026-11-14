@@ -168,7 +168,7 @@ export function ClosetBrandFilterSheet({ value, unbrandedOnly, isOpen, onChange,
             </div>
 
             {brandsQuery.isPending ? (
-              <p className="py-5 text-center text-xs text-muted" role="status">브랜드를 불러오는 중...</p>
+              <p className="py-5 text-center text-xs text-muted" role="status">브랜드를 불러오는 중…</p>
             ) : brandsQuery.isError ? (
               <div className="py-5 text-center text-xs text-muted" role="alert">
                 <p>브랜드를 불러오지 못했어요.</p>

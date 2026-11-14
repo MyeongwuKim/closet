@@ -22,6 +22,7 @@ import { WardrobeStatisticsPage } from '../features/settings/pages/WardrobeStati
 import { NotificationWeatherPage } from '../features/settings/pages/NotificationWeatherPage'
 import { WearReminderSettingsPage } from '../features/settings/pages/WearReminderSettingsPage'
 import { isNativeWebViewRuntime } from '../native-bridge'
+import { WearHistoryPage } from '../features/wear-history/pages/WearHistoryPage'
 import {
   ClosetPage,
   LookbookPage,
@@ -62,6 +63,7 @@ export const router = createRouter([
             element: <Suspense fallback={<LookbookRouteSkeleton />}><LookbookPage /></Suspense>,
           },
           { path: 'lookbook/new', element: <OutfitComposerPage /> },
+          { path: 'wear-history', element: <WearHistoryPage /> },
           { path: 'recommend', element: <Navigate to="/lookbook" replace /> },
           {
             path: 'settings',

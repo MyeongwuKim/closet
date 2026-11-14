@@ -31,7 +31,7 @@ export const wardrobeResolvers = {
         const viewer = await context.getViewer()
         return await wardrobeRediscoveryService.get(viewer.id)
       } catch (error) {
-        throw toGraphQLError(error, '잊고 있던 옷을 불러오지 못했습니다.', 'WARDROBE_REDISCOVERY_FAILED')
+        throw toGraphQLError(error, '잊고 있던 옷을 불러오지 못했어요.', 'WARDROBE_REDISCOVERY_FAILED')
       }
     },
     wardrobeBrandOptions: async (
@@ -45,7 +45,7 @@ export const wardrobeResolvers = {
       } catch (error) {
         throw toGraphQLError(
           error,
-          '브랜드 목록을 불러오지 못했습니다.',
+          '브랜드 목록을 불러오지 못했어요.',
           'WARDROBE_BRAND_OPTIONS_FAILED',
         )
       }
@@ -59,7 +59,7 @@ export const wardrobeResolvers = {
         const viewer = await context.getViewer()
         return wardrobeService.list(viewer.id, args)
       } catch (error) {
-        throw toGraphQLError(error, '옷장을 불러오지 못했습니다.', 'WARDROBE_LOAD_FAILED')
+        throw toGraphQLError(error, '옷장을 불러오지 못했어요.', 'WARDROBE_LOAD_FAILED')
       }
     },
     wardrobeItem: async (
@@ -71,7 +71,7 @@ export const wardrobeResolvers = {
         const viewer = await context.getViewer()
         return wardrobeService.get(viewer.id, id)
       } catch (error) {
-        throw toGraphQLError(error, '옷을 불러오지 못했습니다.', 'WARDROBE_ITEM_LOAD_FAILED')
+        throw toGraphQLError(error, '옷을 불러오지 못했어요.', 'WARDROBE_ITEM_LOAD_FAILED')
       }
     },
   },
@@ -84,7 +84,7 @@ export const wardrobeResolvers = {
         const viewer = await context.getViewer()
         return await wardrobeRediscoveryService.markSeen(viewer.id, day, itemIds)
       } catch (error) {
-        throw toGraphQLError(error, '하이라이트 확인을 저장하지 못했습니다.', 'WARDROBE_REDISCOVERY_SEEN_FAILED')
+        throw toGraphQLError(error, '하이라이트 확인을 저장하지 못했어요.', 'WARDROBE_REDISCOVERY_SEEN_FAILED')
       }
     },
     deleteWardrobeBrand: async (
@@ -96,7 +96,7 @@ export const wardrobeResolvers = {
         const viewer = await context.getViewer()
         return wardrobeService.deleteBrand(viewer.id, brandName)
       } catch (error) {
-        throw toGraphQLError(error, '브랜드를 삭제하지 못했습니다.', 'WARDROBE_BRAND_DELETE_FAILED')
+        throw toGraphQLError(error, '브랜드를 삭제하지 못했어요.', 'WARDROBE_BRAND_DELETE_FAILED')
       }
     },
     createWardrobeItem: async (
@@ -108,7 +108,7 @@ export const wardrobeResolvers = {
         const viewer = await context.getViewer()
         return wardrobeService.create(viewer.id, input)
       } catch (error) {
-        throw toGraphQLError(error, '옷을 저장하지 못했습니다.', 'WARDROBE_CREATE_FAILED')
+        throw toGraphQLError(error, '옷을 저장하지 못했어요.', 'WARDROBE_CREATE_FAILED')
       }
     },
     updateWardrobeItem: async (
@@ -120,7 +120,7 @@ export const wardrobeResolvers = {
         const viewer = await context.getViewer()
         return wardrobeService.update(viewer.id, id, input)
       } catch (error) {
-        throw toGraphQLError(error, '옷 정보를 수정하지 못했습니다.', 'WARDROBE_UPDATE_FAILED')
+        throw toGraphQLError(error, '옷 정보를 수정하지 못했어요.', 'WARDROBE_UPDATE_FAILED')
       }
     },
     archiveWardrobeItem: async (
@@ -132,7 +132,7 @@ export const wardrobeResolvers = {
         const viewer = await context.getViewer()
         return wardrobeService.archive(viewer.id, id)
       } catch (error) {
-        throw toGraphQLError(error, '옷을 보관 처리하지 못했습니다.', 'WARDROBE_ARCHIVE_FAILED')
+        throw toGraphQLError(error, '옷을 보관 처리하지 못했어요.', 'WARDROBE_ARCHIVE_FAILED')
       }
     },
   },

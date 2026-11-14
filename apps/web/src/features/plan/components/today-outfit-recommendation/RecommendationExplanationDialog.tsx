@@ -105,7 +105,7 @@ export function RecommendationExplanationDialog({
           <div className="min-w-0 flex-1">
             <h2
               id="recommendation-explanation-title"
-              className="text-base font-black"
+              className="text-base font-semibold"
             >
               이 조합을 추천한 이유
             </h2>
@@ -130,7 +130,7 @@ export function RecommendationExplanationDialog({
           <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2.5 py-1.5 text-[11px] font-black text-accent">
             <Sparkles size={12} /> {seasonLabels[season]} · {recommendationLabel}
           </span>
-          <h3 className="mt-3 text-lg leading-7 font-black tracking-[-0.025em]">
+          <h3 className="mt-3 text-lg leading-7 font-semibold tracking-[-0.025em]">
             {formatRecommendationHeadline(headline)}
           </h3>
           <p className="mt-3 text-sm leading-6 text-muted">{summary}</p>

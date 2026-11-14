@@ -31,7 +31,7 @@ export function LoginPage() {
       navigate(from && from !== '/login' ? from : '/plan', { replace: true })
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : '로그인하지 못했습니다.',
+        error instanceof Error ? error.message : '로그인하지 못했어요.',
       )
     }
   }
@@ -44,7 +44,7 @@ export function LoginPage() {
           <h2 className="text-sm font-semibold">테스트 계정으로 시작하기</h2>
           <p className="mt-2 text-xs leading-5 text-muted">
             처음 사용하는 ID는 테스트 계정으로 자동 생성돼요. 옷장과 코디,
-            플래너 정보는 이 계정에 저장됩니다.
+            플래너 정보는 이 계정에 저장돼요.
           </p>
         </div>
 
@@ -103,7 +103,7 @@ export function LoginPage() {
             className="mt-2 flex items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3.5 text-sm font-bold text-white disabled:opacity-50"
           >
             <LogIn size={18} />
-            {testLogin.isPending ? '로그인 중...' : '테스트 로그인'}
+            {testLogin.isPending ? '로그인 중…' : '테스트 로그인'}
           </button>
         </form>
       </section>

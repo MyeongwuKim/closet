@@ -27,9 +27,9 @@ export function presentRewardedAd(ad: RewardedAdDriver, { loadTimeoutMs = 45_000
       unsubscribers.forEach((unsubscribe) => unsubscribe())
       resolve(result)
     }
-    const fail = () => finish({ status: 'unavailable', message: '광고를 불러오지 못했어요. 생성권은 차감되지 않았습니다.' })
+    const fail = () => finish({ status: 'unavailable', message: '광고를 불러오지 못했어요. 사용권은 차감되지 않았어요.' })
     const loadTimeout = setTimeout(fail, loadTimeoutMs)
-    const totalTimeout = setTimeout(() => finish(earned ? { status: 'earned' } : { status: 'unavailable', message: '광고 응답이 지연되고 있어요. 잠시 후 다시 시도해 주세요.' }), totalTimeoutMs)
+    const totalTimeout = setTimeout(() => finish(earned ? { status: 'earned' } : { status: 'unavailable', message: '광고 응답이 지연되고 있어요. 잠시 후 다시 시도해주세요.' }), totalTimeoutMs)
     unsubscribers.push(ad.onLoaded(() => {
       if (settled || loaded) return
       loaded = true

@@ -103,7 +103,7 @@ export function RecentWearReminderDialog() {
             <div className="min-w-0 flex-1">
               <h2
                 id="recent-wear-reminder-title"
-                className="text-xl font-black"
+                className="text-xl font-semibold"
               >
                 {copy.title}
               </h2>

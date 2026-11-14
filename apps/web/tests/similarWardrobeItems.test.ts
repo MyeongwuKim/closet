@@ -179,6 +179,119 @@ test('색상과 디자인이 모두 같으면 거의 같은 옷으로 판정한�
   assert.equal(matches[0]?.designSimilarityPercent, 100)
 })
 
+test('패턴이나 다색 옷은 대표색과 형태가 같아도 종합 일치로 판정하지 않는다', () => {
+  const stripe = createAttributes({ pattern: 'stripe' })
+  const solid = createAttributes()
+  const cases = [
+    { mode: 'patterned', attributes: stripe },
+    { mode: 'multicolor', attributes: solid },
+    { mode: 'solid', attributes: stripe },
+  ] as const
+
+  for (const { mode, attributes } of cases) {
+    const [match] = findSimilarWardrobeItems(
+      {
+        category: 'outer',
+        subcategory: '코트',
+        colorName: '화이트',
+        colorHex: '#FFFFFF',
+        colorMode: mode,
+        fashionAttributes: attributes,
+      },
+      [
+        {
+          ...createCoat('same-base-coat', '화이트', '#FFFFFF', attributes),
+          colorMode: mode,
+        },
+      ],
+    )
+
+    assert.equal(match?.kind, 'similar-design')
+    assert.equal(match.usesRepresentativeColorOnly, true)
+    assert.equal(match.colorSimilarityPercent, 100)
+    assert.ok(match.reasons.includes('매우 비슷한 대표색'))
+  }
+})
+
+test('대표색이 같아도 체크와 스트라이프의 패턴 차이를 디자인에 반영한다', () => {
+  const [match] = findSimilarWardrobeItems(
+    {
+      category: 'outer',
+      subcategory: '코트',
+      colorName: '화이트',
+      colorHex: '#FFFFFF',
+      colorMode: 'patterned',
+      fashionAttributes: createAttributes({ pattern: 'stripe' }),
+    },
+    [
+      {
+        ...createCoat(
+          'check-coat',
+          '화이트',
+          '#FFFFFF',
+          createAttributes({ pattern: 'check' }),
+        ),
+        colorMode: 'patterned',
+      },
+    ],
+  )
+
+  assert.equal(match?.kind, 'similar-color')
+  assert.equal(match.colorSimilarityPercent, 100)
+  assert.ok(
+    match.designSimilarityPercent !== null && match.designSimilarityPercent < 70,
+  )
+  assert.ok(match.reasons.includes('스트라이프·체크 차이'))
+})
+
+test('실루엣을 확인할 수 없는 스니커즈는 색상만으로 비교한다', () => {
+  const attributes: FashionItemAttributes = {
+    layerRole: 'single',
+    silhouette: 'unknown',
+    pattern: 'solid',
+    material: 'unknown',
+    texture: 'unknown',
+    warmth: 'unknown',
+    formality: 0.3,
+    confidence: 0.2,
+  }
+  const cases: FashionItemAttributes[] = [
+    attributes,
+    { ...attributes, material: 'leather', texture: 'smooth' },
+  ]
+  for (const fashionAttributes of cases) {
+    const matches = findSimilarWardrobeItems(
+      {
+        itemName: '흰색 로우탑',
+        category: 'shoes',
+        subcategory: '스니커즈',
+        colorName: '화이트',
+        colorHex: '#FFFFFF',
+        colorMode: 'solid',
+        fashionAttributes,
+      },
+      [
+        {
+          ...createCoat('white-high-top', '화이트', '#FFFFFF', fashionAttributes),
+          name: '흰색 하이탑',
+          category: 'shoes',
+          subcategory: '스니커즈',
+        },
+        {
+          ...createCoat('black-high-top', '블랙', '#000000', fashionAttributes),
+          name: '검정 하이탑',
+          category: 'shoes',
+          subcategory: '스니커즈',
+        },
+      ],
+    )
+
+    assert.deepEqual(matches.map((match) => match.item.id), ['white-high-top'])
+    assert.equal(matches[0]?.kind, 'similar-color')
+    assert.equal(matches[0].designSimilarityPercent, null)
+  }
+})
+
 test('소재가 같아도 트윌과 코듀로이처럼 질감이 다르면 디자인 유사도를 낮춘다', () => {
   const targetAttributes = createAttributes({
     silhouette: 'relaxed',
@@ -346,4 +459,78 @@ test('같은 와이드 팬츠여도 카고 포켓과 일반 포켓은 비슷한 
   assert.equal(matches.length, 1)
   assert.equal(matches[0]?.kind, 'similar-color')
   assert.ok((matches[0]?.designSimilarityPercent ?? 100) < 70)
+})
+
+test('기존에 팬츠로 등록한 바지는 색이 다른 와이드 팬츠나 일반 긴바지와 형태를 비교한다', () => {
+  const attributes = createAttributes({
+    layerRole: 'single',
+    silhouette: 'relaxed',
+    material: 'cotton',
+    texture: 'twill',
+    pocketStyle: 'patch',
+    bottomLegShape: 'wide',
+    bottomWaistStyle: 'structured',
+    bottomFrontPleats: 'absent',
+  })
+  const savedPants: WardrobeItem = {
+    ...createCoat('legacy-pants', '올리브', '#959F89', attributes),
+    name: '파라트루퍼 팬츠 세이지',
+    category: 'bottom',
+    subcategory: '팬츠',
+  }
+
+  for (const subcategory of ['와이드 팬츠', '일반 긴바지']) {
+    const [match] = findSimilarWardrobeItems(
+      {
+        category: 'bottom',
+        subcategory,
+        colorName: '블랙',
+        colorHex: '#212223',
+        colorMode: 'solid',
+        fashionAttributes: attributes,
+      },
+      [savedPants],
+    )
+
+    assert.ok(match)
+    assert.equal(match.item.id, savedPants.id)
+    assert.equal(match.kind, 'similar-design')
+    assert.equal(match.colorSimilarityPercent, 0)
+    assert.ok((match.designSimilarityPercent ?? 0) >= 70)
+    assert.ok(!match.reasons.includes(`같은 ${subcategory}`))
+  }
+})
+
+test('세부 종류가 다른 바지는 같은 색만으로 후보가 되지 않는다', () => {
+  const attributes = createAttributes({
+    layerRole: 'single',
+    pocketStyle: 'patch',
+    bottomLegShape: 'wide',
+    bottomWaistStyle: 'structured',
+    bottomFrontPleats: 'absent',
+  })
+  const savedPants: WardrobeItem = {
+    ...createCoat('legacy-pants', '올리브', '#959F89', attributes),
+    category: 'bottom',
+    subcategory: '팬츠',
+  }
+  const input = {
+    category: 'bottom' as const,
+    subcategory: '와이드 팬츠',
+    colorName: '올리브',
+    colorHex: '#959F89',
+    colorMode: 'solid' as const,
+    fashionAttributes: attributes,
+  }
+
+  assert.deepEqual(
+    findSimilarWardrobeItems(input, [
+      { ...savedPants, fashionAttributes: undefined },
+      { ...savedPants, fashionAttributes: { ...attributes, pocketStyle: 'cargo' } },
+      { ...savedPants, subcategory: '일반 긴바지' },
+      { ...savedPants, subcategory: '반바지' },
+    ]),
+    [],
+  )
+  assert.deepEqual(findSimilarWardrobeItems({ ...input, subcategory: '반바지' }, [savedPants]), [])
 })

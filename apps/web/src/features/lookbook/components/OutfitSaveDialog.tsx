@@ -56,7 +56,7 @@ export function OutfitSaveDialogView({
   return (
     <div
       ref={dialogRef}
-      className="classification-page-enter fixed inset-0 z-[120] flex items-center justify-center bg-black/45 backdrop-blur-[2px] sm:p-6"
+      className="classification-page-enter fixed inset-0 z-[120] flex items-center justify-center bg-ink/40 backdrop-blur-[2px] sm:p-6"
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
@@ -77,14 +77,11 @@ export function OutfitSaveDialogView({
             <BookHeart size={19} />
           </span>
           <div className="min-w-0 flex-1">
-            <span className="text-[10px] font-bold tracking-[0.2em] text-muted">
-              LOOK REVIEW
-            </span>
-            <h2 id={titleId} className="mt-0.5 text-lg font-black leading-tight">
-              이 Look으로 저장할까요?
+            <h2 id={titleId} className="mt-0.5 text-lg font-semibold leading-tight">
+              이 코디를 저장할까요?
             </h2>
             <p className="mt-1 text-[11px] text-muted">
-              조합을 확인하고 코디북에 담아보세요.
+              이름, 스타일, 계절을 확인하고 저장해주세요.
             </p>
           </div>
           <button
@@ -104,11 +101,10 @@ export function OutfitSaveDialogView({
             <OutfitSavingState isPersisting={isPersisting} />
           ) : (
             <div className="grid gap-7 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-8">
-              <section aria-label="완성한 Look 미리보기" className="min-w-0">
+              <section aria-label="완성한 코디 미리보기" className="min-w-0">
                 <div className="mb-3 flex items-end justify-between gap-3">
                   <div>
-                    <span className="text-[10px] font-bold tracking-[0.2em] text-muted">YOUR EDIT</span>
-                    <p className="mt-1 text-sm font-bold text-ink">내 옷장에서 완성한 조합</p>
+                    <p className="mt-1 text-sm font-bold text-ink">선택한 옷</p>
                   </div>
                   <span className="text-[11px] text-muted">{selectedItems.length}개의 아이템</span>
                 </div>
@@ -119,11 +115,10 @@ export function OutfitSaveDialogView({
                 />
               </section>
 
-              <section aria-label="Look 정보" className="min-w-0 border-t border-line pt-6 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8">
-                <span className="text-[10px] font-bold tracking-[0.2em] text-muted">THE DETAILS</span>
-                <h3 className="mt-1 text-xl font-black text-ink">코디북에 남길 이름</h3>
+              <section aria-label="코디 정보" className="min-w-0 border-t border-line pt-6 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8">
+                <h3 className="mt-1 text-xl font-semibold text-ink">코디 정보</h3>
                 <p className="mt-1 text-xs leading-5 text-muted">
-                  이 Look을 다시 찾기 쉽도록 이름과 스타일을 정해주세요.
+                  나중에 찾기 쉽도록 이름과 스타일을 정해주세요.
                 </p>
 
                 <label className="mt-6 grid gap-2 text-xs font-black">
@@ -166,11 +161,11 @@ export function OutfitSaveDialogView({
                 {includesPreview && (
                   <div className="mt-5 flex items-center gap-2 rounded-xl bg-sage px-3 py-2.5 text-[11px] font-bold text-ink">
                     <Sparkles size={14} className="shrink-0 text-accent" />
-                    AI 착장 이미지도 함께 저장돼요.
+                    AI 룩북도 함께 저장돼요.
                   </div>
                 )}
                 {errorMessage && (
-                  <p role="alert" className="mt-4 text-xs font-bold text-red-600">{errorMessage}</p>
+                  <p role="alert" className="mt-4 text-xs font-bold text-danger">{errorMessage}</p>
                 )}
               </section>
             </div>
@@ -197,7 +192,7 @@ export function OutfitSaveDialogView({
             className="rounded-xl bg-accent px-3 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
             {isSaving
-              ? '저장 중...'
+              ? '저장 중…'
               : !outfitName.trim()
                 ? '이름을 입력해주세요'
                 : !outfitStyle
@@ -205,7 +200,7 @@ export function OutfitSaveDialogView({
                   : outfitSeasons.length === 0
                     ? '계절을 골라주세요'
                     : includesPreview
-                      ? 'AI 이미지와 함께 저장'
+                      ? 'AI 룩북과 함께 저장'
                       : '코디북에 저장'}
           </button>
         </footer>

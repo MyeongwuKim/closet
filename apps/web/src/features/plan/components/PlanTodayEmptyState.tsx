@@ -28,8 +28,8 @@ export function PlanTodayEmptyState({ isToday, editPath, onChooseOutfit }: PlanT
       : !hasClothes
         ? '옷 사진을 추가하면 내 옷으로 코디를 만들 수 있어요.'
         : hasSavedOutfits
-          ? '코디북에서 고르거나 내 옷을 직접 조합해 보세요.'
-          : '옷장에 등록한 옷을 골라 이날의 코디를 만들어 보세요.'
+          ? '코디북에서 고르거나 내 옷을 직접 조합해보세요.'
+          : '옷장에 등록한 옷을 골라 이날의 코디를 만들어보세요.'
 
   return (
     <div className="plan-today-empty flex min-h-0 flex-1 flex-col items-center justify-center-safe overflow-y-auto px-5 py-6 text-center">

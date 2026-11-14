@@ -122,7 +122,7 @@ function RecommendationResults({
               <span className="text-[10px] font-black tracking-[0.08em] text-accent">
                 {colorRoleLabels[color.role]}
               </span>
-              <h3 className="mt-0.5 text-sm font-black">{color.name}</h3>
+              <h3 className="mt-0.5 text-sm font-semibold">{color.name}</h3>
               <p className="mt-1 text-xs leading-5 text-muted">{color.reason}</p>
               <span className="mt-2 block text-[11px] font-bold text-accent">내 옷장에서 보기 →</span>
             </div>
@@ -131,7 +131,7 @@ function RecommendationResults({
       </div>
     ) : (
       <div className="rounded-2xl border border-dashed border-line bg-surface px-4 py-10 text-center text-sm font-bold">
-        추천할 컬러 조합을 찾지 못했어요.
+        추천할 색상 조합을 찾지 못했어요.
       </div>
     )
   }
@@ -227,7 +227,7 @@ function RecommendationCandidateDetail({
             )}
             {candidate.label}
           </span>
-          <h2 id="recommendation-item-title" className="mt-1 text-lg font-black">
+          <h2 id="recommendation-item-title" className="mt-1 text-lg font-semibold">
             {candidate.item.name}
           </h2>
           <p className="mt-2 text-sm leading-6 text-muted">{candidate.reason}</p>
@@ -398,8 +398,7 @@ export function OutfitStyleSuggestion({
                 <ChevronLeft size={21} aria-hidden="true" />
               </button>
               <div className="min-w-0">
-                <span className="block text-[9px] font-black tracking-[0.12em] text-accent">STYLE ASSIST</span>
-                <h2 className="truncate text-sm font-black">{categoryLabel} 스타일 제안</h2>
+                <h2 className="truncate text-sm font-semibold">{categoryLabel} 스타일 제안</h2>
               </div>
             </header>
 
@@ -434,7 +433,7 @@ export function OutfitStyleSuggestion({
                       : 'border-line bg-canvas text-ink'
                   }`}
                 >
-                  어울리는 컬러 찾기
+                  어울리는 색상 찾기
                 </button>
               </div>
               {recommendationQuery.data && <p className="mt-2 text-[11px] leading-4 text-muted">받은 결과는 추가 사용 없이 자유롭게 전환할 수 있어요.</p>}

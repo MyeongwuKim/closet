@@ -99,7 +99,7 @@ export function WardrobeTagField({
             )}
           </span>
           <span className="mt-0.5 block text-xs leading-5 text-muted">
-            나만의 기준으로 저장하고 검색할 수 있어요.
+            태그를 붙이면 나중에 검색할 수 있어요.
           </span>
         </span>
         <ChevronDown

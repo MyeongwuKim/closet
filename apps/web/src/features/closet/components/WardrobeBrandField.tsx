@@ -134,7 +134,7 @@ export function WardrobeBrandField({
                 <span className="text-[11px] font-bold tracking-wide text-accent">
                   {isCustomInputOpen ? '목록에 없는 브랜드' : '하나를 골라주세요'}
                 </span>
-                <h2 id={dialogTitleId} className="mt-1 text-xl font-black">
+                <h2 id={dialogTitleId} className="mt-1 text-xl font-semibold">
                   {isCustomInputOpen ? '브랜드 직접 입력' : '브랜드 선택'}
                 </h2>
               </div>
@@ -239,7 +239,7 @@ export function WardrobeBrandField({
 
                 {brandOptionsQuery.isPending && (
                   <p className="py-5 text-center text-xs text-muted">
-                    저장된 브랜드를 불러오는 중...
+                    저장된 브랜드를 불러오는 중…
                   </p>
                 )}
               </div>

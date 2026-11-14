@@ -124,12 +124,12 @@ export function CategoryMultiSelectField({
                 <span className="text-[11px] font-bold tracking-wide text-accent">
                   최대 세 개까지 선택 가능
                 </span>
-                <h2 id={dialogTitleId} className="mt-1 text-xl font-black">
+                <h2 id={dialogTitleId} className="mt-1 text-xl font-semibold">
                   카테고리 선택
                 </h2>
                 <p className="mt-1.5 text-xs leading-5 text-muted">
                   처음 고른 항목이 대표예요. 대표를 해제하면 다음 항목이
-                  대표가 됩니다.
+                  대표가 돼요.
                 </p>
               </div>
               <button

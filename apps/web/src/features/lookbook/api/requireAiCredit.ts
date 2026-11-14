@@ -7,7 +7,7 @@ import { usePreviewCreditDialogStore } from '../stores/usePreviewCreditDialogSto
 /** 횟수 확인·광고 대기 중 화면을 닫거나 계정이 바뀌면 이전 계정의 작업을 진행하지 않는다. */
 function assertActive(client: QueryClient, ownerId: string, signal?: AbortSignal) {
   if (signal?.aborted || client.getQueryData<{ id: string }>(queryKeys.me)?.id !== ownerId) {
-    throw new Error('요청이 취소됐어요. 현재 계정에서 다시 시도해 주세요.')
+    throw new Error('요청이 취소됐어요. 현재 계정에서 다시 시도해주세요.')
   }
 }
 

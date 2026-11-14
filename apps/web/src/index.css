@@ -78,7 +78,7 @@ header button:focus-visible {
 .collection-heading-title {
   display: flex;
   min-width: 0;
-  min-height: 40px;
+  min-height: 44px;
   align-items: center;
   gap: 10px;
 }
@@ -94,13 +94,13 @@ header button:focus-visible {
   font-size: 24px;
   font-weight: 600;
   line-height: 1.15;
-  letter-spacing: -.045em;
+  letter-spacing: -.04em;
 }
 
 .collection-action {
   display: inline-flex;
-  height: 40px;
-  min-width: 40px;
+  height: 44px;
+  min-width: 44px;
   align-items: center;
   justify-content: center;
   gap: .4rem;

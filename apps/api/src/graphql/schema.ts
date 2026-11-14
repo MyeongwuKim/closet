@@ -738,6 +738,35 @@ export const typeDefs = `#graphql
     wornAt: String
   }
 
+  type TemperatureWearRecord {
+    date: String!
+    temperatureC: Float
+    feeling: WearFeeling
+  }
+
+  type TemperatureWearGroup {
+    id: ID!
+    outfit: Outfit!
+    matchingDate: String!
+    records: [TemperatureWearRecord!]!
+  }
+
+  input TemperatureWearHistoryInput {
+    minTemperatureC: Float
+    maxTemperatureC: Float
+    feeling: WearFeeling
+    unrecordedOnly: Boolean
+    limit: Int
+    cursor: String
+  }
+
+  type TemperatureWearHistoryPage {
+    items: [TemperatureWearGroup!]!
+    totalCount: Int!
+    hasNextPage: Boolean!
+    nextCursor: String
+  }
+
   input WearWeatherLocationInput {
     latitude: Float!
     longitude: Float!
@@ -769,6 +798,7 @@ export const typeDefs = `#graphql
     weekStartsOn: String!
     date: String!
     outfitId: ID!
+    activeItemsOnly: Boolean
     title: String
     occasion: String
     weatherSummary: String
@@ -794,6 +824,8 @@ export const typeDefs = `#graphql
     weekStartsOn: String!
     date: String!
     itemIds: [ID!]!
+    name: String
+    style: String
     previewImage: OutfitPreviewImageInput
     recommendationName: String
     recommendationStyle: String
@@ -880,9 +912,13 @@ export const typeDefs = `#graphql
     subcategory: String
     brandName: String
     unbrandedOnly: Boolean
+    brandNames: [String!]
+    includeUnbranded: Boolean
     season: Season
     color: String
+    colors: [String!]
     tag: String
+    tags: [String!]
     search: String
   }
   input OutfitPageInput {
@@ -949,6 +985,7 @@ export const typeDefs = `#graphql
     plannerWeek(weekStartsOn: String!): PlannerWeek
     plannerEntries(from: String!, to: String!): [PlannerEntry!]!
     outfitWearHistory(outfitIds: [ID!]!): [OutfitWearRecord!]!
+    temperatureWearHistory(input: TemperatureWearHistoryInput): TemperatureWearHistoryPage!
     recentWearConflict(input: RecentWearConflictInput!): RecentWearConflict
     weatherForecast(input: WeatherForecastInput!): WeatherSnapshot!
   }

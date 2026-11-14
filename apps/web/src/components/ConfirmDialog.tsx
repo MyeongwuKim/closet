@@ -15,7 +15,7 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel,
-  pendingLabel = '삭제하는 중...',
+  pendingLabel = '삭제하는 중…',
   isPending = false,
   onCancel,
   onConfirm,

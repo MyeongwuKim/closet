@@ -385,7 +385,7 @@ async function downloadReferenceImage(url: string, index: number) {
   const response = await fetch(url, { signal: AbortSignal.timeout(15_000) })
   if (!response.ok) {
     throw new ServiceError(
-      `${index + 1}번째 옷 이미지를 불러오지 못했습니다.`,
+      `${index + 1}번째 옷 이미지를 불러오지 못했어요.`,
       'OUTFIT_PREVIEW_IMAGE_FAILED',
     )
   }
@@ -422,7 +422,7 @@ async function downloadReferenceImage(url: string, index: number) {
     bytes.byteLength > MAX_REFERENCE_IMAGE_BYTES
   ) {
     throw new ServiceError(
-      '참조할 수 없는 옷 이미지가 포함되어 있습니다.',
+      '참조할 수 없는 옷 이미지가 포함되어 있어요.',
       'OUTFIT_PREVIEW_IMAGE_FAILED',
     )
   }
@@ -445,7 +445,7 @@ export const outfitPreviewService = {
     const model = process.env.OPENAI_IMAGE_MODEL?.trim() || 'gpt-image-2'
     if (!apiKey) {
       throw new ServiceError(
-        'AI 이미지 생성 설정을 확인해주세요.',
+        'AI 룩북 생성 설정을 확인해주세요.',
         'AI_CONFIGURATION_ERROR',
       )
     }
@@ -492,7 +492,7 @@ export const outfitPreviewService = {
 
     if (!imageBase64) {
       throw new ServiceError(
-        'AI 룩 이미지를 만들지 못했습니다. 잠시 후 다시 시도해주세요.',
+        'AI 룩북을 만들지 못했어요. 잠시 후 다시 시도해주세요.',
         'OUTFIT_PREVIEW_GENERATION_FAILED',
       )
     }

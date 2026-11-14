@@ -380,6 +380,23 @@ export interface PreviewRewardSession {
 /** 사용자가 실제로 입은 코디에 남기는 추위·적정·더위 체감. */
 export type WearFeeling = 'cold' | 'comfortable' | 'hot'
 
+/** 실제 입었다고 확인한 날짜의 기록. temperatureC는 당시 하루 평균 기온이며, 미기록은 null이다. */
+export interface TemperatureWearRecord {
+  date: string
+  temperatureC: number | null
+  feeling: WearFeeling | null
+}
+
+/** 기온의 하한은 포함하고 상한은 제외한다. 조건이 없으면 기온 미기록을 포함한 전체 착용을 조회한다. */
+export interface TemperatureWearHistoryInput {
+  minTemperatureC?: number | null
+  maxTemperatureC?: number | null
+  feeling?: WearFeeling | null
+  unrecordedOnly?: boolean | null
+  limit?: number | null
+  cursor?: string | null
+}
+
 export interface PlannerEntry {
   id: string
   date: string

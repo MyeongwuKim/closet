@@ -20,7 +20,10 @@ import { WardrobeSavingOverlay } from './WardrobeSavingOverlay'
 import {
   GarmentSizeFields,
 } from '../features/closet/components/GarmentSizeFields'
-import { SimilarWardrobeItems } from '../features/closet/components/SimilarWardrobeItems'
+import {
+  SimilarWardrobeItems,
+  type WardrobeComparisonCatalog,
+} from '../features/closet/components/SimilarWardrobeItems'
 import { CategoryMultiSelectField } from '../features/closet/components/CategoryMultiSelectField'
 import { WardrobeTagField } from '../features/closet/components/WardrobeTagField'
 import { FashionAttributeFields } from '../features/closet/components/FashionAttributeFields'
@@ -50,6 +53,7 @@ interface ClassificationConfirmModalProps {
   onDismiss?: () => void
   candidate: ClassificationCandidate
   wardrobeItems: WardrobeItem[]
+  wardrobeComparison: WardrobeComparisonCatalog
   onConfirm: (
     itemId: string,
     result: {
@@ -75,6 +79,7 @@ export function ClassificationConfirmModal({
   initialDraft,
   onDismiss,
   wardrobeItems,
+  wardrobeComparison,
   onConfirm,
 }: ClassificationConfirmModalProps) {
   const dialogRef = useRef<HTMLElement>(null)
@@ -220,12 +225,12 @@ export function ClassificationConfirmModal({
           <div className="min-w-0">
             <h2
               id="classification-modal-title"
-              className="truncate text-lg font-black tracking-[-0.03em] sm:text-xl"
+              className="truncate text-lg font-semibold tracking-[-0.03em] sm:text-xl"
             >
               {onDismiss ? '옷 정보 확인' : 'AI 분석 결과'}
             </h2>
             <p className="mt-0.5 truncate text-xs text-muted">
-              결과를 확인하고 내 옷장에 저장하세요.
+              결과를 확인하고 내 옷장에 저장해주세요.
             </p>
           </div>
         </div>
@@ -244,7 +249,7 @@ export function ClassificationConfirmModal({
                   ? '수동 확인 필요'
                   : 'AI 분석 완료'}
               </span>
-              <h3 className="mt-4 text-2xl font-black tracking-tight">
+              <h3 className="mt-4 text-2xl font-semibold tracking-tight">
                 {candidate.analysisFailed
                   ? '옷 정보를 직접 확인해주세요'
                   : '이렇게 분류하면 될까요?'}
@@ -432,7 +437,7 @@ export function ClassificationConfirmModal({
                     fashionAttributes,
                     category,
                   )}
-                  wardrobeItems={wardrobeItems}
+                  catalog={wardrobeComparison}
                 />
               )}
             </div>

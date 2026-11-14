@@ -75,13 +75,13 @@ export async function lockGeneratedImageForReference(tx: Prisma.TransactionClien
     retention: { in: ['permanent', 'temporary'] },
   } satisfies Prisma.ImageAssetWhereInput
   const current = await tx.imageAsset.findFirst({ where, select: { id: true, updatedAt: true } })
-  if (!current) throw new ServiceError('AI 코디 이미지가 정리 중이거나 존재하지 않습니다.', 'OUTFIT_PREVIEW_NOT_FOUND')
+  if (!current) throw new ServiceError('AI 룩북을 찾을 수 없어요.', 'OUTFIT_PREVIEW_NOT_FOUND')
   const locked = await tx.imageAsset.updateMany({
     where: { ...where, updatedAt: current.updatedAt },
     // 같은 밀리초의 저장도 실제 행 변경이 되게 해 claim과의 쓰기 충돌이 항상 발생하도록 한다.
     data: { updatedAt: new Date(Math.max(Date.now(), current.updatedAt.getTime() + 1)) },
   })
-  if (locked.count !== 1) throw new ServiceError('AI 코디 이미지가 정리 중이거나 존재하지 않습니다.', 'OUTFIT_PREVIEW_NOT_FOUND')
+  if (locked.count !== 1) throw new ServiceError('AI 룩북을 찾을 수 없어요.', 'OUTFIT_PREVIEW_NOT_FOUND')
 }
 
 /** 참조와 진행 작업을 같은 트랜잭션에서 다시 확인한 뒤 자산을 삭제 중으로 바꾼다. CF 요청은 이 트랜잭션 밖에서 수행한다. */

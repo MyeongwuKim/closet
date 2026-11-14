@@ -28,7 +28,7 @@ export function MatchedOutfitsRail({
 
   return (
     <section aria-labelledby="matched-outfits-title">
-      <div className="flex items-end justify-between gap-3">
+      <div className="flex items-center justify-between gap-3">
         <div>
           <h2
             id="matched-outfits-title"
@@ -36,13 +36,13 @@ export function MatchedOutfitsRail({
           >
             이 아이템이 포함된 코디
           </h2>
-          <p className="mt-1 text-[11px] text-muted">코디북에 저장한 최근 조합</p>
+          <p className="mt-1 text-xs text-muted">코디북에 저장한 최근 조합</p>
         </div>
         {showOutfits && (
           <button
             type="button"
             onClick={onViewAll}
-            className="flex shrink-0 items-center gap-1 text-xs font-medium text-muted hover:text-ink"
+            className="flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1 px-2 text-xs font-medium text-muted hover:text-ink"
           >
             전체보기 <ChevronRight size={14} />
           </button>
@@ -66,13 +66,13 @@ export function MatchedOutfitsRail({
                 className="aspect-[4/3] w-full"
               />
               <span className="block px-1 pt-2 pb-1">
-                <span className="inline-flex rounded-full bg-sage px-1.5 py-0.5 text-[9px] font-medium">
+                <span className="inline-flex rounded-full bg-sage px-2 py-0.5 text-xs font-medium">
                   {getOutfitStyleLabel(outfit.style)}
                 </span>
                 <strong className="mt-1 block truncate text-xs font-medium">
                   {outfit.name}
                 </strong>
-                <span className="mt-1 block text-[10px] text-muted">
+                <span className="mt-1 block text-xs text-muted">
                   {outfit.layers.length}개 아이템 ·{' '}
                   {new Intl.DateTimeFormat('ko-KR', {
                     month: 'long',

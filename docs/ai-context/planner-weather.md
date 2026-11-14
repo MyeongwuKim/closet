@@ -38,6 +38,20 @@ API 진입점은 [planner.service.ts](../../apps/api/src/features/planner/planne
 
 최근 착용 경고는 `features/planner/recent-wear-conflict.ts`, 웹 조회는 `features/plan/api/recentWearQueries.ts`에 있다. 경고 기간·조합/아이템 알림 설정은 이 경로의 입력에 반영된다.
 
+리마인드 설정은 계정별 `UserSettings`에 저장한다. 설정 화면의 전체 스위치는 서버에 바로 저장하고, 알림 기간과 확인 기준은 하단 저장 버튼을 눌렀을 때 적용한다. 계정 설정을 조회하는 동안에는 스위치를 표시하지 않는다.
+
+## 온도별 착용 기록과 다시 담기
+
+플래너 하루 보기와 코디북의 `온도별 착용 기록`은 공통 `/wear-history` 화면을 연다. 플래너의 선택 날짜와 복귀 경로를 URL에 보존하며, 오늘·내일에 기존 허용 위치의 예보가 있으면 `meanTemperatureC` 주변 ±3℃ 범위(상한 제외)를 기본 조회한다. 순간 기온·체감 온도를 예보 평균 대신 사용하지 않고, 위치를 사용하지 않거나 예보가 없으면 전체 기록으로 연다.
+
+`temperatureWearHistory(input)`은 `features/planner/temperature-history.service.ts` → 같은 이름의 repository에서 본인 계정의 오늘까지 확인된 착용만 읽는다. 예정·확인 취소·미래 날짜는 제외하며 기온 미기록은 null로 보존한다. 기온 하한은 포함, 상한은 제외하며 체감과 기온은 같은 날짜에서 일치해야 한다. 같은 옷 ID 집합의 날짜 복사본을 한 조합으로 묶고, 조건에 맞는 최근 날짜의 코디·사진을 대표로 사용한다. 상세에는 필터 밖의 날짜까지 포함한 해당 조합의 전체 기온·체감 기록을 유지한다. 대표 날짜·코디 ID순 커서를 사용하고 사진 관계는 현재 페이지에서만 읽는다.
+
+웹의 `features/wear-history`가 조회·필터·날짜별 상세·배정을 맡는다. Query는 계정·조건별 `planner` 키 아래 두어 착용 확인·취소·체감 변경 시 함께 갱신한다. 기온·체감 필터는 URL에 유지하고, 추가 페이지는 기존 `InfiniteScrollFooter`로 읽는다. 상세에서 대상 날짜를 재조회하고, 이미 계획한 코디는 교체 확인을, 최근 착용은 기존 리마인드를 거친다. 착용 완료 날짜는 배정하지 않는다.
+
+그대로 담기는 기존 `setPlannerEntry`에 `activeItemsOnly: true`를 보내 원본 날짜 코디·사진을 독립 복사한다. 이 옵션은 저장 트랜잭션의 기존 옷 참조 잠금에서 활성 옷만 허용하고 DB 필드로 쓰지 않는다. 삭제된 옷은 과거 기록에서 계속 표시하지만 새 날짜에는 교체해야 한다. 옷을 바꿔 담기는 `setDirectPlannerEntry`의 일반 `name`·`style`과 활성 옷 ID를 보내 새 직접 코디로 저장하며, 과거 AI 사진은 다른 구성에 연결하지 않는다. 기존 `recommendationName`·`recommendationStyle` 호출은 유지한다. 과거 착용·기온·체감은 새 날짜에 복사하지 않으며 저장 뒤 대상 날짜의 하루 보기로 이동한다.
+
+검사는 `temperature-history.service.test.ts`(기온·체감·그룹·페이지·인증), `planner-image-reference.test.ts`(활성 옷 잠금·독립 복사), `apps/web/tests/temperatureHistory.test.ts`(기온·날짜·경로), `tests/temperature-wear-history.spec.ts`(두 입구·필터·교체·보호·오류·페이지·예보 평균)다.
+
 ## 날짜 기준
 
 [date.ts](../../apps/api/src/lib/date.ts)는 `YYYY-MM-DD`를 검증해 UTC 자정의 Date로 표현한다. 오늘의 날짜 경계는 `wardrobe.service.ts`의 `getKoreaTodayUtc`가 한국 시간으로 계산한다. 저장용 날짜 표현과 실제 시각의 시간대를 구분하는 구조다.

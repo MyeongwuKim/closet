@@ -158,7 +158,7 @@ async function uploadToCloudflare(
 
   if (!response.ok) {
     throw new WardrobeSaveError(
-      'Cloudflare 이미지 업로드에 실패했습니다.',
+      '사진을 올리지 못했어요.',
       'CLOUDFLARE_UPLOAD_FAILED',
     )
   }
@@ -187,7 +187,7 @@ async function uploadImage(
   assertSaveSession(session)
   const imageResponse = await fetch(imageUrl, { signal: session.signal })
   if (!imageResponse.ok) {
-    throw new WardrobeSaveError('저장할 이미지를 읽지 못했습니다.')
+    throw new WardrobeSaveError('저장할 이미지를 읽지 못했어요.')
   }
 
   const blob = await imageResponse.blob()
@@ -208,7 +208,7 @@ export async function saveWardrobeItem(
   assertSaveSession(session)
   if (!candidate.originalImageUrl) {
     throw new WardrobeSaveError(
-      '사진의 배경 제거가 끝나지 않았어요. 사진을 다시 추가해 주세요.',
+      '사진의 배경 제거가 끝나지 않았어요. 사진을 다시 추가해주세요.',
       'WARDROBE_CUTOUT_REQUIRED',
     )
   }

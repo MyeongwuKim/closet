@@ -31,6 +31,7 @@ export interface SetPlannerEntryData {
   plannerWeekId: string
   date: Date
   outfitId?: string
+  activeItemsOnly?: boolean
   /** 직접 선택한 옷은 원본 코디를 만들기 전에 날짜 복사본으로 함께 저장한다. */
   outfitData?: CreateOutfitData
   title?: string | null
@@ -67,7 +68,7 @@ const clearedWearData = {
 function assertPlannerWearEditable(wornAt: Date | null | undefined) {
   if (wornAt) {
     throw new ServiceError(
-      '착용 완료한 날짜예요. 코디를 바꾸려면 먼저 착용 기록을 취소해 주세요.',
+      '착용 완료한 날짜예요. 코디를 바꾸려면 먼저 착용 기록을 취소해주세요.',
       'PLANNER_WEAR_CONFIRMED',
     )
   }
@@ -78,12 +79,12 @@ async function lockPlannerOutfitImages(transaction: Prisma.TransactionClient, pl
   const uniqueIds = [...new Set(outfitIds)]
   if (uniqueIds.length === 0) return
   const week = await transaction.plannerWeek.findUnique({ where: { id: plannerWeekId }, select: { userId: true } })
-  if (!week) throw new ServiceError('플래너를 찾을 수 없습니다.', 'PLANNER_NOT_FOUND')
+  if (!week) throw new ServiceError('플래너를 찾을 수 없어요.', 'PLANNER_NOT_FOUND')
   const outfits = await transaction.outfit.findMany({
     where: { id: { in: uniqueIds }, userId: week.userId },
     select: { id: true, items: { select: { wardrobeItemId: true } }, generations: { select: { imageAssetId: true } } },
   })
-  if (outfits.length !== uniqueIds.length) throw new ServiceError('플래너에 연결할 코디를 찾을 수 없습니다.', 'OUTFIT_NOT_FOUND')
+  if (outfits.length !== uniqueIds.length) throw new ServiceError('플래너에 연결할 코디를 찾을 수 없어요.', 'OUTFIT_NOT_FOUND')
   await lockWardrobeItemsForReference(transaction, week.userId, outfits.flatMap((outfit) => outfit.items.map((item) => item.wardrobeItemId)), { allowArchived: true })
   const assetIds = [...new Set(outfits.flatMap((outfit) => outfit.generations.flatMap((generation) => generation.imageAssetId ? [generation.imageAssetId] : [])))]
   for (const assetId of assetIds) await lockGeneratedImageForReference(transaction, week.userId, assetId)
@@ -202,15 +203,15 @@ export const plannerRepository = {
   async setEntry(data: SetPlannerEntryData) {
     return aiTransaction(async (transaction) => {
       const week = await transaction.plannerWeek.findUnique({ where: { id: data.plannerWeekId }, select: { userId: true } })
-      if (!week) throw new ServiceError('플래너를 찾을 수 없습니다.', 'PLANNER_NOT_FOUND')
+      if (!week) throw new ServiceError('플래너를 찾을 수 없어요.', 'PLANNER_NOT_FOUND')
       const where = {
         plannerWeekId_date: { plannerWeekId: data.plannerWeekId, date: data.date },
       }
       const previous = await transaction.plannerEntry.findUnique({ where, include: { outfit: { include: outfitInclude } } })
       const source = data.outfitId ? await transaction.outfit.findFirst({ where: { id: data.outfitId, userId: week.userId }, include: outfitInclude }) : null
-      if (!data.outfitData && !source) throw new ServiceError('플래너에 연결할 코디를 찾을 수 없습니다.', 'OUTFIT_NOT_FOUND')
+      if (!data.outfitData && !source) throw new ServiceError('플래너에 연결할 코디를 찾을 수 없어요.', 'OUTFIT_NOT_FOUND')
       const snapshotData = data.outfitData ? { ...data.outfitData } : outfitSnapshotData(source!)
-      if (snapshotData.userId !== week.userId) throw new ServiceError('내 코디만 플래너에 저장할 수 있습니다.', 'OUTFIT_NOT_FOUND')
+      if (snapshotData.userId !== week.userId) throw new ServiceError('내 코디만 플래너에 저장할 수 있어요.', 'OUTFIT_NOT_FOUND')
       const previousData = previous?.outfit ? outfitSnapshotData(previous.outfit) : null
       const sameItems = Boolean(previousData && sameWornItems(previousData, snapshotData))
       if (!sameItems) assertPlannerWearEditable(previous?.wornAt)
@@ -219,8 +220,11 @@ export const plannerRepository = {
       if (source) await transaction.outfit.update({ where: { id: source.id }, data: { updatedAt: new Date() } })
       const canReuse = previous?.outfit?.plannerOnly && previousData && sameOutfitSnapshot(previousData, snapshotData)
         && await transaction.plannerEntry.count({ where: { outfitId: previous.outfitId } }) === 1
-      const copy = canReuse ? previous!.outfit! : await createOutfitSnapshot(transaction, snapshotData, true, { allowArchived: !data.outfitData })
-      const { outfitId: _sourceId, outfitData: _snapshotData, ...entryData } = data
+      if (canReuse && data.activeItemsOnly) {
+        await lockWardrobeItemsForReference(transaction, week.userId, snapshotData.items.map(item => item.wardrobeItemId), { allowArchived: false })
+      }
+      const copy = canReuse ? previous!.outfit! : await createOutfitSnapshot(transaction, snapshotData, true, { allowArchived: !data.outfitData && !data.activeItemsOnly })
+      const { outfitId: _sourceId, outfitData: _snapshotData, activeItemsOnly: _activeItemsOnly, ...entryData } = data
       await transaction.plannerEntry.upsert({
         where,
         update: {

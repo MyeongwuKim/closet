@@ -339,7 +339,7 @@ export function OutfitComposerPage() {
       message:
         restoredPreview.error instanceof Error
           ? restoredPreview.error.message
-          : '완성된 AI 코디 이미지를 불러오지 못했어요.',
+          : '완성된 AI 룩북을 불러오지 못했어요.',
       open: true,
     })
   }, [restoredPreview.error, shouldRestorePreview])
@@ -348,7 +348,7 @@ export function OutfitComposerPage() {
     if (!shouldRestorePreviewFailure) return
     dispatch({
       type: 'PREVIEW_ERROR',
-      message: 'AI 룩 이미지를 완성하지 못했어요. 다시 만들기를 눌러주세요.',
+      message: 'AI 룩북을 완성하지 못했어요. 다시 만들기를 눌러주세요.',
       open: true,
     })
   }, [routeItemIdsValue, shouldRestorePreviewFailure])
@@ -462,7 +462,7 @@ export function OutfitComposerPage() {
     if (replacingItem) {
       if (item.id === replacingItem.id) return
       if (selectedIds.includes(item.id)) {
-        pushToast('이미 Look에 담긴 아이템이에요.', 'error')
+        pushToast('이미 코디에 담긴 아이템이에요.', 'error')
         return
       }
       if (getOutfitSlotId(item) !== getOutfitSlotId(replacingItem)) {
@@ -560,7 +560,7 @@ export function OutfitComposerPage() {
     changeWardrobeExpanded(false)
     dispatch({ type: 'RESET' })
     setOutfitSeasons([])
-    pushToast('선택한 옷을 모두 해제했습니다.')
+    pushToast('선택한 옷을 모두 해제했어요.')
   }
 
   const selectTargetCategory = (category: OutfitSelectionCategory) => {
@@ -663,12 +663,12 @@ export function OutfitComposerPage() {
       addOutfit(savedOutfit)
     } catch (error) {
       pushToast(
-        error instanceof Error ? error.message : '코디를 저장하지 못했습니다.',
+        error instanceof Error ? error.message : '코디를 저장하지 못했어요.',
         'error',
       )
       return
     }
-    pushToast('코디북에 새 코디를 저장했습니다.', 'success')
+    pushToast('코디북에 새 코디를 저장했어요.', 'success')
     navigate('/lookbook', { replace: true })
   }
 
@@ -759,7 +759,7 @@ export function OutfitComposerPage() {
           message:
             error instanceof Error
               ? error.message
-              : 'AI 룩 이미지를 만들지 못했습니다.',
+              : 'AI 룩북을 만들지 못했어요.',
         })
       })
   }
@@ -917,7 +917,7 @@ export function OutfitComposerPage() {
           )}
         {isExitConfirmOpen && (
           <ConfirmDialog
-            title="Look 만들기를 닫을까요?"
+            title="코디 만들기를 닫을까요?"
             description="저장하지 않은 아이템 조합은 사라져요."
             confirmLabel="닫기"
             onCancel={() => setIsExitConfirmOpen(false)}

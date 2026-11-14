@@ -79,7 +79,7 @@ export function OutfitFilterControls({
         value={searchQuery}
         onChange={onSearchChange}
         label="코디 검색어"
-        placeholder="코디명, 옷 이름, 색상으로 검색"
+        placeholder="코디 이름, 옷 이름, 색상으로 검색"
       />
 
       <SeasonFilter
@@ -88,7 +88,7 @@ export function OutfitFilterControls({
         onChange={onSeasonChange}
       />
 
-      <div className="mt-2 flex min-h-9 items-center gap-2">
+      {(viewControl || (sortOrder && onSortOrderChange) || (onColorChange && colorOptions.length > 1)) && <div className="mt-2 flex min-h-9 items-center gap-2">
         <div className="scrollbar-hidden flex min-w-0 items-center gap-2 overflow-x-auto">
           {sortOrder && onSortOrderChange && (
             <DateSortButton value={sortOrder} onChange={onSortOrderChange} />
@@ -102,11 +102,11 @@ export function OutfitFilterControls({
           )}
         </div>
         {viewControl && <div className="ml-auto shrink-0">{viewControl}</div>}
-      </div>
+      </div>}
 
       <div
         ref={styleScrollContainerRef}
-        className="scrollbar-hidden mt-1 flex gap-2 overflow-x-auto pb-1"
+        className="scrollbar-hidden mt-2 flex gap-2 overflow-x-auto pb-1"
         aria-label="코디 스타일 필터"
       >
         <button

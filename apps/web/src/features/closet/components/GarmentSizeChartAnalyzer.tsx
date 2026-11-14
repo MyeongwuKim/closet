@@ -128,7 +128,7 @@ export function GarmentSizeChartAnalyzer({
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : '사이즈표를 분석하지 못했습니다.',
+          : '사이즈표를 분석하지 못했어요.',
       )
     }
   }
@@ -239,7 +239,7 @@ export function GarmentSizeChartAnalyzer({
             ) : (
               <ImagePlus size={17} />
             )}
-            {analysisMutation.isPending ? '분석 중...' : '다시 분석'}
+            {analysisMutation.isPending ? '분석 중…' : '다시 분석'}
           </button>
         </div>
       ) : (
@@ -264,7 +264,7 @@ export function GarmentSizeChartAnalyzer({
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-black">
               {analysisMutation.isPending
-                ? '사이즈표 분석 중...'
+                ? '사이즈표 분석 중…'
                 : '사이즈표 사진 올리기'}
             </span>
             <span className="mt-1 block whitespace-nowrap text-xs leading-5 text-muted">
@@ -282,7 +282,7 @@ export function GarmentSizeChartAnalyzer({
       )}
 
       {errorMessage && (
-        <p className="mt-3 text-xs leading-5 text-red-600" role="alert">
+        <p className="mt-3 text-xs leading-5 text-danger" role="alert">
           {errorMessage}
         </p>
       )}
@@ -300,7 +300,7 @@ export function GarmentSizeChartAnalyzer({
         isResultOpen &&
         createPortal(
           <div
-            className="option-picker-backdrop fixed inset-0 z-[120] flex items-end justify-center bg-black/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-6"
+            className="option-picker-backdrop fixed inset-0 z-[120] flex items-end justify-center bg-ink/40 p-0 backdrop-blur-[2px] sm:items-center sm:p-6"
             onMouseDown={(event) => {
               if (event.target === event.currentTarget) setIsResultOpen(false)
             }}
@@ -316,7 +316,7 @@ export function GarmentSizeChartAnalyzer({
                   <Sparkles size={17} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <h2 id="analyzed-size-title" className="text-base font-black">
+                  <h2 id="analyzed-size-title" className="text-base font-semibold">
                     분석된 사이즈 선택
                   </h2>
                   <p className="mt-1 text-xs leading-5 text-muted">

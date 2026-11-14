@@ -70,7 +70,7 @@ export function useRecommendationHistory({
   const errorMessage = error
     ? error instanceof GraphqlRequestError
       ? error.message
-      : '추천 기록을 확인하지 못했어요. 연결 상태를 확인한 뒤 다시 시도해 주세요.'
+      : '추천 기록을 확인하지 못했어요. 연결 상태를 확인한 뒤 다시 시도해주세요.'
     : !isLoading && (!meQuery.data || !wardrobeQuery.data || !plannerWeekQuery.data)
       ? '추천 기록을 확인하는 데 필요한 정보를 불러오지 못했어요.'
       : null

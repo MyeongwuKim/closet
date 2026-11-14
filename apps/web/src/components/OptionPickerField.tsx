@@ -98,7 +98,7 @@ export function OptionPickerField({
                 <span className="text-[11px] font-bold tracking-wide text-accent">
                   하나를 골라주세요
                 </span>
-                <h2 id={dialogTitleId} className="mt-1 text-xl font-black">
+                <h2 id={dialogTitleId} className="mt-1 text-xl font-semibold">
                   {label} 선택
                 </h2>
               </div>

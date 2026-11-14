@@ -28,7 +28,7 @@ export const classificationResolvers = {
         const viewer = await context.getViewer()
         return await aiExecutor.run(viewer.id, 'cutout', { image: input.imageBase64, mimeType: input.mimeType }, () => classificationService.createCutout(input))
       } catch (error) {
-        throw toGraphQLError(error, '사진 배경을 제거하지 못했습니다.', 'BACKGROUND_REMOVAL_FAILED')
+        throw toGraphQLError(error, '사진 배경을 제거하지 못했어요.', 'BACKGROUND_REMOVAL_FAILED')
       }
     },
     classifyWardrobeImage: async (
@@ -48,7 +48,7 @@ export const classificationResolvers = {
       } catch (error) {
         throw toGraphQLError(
           error,
-          '옷 이미지 판별에 실패했습니다. 잠시 후 다시 시도해주세요.',
+          '옷 이미지 판별에 실패했어요. 잠시 후 다시 시도해주세요.',
           'CLASSIFICATION_FAILED',
         )
       }
@@ -64,7 +64,7 @@ export const classificationResolvers = {
       } catch (error) {
         throw toGraphQLError(
           error,
-          '사이즈표를 분석하지 못했습니다. 잠시 후 다시 시도해주세요.',
+          '사이즈표를 분석하지 못했어요. 잠시 후 다시 시도해주세요.',
           'SIZE_CHART_ANALYSIS_FAILED',
         )
       }

@@ -107,7 +107,7 @@ export function useCompletedOutfitPreview({ viewerId, requestKey, enabled, activ
       const data = await graphqlRequest<{ outfitPreviewAsset: StoredOutfitPreview }>('query OutfitPreviewAsset($id: ID!) { outfitPreviewAsset(id: $id) { assetId imageUrl mimeType model } }', { id: captured.assetId }, signal)
       assertScopeActive()
       signal?.throwIfAborted()
-      if (data.outfitPreviewAsset.assetId !== captured.assetId) throw Object.assign(new Error('완료된 AI 이미지 번호를 다시 확인해주세요.'), { code: 'OUTFIT_PREVIEW_NOT_FOUND' })
+      if (data.outfitPreviewAsset.assetId !== captured.assetId) throw Object.assign(new Error('저장된 AI 룩북을 찾지 못했어요. 다시 불러와주세요.'), { code: 'OUTFIT_PREVIEW_NOT_FOUND' })
       clearCompletedPendingPreview(requestKey, captured.jobId)
       return { ...data.outfitPreviewAsset, imageBase64: '' }
     } catch (error) {
@@ -133,7 +133,7 @@ export function useCompletedOutfitPreview({ viewerId, requestKey, enabled, activ
     if (!image) {
       const latestPointer = readCompletedPreviewPointer(requestKey)
       if (latestPointer) return client.fetchQuery({ queryKey: resultKey(viewerId, requestKey, latestPointer.assetId), queryFn: () => loadImage(latestPointer), staleTime: 0, retry: 0 })
-      throw new Error('이 옷 조합으로 보관된 AI 룩북이 없습니다.')
+      throw new Error('이 옷 조합으로 보관된 AI 룩북이 없어요.')
     }
     return toPreview(image)
   }

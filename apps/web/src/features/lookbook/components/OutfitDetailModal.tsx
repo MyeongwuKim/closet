@@ -3,13 +3,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { OutfitPreview, Season, WardrobeItem } from '@closet/types'
 import {
-  ChevronLeft,
   ImagePlus,
   Pencil,
   Save,
   Sparkles,
-  Thermometer,
-  Trash2,
   X,
 } from 'lucide-react'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
@@ -33,6 +30,8 @@ import {
   getOutfitCompletionMessage,
 } from '../utils/outfitComposition'
 import { OutfitSlotEditor } from './OutfitSlotEditor'
+import { OutfitReadView } from './OutfitReadView'
+import { OutfitDetailHeader } from './OutfitDetailHeader'
 import { OutfitPreviewDialogView } from './OutfitPreviewDialog'
 import { PreviewCreditSummary } from './PreviewCreditSummary'
 import { OutfitStyleSelector } from './OutfitStyleSelector'
@@ -67,7 +66,7 @@ function createPreviewState(): OutfitPreviewState {
   }
 }
 
-/** 저장된 코디의 옷·정보·착용 기온과 AI 룩북을 확인한다. 삭제된 옷도 유지하며, 새 저장·생성은 현재 옷으로 교체한 뒤 허용한다. */
+/** 저장된 코디는 보기로 열고, 수정 모드의 초안만 저장한다. 취소하면 저장된 구성·정보를 복원하며 삭제된 옷의 기록과 AI 생성 제한은 유지한다. */
 export function OutfitDetailModal({
   outfit,
   items,
@@ -94,6 +93,7 @@ export function OutfitDetailModal({
   const [draftStyle, setDraftStyle] = useState(outfit.style)
   const [draftSeasons, setDraftSeasons] = useState<Season[]>(outfit.seasons)
   const [isInfoOpen, setIsInfoOpen] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [draftPreview, setDraftPreview] = useState(createPreviewState)
@@ -133,6 +133,8 @@ export function OutfitDetailModal({
   const itemsChanged =
     originalItemIds.length !== draftItemIds.length ||
     originalItemIds.some((itemId, index) => itemId !== draftItemIds[index])
+  const hasViewablePreview = hasRestorablePreview || hasCurrentDraftPreview || Boolean(outfit.previewImageUrl && !itemsChanged)
+  const requiresPreviewCredit = !hasViewablePreview && !generateOutfitPreview.willResume
   const originalItemIdSet = new Set(originalItemIds)
   const itemSetChanged =
     originalItemIds.length !== draftItemIds.length ||
@@ -143,6 +145,19 @@ export function OutfitDetailModal({
     draftSeasons.length !== outfit.seasons.length ||
     draftSeasons.some((season) => !outfit.seasons.includes(season))
   const isDirty = itemsChanged || infoChanged
+  const isSaving = isCheckingRecentWear || updateOutfit.isPending
+
+  /** 서버에 저장하지 않은 구성·정보·미리보기를 버리고 보기로 돌아간다. */
+  const cancelEdit = () => {
+    if (isSaving) return
+    setDraftItems(getSavedOutfitItems(outfit, items))
+    setDraftName(outfit.name)
+    setDraftStyle(outfit.style)
+    setDraftSeasons(outfit.seasons)
+    setDraftPreview(createPreviewState())
+    setIsInfoOpen(false)
+    setIsEditing(false)
+  }
 
   const saveChanges = async (previewImage?: OutfitPreview) => {
     if (archivedItemMessage) {
@@ -191,16 +206,16 @@ export function OutfitDetailModal({
       setDraftSeasons(updated.seasons)
       pushToast(
         previewImage
-          ? '코디 수정 내용과 새 AI 룩북을 저장했습니다.'
+          ? '코디 수정 내용과 새 AI 룩북을 저장했어요.'
           : itemsChanged && outfit.previewImageUrl
-          ? '코디를 수정하고 기존 AI 룩북 연결을 해제했습니다.'
-          : '코디 정보를 수정했습니다.',
+          ? '코디를 수정하고 기존 AI 룩북 연결을 해제했어요.'
+          : '코디 정보를 수정했어요.',
         'success',
       )
       return updated
     } catch (error) {
       pushToast(
-        error instanceof Error ? error.message : '코디를 수정하지 못했습니다.',
+        error instanceof Error ? error.message : '코디를 수정하지 못했어요.',
         'error',
       )
       return null
@@ -269,7 +284,7 @@ export function OutfitDetailModal({
           errorMessage:
             error instanceof Error
               ? error.message
-              : 'AI 룩 이미지를 만들지 못했습니다.',
+              : 'AI 룩북을 만들지 못했어요.',
         }))
       })
   }
@@ -301,64 +316,22 @@ export function OutfitDetailModal({
       aria-modal="true"
       aria-label={`${outfit.name} 코디 상세`}
     >
-      <header className="shrink-0 border-b border-line bg-canvas/95 backdrop-blur">
-        <div className="mx-auto flex min-h-16 max-w-3xl items-center gap-2 px-3 py-2 sm:min-h-18 sm:px-5">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-surface"
-            aria-label={backLabel}
-            autoFocus
-          >
-            <ChevronLeft size={25} strokeWidth={2.2} />
-          </button>
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate text-lg font-black tracking-[-0.03em]">
-              {draftName}
-            </h1>
-            <p className="mt-0.5 truncate text-xs text-muted">
-              {draftSeasons.length > 0
-                ? `${formatSeasonLabels(draftSeasons)} · `
-                : ''}
-              {getOutfitStyleLabel(draftStyle)} · 옷 {draftItems.length}개
-            </p>
-            {wearSummary?.temperatureLabel && <p className="mt-1 flex items-center gap-1 text-[11px] text-muted" title={wearSummary.temperatureTitle}>
-              <Thermometer size={12} aria-hidden="true" />{wearSummary.temperatureLabel}
-            </p>}
-          </div>
-          <button
-            type="button"
-            onClick={() => setIsInfoOpen(true)}
-            className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-surface hover:text-ink"
-            aria-label="코디 이름과 스타일 수정"
-            title="코디 이름과 스타일 수정"
-          >
-            <Pencil size={17} />
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsDeleteConfirmOpen(true)}
-            className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-[#fff0ec] hover:text-accent"
-            aria-label="코디북에서 삭제"
-            title="코디북에서 삭제"
-          >
-            <Trash2 size={17} />
-          </button>
-        </div>
-      </header>
+      <OutfitDetailHeader name={draftName} description={`${draftSeasons.length ? `${formatSeasonLabels(draftSeasons)} · ` : ''}${getOutfitStyleLabel(draftStyle)} · 옷 ${draftItems.length}개`}
+        isEditing={isEditing} isSaving={isSaving} backLabel={backLabel} wearSummary={wearSummary}
+        onBack={isEditing ? cancelEdit : onClose} onEditInfo={() => setIsInfoOpen(true)} onDelete={() => setIsDeleteConfirmOpen(true)} />
 
       {hasArchivedItems && <p className="mx-auto w-full max-w-3xl shrink-0 px-4 py-2 text-center text-[11px] text-muted">삭제한 옷도 이 코디의 기록에는 남아 있어요.</p>}
 
-      <div className="min-h-0 flex-1 px-3 py-3 sm:px-6 sm:py-6">
+      <div className={`min-h-0 flex-1 px-3 py-3 sm:px-6 sm:py-6 ${isEditing ? '' : 'overflow-y-auto'}`}>
         <div className="relative mx-auto h-full max-w-3xl">
-          <OutfitSlotEditor
+          {isEditing ? <OutfitSlotEditor
             items={activeItems}
             selectedItems={draftItems}
             showArchivedStatus
             onChange={setDraftItems}
             className="h-full w-full"
-          />
-          {itemsChanged && outfit.previewImageUrl && (
+          /> : <OutfitReadView items={draftItems} />}
+          {isEditing && itemsChanged && outfit.previewImageUrl && (
             <p className="absolute top-3 right-3 left-3 z-20 rounded-xl bg-ink/88 px-3 py-2 text-center text-[11px] font-bold text-white backdrop-blur">
               구성이 바뀌어 저장하면 기존 AI 룩북이 해제돼요.
             </p>
@@ -368,11 +341,11 @@ export function OutfitDetailModal({
 
       <footer className="shrink-0 border-t border-line bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(27,27,24,0.06)]">
         <div className="mx-auto grid max-w-3xl grid-cols-[0.85fr_1.15fr] gap-2">
-          <div className="col-span-2"><PreviewCreditSummary /></div>
-          <AiCreditActionButton
-            requiresCredit={!hasRestorablePreview && !hasCurrentDraftPreview && !(outfit.previewImageUrl && !itemsChanged) && !generateOutfitPreview.willResume}
-            label={hasRestorablePreview || hasCurrentDraftPreview || (outfit.previewImageUrl && !itemsChanged) ? 'AI 룩북 보기' : 'AI 착장 이미지 만들기'}
-            adLabel="광고 보고 AI 이미지 만들기"
+          {!isEditing && requiresPreviewCredit && <div className="col-span-2"><PreviewCreditSummary /></div>}
+          {!isEditing ? <AiCreditActionButton
+            requiresCredit={requiresPreviewCredit}
+            label={hasViewablePreview ? 'AI 룩북 보기' : 'AI 룩북 만들기'}
+            adLabel="광고 보고 AI 룩북 만들기"
             onClick={() => {
               if (hasCurrentDraftPreview) {
                 setDraftPreview((current) => ({ ...current, isOpen: true }))
@@ -390,7 +363,7 @@ export function OutfitDetailModal({
               createDraftPreview()
             }}
             disabled={
-              !hasRestorablePreview && !hasCurrentDraftPreview && !(outfit.previewImageUrl && !itemsChanged) &&
+              !hasViewablePreview &&
               (hasArchivedItems || Boolean(outfitCompletionMessage) || Boolean(duplicateOutfit) || generateOutfitPreview.isPending || generateOutfitPreview.isRestoringCompleted)
             }
             title={
@@ -405,10 +378,10 @@ export function OutfitDetailModal({
             ) : (
               <ImagePlus size={15} />
             )}
-          </AiCreditActionButton>
-          <button
+          </AiCreditActionButton> : <button type="button" onClick={cancelEdit} disabled={isSaving} className="min-h-12 rounded-xl border border-line bg-canvas px-3 py-3 text-sm font-semibold disabled:opacity-40">취소</button>}
+          {isEditing ? <button
             type="button"
-            onClick={() => void saveChanges()}
+            onClick={async () => { if (await saveChanges()) setIsEditing(false) }}
             disabled={
               !isDirty ||
               hasArchivedItems ||
@@ -426,16 +399,16 @@ export function OutfitDetailModal({
           >
             <Save size={16} />
             {isCheckingRecentWear || updateOutfit.isPending
-              ? '저장 중...'
+              ? '저장 중…'
               : '변경사항 저장'}
-          </button>
+          </button> : <button type="button" onClick={() => setIsEditing(true)} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-accent px-3 py-3 text-sm font-semibold text-surface"><Pencil size={16} />코디 수정</button>}
           {hasArchivedItems && <p className="col-span-2 text-center text-[10px] text-muted">새로 저장하거나 생성하려면 삭제된 옷을 교체해주세요.</p>}
         </div>
       </footer>
 
       {isInfoOpen && (
         <div
-          className="classification-page-enter fixed inset-0 z-[130] flex items-center justify-center bg-black/45 p-3 backdrop-blur-[2px]"
+          className="classification-page-enter fixed inset-0 z-[130] flex items-center justify-center bg-ink/40 p-3 backdrop-blur-[2px]"
           role="dialog"
           aria-modal="true"
           aria-labelledby="outfit-info-edit-title"
@@ -446,7 +419,7 @@ export function OutfitDetailModal({
           <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-sm flex-col overflow-hidden rounded-[1.75rem] bg-surface shadow-2xl">
             <header className="flex items-center gap-3 border-b border-line px-5 py-4">
               <div className="min-w-0 flex-1">
-                <h2 id="outfit-info-edit-title" className="text-base font-black">
+                <h2 id="outfit-info-edit-title" className="text-base font-semibold">
                   코디 정보 수정
                 </h2>
                 <p className="mt-0.5 text-[11px] text-muted">
@@ -533,7 +506,7 @@ export function OutfitDetailModal({
         }
         onPrimary={() => void saveDraftPreview()}
         primaryLabel={
-          itemsChanged ? '수정한 코디에 저장' : '새 룩북으로 저장'
+          itemsChanged ? '수정한 코디에 저장' : '새 AI 룩북으로 저장'
         }
         isPrimaryPending={isCheckingRecentWear || updateOutfit.isPending}
       />
@@ -549,14 +522,14 @@ export function OutfitDetailModal({
               .mutateAsync(outfit.id)
               .then(() => {
                 removeOutfit(outfit.id)
-                pushToast('코디북에서 삭제했습니다.', 'success')
+                pushToast('코디북에서 삭제했어요.', 'success')
                 onClose()
               })
               .catch((error: unknown) => {
                 pushToast(
                   error instanceof Error
                     ? error.message
-                    : '코디를 삭제하지 못했습니다.',
+                    : '코디를 삭제하지 못했어요.',
                   'error',
                 )
               })

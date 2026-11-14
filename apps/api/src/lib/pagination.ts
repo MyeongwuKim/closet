@@ -10,7 +10,7 @@ export function readPageInput(input: PageInput = {}) {
   const limit = input.limit ?? 20
   const sort = input.sort ?? 'latest'
   if (!Number.isInteger(limit) || limit < 1 || limit > 50) {
-    throw new ServiceError('한 번에 1~50개까지 조회할 수 있습니다.', 'INVALID_PAGE')
+    throw new ServiceError('한 번에 1~50개까지 조회할 수 있어요.', 'INVALID_PAGE')
   }
   const order = sort === 'oldest' ? 'asc' as const : 'desc' as const
   let boundary: { createdAt: Date; id: string } | undefined

@@ -230,7 +230,7 @@ export function NativeLoginScreen({
             <View style={styles.testPanel}>
               <Text style={styles.testPanelTitle}>개발용 빠른 로그인</Text>
               <Text style={styles.testPanelDescription}>
-                처음 사용하는 ID는 테스트 계정으로 자동 생성됩니다.
+                처음 사용하는 ID는 테스트 계정으로 자동 생성돼요.
               </Text>
 
               <TextInput
@@ -279,7 +279,7 @@ export function NativeLoginScreen({
                 ]}
               >
                 <Text style={styles.testLoginButtonText}>
-                  {isSubmitting ? '로그인 중...' : '테스트 계정으로 로그인'}
+                  {isSubmitting ? '로그인 중…' : '테스트 계정으로 로그인'}
                 </Text>
               </Pressable>
             </View>

@@ -10,12 +10,12 @@ export function StatisticsWearPanel({ data }: { data: WardrobeStatistics }) {
     <div className="space-y-5">
       <WearStatistics data={data} />
       <section className="rounded-3xl border border-line bg-surface p-5 sm:p-6">
-        <h2 className="text-base font-black">자주 입은 스타일</h2>
+        <h2 className="text-base font-semibold">자주 입은 스타일</h2>
         <p className="mt-1 text-xs leading-5 text-muted">플래너에서 ‘입었어요’로 표시한 기록 기준이에요.</p>
         <StatisticsRanking kind="style" entries={data.wornStyles} total={data.wearRecordCount} unit="회" empty="스타일을 집계할 착용 기록이 아직 없어요." />
       </section>
       <section className="rounded-3xl border border-line bg-surface p-5 sm:p-6">
-        <h2 className="text-base font-black">아직 입지 않은 옷과 코디</h2>
+        <h2 className="text-base font-semibold">아직 입지 않은 옷과 코디</h2>
         <div className="mt-4 grid grid-cols-2 gap-3">
           <div className="rounded-2xl bg-canvas px-4 py-3">
             <p className="text-xs text-muted">옷</p>
@@ -27,7 +27,7 @@ export function StatisticsWearPanel({ data }: { data: WardrobeStatistics }) {
           </div>
         </div>
       </section>
-      <p className="px-1 text-xs leading-6 text-muted">착용 통계는 오늘까지 ‘입었어요’로 표시한 코디로 계산해요. 배정만 한 일정은 제외하며, 코디의 현재 스타일 정보가 반영됩니다.</p>
+      <p className="px-1 text-xs leading-6 text-muted">착용 통계는 오늘까지 ‘입었어요’로 표시한 코디로 계산해요. 배정만 한 일정은 제외하며, 코디의 현재 스타일 정보가 반영돼요.</p>
       <Link to="/plan" className="flex items-center justify-between rounded-2xl bg-sage px-5 py-4 text-sm font-bold">플래너에서 착용 기록 남기기<ChevronRight size={18} /></Link>
     </div>
   )

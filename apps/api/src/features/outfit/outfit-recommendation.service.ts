@@ -321,7 +321,7 @@ export const outfitRecommendationService = {
       )
     ) {
       throw new ServiceError(
-        '분류가 완료된 내 옷장 아이템만 추천에 사용할 수 있습니다.',
+        '분류가 완료된 내 옷장 아이템만 추천에 사용할 수 있어요.',
         'INVALID_OUTFIT_RECOMMENDATION',
       )
     }

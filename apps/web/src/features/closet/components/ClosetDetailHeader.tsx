@@ -24,7 +24,7 @@ export function ClosetDetailHeader({
         <button
           type="button"
           onClick={onBack}
-          className="flex size-10 items-center justify-center rounded-full hover:bg-surface"
+          className="flex size-11 items-center justify-center rounded-full hover:bg-surface"
           aria-label={backLabel}
         >
           <ChevronLeft size={25} strokeWidth={2.2} />
@@ -36,7 +36,7 @@ export function ClosetDetailHeader({
           <button
             type="button"
             onClick={onEdit}
-            className="flex size-10 items-center justify-center rounded-full text-muted transition hover:bg-surface hover:text-ink"
+            className="flex size-11 items-center justify-center rounded-full text-muted transition hover:bg-surface hover:text-ink"
             aria-label="옷 정보 수정"
             title="옷 정보 수정"
           >
@@ -45,7 +45,7 @@ export function ClosetDetailHeader({
           <button
             type="button"
             onClick={onDelete}
-            className="flex size-10 items-center justify-center rounded-full text-muted transition hover:bg-sage hover:text-accent"
+            className="flex size-11 items-center justify-center rounded-full text-muted transition hover:bg-sage hover:text-accent"
             aria-label="옷장에서 삭제"
             title="옷장에서 삭제"
           >

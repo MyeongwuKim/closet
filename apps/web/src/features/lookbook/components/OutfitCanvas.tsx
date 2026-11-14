@@ -63,7 +63,7 @@ function OutfitItemTile({
         />
       )}
       {isEmpty ? (
-        <span className="pointer-events-none absolute inset-x-0 top-0 bottom-8 flex flex-col items-center justify-center gap-1.5 text-muted/70" aria-hidden="true">
+        <span className="pointer-events-none absolute inset-x-0 top-0 bottom-8 flex flex-col items-center justify-center gap-1.5 text-muted" aria-hidden="true">
           {onSlotClick ? (
             <>
               <span className="flex size-7 items-center justify-center rounded-full border border-line bg-surface/80 transition-colors group-hover:border-accent/30 group-hover:text-accent sm:size-8">
@@ -73,9 +73,9 @@ function OutfitItemTile({
                   strokeWidth={1.6}
                 />
               </span>
-              <span className="text-[10px] font-medium sm:text-xs">추가하기</span>
+              <span className="text-xs font-medium">추가하기</span>
             </>
-          ) : <span className="text-[10px] sm:text-xs">선택한 옷 없음</span>}
+          ) : <span className="text-xs">선택한 옷 없음</span>}
         </span>
       ) : (
         <span
@@ -122,7 +122,7 @@ function OutfitItemTile({
         </span>
       )}
 
-      <span className={`pointer-events-none absolute inset-x-0 bottom-0 z-20 flex h-8 items-center justify-center border-t px-1 text-center text-[11px] font-bold sm:text-xs ${
+      <span className={`pointer-events-none absolute inset-x-0 bottom-0 z-20 flex h-8 items-center justify-center border-t px-1 text-center text-xs font-bold ${
         isEmpty ? 'border-line/60 text-muted' : 'border-line/40 bg-white/75 text-ink'
       }`}>
         {slotItem[0]?.item.category === 'dress' ? '원피스' : slot.label}
@@ -156,7 +156,7 @@ export function OutfitCanvas({
       <div className="my-auto w-[min(100cqw,calc((100cqh-2rem)*0.68))] min-w-[min(100%,16rem)] max-w-xl shrink-0 rounded-[1.5rem] bg-[#efede6] p-3 shadow-[inset_0_0_0_1px_#dedad1]">
         <div className="pointer-events-none mb-5 flex h-7 items-center justify-between gap-2 px-1">
           <span className="text-xs font-bold tracking-tight text-ink/75">코디 구성</span>
-          <span className="rounded-full border border-line/70 bg-white/60 px-2.5 py-1 text-[10px] font-medium tabular-nums text-muted">
+          <span className="rounded-full border border-line/70 bg-white/60 px-2.5 py-1 text-xs font-medium tabular-nums text-muted">
             {selectedItems.length}개 아이템
           </span>
         </div>

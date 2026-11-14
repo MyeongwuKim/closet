@@ -33,7 +33,7 @@ export interface AnalyzeGarmentSizeChartInput
 function decodeImage(input: ClassifyWardrobeImageInput) {
   if (!SUPPORTED_IMAGE_TYPES.has(input.mimeType)) {
     throw new ServiceError(
-      'JPEG, PNG, WEBP 이미지만 분석할 수 있습니다.',
+      'JPEG, PNG, WEBP 이미지만 분석할 수 있어요.',
       'INVALID_IMAGE_TYPE',
     )
   }
@@ -42,7 +42,7 @@ function decodeImage(input: ClassifyWardrobeImageInput) {
     ? input.imageBase64.slice(input.imageBase64.indexOf(',') + 1)
     : input.imageBase64
   if (!/^[A-Za-z0-9+/]+={0,2}$/.test(base64Payload) || base64Payload.length % 4 !== 0) {
-    throw new ServiceError('이미지 데이터가 올바르지 않습니다.', 'INVALID_IMAGE_DATA')
+    throw new ServiceError('이미지 데이터가 올바르지 않아요.', 'INVALID_IMAGE_DATA')
   }
   const image = Buffer.from(base64Payload, 'base64')
 
@@ -58,7 +58,7 @@ function decodeImage(input: ClassifyWardrobeImageInput) {
     : input.mimeType === 'image/jpeg'
       ? image[0] === 0xff && image[1] === 0xd8 && image[2] === 0xff
       : image.subarray(0, 4).toString('ascii') === 'RIFF' && image.subarray(8, 12).toString('ascii') === 'WEBP'
-  if (!validSignature) throw new ServiceError('이미지 형식과 데이터가 일치하지 않습니다.', 'INVALID_IMAGE_DATA')
+  if (!validSignature) throw new ServiceError('이미지 형식과 데이터가 일치하지 않아요.', 'INVALID_IMAGE_DATA')
   return image
 }
 
@@ -77,7 +77,7 @@ export const classificationService = {
         if (error instanceof ServiceError && error.code === 'AI_BUSY') throw error
         if (attempt === 1) {
           throw new ServiceError(
-            '사진의 배경을 제거하지 못했어요. 사진을 다시 추가해 주세요.',
+            '사진의 배경을 제거하지 못했어요. 사진을 다시 추가해주세요.',
             'BACKGROUND_REMOVAL_FAILED',
           )
         }

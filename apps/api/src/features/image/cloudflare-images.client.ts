@@ -43,7 +43,7 @@ function getCloudflareConfig() {
 
   if (!accountId || !apiToken) {
     throw new ServiceError(
-      'Cloudflare Images 환경 변수가 설정되지 않았습니다.',
+      'Cloudflare Images 환경 변수가 설정되지 않았어요.',
       'CLOUDFLARE_NOT_CONFIGURED',
     )
   }
@@ -70,7 +70,7 @@ export const cloudflareImagesClient = {
   /** 오래된 업로드부터 최대 1,000개를 읽는다. 이어지는 페이지 번호와 응답 구조를 검증하며 업로드·삭제는 수행하지 않는다. */
   async listImages(continuationToken?: string): Promise<CloudflareImageListPage> {
     if (continuationToken !== undefined && (typeof continuationToken !== 'string' || !continuationToken || continuationToken.length > 32)) {
-      throw new ServiceError('Cloudflare Images 목록 페이지 번호가 올바르지 않습니다.', 'CLOUDFLARE_INVALID_PAGE')
+      throw new ServiceError('Cloudflare Images 목록 페이지 번호가 올바르지 않아요.', 'CLOUDFLARE_INVALID_PAGE')
     }
     const { accountId, apiToken } = getCloudflareConfig()
     const url = new URL(`https://api.cloudflare.com/client/v4/accounts/${accountId}/images/v2`)
@@ -80,11 +80,11 @@ export const cloudflareImagesClient = {
     const response = await fetch(url, { method: 'GET', headers: { Authorization: `Bearer ${apiToken}` }, signal: AbortSignal.timeout(15_000) })
     const result = await readCloudflareResponse<unknown>(response)
     if (!result || typeof result !== 'object' || Array.isArray(result)) {
-      throw new ServiceError('Cloudflare Images 목록 응답을 확인할 수 없습니다.', 'CLOUDFLARE_INVALID_PAGE')
+      throw new ServiceError('Cloudflare Images 목록 응답을 확인할 수 없어요.', 'CLOUDFLARE_INVALID_PAGE')
     }
     const page = result as { images?: unknown; continuation_token?: unknown }
     if (!Array.isArray(page.images) || page.images.length > 1000 || (page.continuation_token !== undefined && (typeof page.continuation_token !== 'string' || page.continuation_token.length > 32))) {
-      throw new ServiceError('Cloudflare Images 목록 응답을 확인할 수 없습니다.', 'CLOUDFLARE_INVALID_PAGE')
+      throw new ServiceError('Cloudflare Images 목록 응답을 확인할 수 없어요.', 'CLOUDFLARE_INVALID_PAGE')
     }
     return { images: page.images, ...(page.continuation_token ? { continuationToken: page.continuation_token as string } : {}) }
   },

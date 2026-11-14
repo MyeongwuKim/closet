@@ -99,7 +99,7 @@ export function OutfitStyleSelector({
           role="dialog"
           aria-modal="true"
           aria-labelledby="custom-style-title"
-          className="option-picker-backdrop fixed inset-0 z-[160] flex items-center justify-center bg-black/45 p-5 backdrop-blur-[2px]"
+          className="option-picker-backdrop fixed inset-0 z-[160] flex items-center justify-center bg-ink/40 p-5 backdrop-blur-[2px]"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) closeCustomStyle()
           }}
@@ -113,7 +113,7 @@ export function OutfitStyleSelector({
           >
             <header className="flex items-start justify-between border-b border-line px-5 py-4">
               <div>
-                <h3 id="custom-style-title" className="text-base font-black">
+                <h3 id="custom-style-title" className="text-base font-semibold">
                   새 스타일 추가
                 </h3>
                 <p className="mt-1 text-[11px] font-medium text-muted">

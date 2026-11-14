@@ -160,7 +160,7 @@ export function useTodayOutfitRecommendationResult({
       ? recommendationQuery.error.message
       : isBaseItemMissing
         ? '선택한 옷이 추천에 포함되지 않았어요. 다시 추천받아 주세요.'
-        : '잠시 후 다시 시도해 주세요. 문제가 계속되면 연결 상태를 확인해 주세요.'
+        : '잠시 후 다시 시도해주세요. 문제가 계속되면 연결 상태를 확인해주세요.'
 
   // 이전 아우터를 제외한 결과가 하나여도 제외 조건을 바꾸면 다른 옷을 고를 수 있다.
   // 제외 조건이 없는 전체 후보가 하나일 때만 재추천을 막는다.

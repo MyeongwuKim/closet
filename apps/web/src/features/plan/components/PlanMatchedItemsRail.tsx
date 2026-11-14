@@ -16,7 +16,7 @@ export function PlanMatchedItemsRail({
     <section className="mt-5" aria-labelledby="plan-matched-items-title">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <h2 id="plan-matched-items-title" className="text-sm font-black">
+          <h2 id="plan-matched-items-title" className="text-sm font-semibold">
             매칭한 아이템
           </h2>
           <p className="mt-0.5 text-xs text-muted">

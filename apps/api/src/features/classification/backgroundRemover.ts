@@ -50,7 +50,7 @@ export async function removeImageBackground(
   mimeType: string,
 ) {
   if (queuedRemovals >= 8) {
-    throw new ServiceError('사진 분석이 진행 중이에요. 잠시 후 다시 시도해 주세요.', 'AI_BUSY')
+    throw new ServiceError('사진 분석이 진행 중이에요. 잠시 후 다시 시도해주세요.', 'AI_BUSY')
   }
   queuedRemovals += 1
   const work = removalTail.then(() => performBackgroundRemoval(imageBuffer, mimeType))

@@ -52,7 +52,7 @@ function validateBodyValue(
   if (value === null || value === undefined) return
   if (!Number.isFinite(value) || value < min || value > max) {
     throw new ServiceError(
-      `${label} 값은 ${min}에서 ${max} 사이여야 합니다.`,
+      `${label} 값은 ${min}에서 ${max} 사이여야 해요.`,
       'INVALID_STYLE_PROFILE',
     )
   }
@@ -119,7 +119,7 @@ export const userService = {
     })
 
     if (!viewer) {
-      throw new ServiceError('사용자를 찾을 수 없습니다.', 'USER_NOT_FOUND')
+      throw new ServiceError('사용자를 찾을 수 없어요.', 'USER_NOT_FOUND')
     }
 
     return viewer
@@ -135,7 +135,7 @@ export const userService = {
       input.intervalDays > 30
     ) {
       throw new ServiceError(
-        '최근 착용 알림 기간은 1일에서 30일 사이여야 합니다.',
+        '최근 착용 알림 기간은 1일에서 30일 사이여야 해요.',
         'INVALID_WEAR_REMINDER_PREFERENCES',
       )
     }
@@ -145,7 +145,7 @@ export const userService = {
       input,
     )
     if (!viewer) {
-      throw new ServiceError('사용자를 찾을 수 없습니다.', 'USER_NOT_FOUND')
+      throw new ServiceError('사용자를 찾을 수 없어요.', 'USER_NOT_FOUND')
     }
 
     return viewer

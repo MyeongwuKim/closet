@@ -50,15 +50,15 @@ const completionMessages: Record<CompletionPushKind, PushMessage> = {
     data: { type: 'ai-completion', kind: 'outfit-recommendation' },
   },
   'outfit-preview': {
-    title: 'AI 코디 이미지가 완성됐어요',
-    body: '앱에서 생성된 이미지를 확인해보세요.',
+    title: 'AI 룩북이 완성됐어요',
+    body: '앱에서 완성된 이미지를 확인해주세요.',
     data: { type: 'ai-completion', kind: 'outfit-preview' },
   },
 }
 
 const failureMessages: Record<FailurePushKind, PushMessage> = {
   'outfit-preview': {
-    title: 'AI 코디 이미지를 만들지 못했어요',
+    title: 'AI 룩북을 만들지 못했어요',
     body: '앱에서 다시 시도해주세요.',
     data: { type: 'ai-failure', kind: 'outfit-preview' },
   },
@@ -69,7 +69,7 @@ async function sendToUser(userId: string, message: PushMessage, requireDevice: b
   if (tokens.length === 0) {
     if (!requireDevice) return false
     throw new ServiceError(
-      '등록된 기기가 없습니다. 알림 권한을 허용한 뒤 앱을 다시 열어주세요.',
+      '등록된 기기가 없어요. 알림 권한을 허용한 뒤 앱을 다시 열어주세요.',
       'PUSH_DEVICE_NOT_REGISTERED',
     )
   }
@@ -89,7 +89,7 @@ async function sendToUser(userId: string, message: PushMessage, requireDevice: b
         signal: AbortSignal.timeout(10_000),
       })
     } catch {
-      throw new ServiceError('Expo 푸시 서버에 연결하지 못했습니다.', 'PUSH_SEND_FAILED')
+      throw new ServiceError('Expo 푸시 서버에 연결하지 못했어요.', 'PUSH_SEND_FAILED')
     }
 
     const result = (await response.json().catch(() => null)) as ExpoPushResponse | null
@@ -106,7 +106,7 @@ async function sendToUser(userId: string, message: PushMessage, requireDevice: b
         tickets: result?.data,
       })
       throw new ServiceError(
-        '알림을 보내지 못했습니다. Expo 푸시 키 설정을 확인해주세요.',
+        '알림을 보내지 못했어요. Expo 푸시 키 설정을 확인해주세요.',
         'PUSH_SEND_FAILED',
       )
     }
@@ -117,7 +117,7 @@ async function sendToUser(userId: string, message: PushMessage, requireDevice: b
 export const pushService = {
   async register(userId: string, accessToken: string, token: string, platform: PushPlatform) {
     if (token.length > 256 || !expoTokenPattern.test(token)) {
-      throw new ServiceError('Expo 푸시 토큰 형식이 올바르지 않습니다.', 'INVALID_PUSH_TOKEN')
+      throw new ServiceError('Expo 푸시 토큰 형식이 올바르지 않아요.', 'INVALID_PUSH_TOKEN')
     }
     if (platform !== 'ios' && platform !== 'android') {
       throw new ServiceError('지원하지 않는 기기입니다.', 'INVALID_PUSH_PLATFORM')

@@ -21,7 +21,7 @@ export const pushResolvers = {
         const viewer = await context.getViewer()
         return await pushService.register(viewer.id, context.accessToken!, token, platform)
       } catch (error) {
-        throw toGraphQLError(error, '기기 알림을 등록하지 못했습니다.', 'PUSH_REGISTER_FAILED')
+        throw toGraphQLError(error, '기기 알림을 등록하지 못했어요.', 'PUSH_REGISTER_FAILED')
       }
     },
     sendTestPushNotification: async (
@@ -33,7 +33,7 @@ export const pushResolvers = {
         const viewer = await context.getViewer()
         return await pushService.sendTest(viewer.id)
       } catch (error) {
-        throw toGraphQLError(error, '테스트 알림을 보내지 못했습니다.', 'PUSH_SEND_FAILED')
+        throw toGraphQLError(error, '테스트 알림을 보내지 못했어요.', 'PUSH_SEND_FAILED')
       }
     },
   },

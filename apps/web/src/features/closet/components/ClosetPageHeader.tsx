@@ -1,42 +1,41 @@
 import { Search } from 'lucide-react'
-import type { Ref } from 'react'
+import type { ReactNode, Ref } from 'react'
 import { CollectionAddButton } from '../../../components/CollectionAddButton'
 import { CollectionHeading } from '../../../components/CollectionHeading'
 
 interface ClosetPageHeaderProps {
-  itemCount: number
   analyzingCount: number
   isSearchOpen: boolean
   onToggleSearch: () => void
   onAddItem: () => void
   addButtonRef?: Ref<HTMLButtonElement>
+  filterControl?: ReactNode
 }
 
-/** 옷장 제목과 추가 버튼을 표시하고, 등록된 옷이 있으면 검색 버튼도 표시한다. 분석 중에는 추가 동작을 실행하지 않는다. */
+/** 조회 전부터 옷장 제목과 검색·필터·추가 도구의 자리를 유지한다. 분석 중에는 추가 동작을 실행하지 않는다. */
 export function ClosetPageHeader({
-  itemCount,
   analyzingCount,
   isSearchOpen,
   onToggleSearch,
   onAddItem,
   addButtonRef,
+  filterControl,
 }: ClosetPageHeaderProps) {
   return (
     <CollectionHeading
       title="내 옷장"
       actions={<>
-        {itemCount > 0 && (
-          <button
-            type="button"
-            onClick={onToggleSearch}
-            className="collection-action"
-            aria-label={isSearchOpen ? '옷장 검색 닫기' : '옷장 검색'}
-            aria-expanded={isSearchOpen}
-            title={isSearchOpen ? '검색 닫기' : '옷장 검색'}
-          >
-            <Search size={20} />
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={onToggleSearch}
+          className="collection-action"
+          aria-label={isSearchOpen ? '옷장 검색 닫기' : '옷장 검색'}
+          aria-expanded={isSearchOpen}
+          title={isSearchOpen ? '검색 닫기' : '옷장 검색'}
+        >
+          <Search size={20} />
+        </button>
+        {filterControl}
         <CollectionAddButton
           buttonRef={addButtonRef}
           onClick={onAddItem}

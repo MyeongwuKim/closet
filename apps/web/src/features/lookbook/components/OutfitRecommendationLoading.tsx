@@ -45,12 +45,12 @@ export function OutfitRecommendationLoading({ category, mode }: OutfitRecommenda
       </div>
       <strong className="outfit-recommendation-loading__title">
         {isColorMode
-          ? '어울리는 컬러를 찾고 있어요'
-          : `내 옷장에서 ${outfitSelectionLabels[category]} 찾는 중`}
+          ? '어울리는 색상을 찾고 있어요'
+          : `내 옷장에서 ${outfitSelectionLabels[category]} 찾고 있어요`}
       </strong>
       <span className="outfit-recommendation-loading__description">
         {isColorMode
-          ? '지금 Look과 잘 맞는 색을 살펴보고 있어요.'
+          ? '지금 코디와 어울리는 색을 찾고 있어요.'
           : '함께 입기 좋은 아이템을 살펴보고 있어요.'}
       </span>
     </div>

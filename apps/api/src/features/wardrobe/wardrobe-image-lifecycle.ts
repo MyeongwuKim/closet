@@ -35,7 +35,7 @@ export async function lockWardrobeImagesForReference(tx: Prisma.TransactionClien
       id, userId, kind: { in: ['wardrobeOriginal', 'wardrobeCutout'] }, uploadStatus: 'ready',
     } satisfies Prisma.ImageAssetWhereInput
     const asset = await tx.imageAsset.findFirst({ where, select: { id: true, updatedAt: true, retention: true } })
-    if (!asset || !['permanent', 'temporary'].includes(asset.retention ?? 'permanent')) throw new ServiceError('옷 사진이 정리 중이거나 존재하지 않습니다.', 'INVALID_WARDROBE_IMAGE')
+    if (!asset || !['permanent', 'temporary'].includes(asset.retention ?? 'permanent')) throw new ServiceError('옷 사진이 정리 중이거나 존재하지 않아요.', 'INVALID_WARDROBE_IMAGE')
   }
 }
 
@@ -59,12 +59,12 @@ export async function lockWardrobeItemsForReference(
       where,
       select: { id: true, archivedAt: true, updatedAt: true, displayImageAssetId: true, originalImageAssetId: true },
     })
-    if (!item) throw new ServiceError('현재 옷장에 있는 내 옷으로만 코디를 구성할 수 있습니다.', 'INVALID_OUTFIT_ITEMS')
+    if (!item) throw new ServiceError('현재 옷장에 있는 내 옷으로만 코디를 구성할 수 있어요.', 'INVALID_OUTFIT_ITEMS')
     if (item.archivedAt) {
       const reference = await tx.outfitItem.findFirst({
         where: { wardrobeItemId: id, outfit: { is: liveOutfitReferenceWhere } }, select: { id: true },
       })
-      if (!options.allowArchived || !reference) throw new ServiceError('기록에서 더 이상 사용하지 않는 삭제된 옷은 추가할 수 없습니다.', 'INVALID_OUTFIT_ITEMS')
+      if (!options.allowArchived || !reference) throw new ServiceError('기록에서 더 이상 사용하지 않는 삭제된 옷은 추가할 수 없어요.', 'INVALID_OUTFIT_ITEMS')
     }
     if (item.displayImageAssetId) assetIds.push(item.displayImageAssetId)
     if (item.originalImageAssetId) assetIds.push(item.originalImageAssetId)

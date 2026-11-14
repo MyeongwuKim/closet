@@ -1,4 +1,5 @@
 import { test, expect, createWardrobeItem } from './support/fixture'
+import { readFileSync } from 'node:fs'
 
 test.describe('옷장', () => {
   test('계절·카테고리·검색 조건을 적용하고 새로고침 후에도 유지한다', async ({ page, mockApi }) => {
@@ -55,6 +56,76 @@ test.describe('옷장', () => {
 
     await page.getByRole('button', { name: '내 옷장으로 돌아가기' }).click()
     await expect(page.getByRole('button', { name: '수정한 셔츠 옷 상세 보기' })).toBeVisible()
+  })
+
+  test('기존 사진에서 찾은 형태를 저장하면 색이 다른 새 옷과 겹치는 후보로 표시된다', async ({ page, mockApi }) => {
+    const photo = readFileSync('tests/support/mock-shirt.png')
+    const originalPhotoUrl = 'https://closet-test.invalid/original.png'
+    const displayPhotoUrl = 'https://closet-test.invalid/display.png'
+    const legacyJacket = createWardrobeItem({
+      id: 'legacy-jacket', name: '아이보리 재킷', brandName: '러프사이드',
+      category: 'outer', subcategory: '재킷',
+      colorName: '아이보리', colorDetailName: '웜 아이보리', colorHex: '#f2eee8',
+      seasons: ['spring', 'fall'], tags: ['출근'], sizeLabel: '2', chestWidthCm: 60,
+      originalImageAsset: { deliveryUrl: originalPhotoUrl },
+      displayImageAsset: { deliveryUrl: displayPhotoUrl },
+    })
+    mockApi.wardrobeItems = [legacyJacket]
+
+    const shape = {
+      silhouette: 'relaxed', necklineStyle: 'collar', frontOpeningStyle: 'zipper', pocketStyle: 'patch',
+    }
+    await page.route('https://closet-test.invalid/*.png', (route) => route.fulfill({
+      contentType: 'image/png', headers: { 'access-control-allow-origin': '*' }, body: photo,
+    }))
+    await page.route('**/graphql', async (route) => {
+      const { query, variables } = route.request().postDataJSON()
+      if (!query.includes('mutation ClassifyWardrobeImage')) {
+        await route.fallback()
+        return
+      }
+      expect(variables.input).toMatchObject({
+        mimeType: 'image/png', imageBase64: `data:image/png;base64,${photo.toString('base64')}`,
+      })
+      await route.fulfill({ json: { data: { classifyWardrobeImage: {
+        category: 'outer', categoryLabel: '아우터', subcategory: 'jacket', subcategoryLabel: '재킷',
+        suggestedName: '새 네이비 재킷', colorName: '네이비', colorDetailName: '네이비',
+        colorHex: '#24364a', colorRgb: [36, 54, 74], colorMode: 'solid',
+        fashionAttributes: {
+          layerRole: 'outer', material: 'cotton', texture: 'smooth', pattern: 'solid',
+          warmth: 'medium', formality: 0.6, confidence: 0.95, ...shape,
+        },
+        confidence: 0.95, model: 'e2e-mock', candidates: [], cutoutImageBase64: null, cutoutMimeType: null,
+      } } } })
+    })
+
+    await page.goto('/closet/legacy-jacket')
+    await page.getByRole('button', { name: '옷 정보 수정' }).click()
+    const editDialog = page.getByRole('dialog', { name: '옷 정보 수정' })
+    const originalRequest = page.waitForRequest((request) => (
+      request.url() === originalPhotoUrl && request.resourceType() === 'fetch'
+    ))
+    await editDialog.getByRole('button', { name: '기존 사진으로 형태 분석' }).click()
+    await originalRequest
+    await expect(editDialog.getByText('형태 정보를 찾았어요. 저장하면 옷장에 반영돼요.')).toBeVisible()
+    expect(mockApi.operations).not.toContain('UpdateWardrobeItem')
+    expect(mockApi.wardrobeItems[0].fashionAttributes).toBeNull()
+
+    await editDialog.getByRole('button', { name: '변경사항 저장' }).click()
+    await expect(editDialog).toHaveCount(0)
+    expect(mockApi.wardrobeItems).toEqual([{ ...legacyJacket, fashionAttributes: expect.objectContaining(shape) }])
+
+    await page.getByRole('button', { name: '내 옷장으로 돌아가기' }).click()
+    await page.getByRole('button', { name: '옷장에 옷 추가' }).click()
+    const photoDialog = page.getByRole('dialog', { name: '옷 사진 추가' })
+    const chooser = page.waitForEvent('filechooser')
+    await photoDialog.getByRole('button', { name: '옷 사진 선택, 끌어다 놓기 또는 붙여넣기' }).click()
+    await (await chooser).setFiles({ name: 'navy-jacket.png', mimeType: 'image/png', buffer: photo })
+
+    const analysisDialog = page.getByRole('dialog', { name: 'AI 분석 결과' })
+    const match = analysisDialog.getByRole('button', { name: '아이보리 재킷 상세정보 보기' })
+    await expect(match).toContainText(/형태 \d+%/)
+    await expect(match).toContainText('색상 다름')
   })
 
   test('옷을 보관 삭제하면 목록에서 사라지고 새로고침 후에도 다시 나타나지 않는다', async ({ page, mockApi }) => {
@@ -121,7 +192,7 @@ test.describe('옷장', () => {
     mockApi.outfits = []
     await page.route('**/graphql', async (route) => {
       if (route.request().postDataJSON().query.includes('query WardrobeItem(')) {
-        await route.fulfill({ json: { errors: [{ message: '옷장 아이템을 찾을 수 없습니다.', extensions: { code: 'WARDROBE_ITEM_NOT_FOUND' } }] } })
+        await route.fulfill({ json: { errors: [{ message: '옷장 아이템을 찾을 수 없어요.', extensions: { code: 'WARDROBE_ITEM_NOT_FOUND' } }] } })
       } else await route.fallback()
     })
     await page.goto('/closet/missing-shirt')

@@ -17,7 +17,7 @@ async function requestSession(query: string, id: string, accessToken: string) {
     if (!response.ok || !payload.data) throw new Error(payload.errors?.[0]?.message ?? '광고 보상 정보를 확인하지 못했어요.')
     return Object.values(payload.data)[0]
   } catch (error) {
-    if (controller.signal.aborted) throw new Error('광고 보상 정보 확인이 지연되고 있어요. 잠시 후 다시 시도해 주세요.', { cause: error })
+    if (controller.signal.aborted) throw new Error('광고 보상 정보 확인이 지연되고 있어요. 잠시 후 다시 시도해주세요.', { cause: error })
     throw error
   } finally {
     clearTimeout(timeout)
@@ -30,7 +30,7 @@ async function requestSession(query: string, id: string, accessToken: string) {
  */
 export async function handleNativeRewardedAd(request: NativeRewardedAdRequest, webViewRef: WebViewRef, accessToken?: string) {
   try {
-    if (!accessToken) throw new Error('로그인한 뒤 광고를 시청해 주세요.')
+    if (!accessToken) throw new Error('로그인한 뒤 광고를 시청해주세요.')
     const session = await requestSession(`query PreviewRewardSession($id: ID!) { previewRewardSession(id: $id) { ${sessionFields} } }`, request.sessionId, accessToken)
     if (session.status === 'granted') {
       postNativeBridgeResponse(webViewRef, request.id, { ok: true, data: { status: 'earned', sessionId: session.id } })

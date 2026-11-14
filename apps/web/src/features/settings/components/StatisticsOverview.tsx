@@ -15,7 +15,7 @@ interface DistributionProps {
 function Distribution({ title, description, entries, total, unit, empty, kind }: DistributionProps) {
   return (
     <section className="rounded-3xl border border-line bg-surface p-5 sm:p-6">
-      <h2 className="text-base font-black">{title}</h2>
+      <h2 className="text-base font-semibold">{title}</h2>
       <p className="mt-1 text-xs leading-5 text-muted">{description}</p>
       <StatisticsRanking entries={entries} total={total} unit={unit} empty={empty} kind={kind} />
     </section>

@@ -60,7 +60,7 @@ test('브랜드 삭제는 로그인 사용자의 ID로만 실행한다', async (
 
 test('인증에 실패하면 브랜드를 삭제하지 않고 인증 오류를 전달한다', async (t) => {
   const remove = t.mock.method(wardrobeService, 'deleteBrand', async () => 0)
-  const context: GraphQLContext = { getViewer: async () => { throw new ServiceError('로그인이 필요합니다.', 'UNAUTHENTICATED') } }
+  const context: GraphQLContext = { getViewer: async () => { throw new ServiceError('로그인이 필요해요.', 'UNAUTHENTICATED') } }
   await assert.rejects(
     wardrobeResolvers.Mutation.deleteWardrobeBrand(null, { brandName: 'COS' }, context),
     (error: unknown) => error instanceof GraphQLError && error.extensions.code === 'UNAUTHENTICATED',

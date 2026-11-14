@@ -25,7 +25,7 @@ export const imageResolvers = {
       } catch (error) {
         throw toGraphQLError(
           error,
-          '이미지 업로드를 준비하지 못했습니다.',
+          '이미지 업로드를 준비하지 못했어요.',
           'IMAGE_UPLOAD_PREPARE_FAILED',
         )
       }
@@ -41,7 +41,7 @@ export const imageResolvers = {
       } catch (error) {
         throw toGraphQLError(
           error,
-          '이미지 업로드를 확인하지 못했습니다.',
+          '이미지 업로드를 확인하지 못했어요.',
           'IMAGE_UPLOAD_CONFIRM_FAILED',
         )
       }

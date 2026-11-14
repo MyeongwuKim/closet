@@ -100,7 +100,7 @@ export function ClosetDetailPage() {
     selectedOutfitId,
   ])
 
-  if (itemQuery.isPending) return createPortal(<div className="fixed inset-0 z-[60] grid place-items-center bg-canvas" role="status">옷을 불러오는 중...</div>, document.body)
+  if (itemQuery.isPending) return createPortal(<div className="fixed inset-0 z-[60] grid place-items-center bg-canvas" role="status">옷을 불러오는 중…</div>, document.body)
   if (!selectedItem) {
     const isMissing = itemQuery.error instanceof GraphqlRequestError && itemQuery.error.code === 'WARDROBE_ITEM_NOT_FOUND'
     return createPortal(
@@ -112,13 +112,13 @@ export function ClosetDetailPage() {
         </header>
         <div className="grid min-h-0 flex-1 place-items-center overflow-y-auto p-6">
           <div className="w-full max-w-sm rounded-3xl border border-line bg-surface p-6 text-center">
-            <h1 className="text-lg font-black">{isMissing ? '옷을 찾을 수 없어요' : '옷을 불러오지 못했어요'}</h1>
+            <h1 className="text-lg font-semibold">{isMissing ? '옷을 찾을 수 없어요' : '옷을 불러오지 못했어요'}</h1>
             <p className="mt-3 text-sm leading-6 text-muted">
               {isMissing ? '삭제된 옷이거나 현재 계정에서 볼 수 없는 옷이에요.' : '서버 연결을 확인한 뒤 다시 시도해주세요. 저장된 옷이 삭제되었다는 뜻은 아니에요.'}
             </p>
             {!isMissing && (
               <button type="button" onClick={() => void itemQuery.refetch()} disabled={itemQuery.isFetching} className="mt-5 rounded-xl bg-ink px-5 py-3 text-sm font-bold text-white disabled:opacity-50">
-                {itemQuery.isFetching ? '다시 불러오는 중...' : '다시 시도'}
+                {itemQuery.isFetching ? '다시 불러오는 중…' : '다시 시도'}
               </button>
             )}
           </div>
@@ -197,7 +197,7 @@ export function ClosetDetailPage() {
           </div>
 
           <div className="lg:pt-5">
-            <h2 className="text-xl font-black tracking-[-0.03em] sm:text-2xl">
+            <h2 className="text-xl font-semibold tracking-[-0.03em] sm:text-2xl">
               아이템 정보
             </h2>
             <p className="mt-3 flex items-center gap-2 text-sm text-muted">
@@ -212,7 +212,7 @@ export function ClosetDetailPage() {
             <p className="mt-2 text-sm text-muted">
               {selectedItem.wearCount > 0
                 ? `${recentWearLabel} · 총 ${selectedItem.wearCount}회`
-                : '아직 착용 기록이 없습니다.'}
+                : '아직 착용 기록이 없어요.'}
             </p>
 
             <p className="mt-3 inline-flex rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-bold">
@@ -424,12 +424,12 @@ export function ClosetDetailPage() {
                 input: updates,
               })
               setIsEditing(false)
-              pushToast('옷 정보를 수정했습니다.', 'success')
+              pushToast('옷 정보를 수정했어요.', 'success')
             } catch (error) {
               pushToast(
                 error instanceof Error
                   ? error.message
-                  : '옷 정보를 수정하지 못했습니다.',
+                  : '옷 정보를 수정하지 못했어요.',
                 'error',
               )
               throw error
@@ -449,14 +449,14 @@ export function ClosetDetailPage() {
             void archiveWardrobeItem
               .mutateAsync(selectedItem.id)
               .then(() => {
-                pushToast('옷장에서 삭제했습니다.', 'success')
+                pushToast('옷장에서 삭제했어요.', 'success')
                 navigate('/closet', { replace: true })
               })
               .catch((error: unknown) => {
                 pushToast(
                   error instanceof Error
                     ? error.message
-                    : '옷장에서 삭제하지 못했습니다.',
+                    : '옷장에서 삭제하지 못했어요.',
                   'error',
                 )
               })

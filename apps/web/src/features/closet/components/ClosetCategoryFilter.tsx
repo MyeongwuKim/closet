@@ -9,6 +9,8 @@ interface ClosetCategoryFilterProps {
   subcategory: string | null
   availableCategories: ClothingCategory[]
   availableSubcategories: string[]
+  /** 옵션을 처음 조회하는 동안 같은 높이에 종류 버튼의 자리를 유지한다. */
+  isLoading?: boolean
   onCategoryChange: (value: ClothingCategory | null) => void
   onSubcategoryChange: (value: string | null) => void
 }
@@ -19,6 +21,7 @@ export function ClosetCategoryFilter({
   subcategory,
   availableCategories,
   availableSubcategories,
+  isLoading = false,
   onCategoryChange,
   onSubcategoryChange,
 }: ClosetCategoryFilterProps) {
@@ -48,7 +51,7 @@ export function ClosetCategoryFilter({
     })
 
     return () => window.cancelAnimationFrame(animationFrame)
-  }, [category, subcategory])
+  }, [category, subcategory, isLoading])
 
   const selectCategory = (nextCategory: ClothingCategory | null) => {
     onCategoryChange(nextCategory)
@@ -59,8 +62,12 @@ export function ClosetCategoryFilter({
       ref={scrollContainerRef}
       className={`scrollbar-hidden flex gap-2 overflow-x-auto pb-1 ${className}`}
       aria-label={category ? `${closetCategoryLabels[category]} 세부 종류` : '옷 카테고리'}
+      aria-busy={isLoading}
+      inert={isLoading}
     >
-      {category === null ? (
+      {isLoading ? (
+        Array.from({ length: 4 }, (_, index) => <span className="h-9 w-16 shrink-0 animate-pulse rounded-full bg-line/40" aria-hidden="true" key={index} />)
+      ) : category === null ? (
         <>
           <button
             ref={activeButtonRef}

@@ -22,6 +22,8 @@ import {
 import type { CreateOutfitInput } from '../outfit/outfit.service.js'
 import { syncWearWeatherLocation } from './wear-weather.service.js'
 import type { WearWeatherLocation } from './wear-weather.repository.js'
+import type { TemperatureWearHistoryInput } from '@closet/types'
+import { getTemperatureWearHistory } from './temperature-history.service.js'
 
 export const plannerResolvers = {
   PlannerWeek: {
@@ -41,6 +43,15 @@ export const plannerResolvers = {
     wornAt: (record: { wornAt?: Date | null }) => record.wornAt?.toISOString() ?? null,
   },
   Query: {
+    /** 확인한 착용만 기온·체감으로 찾으며, 코디북 삭제와 무관하게 날짜별 원본 기록을 유지한다. */
+    temperatureWearHistory: async (_parent: unknown, { input }: { input?: TemperatureWearHistoryInput | null }, context: GraphQLContext) => {
+      try {
+        const viewer = await context.getViewer()
+        return await getTemperatureWearHistory(viewer.id, input ?? {})
+      } catch (error) {
+        throw toGraphQLError(error, '온도별 착용 기록을 불러오지 못했어요.', 'TEMPERATURE_HISTORY_LOAD_FAILED')
+      }
+    },
     plannerWeek: async (
       _parent: unknown,
       { weekStartsOn }: { weekStartsOn: string },
@@ -50,7 +61,7 @@ export const plannerResolvers = {
         const viewer = await context.getViewer()
         return plannerService.getWeek(viewer.id, weekStartsOn)
       } catch (error) {
-        throw toGraphQLError(error, '플래너를 불러오지 못했습니다.', 'PLANNER_LOAD_FAILED')
+        throw toGraphQLError(error, '플래너를 불러오지 못했어요.', 'PLANNER_LOAD_FAILED')
       }
     },
     plannerEntries: async (
@@ -64,7 +75,7 @@ export const plannerResolvers = {
       } catch (error) {
         throw toGraphQLError(
           error,
-          '월간 플래너를 불러오지 못했습니다.',
+          '월간 플래너를 불러오지 못했어요.',
           'PLANNER_LOAD_FAILED',
         )
       }
@@ -80,7 +91,7 @@ export const plannerResolvers = {
       } catch (error) {
         throw toGraphQLError(
           error,
-          '코디 착용 기록을 불러오지 못했습니다.',
+          '코디 착용 기록을 불러오지 못했어요.',
           'OUTFIT_HISTORY_LOAD_FAILED',
         )
       }
@@ -96,7 +107,7 @@ export const plannerResolvers = {
       } catch (error) {
         throw toGraphQLError(
           error,
-          '최근 착용 기록을 확인하지 못했습니다.',
+          '최근 착용 기록을 확인하지 못했어요.',
           'RECENT_WEAR_CONFLICT_LOAD_FAILED',
         )
       }
@@ -109,7 +120,7 @@ export const plannerResolvers = {
         const viewer = await context.getViewer()
         return await plannerService.setEntryWearFeeling(viewer.id, input)
       } catch (error) {
-        throw toGraphQLError(error, '체감 기록을 저장하지 못했습니다.', 'PLANNER_WEAR_FEELING_UPDATE_FAILED')
+        throw toGraphQLError(error, '체감 기록을 저장하지 못했어요.', 'PLANNER_WEAR_FEELING_UPDATE_FAILED')
       }
     },
     /** 로그인 계정의 날짜·코디를 검증한 뒤 실제 착용 확인이나 취소를 저장한다. */
@@ -118,7 +129,7 @@ export const plannerResolvers = {
         const viewer = await context.getViewer()
         return await plannerService.setEntryWorn(viewer.id, input)
       } catch (error) {
-        throw toGraphQLError(error, '착용 상태를 저장하지 못했습니다.', 'PLANNER_WEAR_UPDATE_FAILED')
+        throw toGraphQLError(error, '착용 상태를 저장하지 못했어요.', 'PLANNER_WEAR_UPDATE_FAILED')
       }
     },
     syncWearWeatherLocation: async (_parent: unknown, { input }: { input?: WearWeatherLocation | null }, context: GraphQLContext) => {
@@ -126,7 +137,7 @@ export const plannerResolvers = {
         const viewer = await context.getViewer()
         return await syncWearWeatherLocation(viewer.id, input ?? null)
       } catch (error) {
-        throw toGraphQLError(error, '착용 날씨 지역을 저장하지 못했습니다.', 'WEAR_WEATHER_LOCATION_FAILED')
+        throw toGraphQLError(error, '착용 날씨 지역을 저장하지 못했어요.', 'WEAR_WEATHER_LOCATION_FAILED')
       }
     },
     setPlannerEntry: async (
@@ -138,7 +149,7 @@ export const plannerResolvers = {
         const viewer = await context.getViewer()
         return await plannerService.setEntry(viewer.id, input)
       } catch (error) {
-        throw toGraphQLError(error, '플래너를 저장하지 못했습니다.', 'PLANNER_UPDATE_FAILED')
+        throw toGraphQLError(error, '플래너를 저장하지 못했어요.', 'PLANNER_UPDATE_FAILED')
       }
     },
     setDirectPlannerEntry: async (
@@ -152,7 +163,7 @@ export const plannerResolvers = {
       } catch (error) {
         throw toGraphQLError(
           error,
-          '직접 고른 코디를 플래너에 저장하지 못했습니다.',
+          '직접 고른 코디를 플래너에 저장하지 못했어요.',
           'PLANNER_DIRECT_OUTFIT_FAILED',
         )
       }
@@ -168,7 +179,7 @@ export const plannerResolvers = {
       } catch (error) {
         throw toGraphQLError(
           error,
-          '코디 위치를 옮기지 못했습니다.',
+          '코디 위치를 옮기지 못했어요.',
           'PLANNER_MOVE_FAILED',
         )
       }
@@ -194,7 +205,7 @@ export const plannerResolvers = {
       } catch (error) {
         throw toGraphQLError(
           error,
-          '코디북에 저장하지 못했습니다.',
+          '코디북에 저장하지 못했어요.',
           'PLANNER_OUTFIT_PROMOTION_FAILED',
         )
       }
@@ -208,7 +219,7 @@ export const plannerResolvers = {
         const viewer = await context.getViewer()
         return await plannerService.clearEntry(viewer.id, weekStartsOn, date)
       } catch (error) {
-        throw toGraphQLError(error, '플래너를 비우지 못했습니다.', 'PLANNER_UPDATE_FAILED')
+        throw toGraphQLError(error, '플래너를 비우지 못했어요.', 'PLANNER_UPDATE_FAILED')
       }
     },
   },

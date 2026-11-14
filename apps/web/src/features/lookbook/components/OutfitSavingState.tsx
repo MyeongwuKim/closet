@@ -54,7 +54,7 @@ export function OutfitSavingState({ isPersisting }: OutfitSavingStateProps) {
       <p className="mt-2 max-w-60 text-xs leading-6 text-muted">
         {isPersisting
           ? '고른 옷과 코디 이름을 함께 저장하고 있어요.'
-          : '최근에 입은 옷인지 먼저 살펴볼게요.'}
+          : '최근 착용 기록을 확인하고 있어요.'}
       </p>
     </div>
   )

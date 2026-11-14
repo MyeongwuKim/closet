@@ -172,6 +172,7 @@ export function PlanDetailPage() {
   const previewImageUrl = generatedPreviewUrl ?? entry.previewImageUrl
   const hasCompletedImage = Boolean(previewImageUrl || generatePreview.hasCompletedPreview)
   const isCompletedLookupError = generatePreview.isCompletedLookupError && !hasCompletedImage
+  const requiresPreviewCredit = !hasCompletedImage && !isCompletedLookupError && !hasCurrentPendingPreview && !generatePreview.willResume
   const hasLocalPreview = Boolean(readyPreview || entry.previewImageUrl)
   const isPreviewActionLoading = hasCurrentPendingPreview || (!hasLocalPreview && (generatePreview.isPending || generatePreview.isRestoringCompleted))
   const isPreviewActionDisabled = isEmpty || (hasArchivedItems && !hasCompletedImage && !hasCurrentPendingPreview) || (!hasLocalPreview && generatePreview.isRestoringCompleted) || (generatePreview.isPending && !hasCurrentPendingPreview && !hasCompletedImage)
@@ -255,7 +256,7 @@ export function PlanDetailPage() {
       setPreviewDialog((current) => completedPreviewDialog(preview, currentPreviewKey, current.isOpen))
     } catch (error) {
       if (previewRequestVersionRef.current !== requestedPreviewVersion) return
-      setPreviewDialog((current) => ({ ...current, status: 'error', errorMessage: error instanceof Error ? error.message : 'AI 룩북을 만들지 못했습니다.' }))
+      setPreviewDialog((current) => ({ ...current, status: 'error', errorMessage: error instanceof Error ? error.message : 'AI 룩북을 만들지 못했어요.' }))
     } finally {
       if (previewInFlightRef.current === currentPreviewKey) previewInFlightRef.current = null
     }
@@ -292,13 +293,13 @@ export function PlanDetailPage() {
         (nextEntry) => nextEntry.date === entry.date,
       )
       if (!savedEntry?.outfitId) {
-        throw new Error('저장된 코디 정보를 찾을 수 없습니다.')
+        throw new Error('저장된 코디 정보를 찾을 수 없어요.')
       }
-      pushToast('변경한 코디를 이 날짜에 저장했습니다.', 'success')
+      pushToast('변경한 코디를 이 날짜에 저장했어요.', 'success')
       return true
     } catch (error) {
       pushToast(
-        error instanceof Error ? error.message : '코디를 추가하지 못했습니다.',
+        error instanceof Error ? error.message : '코디를 추가하지 못했어요.',
         'error',
       )
       return false
@@ -314,11 +315,11 @@ export function PlanDetailPage() {
         outfitId: entry.outfitId,
       })
       setCopiedRecordKey(recordKey)
-      pushToast('이 날짜의 코디를 코디북에 저장했습니다. 이후 변경은 각각 적용돼요.', 'success')
+      pushToast('이 날짜의 코디를 코디북에 저장했어요. 이후 변경은 각각 적용돼요.', 'success')
       return true
     } catch (error) {
       pushToast(
-        error instanceof Error ? error.message : '코디북에 저장하지 못했습니다.',
+        error instanceof Error ? error.message : '코디북에 저장하지 못했어요.',
         'error',
       )
       return false
@@ -348,7 +349,7 @@ export function PlanDetailPage() {
       pushToast(
         error instanceof Error
           ? error.message
-          : '플래너에서 코디를 빼지 못했습니다.',
+          : '플래너에서 코디를 빼지 못했어요.',
         'error',
       )
     }
@@ -375,7 +376,7 @@ export function PlanDetailPage() {
             <ChevronLeft size={25} strokeWidth={2.2} />
           </button>
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-lg font-black tracking-[-0.03em]">
+            <h1 className="truncate text-lg font-semibold tracking-[-0.03em]">
               {entryTitle}
             </h1>
             <p className="mt-0.5 truncate text-xs text-muted">
@@ -449,7 +450,7 @@ export function PlanDetailPage() {
               setEntryItems(entry.date, nextItemIds)
               if (hadSavedPreview) {
                 pushToast(
-                  '코디 구성이 바뀌어 기존 AI 룩북 연결을 해제했습니다.',
+                  '코디 구성이 바뀌어 기존 AI 룩북 연결을 해제했어요.',
                 )
               }
             }}
@@ -460,11 +461,11 @@ export function PlanDetailPage() {
 
       <footer className="shrink-0 border-t border-line bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(27,27,24,0.06)]">
         <div className="mx-auto grid max-w-3xl grid-cols-[0.95fr_1.05fr] gap-2">
-          <div className="col-span-2"><PreviewCreditSummary /></div>
+          {requiresPreviewCredit && <div className="col-span-2"><PreviewCreditSummary /></div>}
           <AiCreditActionButton
-            requiresCredit={!hasCompletedImage && !isCompletedLookupError && !hasCurrentPendingPreview && !generatePreview.willResume}
-            label={hasCurrentPendingPreview ? '생성 과정 보기' : hasCompletedImage ? 'AI 룩북 보기' : isCompletedLookupError ? '이미지 다시 불러오기' : generatePreview.isPending ? '만드는 중...' : 'AI 착장 이미지 만들기'}
-            adLabel="광고 보고 AI 이미지 만들기"
+            requiresCredit={requiresPreviewCredit}
+            label={hasCurrentPendingPreview ? '생성 과정 보기' : hasCompletedImage ? 'AI 룩북 보기' : isCompletedLookupError ? '이미지 다시 불러오기' : generatePreview.isPending ? '만드는 중…' : 'AI 룩북 만들기'}
+            adLabel="광고 보고 AI 룩북 만들기"
             onClick={() => void openAiLookbook()}
             disabled={isPreviewActionDisabled}
             className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-canvas px-3 py-3 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40"
@@ -494,7 +495,7 @@ export function PlanDetailPage() {
             {isCheckingRecentWear ||
             setDirectPlannerEntry.isPending ||
             saveToLookbook.isPending
-              ? '저장 중...'
+              ? '저장 중…'
               : isDateSaved ? '이 날짜에 저장됨' : '변경사항 저장'}
           </button>
           {entry.outfitId && (
@@ -505,7 +506,7 @@ export function PlanDetailPage() {
               className="col-span-2 flex items-center justify-center gap-1.5 rounded-xl border border-line bg-canvas px-3 py-2 text-xs font-bold disabled:opacity-40"
             >
               <BookHeart size={15} />
-              {saveToLookbook.isPending ? '저장 중...' : isCopiedToLookbook ? '코디북에도 저장됨' : hasArchivedItems ? '삭제된 옷 교체 후 코디북에 추가' : hasUnsavedPreview ? '이 날짜에 저장한 뒤 코디북에 추가' : '코디북에 추가'}
+              {saveToLookbook.isPending ? '저장 중…' : isCopiedToLookbook ? '코디북에도 저장됨' : hasArchivedItems ? '삭제된 옷 교체 후 코디북에 추가' : hasUnsavedPreview ? '이 날짜에 저장한 뒤 코디북에 추가' : '코디북에 추가'}
             </button>
           )}
         </div>
@@ -526,7 +527,7 @@ export function PlanDetailPage() {
           title="이 날짜에서 코디를 뺄까요?"
           description={`코디북에 저장된 코디는 삭제되지 않고, ${formattedDate} 플래너에서만 빠져요.`}
           confirmLabel="플래너에서 빼기"
-          pendingLabel="플래너에서 빼는 중..."
+          pendingLabel="플래너에서 빼는 중…"
           isPending={clearPlannerEntry.isPending}
           onCancel={() => setIsRemoveConfirmOpen(false)}
           onConfirm={() => void removeFromPlanner()}

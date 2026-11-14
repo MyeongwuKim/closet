@@ -54,7 +54,7 @@ export function PlanPeriodHeader({
         </div>
         {viewMode === 'month' && (
           <p className="mt-0.5 text-[11px] leading-4 text-muted sm:text-xs">
-            날짜를 눌러 코디를 설정하세요
+            날짜를 눌러 코디를 설정해주세요
           </p>
         )}
       </div>

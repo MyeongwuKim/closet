@@ -40,7 +40,7 @@ export function OutfitCompletionActions({
     <div className="grid gap-2.5">
       {completionMessage && (
         <p className="text-center text-[11px] font-medium text-muted" aria-live="polite">
-          {isEmpty ? '룩 박스의 +를 눌러 옷장에서 아이템을 골라주세요.' : completionMessage}
+          {isEmpty ? '코디 칸의 +를 눌러 옷장에서 아이템을 골라주세요.' : completionMessage}
         </p>
       )}
       {duplicateMessage && (
@@ -51,8 +51,8 @@ export function OutfitCompletionActions({
       <div className="grid grid-cols-2 gap-2">
         <AiCreditActionButton
           requiresCredit={!hasAvailableLookbook && !canResumePreview}
-          label={hasAvailableLookbook ? 'AI 룩 보기' : isPreviewPending ? 'AI 이미지 만드는 중…' : isRestoringPreview ? '기존 이미지 확인 중…' : 'AI 착장 이미지 만들기'}
-          adLabel="광고 보고 AI 이미지 만들기"
+          label={hasAvailableLookbook ? 'AI 룩북 보기' : isPreviewPending ? 'AI 룩북 만드는 중…' : isRestoringPreview ? '기존 이미지 확인 중…' : 'AI 룩북 만들기'}
+          adLabel="광고 보고 AI 룩북 만들기"
           onClick={onOpenLookbook}
           disabled={Boolean(completionMessage) || (!hasAvailableLookbook && (isPreviewPending || isRestoringPreview))}
           className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-2 text-xs font-semibold text-ink transition-colors hover:border-accent/40 hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-65"

@@ -7,16 +7,18 @@ import { SeasonMultiSelect } from '../../../components/SeasonMultiSelect'
 import { useUiStore, type ClassificationCandidate } from '../../../stores/useUiStore'
 import { useWardrobeImageAnalysis } from '../hooks/useWardrobeImageAnalysis'
 import { useWardrobeRegistration } from '../hooks/useWardrobeRegistration'
+import type { WardrobeComparisonCatalog } from './SimilarWardrobeItems'
 import { WardrobeRegistrationItem } from './WardrobeRegistrationItem'
 import { trapDialogFocus } from '../../../lib/dialogFocus'
 
 interface Props {
   candidates: ClassificationCandidate[]
   wardrobeItems: WardrobeItem[]
+  wardrobeComparison: WardrobeComparisonCatalog
 }
 
 /** 여러 사진의 확인을 한 목록으로 묶고, 상세 편집은 기존 분석 확인 폼에 맡긴다. */
-export function WardrobeBatchRegistrationDialog({ candidates, wardrobeItems }: Props) {
+export function WardrobeBatchRegistrationDialog({ candidates, wardrobeItems, wardrobeComparison }: Props) {
   const registration = useWardrobeRegistration(candidates)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [confirmClose, setConfirmClose] = useState(false)
@@ -73,7 +75,7 @@ export function WardrobeBatchRegistrationDialog({ candidates, wardrobeItems }: P
       </footer>
     </section>
     {editing && <ClassificationConfirmModal key={editing.candidate.itemId} candidate={editing.candidate} initialDraft={editing.draft}
-      wardrobeItems={wardrobeItems} onDismiss={() => setEditingId(null)}
+      wardrobeItems={wardrobeItems} wardrobeComparison={wardrobeComparison} onDismiss={() => setEditingId(null)}
       onConfirm={async (id, draft) => { registration.actions.edit(id, draft); setEditingId(null) }} />}
     {confirmClose && <div ref={confirmation} onKeyDown={(event) => trapDialogFocus(event, confirmation.current)}><ConfirmDialog title="옷 등록을 그만할까요?" description="저장한 옷은 유지하고, 아직 저장하지 않은 사진과 입력값은 지워요." confirmLabel="미저장 사진 지우기"
       onCancel={() => setConfirmClose(false)} onConfirm={() => useWardrobeImageAnalysis.getState().resetAnalysis()} /></div>}

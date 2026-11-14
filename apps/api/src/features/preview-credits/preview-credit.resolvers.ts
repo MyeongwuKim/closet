@@ -7,7 +7,7 @@ import { previewCreditService } from './preview-credit.service.js'
 function owned<TArgs>(operation: (userId: string, args: TArgs) => Promise<unknown>) {
   return async (_: unknown, args: TArgs, context: GraphQLContext) => {
     try { return await operation((await context.getViewer()).id, args) }
-    catch (error) { throw toGraphQLError(error, '생성권 정보를 처리하지 못했어요.', 'PREVIEW_CREDIT_FAILED') }
+    catch (error) { throw toGraphQLError(error, '사용권 정보를 처리하지 못했어요.', 'PREVIEW_CREDIT_FAILED') }
   }
 }
 

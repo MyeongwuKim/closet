@@ -13,7 +13,7 @@ export function OutfitWearStatus({ summary, compact = false }: OutfitWearStatusP
 
   return (
     <span
-      className={`mt-2 flex min-w-0 flex-col gap-1 text-[10px] text-muted ${compact ? 'font-normal' : 'border-t border-line pt-2 font-bold'}`}
+      className={`mt-2 flex min-w-0 flex-col gap-1 text-xs text-muted ${compact ? 'font-normal' : 'border-t border-line pt-2 font-bold'}`}
       title={summary.title}
     >
       <span className="flex min-w-0 items-center gap-1">

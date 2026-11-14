@@ -51,17 +51,17 @@ export const wardrobeRediscoveryService = {
   async markSeen(userId: string, day: string, itemIds: string[]) {
     const today = getKoreaTodayUtc().toISOString().slice(0, 10)
     if (day !== today || itemIds.length === 0 || itemIds.length > REDISCOVERY_LIMIT || new Set(itemIds).size !== itemIds.length) {
-      throw new ServiceError('올바른 오늘의 하이라이트가 필요합니다.', 'INVALID_WARDROBE_REDISCOVERY')
+      throw new ServiceError('올바른 오늘의 하이라이트가 필요해요.', 'INVALID_WARDROBE_REDISCOVERY')
     }
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const state = await repository.findState(userId)
       if (!state || state.day !== day || itemIds.some((id) => !state.itemIds.includes(id))) {
-        throw new ServiceError('오늘 선정한 내 옷만 확인할 수 있습니다.', 'INVALID_WARDROBE_REDISCOVERY')
+        throw new ServiceError('오늘 선정한 내 옷만 확인할 수 있어요.', 'INVALID_WARDROBE_REDISCOVERY')
       }
       const impressions = parseRediscoveryImpressions(state.impressions)
       const items = await wardrobeRepository.findManyOwnedByIds(userId, itemIds)
       if (items.length !== itemIds.length) {
-        throw new ServiceError('옷장에서 삭제된 옷은 확인할 수 없습니다.', 'INVALID_WARDROBE_REDISCOVERY')
+        throw new ServiceError('옷장에서 삭제된 옷은 확인할 수 없어요.', 'INVALID_WARDROBE_REDISCOVERY')
       }
       if (itemIds.every((id) => impressions[id] === day)) return true
       for (const id of itemIds) impressions[id] = day

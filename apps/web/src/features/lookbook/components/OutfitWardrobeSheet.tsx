@@ -14,7 +14,7 @@ interface OutfitWardrobeSheetProps {
  */
 export function OutfitWardrobeSheet({ isOpen, onClose, action, children }: OutfitWardrobeSheetProps) {
   return (
-    <aside className="outfit-styling-layout__wardrobe" aria-label="Look에 추가할 옷 고르기" data-open={isOpen}>
+    <aside className="outfit-styling-layout__wardrobe" aria-label="코디에 추가할 옷 고르기" data-open={isOpen}>
       <div className={`outfit-styling-layout__drawer-toolbar${action ? ' outfit-styling-layout__drawer-toolbar--has-action' : ''}`}>
         {action && <div className="outfit-styling-layout__drawer-action">{action}</div>}
         <button

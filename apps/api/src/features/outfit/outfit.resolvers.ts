@@ -44,7 +44,7 @@ export const outfitResolvers = {
         const viewer = await context.getViewer()
         return await getThermalRecommendationContext(viewer.id, date, meanTemperatureC)
       } catch (error) {
-        throw toGraphQLError(error, '체감 추천 기준을 불러오지 못했습니다.', 'THERMAL_RECOMMENDATION_CONTEXT_FAILED')
+        throw toGraphQLError(error, '체감 추천 기준을 불러오지 못했어요.', 'THERMAL_RECOMMENDATION_CONTEXT_FAILED')
       }
     },
     outfitPreviewJob: async (_parent: unknown, { id }: { id: string }, context: GraphQLContext) => {
@@ -52,7 +52,7 @@ export const outfitResolvers = {
         const viewer = await context.getViewer()
         return await previewJobService.get(viewer.id, id)
       } catch (error) {
-        throw toGraphQLError(error, 'AI 생성 상태를 불러오지 못했습니다.', 'AI_JOB_LOAD_FAILED')
+        throw toGraphQLError(error, 'AI 생성 상태를 불러오지 못했어요.', 'AI_JOB_LOAD_FAILED')
       }
     },
     outfitPreviewJobs: async (_parent: unknown, _args: unknown, context: GraphQLContext) => {
@@ -60,7 +60,7 @@ export const outfitResolvers = {
         const viewer = await context.getViewer()
         return await previewJobService.list(viewer.id)
       } catch (error) {
-        throw toGraphQLError(error, 'AI 생성 상태를 불러오지 못했습니다.', 'AI_JOB_LOAD_FAILED')
+        throw toGraphQLError(error, 'AI 생성 상태를 불러오지 못했어요.', 'AI_JOB_LOAD_FAILED')
       }
     },
     /** 내 옷 조합의 최신 완료 이미지를 영속 자산에서 조회한다. 알림 확인 여부와 작업 만료는 조회 조건에 넣지 않는다. */
@@ -69,7 +69,7 @@ export const outfitResolvers = {
         const viewer = await context.getViewer()
         return await previewJobService.latestForItems(viewer.id, selectedItemIds, style)
       } catch (error) {
-        throw toGraphQLError(error, '완료된 AI 코디 이미지를 불러오지 못했습니다.', 'OUTFIT_PREVIEW_LOAD_FAILED')
+        throw toGraphQLError(error, '완성된 AI 룩북을 불러오지 못했어요.', 'OUTFIT_PREVIEW_LOAD_FAILED')
       }
     },
     todayOutfitRecommendation: async (
@@ -101,7 +101,7 @@ export const outfitResolvers = {
       } catch (error) {
         throw toGraphQLError(
           error,
-          '오늘의 코디를 불러오지 못했습니다.',
+          '오늘의 코디를 불러오지 못했어요.',
           'TODAY_OUTFIT_RECOMMENDATION_FAILED',
         )
       }
@@ -127,7 +127,7 @@ export const outfitResolvers = {
       } catch (error) {
         throw toGraphQLError(
           error,
-          '코디 추천을 불러오지 못했습니다.',
+          '코디 추천을 불러오지 못했어요.',
           'OUTFIT_RECOMMENDATION_FAILED',
         )
       }
@@ -141,7 +141,7 @@ export const outfitResolvers = {
         const viewer = await context.getViewer()
         return outfitService.list(viewer.id, args)
       } catch (error) {
-        throw toGraphQLError(error, '코디북을 불러오지 못했습니다.', 'OUTFIT_LOAD_FAILED')
+        throw toGraphQLError(error, '코디북을 불러오지 못했어요.', 'OUTFIT_LOAD_FAILED')
       }
     },
     outfit: async (
@@ -153,7 +153,7 @@ export const outfitResolvers = {
         const viewer = await context.getViewer()
         return outfitService.get(viewer.id, id)
       } catch (error) {
-        throw toGraphQLError(error, '코디를 불러오지 못했습니다.', 'OUTFIT_LOAD_FAILED')
+        throw toGraphQLError(error, '코디를 불러오지 못했어요.', 'OUTFIT_LOAD_FAILED')
       }
     },
     outfitPreviewAsset: async (
@@ -167,7 +167,7 @@ export const outfitResolvers = {
       } catch (error) {
         throw toGraphQLError(
           error,
-          'AI 코디 이미지를 불러오지 못했습니다.',
+          'AI 룩북을 불러오지 못했어요.',
           'OUTFIT_PREVIEW_NOT_FOUND',
         )
       }
@@ -185,7 +185,7 @@ export const outfitResolvers = {
         const viewer = await context.getViewer()
         return await previewJobService.generateAndWait(viewer.id, input)
       } catch (error) {
-        throw toGraphQLError(error, 'AI 룩 미리보기를 만들지 못했습니다.', 'OUTFIT_PREVIEW_GENERATION_FAILED')
+        throw toGraphQLError(error, 'AI 룩북 미리보기를 만들지 못했어요.', 'OUTFIT_PREVIEW_GENERATION_FAILED')
       }
     },
     startOutfitPreview: async (_parent: unknown, { input }: { input: StartPreviewInput }, context: GraphQLContext) => {
@@ -193,7 +193,7 @@ export const outfitResolvers = {
         const viewer = await context.getViewer()
         return await previewJobService.start(viewer.id, input)
       } catch (error) {
-        throw toGraphQLError(error, 'AI 생성 요청을 저장하지 못했습니다.', 'AI_JOB_START_FAILED')
+        throw toGraphQLError(error, 'AI 생성 요청을 저장하지 못했어요.', 'AI_JOB_START_FAILED')
       }
     },
     acknowledgeOutfitPreviewJob: async (_parent: unknown, { id }: { id: string }, context: GraphQLContext) => {
@@ -201,7 +201,7 @@ export const outfitResolvers = {
         const viewer = await context.getViewer()
         return await previewJobService.acknowledge(viewer.id, id)
       } catch (error) {
-        throw toGraphQLError(error, 'AI 생성 상태를 확인하지 못했습니다.', 'AI_JOB_LOAD_FAILED')
+        throw toGraphQLError(error, 'AI 생성 상태를 확인하지 못했어요.', 'AI_JOB_LOAD_FAILED')
       }
     },
     createOutfit: async (
@@ -213,7 +213,7 @@ export const outfitResolvers = {
         const viewer = await context.getViewer()
         return outfitService.create(viewer.id, input)
       } catch (error) {
-        throw toGraphQLError(error, '코디를 저장하지 못했습니다.', 'OUTFIT_CREATE_FAILED')
+        throw toGraphQLError(error, '코디를 저장하지 못했어요.', 'OUTFIT_CREATE_FAILED')
       }
     },
     updateOutfit: async (
@@ -225,7 +225,7 @@ export const outfitResolvers = {
         const viewer = await context.getViewer()
         return outfitService.update(viewer.id, id, input)
       } catch (error) {
-        throw toGraphQLError(error, '코디를 수정하지 못했습니다.', 'OUTFIT_UPDATE_FAILED')
+        throw toGraphQLError(error, '코디를 수정하지 못했어요.', 'OUTFIT_UPDATE_FAILED')
       }
     },
     deleteOutfit: async (
@@ -238,7 +238,7 @@ export const outfitResolvers = {
         await outfitService.remove(viewer.id, id)
         return true
       } catch (error) {
-        throw toGraphQLError(error, '코디를 삭제하지 못했습니다.', 'OUTFIT_DELETE_FAILED')
+        throw toGraphQLError(error, '코디를 삭제하지 못했어요.', 'OUTFIT_DELETE_FAILED')
       }
     },
   },

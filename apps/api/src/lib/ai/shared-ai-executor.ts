@@ -21,7 +21,7 @@ async function claimSlot(tx: Prisma.TransactionClient, prefix: string, count: nu
     })
     return
   }
-  throw new ServiceError('다른 AI 작업이 진행 중이에요. 완료 후 다시 시도해 주세요.', 'AI_BUSY')
+  throw new ServiceError('다른 AI 작업이 진행 중이에요. 완료 후 다시 시도해주세요.', 'AI_BUSY')
 }
 
 /** UTC 분·날짜별 공유 한도를 갱신한다. 중복 작업을 기다리거나 캐시를 읽는 호출은 이 함수를 실행하지 않는다. */
@@ -34,7 +34,7 @@ async function consumeQuota(tx: Prisma.TransactionClient, userId: string, kind: 
   const dayCount = previous?.dayStart.getTime() === dayStart.getTime() ? previous.dayCount : 0
   const limits = getAiLimits(kind)
   if (minuteCount >= limits.minute || dayCount >= limits.day) {
-    throw new ServiceError('AI 사용 횟수 제한에 도달했어요. 시간이 지난 뒤 다시 시도해 주세요.', 'AI_RATE_LIMITED')
+    throw new ServiceError('AI 사용 횟수 제한에 도달했어요. 시간이 지난 뒤 다시 시도해주세요.', 'AI_RATE_LIMITED')
   }
   const data = { minuteStart, minuteCount: minuteCount + 1, dayStart, dayCount: dayCount + 1, expiresAt: new Date(dayStart.getTime() + 2 * 86_400_000) }
   await tx.aiQuota.upsert({ where: { id }, create: { id, ...data }, update: data })
@@ -80,12 +80,12 @@ export function createSharedAiExecutor({ pollMs = 250, waitMs = 180_000, now = D
             await prisma.aiExecution.updateMany({ where: { id, leaseToken: record.leaseToken, status: 'processing', leaseUntil: { lte: new Date(now()) } },
               data: { status: 'interrupted', errorCode: 'AI_INTERRUPTED', errorMessage: '이전 AI 요청의 완료 여부를 확인하지 못했어요. 자동으로 다시 생성하지 않았습니다.', cacheUntil: new Date(now() + 15_000) } })
           } else if (now() - startedAt >= waitMs) {
-            throw new ServiceError('AI 작업이 계속 진행 중이에요. 잠시 후 결과를 확인해 주세요.', 'AI_BUSY')
+            throw new ServiceError('AI 작업이 계속 진행 중이에요. 잠시 후 결과를 확인해주세요.', 'AI_BUSY')
           } else {
             await delay(pollMs)
           }
           const updated = await prisma.aiExecution.findUnique({ where: { id } })
-          if (!updated || updated.leaseToken !== decision.leaseToken) throw new ServiceError('AI 작업 상태가 바뀌었어요. 결과를 다시 확인해 주세요.', 'AI_INTERRUPTED')
+          if (!updated || updated.leaseToken !== decision.leaseToken) throw new ServiceError('AI 작업 상태가 바뀌었어요. 결과를 다시 확인해주세요.', 'AI_INTERRUPTED')
           record = updated
         }
         return readResult<T>(record)

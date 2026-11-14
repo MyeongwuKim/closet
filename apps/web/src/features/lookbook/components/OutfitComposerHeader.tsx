@@ -17,14 +17,14 @@ export function OutfitComposerHeader() {
           type="button"
           onClick={requestClose}
           className="flex size-11 shrink-0 items-center justify-center rounded-full text-ink transition-colors hover:bg-surface"
-          aria-label="Look 만들기 닫기"
+          aria-label="코디 만들기 닫기"
           title="닫기"
         >
           <X size={21} strokeWidth={1.8} />
         </button>
         <div className="min-w-0 flex-1">
           <PageTitle
-            title="새 Look 만들기"
+            title="새 코디 만들기"
             description={`선택한 아이템 ${selectedCount}개`}
             compact
           />

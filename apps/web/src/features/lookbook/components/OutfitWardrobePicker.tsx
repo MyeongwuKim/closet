@@ -154,7 +154,7 @@ export function OutfitWardrobePicker({
             <ChevronLeft size={25} strokeWidth={2.2} />
           </button>
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-lg font-black tracking-[-0.03em]">
+            <h1 className="truncate text-lg font-semibold tracking-[-0.03em]">
               {slot.label} 고르기
             </h1>
             <p className="mt-0.5 text-xs text-muted">
@@ -353,7 +353,7 @@ export function OutfitWardrobePicker({
                   size={26}
                 />
               </span>
-              <h2 className="mt-5 text-lg font-black">
+              <h2 className="mt-5 text-lg font-semibold">
                 {hasSearchQuery
                   ? '검색 결과가 없어요'
                   : activeFilterCount > 0

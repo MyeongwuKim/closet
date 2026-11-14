@@ -181,7 +181,7 @@ export function ComposerLookCanvas({
           </ul>
         </div>
       ) : (
-        <p className="composer-look-canvas__empty-note">옷장에서 아이템을 골라 나만의 룩을 완성해 보세요.</p>
+        <p className="composer-look-canvas__empty-note">옷장에서 옷을 골라 코디를 만들어보세요.</p>
       )}
     </section>
   )

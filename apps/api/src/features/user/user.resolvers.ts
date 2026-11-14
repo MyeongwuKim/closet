@@ -26,7 +26,7 @@ export const userResolvers = {
       } catch (error) {
         throw toGraphQLError(
           error,
-          '사용자 정보를 불러오지 못했습니다.',
+          '사용자 정보를 불러오지 못했어요.',
           'VIEWER_LOAD_FAILED',
         )
       }
@@ -46,7 +46,7 @@ export const userResolvers = {
       } catch (error) {
         throw toGraphQLError(
           error,
-          '스타일 프로필을 저장하지 못했습니다.',
+          '스타일 프로필을 저장하지 못했어요.',
           'STYLE_PROFILE_UPDATE_FAILED',
         )
       }
@@ -64,7 +64,7 @@ export const userResolvers = {
       } catch (error) {
         throw toGraphQLError(
           error,
-          '최근 착용 리마인드 설정을 저장하지 못했습니다.',
+          '최근 착용 리마인드 설정을 저장하지 못했어요.',
           'WEAR_REMINDER_PREFERENCES_UPDATE_FAILED',
         )
       }

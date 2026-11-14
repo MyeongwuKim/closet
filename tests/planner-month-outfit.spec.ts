@@ -49,6 +49,12 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     await assignedDetail.getByRole('button', { name: '플래너로 돌아가기' }).click()
     await expect(page).toHaveURL(monthUrl)
     await expect(page.getByRole('link', { name: `${date}, 출근 코디`, exact: true })).toBeVisible()
+    const day = page.getByRole('link', { name: `${date}, 출근 코디`, exact: true })
+    const caption = day.locator('.plan-month-calendar-caption')
+    await expect(caption).toBeVisible()
+    await expect(caption).toHaveText('출근 코디')
+    await expect(day.getByLabel('2개 아이템', { exact: true })).toHaveText('2개')
+    expect(await caption.evaluate((element) => parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThanOrEqual(12)
     await expect.poll(getBodyOverflow).toBe(initialOverflow)
   })
 }

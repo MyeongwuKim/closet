@@ -68,11 +68,11 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
       ],
     })
     const choice = await openStyleChoice(page)
-    await choice.getByRole('button', { name: '컬러·옷장 함께 추천받기' }).click()
+    await choice.getByRole('button', { name: '색상·옷장 함께 추천받기' }).click()
     const result = page.getByRole('region', { name: '스타일 추천', exact: true })
     await expect(result.getByText('톤인톤', { exact: true })).toBeVisible()
     await expect(result.getByText(reason, { exact: true })).toBeVisible()
-    await result.getByRole('tab', { name: '어울리는 컬러 찾기' }).click()
+    await result.getByRole('tab', { name: '어울리는 색상 찾기' }).click()
     await expect(result.getByRole('button', { name: /색상의 하의 아이템 옷장에서 보기/ })).toHaveCount(2)
     await expect(result.getByText('포인트로', { exact: true })).toHaveCount(0)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
@@ -85,12 +85,12 @@ async function openStyleChoice(page: Page, navigate = true) {
   if (navigate) await page.goto('/#/lookbook')
   await page.getByRole('button', { name: '새 코디 만들기' }).click()
   const composer = page.getByRole('dialog', { name: '코디 맞춰보기' })
-  const shirt = composer.getByRole('button', { name: '테스트 셔츠 Look에 추가' })
+  const shirt = composer.getByRole('button', { name: '테스트 셔츠 코디에 추가' })
   if (!await shirt.isVisible()) await composer.getByRole('button', { name: '상의·원피스 아이템 고르기' }).click()
   await shirt.click()
   await composer.getByRole('button', { name: '하의 아이템 고르기' }).click()
   await composer.getByRole('button', { name: '스타일 제안', exact: true }).click()
-  return page.getByRole('dialog', { name: '컬러와 옷을 함께 추천해요' })
+  return page.getByRole('dialog', { name: '색상과 옷을 함께 추천해요' })
 }
 
 for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
@@ -100,11 +100,11 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     const choice = await openStyleChoice(page)
     await expect(choice.getByText('AI 사용권 1/5', { exact: true })).toBeVisible()
     expect(state.requests).toHaveLength(0)
-    await choice.getByRole('button', { name: '컬러·옷장 함께 추천받기' }).click()
+    await choice.getByRole('button', { name: '색상·옷장 함께 추천받기' }).click()
     const result = page.getByRole('region', { name: '스타일 추천', exact: true })
     await expect(result.getByText('차분한 색감이 어울려요.', { exact: true })).toBeVisible()
     for (let index = 0; index < 3; index++) {
-      await result.getByRole('tab', { name: '어울리는 컬러 찾기' }).click()
+      await result.getByRole('tab', { name: '어울리는 색상 찾기' }).click()
       await expect(result.getByRole('button', { name: '화이트 색상의 하의 아이템 옷장에서 보기' })).toBeVisible()
       await result.getByRole('tab', { name: '내 옷장에서 찾기' }).click()
     }
@@ -140,7 +140,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     await expect(reward).toHaveCount(0)
     await expect(choice.getByText('AI 사용권 1/5', { exact: true })).toBeVisible()
     expect(state.requests).toHaveLength(0)
-    await choice.getByRole('button', { name: '컬러·옷장 함께 추천받기' }).click()
+    await choice.getByRole('button', { name: '색상·옷장 함께 추천받기' }).click()
     await expect(page.getByRole('region', { name: '스타일 추천', exact: true }).getByRole('tab', { name: '내 옷장에서 찾기' })).toBeVisible()
     expect(state.requests).toHaveLength(1)
     expect(state.ads).toBe(1)
@@ -152,10 +152,10 @@ test('추천 오류는 자동 재요청하지 않고 사용자가 다시 누른 
   const state = await installStyleCredits(page, mockApi.wardrobeItems[1])
   state.failNext = true
   const choice = await openStyleChoice(page)
-  await choice.getByRole('button', { name: '컬러·옷장 함께 추천받기' }).click()
+  await choice.getByRole('button', { name: '색상·옷장 함께 추천받기' }).click()
   const result = page.getByRole('region', { name: '스타일 추천', exact: true })
   await expect(result.getByText('추천을 불러오지 못했어요')).toBeVisible()
-  await result.getByRole('tab', { name: '어울리는 컬러 찾기' }).click()
+  await result.getByRole('tab', { name: '어울리는 색상 찾기' }).click()
   expect(state.requests).toHaveLength(1)
   await result.getByRole('button', { name: '다시 추천받기' }).click()
   await expect(result.getByRole('button', { name: '화이트 색상의 하의 아이템 옷장에서 보기' })).toBeVisible()
@@ -168,20 +168,20 @@ test('옷 수정·보관 후 예전 스타일 후보를 숨기며 다음 클릭 
   mockApi.wardrobeItems.push(createWardrobeItem({ id: 'replacement-pants', name: '남겨둘 바지', category: 'bottom', subcategory: '슬랙스' }))
   const state = await installStyleCredits(page, () => mockApi.wardrobeItems.find((item) => item.category === 'bottom' && !item.archivedAt), 3)
   let choice = await openStyleChoice(page)
-  await choice.getByRole('button', { name: '컬러·옷장 함께 추천받기' }).click()
+  await choice.getByRole('button', { name: '색상·옷장 함께 추천받기' }).click()
   const result = page.getByRole('region', { name: '스타일 추천', exact: true })
   await expect(result.getByText('테스트 바지', { exact: true })).toBeVisible()
 
   const returnToCloset = async () => {
     await result.getByRole('button', { name: '옷장으로 돌아가기' }).click()
-    await page.getByRole('button', { name: 'Look 만들기 닫기' }).click()
-    await page.getByRole('alertdialog', { name: 'Look 만들기를 닫을까요?' }).getByRole('button', { name: '닫기', exact: true }).click()
+    await page.getByRole('button', { name: '코디 만들기 닫기' }).click()
+    await page.getByRole('alertdialog', { name: '코디 만들기를 닫을까요?' }).getByRole('button', { name: '닫기', exact: true }).click()
     await page.getByRole('navigation', { name: '주요 메뉴' }).getByRole('link', { name: '옷장', exact: true }).click()
   }
   const reopenChoice = async () => {
     await page.getByRole('navigation', { name: '주요 메뉴' }).getByRole('link', { name: '코디북', exact: true }).click()
     choice = await openStyleChoice(page, false)
-    await expect(choice.getByRole('button', { name: '컬러·옷장 함께 추천받기' })).toBeVisible()
+    await expect(choice.getByRole('button', { name: '색상·옷장 함께 추천받기' })).toBeVisible()
     await expect(choice.getByRole('button', { name: '추천 결과 다시 보기' })).toHaveCount(0)
   }
 
@@ -195,7 +195,7 @@ test('옷 수정·보관 후 예전 스타일 후보를 숨기며 다음 클릭 
   await reopenChoice()
   expect(state.requests).toHaveLength(1)
   expect(state.balance).toBe(2)
-  await choice.getByRole('button', { name: '컬러·옷장 함께 추천받기' }).click()
+  await choice.getByRole('button', { name: '색상·옷장 함께 추천받기' }).click()
   await expect(result.getByText('수정한 바지', { exact: true })).toBeVisible()
   await expect(result.getByText('테스트 바지', { exact: true })).toHaveCount(0)
 
@@ -207,7 +207,7 @@ test('옷 수정·보관 후 예전 스타일 후보를 숨기며 다음 클릭 
   await reopenChoice()
   expect(state.requests).toHaveLength(2)
   expect(state.balance).toBe(1)
-  await choice.getByRole('button', { name: '컬러·옷장 함께 추천받기' }).click()
+  await choice.getByRole('button', { name: '색상·옷장 함께 추천받기' }).click()
   await expect(result.getByText('남겨둘 바지', { exact: true })).toBeVisible()
   await expect(result.getByText('수정한 바지', { exact: true })).toHaveCount(0)
   expect(state.requests).toHaveLength(3)
@@ -221,7 +221,7 @@ test('추천 중 화면을 닫고 다시 열어도 진행 중인 요청 하나�
   state.responseGate = new Promise<void>((resolve) => { release = resolve })
   try {
     const choice = await openStyleChoice(page)
-    await choice.getByRole('button', { name: '컬러·옷장 함께 추천받기' }).click()
+    await choice.getByRole('button', { name: '색상·옷장 함께 추천받기' }).click()
     await expect.poll(() => state.requests.length).toBe(1)
     const result = page.getByRole('region', { name: '스타일 추천', exact: true })
     await result.getByRole('button', { name: '옷장으로 돌아가기' }).click()

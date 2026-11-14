@@ -34,14 +34,14 @@ export function createFileFromNativeWardrobePhoto(
   const mimeType = normalizeMimeType(asset.mimeType ?? dataUrlMimeType)
 
   if (!encodedValue) {
-    throw new Error('촬영한 사진 데이터를 읽지 못했습니다.')
+    throw new Error('촬영한 사진 데이터를 읽지 못했어요.')
   }
 
   let binary: string
   try {
     binary = window.atob(encodedValue)
   } catch {
-    throw new Error('촬영한 사진 데이터를 읽지 못했습니다.')
+    throw new Error('촬영한 사진 데이터를 읽지 못했어요.')
   }
 
   const bytes = new Uint8Array(binary.length)

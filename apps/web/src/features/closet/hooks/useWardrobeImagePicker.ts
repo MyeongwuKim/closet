@@ -119,7 +119,7 @@ export function useWardrobeImagePicker({
       }
 
       if (result.status === 'error') {
-        onError(result.message || '카메라로 사진을 촬영하지 못했습니다.')
+        onError(result.message || '카메라로 사진을 촬영하지 못했어요.')
         setPickerStep('source')
         return
       }
@@ -131,7 +131,7 @@ export function useWardrobeImagePicker({
       onError(
         error instanceof Error
           ? error.message
-          : '카메라를 열지 못했습니다.',
+          : '카메라를 열지 못했어요.',
       )
       setPickerStep('source')
     }

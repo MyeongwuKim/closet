@@ -31,7 +31,7 @@ export function weatherForecastQueryOptions(
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     queryFn: async ({ signal }) => {
-      if (!coordinates) throw new Error('현재 위치가 필요합니다.')
+      if (!coordinates) throw new Error('현재 위치가 필요해요.')
       const data = await graphqlRequest<
         { weatherForecast: WeatherSnapshot },
         {

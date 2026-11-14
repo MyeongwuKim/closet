@@ -151,15 +151,21 @@ function createMockApi(): MockApi {
 
 function filterWardrobe(items: WardrobeItem[], input: Record<string, any> = {}) {
   const search = String(input.search ?? '').trim().toLocaleLowerCase()
+  const key = (value: string) => value.normalize('NFKC').replace(/\s+/g, ' ').trim().toLocaleLowerCase('ko-KR')
+  const colors = [...(input.color ? [input.color] : []), ...(input.colors ?? [])]
+  const tags = [...(input.tag ? [input.tag] : []), ...(input.tags ?? [])].map(key)
+  const brands = [...(input.brandName ? [input.brandName] : []), ...(input.brandNames ?? [])].map(key)
   return items.filter((item) => {
     if (item.archivedAt) return false
     if (input.category && item.category !== input.category && !item.additionalCategories.includes(input.category)) return false
     if (input.subcategory && item.subcategory !== input.subcategory) return false
     if (input.season && !item.seasons.includes(input.season)) return false
-    if (input.color && item.colorName !== input.color) return false
-    if (input.tag && !item.tags.includes(input.tag)) return false
-    if (input.brandName && item.brandName !== input.brandName) return false
+    if (colors.length && !colors.includes(item.colorName)) return false
+    if (tags.length && !item.tags.some((tag) => tags.includes(key(tag)))) return false
     if (input.unbrandedOnly && item.brandName) return false
+    if (!input.unbrandedOnly && (brands.length || input.includeUnbranded) && !(
+      (item.brandName && brands.includes(key(item.brandName))) || (!item.brandName && input.includeUnbranded)
+    )) return false
     if (search && ![item.name, item.brandName, item.storageLocation, item.subcategory, item.colorName, ...item.tags]
       .filter(Boolean).join(' ').toLocaleLowerCase().includes(search)) return false
     return true
@@ -274,6 +280,17 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
     case 'WardrobeItems': return { wardrobeItems: filterWardrobe(api.wardrobeItems) }
     case 'WardrobeItem': return { wardrobeItem: api.wardrobeItems.find((item) => item.id === variables.id && !item.archivedAt) ?? null }
     case 'WardrobeBrandOptions': return { wardrobeBrandOptions: [...new Set(filterWardrobe(api.wardrobeItems).map((item) => item.brandName).filter(Boolean))] }
+    case 'DeleteWardrobeBrand': {
+      const brandKey = (value: string) => value.normalize('NFKC').replace(/\s+/g, ' ').trim().toLocaleLowerCase('ko-KR')
+      let count = 0
+      for (const item of api.wardrobeItems) {
+        if (item.brandName && brandKey(item.brandName) === brandKey(variables.brandName)) {
+          item.brandName = null
+          count++
+        }
+      }
+      return { deleteWardrobeBrand: count }
+    }
     case 'Outfits': return { outfits: filterOutfits(api, variables).map((outfit) => withWardrobeItems(api, outfit)) }
     case 'Outfit': {
       const outfit = api.outfits.find((candidate) => candidate.id === variables.id)
@@ -296,11 +313,16 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
         ? [{ outfitId: id, date: entry.date, wornAt: entry.wornAt ?? null, temperatureC: entry.wornAt ? entry.wearTemperatureC ?? null : null }] : [])
     }) }
     case 'SyncWearWeatherLocation': return { syncWearWeatherLocation: true }
+    case 'TemperatureWearHistory': return { temperatureWearHistory: { items: [], totalCount: 0, hasNextPage: false, nextCursor: null } }
     case 'PlannerWeek': return { plannerWeek: plannerWeekPayload(api, variables.weekStartsOn) }
     case 'PlannerEntries': return { plannerEntries: api.plannerEntries.filter((entry) => entry.date >= variables.from && entry.date <= variables.to).map((entry) => withPlannerWardrobeItems(api, entry)) }
     case 'SetPlannerEntry': {
-      const outfit = api.outfits.find((candidate) => candidate.id === input.outfitId)
-      if (!outfit) throw new Error(`Unknown outfit: ${input.outfitId}`)
+      const source = api.outfits.find((candidate) => candidate.id === input.outfitId) ?? api.plannerEntries.find(entry => entry.outfit?.id === input.outfitId)?.outfit
+      if (!source) throw new Error(`Unknown outfit: ${input.outfitId}`)
+      const outfit = { ...source, items: source.items.map((item, layerOrder) => ({ ...item, layerOrder })) }
+      if (input.activeItemsOnly && outfit.items.some(item => !api.wardrobeItems.some(candidate => candidate.id === item.wardrobeItemId && !candidate.archivedAt))) {
+        throw new MockGraphqlError('현재 옷장에 있는 내 옷으로만 코디를 구성할 수 있어요.', 'INVALID_OUTFIT_ITEMS')
+      }
       const previous = api.plannerEntries.find((entry) => entry.date === input.date)
       const sameItems = Boolean(previous?.outfit && sameOutfitItems(previous.outfit.items, outfit.items))
       if (!sameItems) assertPlannerWearEditable(previous)
@@ -331,8 +353,8 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
         generations = [{ status: 'completed', imageAsset: { id: assetId, deliveryUrl: image } }]
       }
       const outfit = plannerSnapshot(api, {
-        name: input.recommendationName ?? previous?.outfit?.name ?? '직접 고른 코디',
-        style: input.recommendationStyle ?? previous?.outfit?.style ?? '직접 구성',
+        name: input.name ?? input.recommendationName ?? previous?.outfit?.name ?? '직접 고른 코디',
+        style: input.style ?? input.recommendationStyle ?? previous?.outfit?.style ?? '직접 구성',
         items, generations,
       })
       api.plannerEntries = api.plannerEntries.filter((entry) => entry.date !== input.date)

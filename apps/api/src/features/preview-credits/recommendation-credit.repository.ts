@@ -36,7 +36,7 @@ export const recommendationCreditRepository = {
       }
       const existing = await tx.recommendationCreditUse.findUnique({ where: { id } })
       if (existing?.state === 'consumed' && existing.resultText !== null) return { id, token: existing.token, resultText: existing.resultText }
-      if (existing?.state === 'reserved') throw new ServiceError('같은 코디를 추천하고 있어요. 잠시 후 다시 확인해 주세요.', 'AI_BUSY')
+      if (existing?.state === 'reserved') throw new ServiceError('같은 코디를 추천하고 있어요. 잠시 후 다시 확인해주세요.', 'AI_BUSY')
       const credit = await reservePreviewCredit(tx, userId, now, 'recommendation')
       const token = randomUUID()
       const data = { userId, creditDayId: credit.creditDayId, creditSource: credit.creditSource, token,

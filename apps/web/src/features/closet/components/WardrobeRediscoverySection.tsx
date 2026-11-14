@@ -43,9 +43,9 @@ export function WardrobeRediscoverySection({ visible, onOpenItem }: Props) {
         >
           <div className="min-h-0 overflow-hidden">
             <div className="mt-3 rounded-[1.5rem] bg-sage/35 p-3 sm:p-4">
-              <p className="mb-3 px-1 text-[11px] leading-5 text-muted">이 옷, 다시 꺼내볼까요? 한동안 찾지 않았던 옷을 만나보세요.</p>
+              <p className="mb-3 px-1 text-[11px] leading-5 text-muted">한동안 입지 않은 옷을 모았어요.</p>
               {query.isPending ? (
-                <p role="status" className="px-1 py-5 text-xs text-muted">옷장 속에서 다시 입을 옷을 찾고 있어요.</p>
+                <p role="status" className="px-1 py-5 text-xs text-muted">최근 입지 않은 옷을 찾고 있어요.</p>
               ) : query.isError ? (
                 <div className="flex items-center justify-between gap-2 px-1 py-3 text-xs text-muted">
                   <p>잊고 있던 옷을 불러오지 못했어요.</p>

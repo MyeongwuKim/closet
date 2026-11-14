@@ -31,15 +31,13 @@ export function ClosetItemCard({
       <button
         type="button"
         onClick={onToggleSelection}
-        className={`absolute top-5 right-3 z-10 flex size-8 items-center justify-center rounded-full border ${
-          isSelected
-            ? 'border-accent bg-accent text-white'
-            : 'border-line bg-surface text-muted hover:border-accent hover:text-accent'
-        }`}
+        className="group/selection absolute top-3.5 right-1.5 z-10 flex size-11 items-center justify-center"
         aria-label={`${item.name} ${isSelected ? '선택 해제' : '코디로 선택'}`}
         aria-pressed={isSelected}
       >
-        {isSelected ? <Check size={14} /> : <Plus size={14} />}
+        <span className={`flex size-8 items-center justify-center rounded-full border ${isSelected ? 'border-accent bg-accent text-white' : 'border-line bg-surface text-muted group-hover/selection:border-accent group-hover/selection:text-accent'}`}>
+          {isSelected ? <Check size={14} /> : <Plus size={14} />}
+        </span>
       </button>
 
       <button
@@ -58,8 +56,8 @@ export function ClosetItemCard({
           <strong className="block truncate text-sm font-semibold leading-5 tracking-[-.025em]" title={item.name}>
             {item.name}
           </strong>
-          {item.brandName && <span className="mt-1 block truncate text-[10px] text-muted">{item.brandName}</span>}
-          <span className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted">
+          {item.brandName && <span className="mt-1 block truncate text-xs text-muted">{item.brandName}</span>}
+          <span className="mt-1.5 flex items-center gap-1.5 text-xs text-muted">
             <span className="size-2 shrink-0 rounded-full border border-ink/15" style={{ backgroundColor: item.colorHex }} aria-hidden="true" />
             <span className="truncate">
             {item.classificationStatus === 'pending'

@@ -71,7 +71,7 @@ export function WardrobeItemQuickViewModal({
         <header className="flex shrink-0 items-center gap-3 border-b border-line px-5 py-4">
           <div className="min-w-0 flex-1">
             <p className="text-xs font-bold text-muted">옷장 아이템 상세정보</p>
-            <h2 id={titleId} className="mt-0.5 truncate text-xl font-black">
+            <h2 id={titleId} className="mt-0.5 truncate text-xl font-semibold">
               {item.name}
             </h2>
           </div>

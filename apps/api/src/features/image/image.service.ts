@@ -27,7 +27,7 @@ function createStorageFilename(input: PrepareImageUploadInput) {
 
   if (!extension || !mimeTypeExtensions[input.mimeType]) {
     throw new ServiceError(
-      'JPEG, PNG, WEBP 이미지만 업로드할 수 있습니다.',
+      'JPEG, PNG, WEBP 이미지만 업로드할 수 있어요.',
       'INVALID_IMAGE_TYPE',
     )
   }
@@ -38,7 +38,7 @@ function createStorageFilename(input: PrepareImageUploadInput) {
 function decodeGeneratedImage(imageBase64: string, mimeType: string) {
   if (!mimeTypeExtensions[mimeType] || !/^[A-Za-z0-9+/=\s]+$/.test(imageBase64)) {
     throw new ServiceError(
-      '저장할 AI 이미지 형식이 올바르지 않습니다.',
+      '저장할 AI 룩북 형식이 올바르지 않아요.',
       'INVALID_GENERATED_IMAGE',
     )
   }
@@ -63,7 +63,7 @@ function decodeGeneratedImage(imageBase64: string, mimeType: string) {
     (!isJpeg && !isPng && !isWebp)
   ) {
     throw new ServiceError(
-      '저장할 AI 이미지 형식이 올바르지 않습니다.',
+      '저장할 AI 룩북 형식이 올바르지 않아요.',
       'INVALID_GENERATED_IMAGE',
     )
   }
@@ -161,7 +161,7 @@ export const imageService = {
       !asset.mimeType
     ) {
       throw new ServiceError(
-        '완성된 AI 코디 이미지를 찾을 수 없습니다.',
+        '완성된 AI 룩북을 찾을 수 없어요.',
         'OUTFIT_PREVIEW_NOT_FOUND',
       )
     }
@@ -178,7 +178,7 @@ export const imageService = {
 
     if (typeof model !== 'string' || !model || !imageUrl) {
       throw new ServiceError(
-        '완성된 AI 코디 이미지 정보를 불러오지 못했습니다.',
+        '완성된 AI 룩북을 불러오지 못했어요.',
         'OUTFIT_PREVIEW_NOT_FOUND',
       )
     }
@@ -206,7 +206,7 @@ export const imageService = {
     )
     if (result.count !== 1) {
       throw new ServiceError(
-        '완성된 AI 코디 이미지를 찾을 수 없습니다.',
+        '완성된 AI 룩북을 찾을 수 없어요.',
         'OUTFIT_PREVIEW_NOT_FOUND',
       )
     }
@@ -264,7 +264,7 @@ export const imageService = {
   async prepareUpload(userId: string, input: PrepareImageUploadInput) {
     if (input.kind === 'outfitGenerated') {
       throw new ServiceError(
-        'AI 생성 이미지는 서버 생성 작업에서만 저장할 수 있습니다.',
+        'AI 생성 이미지는 서버 생성 작업에서만 저장할 수 있어요.',
         'INVALID_IMAGE_KIND',
       )
     }
@@ -296,7 +296,7 @@ export const imageService = {
   async confirmUpload(userId: string, assetId: string) {
     const asset = await imageRepository.findOwnedById(userId, assetId)
     if (!asset) {
-      throw new ServiceError('이미지 자산을 찾을 수 없습니다.', 'IMAGE_NOT_FOUND')
+      throw new ServiceError('이미지 자산을 찾을 수 없어요.', 'IMAGE_NOT_FOUND')
     }
 
     const details = await cloudflareImagesClient.getImageDetails(

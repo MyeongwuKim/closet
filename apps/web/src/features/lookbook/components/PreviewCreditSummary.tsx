@@ -13,9 +13,9 @@ export function PreviewCreditSummary({ kind = 'preview' }: { kind?: AiCreditKind
   const creditLabel = 'AI 사용권'
   const remaining = useCreditRefillCountdown(credits.data?.nextRefillAt, credits.data?.serverNow, credits.dataUpdatedAt)
   const ask = usePreviewCreditDialogStore((state) => state.ask)
-  return <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[11px] text-muted">
+  return <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-muted">
     <span aria-live="polite">{credits.data ? usesWallet ? `AI 사용권 ${credits.data.totalRemaining}/${credits.data.capacity}` : `오늘 무료 ${credits.data.freeRemaining}회 · 광고 ${creditLabel} ${credits.data.rewardRemaining}회` : credits.isError ? `${creditLabel} 정보를 불러오지 못했어요` : `${creditLabel} 확인 중…`}</span>
     {usesWallet && remaining !== null && <span aria-live="off">· 다음 충전 {formatCreditRefillTime(remaining)} 후</span>}
-    <button type="button" disabled={!me.data} onClick={() => { if (me.data) void ask(me.data.id, 'info', kind) }} className="font-bold text-accent underline underline-offset-2">{creditLabel} 안내</button>
+    <button type="button" disabled={!me.data} onClick={() => { if (me.data) void ask(me.data.id, 'info', kind) }} className="inline-flex min-h-11 min-w-11 items-center justify-center px-2 font-bold text-accent underline underline-offset-2">{creditLabel} 안내</button>
   </div>
 }

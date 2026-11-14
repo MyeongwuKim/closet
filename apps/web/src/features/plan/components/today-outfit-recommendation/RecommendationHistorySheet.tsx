@@ -137,7 +137,7 @@ export function RecommendationHistorySheet({
             <History size={17} />
           </span>
           <div className="min-w-0 flex-1">
-            <h2 id="recommendation-history-title" className="text-base font-black">
+            <h2 id="recommendation-history-title" className="text-base font-semibold">
               추천 기록
             </h2>
             <p className="mt-1 text-xs leading-5 text-muted">

@@ -32,9 +32,9 @@ export function PlannerWearAction({ entry }: PlannerWearActionProps) {
         outfitId: entry.outfitId,
         worn: !isWorn,
       })
-      pushToast(isWorn ? '착용 완료 표시를 취소했습니다.' : '실제 착용 기록을 남겼습니다.', 'success')
+      pushToast(isWorn ? '착용 완료 표시를 취소했어요.' : '착용 기록을 남겼어요.', 'success')
     } catch (error) {
-      pushToast(error instanceof Error ? error.message : '착용 기록을 저장하지 못했습니다.', 'error')
+      pushToast(error instanceof Error ? error.message : '착용 기록을 저장하지 못했어요.', 'error')
     }
   }
 
@@ -50,7 +50,7 @@ export function PlannerWearAction({ entry }: PlannerWearActionProps) {
         feeling,
       })
     } catch (error) {
-      pushToast(error instanceof Error ? error.message : '착용 체감을 저장하지 못했습니다.', 'error')
+      pushToast(error instanceof Error ? error.message : '착용 체감을 저장하지 못했어요.', 'error')
     }
   }
 

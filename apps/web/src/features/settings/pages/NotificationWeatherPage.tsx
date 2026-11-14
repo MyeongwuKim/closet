@@ -381,7 +381,7 @@ export function NotificationWeatherPage() {
           </Link>
           <PageTitle
             title="알림 및 날씨"
-            description="알림 권한과 위치 기반 날씨 설정을 확인해보세요."
+            description="알림 권한과 날씨에 사용할 위치를 설정해요."
             compact
           />
         </div>
@@ -392,7 +392,7 @@ export function NotificationWeatherPage() {
           <section>
             <div className="flex items-center justify-between gap-3 px-1">
               <div>
-                <h2 className="text-sm font-black">기능 설정</h2>
+                <h2 className="text-sm font-semibold">기능 설정</h2>
                 <p className="mt-1 text-xs text-muted">
                   {isNative
                     ? '기기 권한은 휴대폰 설정에서 변경할 수 있어요.'
@@ -477,7 +477,7 @@ export function NotificationWeatherPage() {
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-ink px-4 py-3 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-40"
             >
               <BellRing size={16} />
-              {sendTestPush.isPending ? '테스트 알림 전송 중...' : '테스트 알림 보내기'}
+              {sendTestPush.isPending ? '테스트 알림 전송 중…' : '테스트 알림 보내기'}
             </button>
           )}
 

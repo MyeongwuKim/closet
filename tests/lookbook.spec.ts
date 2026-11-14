@@ -2,8 +2,73 @@ import { createOutfit, expect, test } from './support/fixture'
 import { mkdirSync, readFileSync } from 'node:fs'
 
 test.describe('코디북', () => {
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
+    test(`${viewport.width}px: 코디를 보기로 열고 편집 취소는 초안을 버리며 저장 후 보기로 돌아간다`, async ({ page, mockApi }) => {
+      await page.setViewportSize(viewport)
+      await page.goto('/lookbook')
+      await page.getByRole('button', { name: '기본 코디 코디 상세 보기' }).click()
+      const detail = page.getByRole('dialog', { name: '기본 코디 코디 상세', exact: true })
+      await expect(detail.getByRole('button', { name: /고르기|교체하기|변경사항 저장/ })).toHaveCount(0)
+      const edit = detail.getByRole('button', { name: '코디 수정', exact: true })
+      await edit.click()
+      await expect(detail.getByRole('button', { name: '상의 교체하기', exact: true })).toBeVisible()
+      const changeName = async (name: string) => {
+        await detail.getByRole('button', { name: '코디 이름과 스타일 수정' }).click()
+        const info = page.getByRole('dialog', { name: '코디 정보 수정', exact: true })
+        await info.getByRole('textbox', { name: '코디 이름' }).fill(name)
+        await info.getByRole('button', { name: '적용', exact: true }).click()
+      }
+      await changeName('취소할 이름')
+      await detail.getByRole('button', { name: '취소', exact: true }).click()
+      await expect(detail.getByRole('heading', { name: '기본 코디', exact: true })).toBeVisible()
+      expect(mockApi.operations).not.toContain('UpdateOutfit')
+      await edit.click()
+      await changeName('저장한 코디')
+      await detail.getByRole('button', { name: '변경사항 저장', exact: true }).click()
+      const savedDetail = page.getByRole('dialog', { name: '저장한 코디 코디 상세', exact: true })
+      await expect(savedDetail.getByRole('heading', { name: '저장한 코디', exact: true })).toBeVisible()
+      await expect(savedDetail.getByRole('button', { name: '변경사항 저장', exact: true })).toHaveCount(0)
+      expect(mockApi.outfits[0].name).toBe('저장한 코디')
+      mkdirSync('.playwright-mcp/interface-refinements', { recursive: true })
+      await page.screenshot({ path: `.playwright-mcp/interface-refinements/${viewport.width}-outfit-view.png`, animations: 'disabled' })
+      await savedDetail.getByRole('button', { name: '코디 수정', exact: true }).click()
+      await page.screenshot({ path: `.playwright-mcp/interface-refinements/${viewport.width}-outfit-edit.png`, animations: 'disabled' })
+    })
+
+    test(`${viewport.width}px: 저장된 AI 룩북은 잔액 없이 열고 이미지가 없을 때만 생성·사용권을 표시한다`, async ({ page, mockApi }) => {
+      await page.setViewportSize(viewport)
+      const imageUrl = `data:image/png;base64,${readFileSync('tests/support/mock-shirt.png').toString('base64')}`
+      mockApi.outfits = [createOutfit({ generations: [{ status: 'completed', imageAsset: { deliveryUrl: imageUrl } }] })]
+      await page.goto('/lookbook')
+      await page.getByRole('button', { name: '기본 코디 코디 상세 보기' }).click()
+      const detail = page.getByRole('dialog', { name: '기본 코디 코디 상세', exact: true })
+      const view = detail.getByRole('button', { name: 'AI 룩북 보기', exact: true })
+      await expect(view).toHaveText('AI 룩북 보기')
+      await expect(view).not.toHaveAttribute('aria-description')
+      await expect(detail.getByRole('button', { name: 'AI 사용권 안내', exact: true })).toHaveCount(0)
+      mkdirSync('.playwright-mcp/ai-lookbook-button-review', { recursive: true })
+      await page.screenshot({ path: `.playwright-mcp/ai-lookbook-button-review/${viewport.width}-view.png`, animations: 'disabled' })
+      await view.click()
+      const preview = page.getByRole('dialog', { name: 'AI 룩북', exact: true })
+      await expect(preview.getByRole('img', { name: '기본 코디 AI 룩북 이미지' })).toHaveAttribute('src', imageUrl)
+      await preview.getByRole('button', { name: '저장된 AI 룩북 닫기', exact: true }).click()
+      expect(mockApi.operations).not.toContain('StartOutfitPreview')
+      expect(mockApi.operations).not.toContain('StartPreviewReward')
+
+      mockApi.outfits[0].generations = []
+      await page.reload()
+      await page.getByRole('button', { name: '기본 코디 코디 상세 보기' }).click()
+      const create = detail.getByRole('button', { name: 'AI 룩북 만들기', exact: true })
+      await expect(create).toHaveAttribute('aria-description', '남은 AI 사용권 5/5')
+      await expect(create).toContainText('5/5')
+      await expect(detail.getByRole('button', { name: 'AI 사용권 안내', exact: true })).toBeVisible()
+      await expect(view).toHaveCount(0)
+      await page.screenshot({ path: `.playwright-mcp/ai-lookbook-button-review/${viewport.width}-create.png`, animations: 'disabled' })
+    })
+  }
+
   for (const styles of [['캐주얼'], ['미니멀', '캐주얼']]) {
-    test(`AI 룩 생성 후 저장 화면에서 스타일을 ${styles.length}번 선택해도 이미지를 함께 저장한다`, async ({ page, mockApi }) => {
+    test(`AI 룩북 생성 후 저장 화면에서 스타일을 ${styles.length}번 선택해도 이미지를 함께 저장한다`, async ({ page, mockApi }) => {
       mockApi.outfits = []
       const width = styles.length === 1 ? 390 : 1440
       await page.setViewportSize({ width, height: width === 390 ? 844 : 900 })
@@ -38,19 +103,19 @@ test.describe('코디북', () => {
       })
 
       await page.goto('/lookbook/new?items=item-1,item-2')
-      await page.getByRole('button', { name: 'AI 착장 이미지 만들기', exact: true }).click()
-      const preview = page.getByRole('dialog', { name: 'AI 룩 미리보기', exact: true })
-      await expect(preview.getByAltText('선택한 옷으로 생성한 AI 룩 미리보기')).toHaveAttribute('src', imageUrl)
+      await page.getByRole('button', { name: 'AI 룩북 만들기', exact: true }).click()
+      const preview = page.getByRole('dialog', { name: 'AI 룩북 미리보기', exact: true })
+      await expect(preview.getByAltText('선택한 옷으로 생성한 AI 룩북 미리보기')).toHaveAttribute('src', imageUrl)
       await preview.getByRole('button', { name: '코디북에 추가', exact: true }).click()
-      const save = page.getByRole('dialog', { name: '이 Look으로 저장할까요?', exact: true })
+      const save = page.getByRole('dialog', { name: '이 코디를 저장할까요?', exact: true })
       await save.getByRole('textbox', { name: '코디 이름' }).fill('AI 이미지 포함 코디')
-      await expect(save.getByText('AI 착장 이미지도 함께 저장돼요.')).toBeVisible()
+      await expect(save.getByText('AI 룩북도 함께 저장돼요.')).toBeVisible()
       for (const style of styles) await save.getByRole('button', { name: style, exact: true }).click()
-      await expect(save.getByText('AI 착장 이미지도 함께 저장돼요.')).toBeVisible()
+      await expect(save.getByText('AI 룩북도 함께 저장돼요.')).toBeVisible()
       await save.getByText('IN THIS LOOK', { exact: true }).scrollIntoViewIfNeeded()
       mkdirSync('.playwright-mcp/layout-review', { recursive: true })
       await page.screenshot({ path: `.playwright-mcp/layout-review/save-${width}.png`, animations: 'disabled' })
-      await save.getByRole('button', { name: 'AI 이미지와 함께 저장', exact: true }).click()
+      await save.getByRole('button', { name: 'AI 룩북과 함께 저장', exact: true }).click()
 
       await expect(page).toHaveURL('/lookbook')
       expect(createInput?.previewImageAssetId).toBe('new-look-preview')
@@ -81,7 +146,7 @@ test.describe('코디북', () => {
     })
   }
 
-  test('옷장에서 두 아이템을 골라 AI 룩 없이 저장하고 새로고침 후 조회한다', async ({ page, mockApi }) => {
+  test('옷장에서 두 아이템을 골라 AI 룩북 없이 저장하고 새로고침 후 조회한다', async ({ page, mockApi }) => {
     mockApi.outfits = []
 
     await page.goto('/closet')
@@ -90,12 +155,12 @@ test.describe('코디북', () => {
     await page.getByRole('button', { name: '새 코디 만들기' }).click()
 
     const composer = page.getByRole('dialog', { name: '코디 맞춰보기' })
-    await composer.getByRole('button', { name: '테스트 셔츠 Look에 추가' }).click()
+    await composer.getByRole('button', { name: '테스트 셔츠 코디에 추가' }).click()
     await composer.getByRole('button', { name: '하의 아이템 고르기' }).click()
-    await composer.getByRole('button', { name: '테스트 바지 Look에 추가' }).click()
+    await composer.getByRole('button', { name: '테스트 바지 코디에 추가' }).click()
     await composer.getByRole('button', { name: '코디 저장하기' }).click()
 
-    const saveDialog = page.getByRole('dialog', { name: '이 Look으로 저장할까요?' })
+    const saveDialog = page.getByRole('dialog', { name: '이 코디를 저장할까요?' })
     await saveDialog.getByRole('textbox', { name: '코디 이름' }).fill('새 테스트 코디')
     await saveDialog.getByRole('button', { name: '캐주얼' }).click()
     await expect(saveDialog.getByRole('group', { name: '입을 계절' }).getByRole('button', { name: '봄' })).toHaveAttribute('aria-pressed', 'true')
@@ -182,18 +247,24 @@ test.describe('코디북', () => {
     })]
 
     await page.goto('/lookbook')
+    await page.getByRole('button', { name: '코디북 필터', exact: true }).click()
     const viewSwitch = page.getByRole('switch', { name: 'AI 룩북으로 보기' })
     await expect(viewSwitch).toHaveAttribute('aria-checked', 'true')
+    await page.getByRole('button', { name: '코디 보기', exact: true }).click()
     await expect(page.getByRole('img', { name: '기본 코디 AI 룩북 이미지' })).toBeVisible()
 
+    await page.getByRole('button', { name: '코디북 필터', exact: true }).click()
     await viewSwitch.click()
     await expect(viewSwitch).toHaveAttribute('aria-checked', 'false')
     await expect(page).toHaveURL(/\/lookbook\?view=items$/)
+    await page.getByRole('button', { name: '코디 보기', exact: true }).click()
     await expect(page.getByLabel('기본 코디 코디 아이템')).toBeVisible()
     await expect(page.getByRole('img', { name: '기본 코디 AI 룩북 이미지' })).toHaveCount(0)
 
     await page.reload()
+    await page.getByRole('button', { name: '코디북 필터', exact: true }).click()
     await expect(viewSwitch).toHaveAttribute('aria-checked', 'false')
+    await page.getByRole('button', { name: '코디 보기', exact: true }).click()
     await expect(page.getByLabel('기본 코디 코디 아이템')).toBeVisible()
   })
 
@@ -202,6 +273,7 @@ test.describe('코디북', () => {
     await page.getByRole('button', { name: '기본 코디 코디 상세 보기' }).click()
 
     const detail = page.getByRole('dialog', { name: '기본 코디 코디 상세' })
+    await detail.getByRole('button', { name: '코디 수정', exact: true }).click()
     await detail.getByRole('button', { name: '코디 이름과 스타일 수정' }).click()
     const infoDialog = page.getByRole('dialog', { name: '코디 정보 수정' })
     await infoDialog.getByRole('textbox', { name: '코디 이름' }).fill('수정한 코디')

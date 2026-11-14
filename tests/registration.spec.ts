@@ -1,4 +1,4 @@
-import { test, expect } from './support/fixture'
+import { test, expect, createWardrobeItem } from './support/fixture'
 import type { Page } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
 
@@ -22,6 +22,58 @@ async function selectWardrobePhoto(page: Page, count = 1) {
   })))
 }
 
+const shirtShape = {
+  layerRole: 'base', silhouette: 'regular', material: 'cotton', texture: 'smooth',
+  pattern: 'solid', warmth: 'medium', formality: 0.7, confidence: 0.95,
+  necklineStyle: 'collar', frontOpeningStyle: 'buttons', pocketStyle: 'patch',
+}
+
+async function mockRegistrationAnalysis(
+  page: Page,
+  result: Record<string, unknown>,
+) {
+  await page.route('**/graphql', async (route) => {
+    if (!route.request().postDataJSON().query.includes('mutation ClassifyWardrobeImage')) {
+      await route.fallback()
+      return
+    }
+    await route.fulfill({
+      json: {
+        data: {
+          classifyWardrobeImage: {
+            category: 'top', categoryLabel: '상의', subcategory: 'shirt', subcategoryLabel: '셔츠',
+            suggestedName: '새 셔츠', colorName: '네이비', colorDetailName: '네이비',
+            colorHex: '#24364a', colorRgb: [36, 54, 74], colorMode: 'solid',
+            fashionAttributes: shirtShape, confidence: 0.95, model: 'e2e-mock', candidates: [],
+            cutoutImageBase64: null, cutoutMimeType: null,
+            ...result,
+          },
+        },
+      },
+    })
+  })
+}
+
+test('웹 옷장에 캡처 사진을 놓으면 파일 선택 없이 AI 분석 결과가 열린다', async ({ page, mockApi }) => {
+  mockApi.wardrobeItems = []
+  await page.goto('/closet')
+  await page.getByRole('button', { name: '옷장에 옷 추가' }).click()
+  const dialog = page.getByRole('dialog', { name: '옷 사진 추가' })
+  const dropZone = dialog.getByRole('button', { name: '옷 사진 선택, 끌어다 놓기 또는 붙여넣기' })
+  await expect(dropZone).toBeVisible()
+  const screenshot = await page.evaluateHandle((bytes) => {
+    const dataTransfer = new DataTransfer()
+    dataTransfer.items.add(new File([new Uint8Array(bytes)], '옷-부분-캡처.png', { type: 'image/png' }))
+    return dataTransfer
+  }, Array.from(onePixelPng))
+  await dropZone.dispatchEvent('dragenter', { dataTransfer: screenshot })
+  await expect(dropZone).toHaveAttribute('data-dragging', 'true')
+  await dropZone.dispatchEvent('drop', { dataTransfer: screenshot })
+  await expect(dialog).toHaveCount(0)
+  await expect(page.getByRole('dialog', { name: 'AI 분석 결과' })).toBeVisible()
+  expect(mockApi.operations).toContain('ClassifyWardrobeImage')
+})
+
 test('사진 분석 결과를 확인해 옷을 등록하고 새로고침 후에도 조회한다', async ({ page, mockApi }) => {
   mockApi.wardrobeItems = []
 
@@ -31,6 +83,7 @@ test('사진 분석 결과를 확인해 옷을 등록하고 새로고침 후에�
 
   const classificationDialog = page.getByRole('dialog', { name: 'AI 분석 결과' })
   await expect(classificationDialog).toBeVisible()
+  await expect(classificationDialog.getByText('겹치는 옷은 없어요')).toBeVisible()
   await classificationDialog.getByRole('textbox', { name: '아이템 이름' }).fill('새로 등록한 셔츠')
   await classificationDialog.getByRole('group', { name: '입을 계절' }).getByRole('button', { name: '봄' }).click()
   await classificationDialog.getByRole('button', { name: '옷장에 추가' }).click()
@@ -42,6 +95,154 @@ test('사진 분석 결과를 확인해 옷을 등록하고 새로고침 후에�
 
   await page.reload()
   await expect(page.getByRole('button', { name: '새로 등록한 셔츠 옷 상세 보기' })).toBeVisible()
+})
+
+test('전체 옷장 조회가 늦거나 실패하면 비교 상태를 안내하고 다시 확인할 수 있다', async ({ page, mockApi }) => {
+  const firstPage = Array.from({ length: 20 }, (_, index) => createWardrobeItem({
+    id: `white-${index}`, name: `흰색 셔츠 ${index}`, colorName: '화이트', colorHex: '#ffffff',
+  }))
+  const match = createWardrobeItem({
+    id: 'navy-match', name: '이전에 등록한 네이비 셔츠', createdAt: '2025-12-15T00:00:00.000Z',
+  })
+  mockApi.wardrobeItems = [...firstPage, match]
+
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => { release = resolve })
+  let fullQueryStarted = false
+  let failFullQuery = true
+
+  await page.route('**/graphql', async (route) => {
+    const { query, variables } = route.request().postDataJSON()
+    if (query.includes('query WardrobePage(') && !variables.input.cursor) {
+      await route.fulfill({ json: { data: { wardrobePage: {
+        items: firstPage, totalCount: 21, hasNextPage: true, nextCursor: firstPage[19].id,
+      } } } })
+      return
+    }
+    if (query.includes('query WardrobeItems {')) {
+      fullQueryStarted = true
+      await gate
+      if (failFullQuery) {
+        await route.fulfill({ json: { data: null, errors: [{
+          message: '옷장을 불러오지 못했어요.',
+          extensions: { code: 'WARDROBE_LOAD_FAILED', cause: 'Test catalog unavailable' },
+        }] } })
+        return
+      }
+    }
+    await route.fallback()
+  })
+
+  try {
+    await page.goto('/closet')
+    await expect(page.getByRole('button', { name: '흰색 셔츠 0 옷 상세 보기' })).toBeVisible()
+    await selectWardrobePhoto(page)
+    const dialog = page.getByRole('dialog', { name: 'AI 분석 결과' })
+    await expect.poll(() => fullQueryStarted).toBe(true)
+    await expect(dialog.getByText('옷장과 비교하는 중이에요')).toBeVisible()
+    await expect(dialog.getByText('겹치는 옷은 없어요')).toHaveCount(0)
+    release()
+
+    await expect(dialog.getByText('옷장과 비교하지 못했어요')).toBeVisible()
+    await expect(dialog.getByText('겹치는 옷은 없어요')).toHaveCount(0)
+    await dialog.getByRole('textbox', { name: '아이템 이름' }).fill('수정한 이름')
+    failFullQuery = false
+    await dialog.getByRole('button', { name: '다시 확인' }).click()
+    await expect(dialog.getByRole('button', { name: `${match.name} 상세정보 보기` })).toContainText('색상 100%')
+    await expect(dialog.getByRole('textbox', { name: '아이템 이름' })).toHaveValue('수정한 이름')
+  } finally {
+    release()
+  }
+})
+
+test('겹치는 옷 전체 개수와 상위 네 개를 표시하고 기존 옷의 상세를 연다', async ({ page, mockApi }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  const colorMatches = ['#27394d', '#25374b', '#24364a', '#283a4e'].map((colorHex, index) =>
+    createWardrobeItem({ id: `color-${index}`, name: `색만 비슷한 셔츠 ${index}`, colorHex }),
+  )
+  mockApi.wardrobeItems = [
+    ...colorMatches,
+    createWardrobeItem({
+      id: 'shape', name: '형태만 같은 셔츠', colorName: '화이트', colorHex: '#ffffff',
+      fashionAttributes: shirtShape,
+    }),
+    createWardrobeItem({ id: 'both', name: '색과 형태가 같은 셔츠', fashionAttributes: shirtShape }),
+    createWardrobeItem({ id: 'neither', name: '색과 형태가 다른 셔츠', colorName: '화이트', colorHex: '#ffffff' }),
+  ]
+  await mockRegistrationAnalysis(page, {})
+  await page.goto('/closet')
+  await selectWardrobePhoto(page)
+  const dialog = page.getByRole('dialog', { name: 'AI 분석 결과' })
+  await expect(dialog.getByText('옷장에 색상이나 형태가 겹치는 아이템이 6개 있어요.')).toBeVisible()
+  await expect(dialog.getByText('유사도가 높은 4개를 보여드려요.')).toBeVisible()
+  const comparison = dialog.getByRole('region', { name: '잠깐만요!' })
+  expect((await comparison.boundingBox())?.width).toBeLessThan(390)
+
+  const cards = dialog.getByRole('button', { name: /상세정보 보기$/ })
+  await expect(cards).toHaveCount(4)
+  await expect(cards.nth(0)).toHaveAccessibleName('색과 형태가 같은 셔츠 상세정보 보기')
+  await expect(cards.nth(0)).toContainText('종합 100%')
+  await expect(cards.nth(1)).toHaveAccessibleName('형태만 같은 셔츠 상세정보 보기')
+  await expect(cards.nth(1)).toContainText('형태 100%')
+  await expect(cards.nth(1)).toContainText('색상 다름')
+  await expect(cards.nth(2)).toHaveAccessibleName('색만 비슷한 셔츠 2 상세정보 보기')
+  await expect(cards.nth(2)).toContainText('색상 100%')
+  await expect(cards.nth(3)).toHaveAccessibleName('색만 비슷한 셔츠 1 상세정보 보기')
+  await cards.nth(1).click()
+  await expect(page.getByRole('dialog', { name: '형태만 같은 셔츠' })).toBeVisible()
+  await page.getByRole('button', { name: '아이템 상세정보 닫기' }).click()
+  await expect(dialog).toBeVisible()
+  await cards.nth(3).scrollIntoViewIfNeeded()
+  await expect(cards.nth(3)).toBeInViewport()
+})
+
+test('패턴 옷은 같은 바탕색을 전체 색이나 종합 일치로 표시하지 않는다', async ({ page, mockApi }) => {
+  const color = { colorName: '화이트', colorHex: '#ffffff', colorMode: 'patterned' }
+  const stripe = { ...shirtShape, pattern: 'stripe' }
+  mockApi.wardrobeItems = [
+    createWardrobeItem({ id: 'stripe', name: '흰 바탕 빨강 줄무늬 셔츠', ...color, fashionAttributes: stripe }),
+    createWardrobeItem({
+      id: 'check', name: '흰 바탕 파랑 체크 셔츠', ...color, fashionAttributes: { ...stripe, pattern: 'check' },
+    }),
+  ]
+  await mockRegistrationAnalysis(page, {
+    suggestedName: '흰 바탕 검정 줄무늬 셔츠', ...color, colorDetailName: '화이트',
+    colorRgb: [255, 255, 255], fashionAttributes: stripe,
+  })
+  await page.goto('/closet')
+  await selectWardrobePhoto(page)
+  const dialog = page.getByRole('dialog', { name: 'AI 분석 결과' })
+  const stripeCard = dialog.getByRole('button', { name: '흰 바탕 빨강 줄무늬 셔츠 상세정보 보기' })
+  const checkCard = dialog.getByRole('button', { name: '흰 바탕 파랑 체크 셔츠 상세정보 보기' })
+  await expect(stripeCard).toContainText('대표색 100%')
+  await expect(checkCard).toContainText('대표색 100%')
+  await expect(checkCard).toContainText('형태 다름')
+  await expect(dialog.getByText('색상·형태 매우 유사')).toHaveCount(0)
+  await expect(dialog.getByText(/^종합 \d+%$/)).toHaveCount(0)
+})
+
+test('신발의 형태 정보가 부족하면 색이 겹치는 후보만 보여준다', async ({ page, mockApi }) => {
+  const shape = {
+    layerRole: 'single', silhouette: 'unknown', material: 'unknown', texture: 'unknown',
+    pattern: 'solid', warmth: 'unknown', formality: 0.3, confidence: 0.2,
+  }
+  const sneakers = { category: 'shoes', subcategory: '스니커즈', fashionAttributes: shape }
+  mockApi.wardrobeItems = [
+    createWardrobeItem({ id: 'dark', name: '검정 하이탑', ...sneakers, colorName: '블랙', colorHex: '#000000' }),
+    createWardrobeItem({ id: 'light', name: '흰색 하이탑', ...sneakers, colorName: '화이트', colorHex: '#ffffff' }),
+  ]
+  await mockRegistrationAnalysis(page, {
+    ...sneakers, categoryLabel: '신발', subcategory: 'sneakers', subcategoryLabel: '스니커즈',
+    suggestedName: '흰색 로우탑', colorName: '화이트', colorDetailName: '화이트',
+    colorHex: '#ffffff', colorRgb: [255, 255, 255],
+  })
+  await page.goto('/closet')
+  await selectWardrobePhoto(page)
+  const dialog = page.getByRole('dialog', { name: 'AI 분석 결과' })
+  const lightCard = dialog.getByRole('button', { name: '흰색 하이탑 상세정보 보기' })
+  await expect(lightCard).toContainText('색상 100%')
+  await expect(lightCard).toContainText('형태 정보 부족')
+  await expect(dialog.getByRole('button', { name: '검정 하이탑 상세정보 보기' })).toHaveCount(0)
 })
 
 test('신규 등록 전에 배경이 제거된 옷 미리보기를 보여준다', async ({ page, mockApi }) => {
@@ -133,7 +334,7 @@ test('컷아웃이 없는 저장 후보는 업로드 전에 거절한다', async
   await classificationDialog.getByRole('group', { name: '입을 계절' }).getByRole('button', { name: '봄' }).click()
   await classificationDialog.getByRole('button', { name: '옷장에 추가' }).click()
 
-  await expect(page.getByText('사진의 배경 제거가 끝나지 않았어요. 사진을 다시 추가해 주세요.')).toBeVisible()
+  await expect(page.getByText('사진의 배경 제거가 끝나지 않았어요. 사진을 다시 추가해주세요.')).toBeVisible()
   await expect(classificationDialog).toBeVisible()
   expect(mockApi.operations).not.toContain('PrepareImageUpload')
   expect(mockApi.operations).not.toContain('CreateWardrobeItem')

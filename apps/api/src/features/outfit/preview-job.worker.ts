@@ -30,7 +30,7 @@ export async function recoverPreviewJobs() {
     }
     if (!job.requestStartedAt) await previewJobRepository.requeue(job, true)
     else {
-      const failed = await previewJobRepository.fail(job, 'interrupted', 'AI_INTERRUPTED', '서버 연결이 끊겨 이전 생성 결과를 확인하지 못했어요. 자동으로 다시 만들지 않았습니다.', true)
+      const failed = await previewJobRepository.fail(job, 'interrupted', 'AI_INTERRUPTED', '서버 연결이 끊겨 이전 생성 결과를 확인하지 못했어요. 자동으로 다시 만들지 않았어요.', true)
       if (failed.count === 1) notifyFailure(job.userId, 'outfit-preview', { path: getPreviewJobPath({ ...job, status: 'interrupted' }) })
     }
   }

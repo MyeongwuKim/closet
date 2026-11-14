@@ -9,7 +9,7 @@ async function readCatalog<T>(context: GraphQLContext, read: (userId: string) =>
     const viewer = await context.getViewer()
     return await read(viewer.id)
   } catch (error) {
-    throw toGraphQLError(error, '옷장 정보를 불러오지 못했습니다.', 'CATALOG_LOAD_FAILED')
+    throw toGraphQLError(error, '옷장 정보를 불러오지 못했어요.', 'CATALOG_LOAD_FAILED')
   }
 }
 

@@ -26,7 +26,7 @@ function normalizeLoginInput(input: TestLoginInput) {
 
   if (!/^[a-z0-9._-]{3,30}$/.test(loginId)) {
     throw new ServiceError(
-      '테스트 ID는 영문, 숫자, 점, 밑줄, 하이픈으로 3~30자여야 합니다.',
+      '테스트 ID는 영문, 숫자, 점, 밑줄, 하이픈으로 3~30자여야 해요.',
       'INVALID_TEST_LOGIN',
     )
   }
@@ -63,7 +63,7 @@ export const authService = {
         !timingSafeEqual(expectedHash, receivedHash)
       ) {
         throw new ServiceError(
-          '테스트 ID 또는 비밀번호가 맞지 않습니다.',
+          '테스트 ID 또는 비밀번호가 맞지 않아요.',
           'INVALID_TEST_CREDENTIALS',
         )
       }
@@ -90,13 +90,13 @@ export const authService = {
 
   async getViewer(accessToken?: string) {
     if (!accessToken) {
-      throw new ServiceError('로그인이 필요합니다.', 'UNAUTHENTICATED')
+      throw new ServiceError('로그인이 필요해요.', 'UNAUTHENTICATED')
     }
 
     const session = await authRepository.findSession(hashSessionToken(accessToken))
     if (!session || session.expiresAt.getTime() <= Date.now()) {
       if (session) await authRepository.deleteSession(session.tokenHash)
-      throw new ServiceError('로그인 세션이 만료되었습니다.', 'UNAUTHENTICATED')
+      throw new ServiceError('로그인 세션이 만료됐어요.', 'UNAUTHENTICATED')
     }
 
     void authRepository.touchSession(session.id)

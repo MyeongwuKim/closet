@@ -132,7 +132,7 @@ export const archivedWardrobeImageCleanupRepository = {
       const removed = await tx.imageAsset.deleteMany({ where: {
         ...where, wardrobeDisplayItems: { none: {} }, wardrobeOriginalItems: { none: {} }, outfitGenerations: { none: {} },
       } })
-      if (removed.count !== 1) throw new ServiceError('옷 사진의 사용 상태가 변경됐습니다.', 'WARDROBE_IMAGE_CLEANUP_CHANGED')
+      if (removed.count !== 1) throw new ServiceError('옷 사진의 사용 상태가 바뀌었어요.', 'WARDROBE_IMAGE_CLEANUP_CHANGED')
       return removed
     })
   },

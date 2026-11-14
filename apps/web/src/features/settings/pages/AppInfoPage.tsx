@@ -125,7 +125,7 @@ export function AppInfoPage() {
           </Link>
           <PageTitle
             title="앱 정보"
-            description="앱 실행 환경과 버전을 확인해보세요."
+            description="앱 버전과 실행 환경을 확인해요."
             compact
           />
         </div>
@@ -134,7 +134,7 @@ export function AppInfoPage() {
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto max-w-2xl space-y-5 px-5 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-8 sm:pb-[calc(2rem+env(safe-area-inset-bottom))]">
           <section>
-            <h2 className="px-1 text-sm font-black">실행 정보</h2>
+            <h2 className="px-1 text-sm font-semibold">실행 정보</h2>
             <dl className="mt-3 overflow-hidden rounded-3xl border border-line bg-surface">
               {runtimeRows.map(([label, value], index) => (
                 <div
@@ -146,7 +146,7 @@ export function AppInfoPage() {
                   <dt className="text-sm font-bold text-muted">{label}</dt>
                   <dd className="min-w-0 truncate text-right text-sm font-black">
                     {isLoading && label !== '웹 번들 버전'
-                      ? '확인 중...'
+                      ? '확인 중…'
                       : value}
                   </dd>
                 </div>
@@ -155,7 +155,7 @@ export function AppInfoPage() {
           </section>
 
           <section>
-            <h2 className="px-1 text-sm font-black">도움말</h2>
+            <h2 className="px-1 text-sm font-semibold">도움말</h2>
             {appInfo?.capabilities.includes('ad-privacy') && <button type="button" onClick={() => void openAdPrivacy()} className="mt-3 min-h-12 w-full rounded-2xl border border-line bg-surface px-5 py-3 text-left text-sm font-bold">광고 개인정보 설정</button>}
             <button
               type="button"

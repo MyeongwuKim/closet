@@ -39,7 +39,7 @@ export function MatchedOutfitsModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-surface"
+            className="flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-surface"
             aria-label="아이템 상세로 돌아가기"
             autoFocus
           >

@@ -154,7 +154,7 @@ export const useWardrobeImageAnalysis = create<WardrobeImageAnalysis>((set, get)
         pushToast(
           classificationError instanceof Error
             ? classificationError.message
-            : 'AI 분석에 실패했습니다. 옷 정보를 직접 입력해 주세요.',
+            : 'AI 분석에 실패했어요. 옷 정보를 직접 입력해주세요.',
           'error',
         )
       }
@@ -211,11 +211,11 @@ export const useWardrobeImageAnalysis = create<WardrobeImageAnalysis>((set, get)
       )
       const { pushToast } = useUiStore.getState()
       if (validFiles.length === 0) {
-        pushToast('10MB 이하의 JPEG, PNG, WEBP만 추가할 수 있습니다.', 'error')
+        pushToast('10MB 이하의 JPEG, PNG, WEBP만 추가할 수 있어요.', 'error')
         return false
       }
       if (validFiles.length !== files.length) {
-        pushToast('일부 파일은 형식 또는 10MB 제한 때문에 제외했습니다.', 'error')
+        pushToast('일부 파일은 형식 또는 10MB 제한 때문에 제외했어요.', 'error')
       }
 
       return queuePhotos(validFiles.map((file) => ({ id: crypto.randomUUID(), file, isBatch: validFiles.length > 1 })))

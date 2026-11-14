@@ -4,7 +4,7 @@ export function WardrobeSavingOverlay() {
       className="absolute inset-0 z-30 flex items-center justify-center bg-canvas/90 px-6 backdrop-blur-sm"
       role="status"
       aria-live="polite"
-      aria-label="옷장에 새 옷을 추가하고 있습니다"
+      aria-label="옷장에 새 옷을 추가하고 있어요"
     >
       <div className="text-center">
         <svg
@@ -117,7 +117,7 @@ export function WardrobeSavingOverlay() {
           </g>
         </svg>
 
-        <h3 className="mt-1 text-xl font-black">옷장에 차곡차곡 넣고 있어요</h3>
+        <h3 className="mt-1 text-xl font-semibold">옷장에 차곡차곡 넣고 있어요</h3>
         <p className="mt-2 text-sm leading-6 text-muted">
           잠시만 기다리면 새 옷이 옷장에 쏙 들어가요.
         </p>

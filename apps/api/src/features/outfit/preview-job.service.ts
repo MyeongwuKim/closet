@@ -34,7 +34,7 @@ export function toPreviewJob(job: AiPreviewJob) {
 export const previewJobService = {
   /** 활성 보유 옷과 요청 번호를 검증해 큐에 넣는다. 같은 요청 번호는 재접수하지 않고 같은 입력의 진행 작업도 공유한다. */
   async start(userId: string, input: StartPreviewInput) {
-    if (!/^[\w-]{8,100}$/.test(input.requestId) || (input.style?.length ?? 0) > 100) throw new ServiceError('이미지 생성 요청이 올바르지 않습니다.', 'INVALID_OUTFIT_PREVIEW_REQUEST')
+    if (!/^[\w-]{8,100}$/.test(input.requestId) || (input.style?.length ?? 0) > 100) throw new ServiceError('이미지 생성 요청이 올바르지 않아요.', 'INVALID_OUTFIT_PREVIEW_REQUEST')
     const items = await getOutfitPreviewItems(userId, input.selectedItemIds)
     const profile = await userRepository.findViewerById(userId)
     const selectedItemIds = items.map((item) => item.id)
@@ -57,7 +57,7 @@ export const previewJobService = {
   },
   /** 알림 확인·작업 TTL과 무관하게 같은 보유 옷·스타일의 최신 완료 이미지를 찾는다. 결과 부재·삭제에는 null이며 생성·사용권 차감은 하지 않는다. */
   async latestForItems(userId: string, selectedItemIds: string[], style?: string | null) {
-    if ((style?.length ?? 0) > 100) throw new ServiceError('이미지 조회 조건이 올바르지 않습니다.', 'INVALID_OUTFIT_PREVIEW_REQUEST')
+    if ((style?.length ?? 0) > 100) throw new ServiceError('이미지 조회 조건이 올바르지 않아요.', 'INVALID_OUTFIT_PREVIEW_REQUEST')
     const items = await getOutfitPreviewItems(userId, selectedItemIds)
     const asset = await imageRepository.findLatestGeneratedPreviewForItems(userId, items.map((item) => item.id), style?.trim() || null)
     if (!asset) return null
@@ -80,7 +80,7 @@ export const previewJobService = {
     let job = await previewJobService.start(userId, { ...input, requestId: randomUUID() })
     const deadline = Date.now() + 150_000
     while (job.status === 'queued' || job.status === 'processing') {
-      if (Date.now() > deadline) throw new ServiceError('이미지를 계속 만들고 있어요. 생성 상태에서 결과를 확인해 주세요.', 'AI_JOB_PENDING')
+      if (Date.now() > deadline) throw new ServiceError('이미지를 계속 만들고 있어요. 생성 상태에서 결과를 확인해주세요.', 'AI_JOB_PENDING')
       await delay(750)
       job = await previewJobService.get(userId, job.id)
     }

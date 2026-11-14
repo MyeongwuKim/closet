@@ -13,8 +13,8 @@ export function OutfitReplacementPicker({ category, items, onChoose }: OutfitRep
   return (
     <section className="scrollbar-hidden h-full overflow-y-auto px-5 py-4" aria-label={`${outfitSelectionLabels[category]} 교체 대상 선택`}>
       <span className="text-[10px] font-black tracking-[0.08em] text-accent">내 옷장</span>
-      <h2 className="mt-1 text-base font-black">어떤 아이템을 바꿀까요?</h2>
-      <p className="mt-1 text-xs leading-5 text-muted">현재 Look에서 바꿀 옷을 고르면 같은 종류의 옷장이 열려요.</p>
+      <h2 className="mt-1 text-base font-semibold">어떤 아이템을 바꿀까요?</h2>
+      <p className="mt-1 text-xs leading-5 text-muted">현재 코디에서 바꿀 옷을 고르면 같은 종류의 옷장이 열려요.</p>
       <div className="mt-4 grid gap-2">
         {items.map((item) => (
           <button
