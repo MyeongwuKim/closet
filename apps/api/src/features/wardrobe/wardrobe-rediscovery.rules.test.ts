@@ -15,6 +15,14 @@ test('새 옷·최근 착용·분석 중·계절 미지정·추천 불가 카테
   assert.deepEqual(rankRediscoveryCandidates(candidates, wear, {}, today).map((entry) => entry.id), [id(1)])
 })
 
+test('미착용 사유에 따른 보류와 재개일을 재발견 후보에도 적용한다', () => {
+  const candidates = [item(1, { wearAvoidanceReason: 'fit_issue' }),
+    item(2, { wearAvoidanceReason: 'temporarily_unused', recommendationResumeOn: '2026-11-05' }),
+    item(3, { wearAvoidanceReason: 'temporarily_unused', recommendationResumeOn: '2026-11-04' }),
+    item(4, { wearAvoidanceReason: 'hard_to_style' })]
+  assert.deepEqual(rankRediscoveryCandidates(candidates, new Map(), {}, today).map((entry) => entry.id), [id(3), id(4)])
+})
+
 test('노출 이력이 없는 옷은 현재 계절과 오래된 등록일을 우선한다', () => {
   const candidates = [item(1, { seasons: ['summer'] }), item(2, { createdAt: new Date('2025-03-01') }), item(3)]
   assert.deepEqual(rankRediscoveryCandidates(candidates, new Map(), {}, today).map((entry) => entry.id), [id(3), id(2), id(1)])

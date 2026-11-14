@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { trapDialogFocus } from '../lib/dialogFocus'
 import type { FormEvent } from 'react'
 import type {
   ClothingCategory,
@@ -23,6 +24,8 @@ import { SimilarWardrobeItems } from '../features/closet/components/SimilarWardr
 import { CategoryMultiSelectField } from '../features/closet/components/CategoryMultiSelectField'
 import { WardrobeTagField } from '../features/closet/components/WardrobeTagField'
 import { FashionAttributeFields } from '../features/closet/components/FashionAttributeFields'
+import { WardrobeStorageLocationField } from '../features/closet/components/WardrobeStorageLocationField'
+import type { WardrobeRegistrationDraft } from '../features/closet/utils/wardrobeRegistration'
 import { WardrobeBrandField } from '../features/closet/components/WardrobeBrandField'
 import {
   fashionAttributesFromItem,
@@ -30,6 +33,7 @@ import {
 } from '../features/closet/utils/fashionAttributes'
 import {
   emptyGarmentSize,
+  garmentSizeFromItem,
   toGarmentSizeInput,
   type GarmentSizeFormValue,
   type GarmentSizeInput,
@@ -42,6 +46,8 @@ const colorModeLabels: Record<ColorMode, string> = {
 }
 
 interface ClassificationConfirmModalProps {
+  initialDraft?: WardrobeRegistrationDraft
+  onDismiss?: () => void
   candidate: ClassificationCandidate
   wardrobeItems: WardrobeItem[]
   onConfirm: (
@@ -49,6 +55,7 @@ interface ClassificationConfirmModalProps {
     result: {
       name: string
       brandName: string | null
+      storageLocation: string | null
       category: ClothingCategory
       additionalCategories: ClothingCategory[]
       subcategory: string
@@ -65,9 +72,17 @@ interface ClassificationConfirmModalProps {
 
 export function ClassificationConfirmModal({
   candidate,
+  initialDraft,
+  onDismiss,
   wardrobeItems,
   onConfirm,
 }: ClassificationConfirmModalProps) {
+  const dialogRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null
+    dialogRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
+    return () => { if (previous?.isConnected) previous.focus() }
+  }, [])
   const completeClassification = useUiStore(
     (state) => state.completeClassification,
   )
@@ -75,22 +90,23 @@ export function ClassificationConfirmModal({
     (state) => state.cancelClassification,
   )
   const [category, setCategory] = useState<ClothingCategory | ''>(
-    candidate.category ?? '',
+    initialDraft?.category ?? candidate.category ?? '',
   )
   const [additionalCategories, setAdditionalCategories] = useState<
     ClothingCategory[]
-  >([])
-  const [name, setName] = useState(candidate.itemName)
-  const [brandName, setBrandName] = useState('')
-  const [subcategory, setSubcategory] = useState(candidate.subcategory)
-  const [colorName, setColorName] = useState(candidate.colorName)
-  const [seasons, setSeasons] = useState<Season[]>([])
+  >(initialDraft?.additionalCategories ?? [])
+  const [name, setName] = useState(initialDraft?.name ?? candidate.itemName)
+  const [brandName, setBrandName] = useState(initialDraft?.brandName ?? '')
+  const [storageLocation, setStorageLocation] = useState(initialDraft?.storageLocation ?? '')
+  const [subcategory, setSubcategory] = useState(initialDraft?.subcategory ?? candidate.subcategory)
+  const [colorName, setColorName] = useState(initialDraft?.colorName ?? candidate.colorName)
+  const [seasons, setSeasons] = useState<Season[]>(initialDraft?.seasons ?? [])
   const [fashionAttributes, setFashionAttributes] = useState(() =>
-    fashionAttributesFromItem(candidate.fashionAttributes),
+    fashionAttributesFromItem(initialDraft?.fashionAttributes ?? candidate.fashionAttributes),
   )
-  const [tags, setTags] = useState<string[]>([])
+  const [tags, setTags] = useState<string[]>(initialDraft?.tags ?? [])
   const [garmentSize, setGarmentSize] =
-    useState<GarmentSizeFormValue>(emptyGarmentSize)
+    useState<GarmentSizeFormValue>(() => initialDraft ? garmentSizeFromItem(initialDraft) : emptyGarmentSize)
   const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
@@ -99,7 +115,7 @@ export function ClassificationConfirmModal({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       // 업로드·저장이 끝나기 전에는 현재 사진을 유지해 다음 등록 후보로 넘어가지 않는다.
-      if (event.key === 'Escape' && !isSaving) cancelClassification(candidate.itemId)
+      if (event.key === 'Escape' && !isSaving) { if (onDismiss) onDismiss(); else cancelClassification(candidate.itemId) }
     }
 
     window.addEventListener('keydown', handleKeyDown)
@@ -108,7 +124,7 @@ export function ClassificationConfirmModal({
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [cancelClassification, candidate.itemId, isSaving])
+  }, [cancelClassification, candidate.itemId, isSaving, onDismiss])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -128,6 +144,7 @@ export function ClassificationConfirmModal({
       await onConfirm(candidate.itemId, {
         name: name.trim(),
         brandName: brandName.trim() || null,
+        storageLocation: storageLocation.trim() || null,
         category,
         additionalCategories,
         subcategory: subcategory.trim(),
@@ -144,7 +161,7 @@ export function ClassificationConfirmModal({
         tags,
         ...toGarmentSizeInput(category, garmentSize),
       })
-      completeClassification(candidate.itemId)
+      if (!onDismiss) completeClassification(candidate.itemId)
     } catch {
       setIsSaving(false)
     }
@@ -182,6 +199,8 @@ export function ClassificationConfirmModal({
 
   return (
     <section
+      ref={dialogRef}
+      onKeyDown={(event) => trapDialogFocus(event, dialogRef.current)}
       role="dialog"
       aria-modal="true"
       aria-labelledby="classification-modal-title"
@@ -191,7 +210,7 @@ export function ClassificationConfirmModal({
         <div className="mx-auto flex min-h-16 max-w-3xl items-center gap-3 px-4 sm:min-h-18 sm:px-6">
           <button
             type="button"
-            onClick={() => cancelClassification(candidate.itemId)}
+            onClick={() => onDismiss ? onDismiss() : cancelClassification(candidate.itemId)}
             disabled={isSaving}
             className="flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-surface"
             aria-label="옷 추가 취소"
@@ -203,7 +222,7 @@ export function ClassificationConfirmModal({
               id="classification-modal-title"
               className="truncate text-lg font-black tracking-[-0.03em] sm:text-xl"
             >
-              AI 분석 결과
+              {onDismiss ? '옷 정보 확인' : 'AI 분석 결과'}
             </h2>
             <p className="mt-0.5 truncate text-xs text-muted">
               결과를 확인하고 내 옷장에 저장하세요.
@@ -358,6 +377,8 @@ export function ClassificationConfirmModal({
                 </div>
               </fieldset>
 
+              <WardrobeStorageLocationField value={storageLocation} onChange={setStorageLocation} disabled={isSaving} />
+
               <FashionAttributeFields
                 value={fashionAttributes}
                 onChange={setFashionAttributes}
@@ -422,7 +443,7 @@ export function ClassificationConfirmModal({
           <div className="mx-auto grid max-w-3xl grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={() => cancelClassification(candidate.itemId)}
+              onClick={() => onDismiss ? onDismiss() : cancelClassification(candidate.itemId)}
               disabled={isSaving}
               className="rounded-xl border border-line px-4 py-3 text-sm font-bold hover:border-ink"
             >
@@ -440,13 +461,13 @@ export function ClassificationConfirmModal({
               }
               className="rounded-xl bg-accent px-4 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {isSaving ? '옷장에 넣는 중...' : '옷장에 추가'}
+              {isSaving ? '처리 중…' : onDismiss ? '목록에 적용' : '옷장에 추가'}
             </button>
           </div>
         </footer>
       </form>
 
-      {isSaving && <WardrobeSavingOverlay />}
+      {isSaving && !onDismiss && <WardrobeSavingOverlay />}
     </section>
   )
 }

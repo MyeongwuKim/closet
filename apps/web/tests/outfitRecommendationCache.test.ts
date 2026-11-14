@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { queryKeys } from '../src/lib/queryKeys'
 import { advanceOutfitRecommendationRevision } from '../src/features/lookbook/api/outfitRecommendationCache'
 import { useOutfitRecommendationQuery } from '../src/features/lookbook/api/outfitRecommendationQueries'
+import { getKoreaDate } from '@closet/types/wardrobe-preferences'
 
 test('옷장 변경 전 진행 응답은 새 결과에 붙지 않고 새 클릭만 조회하며 같은 결과 재열기는 무료다', async (t) => {
   const client = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity, staleTime: Infinity } } })
@@ -42,11 +43,12 @@ test('옷장 변경 전 진행 응답은 새 결과에 붙지 않고 새 클릭�
     return query
   }
   const waitForResult = (revision: number) => {
-    const key = [...queryKeys.outfits.recommendation('viewer', ['shirt'], 'bottom'), revision]
+    const key = [...queryKeys.outfits.recommendation('viewer', ['shirt'], 'bottom'), revision, getKoreaDate()]
     if (client.getQueryData(key)) return Promise.resolve()
-    return new Promise<void>((resolve) => {
+    return new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => { unsubscribe(); reject(new Error('추천 결과가 현재 날짜의 캐시에 도착하지 않았어요.')) }, 5000)
       const unsubscribe = client.getQueryCache().subscribe(() => {
-        if (client.getQueryData(key)) { unsubscribe(); resolve() }
+        if (client.getQueryData(key)) { clearTimeout(timeout); unsubscribe(); resolve() }
       })
     })
   }

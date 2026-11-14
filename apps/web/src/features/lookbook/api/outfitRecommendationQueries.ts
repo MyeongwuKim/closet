@@ -7,6 +7,7 @@ import { useMeQuery } from '../../settings/api/profileQueries'
 import { toWardrobeItem, wardrobeItemFields, type WardrobeItemPayload } from '../../closet/api/wardrobeQueries'
 import { previewCreditKeys } from './previewCreditQueries'
 import { outfitRecommendationRevisionKey } from './outfitRecommendationCache'
+import { useKoreaDay } from '../../../hooks/useKoreaDay'
 
 type RecommendationPayload = Omit<OutfitRecommendation, 'candidates'> & {
   candidates: Array<Omit<OutfitRecommendation['candidates'][number], 'item'> & { item: WardrobeItemPayload }>
@@ -22,6 +23,7 @@ export function useOutfitRecommendationQuery(selectedItemIds: string[], targetCa
   const me = useMeQuery()
   const client = useQueryClient()
   const ownerId = me.data?.id ?? null
+  const day = useKoreaDay()
   const readRevision = () => client.getQueryData<number>(outfitRecommendationRevisionKey) ?? 0
   const revision = useSyncExternalStore(
     (listener) => client.getQueryCache().subscribe(listener),
@@ -29,7 +31,7 @@ export function useOutfitRecommendationQuery(selectedItemIds: string[], targetCa
     readRevision,
   )
   const query = useQuery({
-    queryKey: [...queryKeys.outfits.recommendation(ownerId, selectedItemIds, targetCategory), revision],
+    queryKey: [...queryKeys.outfits.recommendation(ownerId, selectedItemIds, targetCategory), revision, day],
     enabled: false,
     staleTime: 'static',
     gcTime: 24 * 60 * 60_000,

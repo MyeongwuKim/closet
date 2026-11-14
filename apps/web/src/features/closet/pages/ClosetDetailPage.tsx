@@ -12,6 +12,7 @@ import { useUiStore } from '../../../stores/useUiStore'
 import { formatRecentWearLabel } from '../../../utils/wearDate'
 import { ClosetDetailHeader } from '../components/ClosetDetailHeader'
 import { ClosetItemEditModal } from '../components/ClosetItemEditModal'
+import { WardrobeWearPreferenceControl } from '../components/WardrobeWearPreferenceSheet'
 import { ClosetItemVisual } from '../components/ClosetItemVisual'
 import { ClosetItemOutfitActions } from '../components/ClosetItemOutfitActions'
 import { MatchedOutfitsRail } from '../components/MatchedOutfitsRail'
@@ -273,6 +274,10 @@ export function ClosetDetailPage() {
               )}
             </div>
 
+            {selectedItem.storageLocation && (
+              <p className="mt-4 break-words text-sm"><span className="text-muted">보관 위치</span> · {selectedItem.storageLocation}</p>
+            )}
+            <WardrobeWearPreferenceControl item={selectedItem} onRecommend={() => setIsRecommendationOpen(true)} />
             {selectedItem.tags.length > 0 && (
               <div className="mt-4 flex flex-wrap items-center gap-2" aria-label="태그">
                 <Tag size={14} className="text-muted" />

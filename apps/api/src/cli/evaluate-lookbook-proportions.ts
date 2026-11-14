@@ -289,7 +289,7 @@ function makeSyntheticItem(reference: ReferenceName, png: Buffer): WardrobeImage
     id: reference, userId: SYNTHETIC_USER_ID, name: spec.name, category: spec.category, additionalCategories: [], subcategory: spec.subcategory,
     colorName: spec.colorName, colorHex: spec.colorHex, colorDetailName: spec.colorName, colorMode: 'solid', seasons: ['autumn', 'spring'],
     classificationStatus: 'classified', classificationConfidence: null, classificationModel: null, classificationCandidates: null,
-    wearCount: 0, lastWornAt: null, archivedAt: null, updatedAt: at, createdAt: at, tags: [], brandName: null, sizeLabel: null,
+    wearCount: 0, lastWornAt: null, archivedAt: null, updatedAt: at, createdAt: at, tags: [], brandName: null, storageLocation: null, registrationRequestId: null, wearAvoidanceReason: null, recommendationResumeOn: null, sizeLabel: null,
     shoulderWidthCm: spec.shoulderWidthCm ?? null, chestWidthCm: spec.chestWidthCm ?? null, sleeveLengthCm: spec.sleeveLengthCm ?? null,
     totalLengthCm: spec.totalLengthCm, waistWidthCm: spec.waistWidthCm ?? null, hipWidthCm: spec.hipWidthCm ?? null, inseamCm: spec.inseamCm ?? null,
     thighWidthCm: spec.thighWidthCm ?? null, riseCm: null, hemWidthCm: null, displayImageAssetId: `fixture-${reference}`, originalImageAssetId: null,

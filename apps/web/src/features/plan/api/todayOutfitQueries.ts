@@ -8,11 +8,13 @@
  * 새 추천은 조회 전에 잔액과 광고 지급을 확인한다. 실행 중 다른 요청이 횟수를 쓰면 같은 조건으로 한 번 재확인한다.
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { canReuseWardrobeRecommendation } from '@closet/types/wardrobe-preferences'
 import type {
   Season,
   ThermalRecommendationContext,
   TodayOutfitRecommendation,
   WeatherSnapshot,
+  WardrobeItem,
 } from '@closet/types'
 import { GraphqlRequestError, graphqlRequest } from '../../../lib/graphql'
 import { previewCreditKeys } from '../../lookbook/api/previewCreditQueries'
@@ -46,6 +48,8 @@ interface TodayOutfitRecommendationPayload
 }
 
 interface TodayOutfitRecommendationQueryOptions {
+  wardrobe?: WardrobeItem[]
+  preferenceKey?: string
   initialData?: TodayOutfitRecommendation
   enabled?: boolean
   baseItemId?: string
@@ -94,6 +98,8 @@ export function useTodayOutfitRecommendationQuery(
   variation: number,
   excludedOuterItemIds: string[],
   {
+    wardrobe,
+    preferenceKey,
     initialData,
     enabled = true,
     baseItemId,
@@ -105,6 +111,7 @@ export function useTodayOutfitRecommendationQuery(
   const meanTemperatureC = getThermalRecommendationMean(weather)
   const thermalContextRevision = meanTemperatureC !== null ? thermalContext?.revision : undefined
   const weatherKey = getWeatherKey(weather)
+  const matchesPreferences = (result: TodayOutfitRecommendation) => !wardrobe || canReuseWardrobeRecommendation(result.items, wardrobe, date, baseItemId ? [baseItemId] : [])
   return useQuery({
     queryKey: queryKeys.planner.todayRecommendation(
       viewerId,
@@ -116,29 +123,34 @@ export function useTodayOutfitRecommendationQuery(
       baseItemId,
       weatherKey,
       thermalContextRevision,
+      preferenceKey,
     ),
     enabled: enabled && Boolean(viewerId) && Boolean(date) && (meanTemperatureC === null || Boolean(thermalContextRevision)),
     initialData:
       initialData && (!matchesRecommendationDate(initialData, date) ||
+      !matchesPreferences(initialData) ||
       !matchesThermalRecommendationContext(initialData, thermalContextRevision) ||
       (initialData.ready && !matchesTodayRecommendationBaseItem(initialData, baseItemId)))
         ? undefined
         : initialData,
-    meta: { baseItemId, colorScheme, weatherKey, thermalContextRevision },
+    meta: { baseItemId, colorScheme, weatherKey, thermalContextRevision, preferenceKey },
     placeholderData: (previousData, previousQuery) =>
       previousQuery?.meta?.baseItemId === baseItemId &&
       previousQuery?.meta?.colorScheme === colorScheme &&
       previousQuery?.meta?.weatherKey === weatherKey &&
       previousQuery?.meta?.thermalContextRevision === thermalContextRevision &&
+      previousQuery?.meta?.preferenceKey === preferenceKey &&
       previousData !== undefined &&
       matchesRecommendationDate(previousData, date) &&
       matchesThermalRecommendationContext(previousData, thermalContextRevision) &&
+      matchesPreferences(previousData) &&
       (!previousData?.ready ||
         matchesTodayRecommendationBaseItem(previousData, baseItemId))
         ? previousData
         : undefined,
     select: (recommendation) => {
       validateRecommendationDate(recommendation, date)
+      if (!matchesPreferences(recommendation)) throw new Error('추천 보류 설정이 바뀌었어요. 다시 추천받아주세요.')
       if (!matchesThermalRecommendationContext(recommendation, thermalContextRevision)) throw new Error('착용 체감이 바뀌어 추천을 다시 확인해야 해요.')
       return validateRecommendationBaseItem(recommendation, baseItemId)
     },
@@ -230,6 +242,7 @@ export function useTodayOutfitRecommendationQuery(
         baseItemId,
       )
       validateRecommendationDate(recommendation, date)
+      if (!matchesPreferences(recommendation)) throw new Error('추천 보류 설정이 바뀌었어요. 다시 추천받아주세요.')
       if (!matchesThermalRecommendationContext(recommendation, thermalContextRevision)) throw new Error('추천에 반영된 착용 체감을 확인하지 못했어요. 다시 시도해 주세요.')
       if (recommendation.ready && recommendation.items.length > 0) {
         storeTodayRecommendation(

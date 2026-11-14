@@ -1,5 +1,6 @@
 import { expect, test as base, type Page, type TestInfo } from '@playwright/test'
 import { readFileSync } from 'node:fs'
+import { getKoreaDate, isWardrobeRecommendationPaused } from '../../packages/types/src/wardrobePreferences.js'
 
 const webOrigin = 'http://127.0.0.1:4173'
 const mockApiOrigin = 'http://127.0.0.1:49999'
@@ -10,6 +11,10 @@ type WardrobeItem = {
   id: string
   name: string
   brandName: string | null
+  storageLocation: string | null
+  wearAvoidanceReason: string | null
+  recommendationResumeOn: string | null
+  registrationRequestId?: string | null
   createdAt: string
   archivedAt: string | null
   category: string | null
@@ -95,7 +100,7 @@ export type MockApi = {
 /** Each test receives its own in-memory catalog. Reloads reuse it; other tests cannot see its mutations. */
 export function createWardrobeItem(overrides: Partial<WardrobeItem> = {}): WardrobeItem {
   return {
-    id: 'item-1', name: '테스트 셔츠', brandName: null,
+    id: 'item-1', name: '테스트 셔츠', brandName: null, storageLocation: null, wearAvoidanceReason: null, recommendationResumeOn: null,
     createdAt: '2026-01-10T00:00:00.000Z',
     archivedAt: null,
     category: 'top', additionalCategories: [], subcategory: '셔츠',
@@ -155,7 +160,7 @@ function filterWardrobe(items: WardrobeItem[], input: Record<string, any> = {}) 
     if (input.tag && !item.tags.includes(input.tag)) return false
     if (input.brandName && item.brandName !== input.brandName) return false
     if (input.unbrandedOnly && item.brandName) return false
-    if (search && ![item.name, item.brandName, item.subcategory, item.colorName, ...item.tags]
+    if (search && ![item.name, item.brandName, item.storageLocation, item.subcategory, item.colorName, ...item.tags]
       .filter(Boolean).join(' ').toLocaleLowerCase().includes(search)) return false
     return true
   }).sort((a, b) => input.sort === 'oldest'
@@ -243,7 +248,10 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
     case 'ThermalRecommendationContext': return { thermalRecommendationContext: { revision: 'fixture-thermal-neutral', direction: 'neutral', strength: 0, sampleCount: 0 } }
     case 'WardrobeRediscovery': return { wardrobeRediscovery: {
       day: new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date()),
-      items: api.rediscoveryItems.filter((entry) => api.wardrobeItems.some((item) => item.id === entry.item.id && !item.archivedAt)),
+      items: api.rediscoveryItems.flatMap((entry) => {
+        const item = api.wardrobeItems.find((item) => item.id === entry.item.id && !item.archivedAt)
+        return item && !isWardrobeRecommendationPaused(item, getKoreaDate()) ? [{ ...entry, item }] : []
+      }),
     } }
     case 'MarkWardrobeRediscoverySeen': {
       api.rediscoverySeenIds.push(...variables.itemIds)
@@ -397,6 +405,8 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
       return { archiveWardrobeItem: item }
     }
     case 'CreateWardrobeItem': {
+      const existing = input.registrationRequestId && api.wardrobeItems.find((item) => item.registrationRequestId === input.registrationRequestId)
+      if (existing) return { createWardrobeItem: existing }
       const item = createWardrobeItem({ ...input, id: `item-${api.wardrobeItems.length + 1}`, createdAt: new Date().toISOString(), displayImageAsset: { id: input.displayImageAssetId, deliveryUrl: null } })
       api.wardrobeItems = [item, ...api.wardrobeItems]
       return { createWardrobeItem: item }

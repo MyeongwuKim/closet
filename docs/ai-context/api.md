@@ -45,6 +45,10 @@ GraphQL `WardrobeItem.archivedAt`은 nullable ISO 문자열이며 기존 누락 
 
 원피스 한 벌은 코디북과 플래너 날짜에 코디로 저장할 수 있다. 새 구성은 보유 중인 활성 옷과 완성 조건을 검증한다. 플래너의 착용 완료 기록을 변경하는 조건은 [플래너와 날씨](planner-weather.md#일정과-착용-데이터)에 있다.
 
+`WardrobeItem.storageLocation`은 선택적인 현재 보관 장소이며 40자 이내로 공백·유니코드를 정규화한다. 수정에서 생략하면 유지하고 null·빈 문자열이면 지운다. `wearAvoidanceReason`은 최신 사용자 입력 사유(`hard_to_style`, `fit_issue`, `temporarily_unused`)이며 재발견 응답의 시스템 선정 근거 `reason`과 다르다. `recommendationResumeOn`은 한국 날짜 문자열이다. 일시 보류를 설정할 때 유효한 내일 이후 날짜를 요구하고 사유를 지우거나 다른 사유로 바꾸면 재개일도 비운다. 기존 누락 필드는 null로 반환한다. 조회·수정은 기존 소유권 검사를 유지한다.
+
+옷 생성의 선택 입력 `registrationRequestId`는 클라이언트가 사진 후보에 부여한 UUID v4다. 서버는 사용자와 요청 키로 기존 등록을 조회하며 동시 생성은 기존 DB 트랜잭션·요청별 mutex로 직렬화한다. 같은 요청의 재시도는 기존 옷을 반환하고, 그 옷을 이미 삭제했다면 `WARDROBE_REGISTRATION_ARCHIVED`로 거절한다. 사진 참조 잠금과 소유권·업로드 완료 검증도 유지한다. API 계약·입력·재시도 검사는 `wardrobe-preferences.test.ts`, `wardrobe.service.test.ts`, `wardrobe-registration.test.ts`다. DB를 대체한 단위 검사는 실제 MongoDB 잠금 검증과 구분한다.
+
 ## DB와 공용 계약
 
 MongoDB 모델과 관계는 [schema.prisma](../../apps/api/prisma/schema.prisma), Prisma Client는 [prisma.ts](../../apps/api/src/lib/prisma.ts)에 있다. AI 저장소·사용권·날씨 위치 변경에는 MongoDB 트랜잭션을 사용하는 경로가 있다.

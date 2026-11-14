@@ -404,11 +404,21 @@ model WardrobeRediscovery {
   user        User     @relation(fields: [userId], references: [id])
 }
 
+enum WearAvoidanceReason {
+  hard_to_style
+  fit_issue
+  temporarily_unused
+}
+
 model WardrobeItem {
   id                       String               @id @default(auto()) @map("_id") @db.ObjectId
   userId                   String               @db.ObjectId
   name                     String
   brandName                String?
+  storageLocation          String?
+  wearAvoidanceReason      WearAvoidanceReason?
+  recommendationResumeOn   String?
+  registrationRequestId    String?
   displayImageAssetId      String?              @db.ObjectId
   originalImageAssetId     String?              @db.ObjectId
   category                 ClothingCategory?
@@ -449,6 +459,7 @@ model WardrobeItem {
   @@index([userId, category, subcategory])
   @@index([userId, additionalCategories])
   @@index([userId, classificationStatus])
+  @@index([userId, registrationRequestId])
 }
 
 model Outfit {

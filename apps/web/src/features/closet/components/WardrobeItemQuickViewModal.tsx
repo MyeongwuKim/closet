@@ -177,6 +177,7 @@ export function WardrobeItemQuickViewModal({
             </div>
           </div>
 
+          {item.storageLocation && <p className="mt-5 break-words text-sm"><span className="text-muted">보관 위치</span> · {item.storageLocation}</p>}
           {(item.seasons.length > 0 || item.tags.length > 0) && (
             <div className="mt-5 rounded-2xl border border-line bg-canvas p-4">
               <div className="flex flex-wrap gap-2">

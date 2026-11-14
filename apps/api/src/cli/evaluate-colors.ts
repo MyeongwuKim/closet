@@ -212,7 +212,7 @@ function toItem(id: string, reference = false): WardrobeItem | null {
     fashionAttributes: JSON.parse(JSON.stringify(result.fashionAttributes ?? null)), seasons: ['autumn'], classificationStatus: 'classified', classificationConfidence: result.confidence,
     classificationModel: result.model, classificationCandidates: JSON.parse(JSON.stringify(result.candidates)), tags: [], wearCount: 0, lastWornAt: null, archivedAt: null,
     createdAt: at, updatedAt: at, displayImageAssetId: null, originalImageAssetId: null, displayImageAsset: null, originalImageAsset: null,
-    brandName: null, sizeLabel: null, shoulderWidthCm: null, chestWidthCm: null, sleeveLengthCm: null, totalLengthCm: null, waistWidthCm: null,
+    brandName: null, storageLocation: null, registrationRequestId: null, wearAvoidanceReason: null, recommendationResumeOn: null, sizeLabel: null, shoulderWidthCm: null, chestWidthCm: null, sleeveLengthCm: null, totalLengthCm: null, waistWidthCm: null,
     hipWidthCm: null, inseamCm: null, thighWidthCm: null, riseCm: null, hemWidthCm: null }
 }
 

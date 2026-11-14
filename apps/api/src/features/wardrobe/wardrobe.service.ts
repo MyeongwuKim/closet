@@ -7,6 +7,8 @@ import type {
 } from '@prisma/client'
 import type { FashionItemAttributes } from '@closet/types'
 import { ServiceError } from '../../graphql/errors.js'
+import { parseDateOnly } from '../../lib/date.js'
+import { getKoreaDate } from '@closet/types/wardrobe-preferences'
 import { imageRepository } from '../image/image.repository.js'
 import {
   wardrobeRepository,
@@ -17,6 +19,8 @@ import {
 export interface CreateWardrobeItemInput {
   name: string
   brandName?: string | null
+  storageLocation?: string | null
+  registrationRequestId?: string | null
   displayImageAssetId: string
   originalImageAssetId?: string | null
   category?: ClothingCategory | null
@@ -48,6 +52,33 @@ export interface CreateWardrobeItemInput {
 export interface UpdateWardrobeItemInput
   extends Omit<UpdateWardrobeItemData, 'fashionAttributes'> {
   fashionAttributes?: FashionItemAttributes
+}
+
+/** 보관 위치는 공백을 정리하고, 생략은 유지·null과 빈 입력은 삭제로 처리한다. */
+function normalizeStorageLocation(value: string | null | undefined) {
+  if (value === undefined) return undefined
+  const location = value?.normalize('NFKC').replace(/\s+/g, ' ').trim() ?? ''
+  if (location.length > 40) throw new ServiceError('보관 위치는 40자 이내로 입력해주세요.', 'INVALID_STORAGE_LOCATION')
+  return location || null
+}
+
+/** 미착용 사유와 재개일을 한 쌍으로 검증한다. 설정을 생략한 일반 정보 수정은 기존 보류를 유지한다. */
+function normalizeWearPreference(input: UpdateWardrobeItemInput, current: {
+  wearAvoidanceReason?: string | null; recommendationResumeOn?: string | null
+}) {
+  if (input.wearAvoidanceReason === undefined && input.recommendationResumeOn === undefined) return {}
+  const reason = input.wearAvoidanceReason === undefined ? current.wearAvoidanceReason ?? null : input.wearAvoidanceReason
+  const invalid = () => new ServiceError('안 입는 이유와 내일 이후의 재개 날짜를 확인해주세요.', 'INVALID_WEAR_PREFERENCE')
+  if (reason !== null && !['hard_to_style', 'fit_issue', 'temporarily_unused'].includes(reason)) throw invalid()
+  if (reason !== 'temporarily_unused') {
+    if (input.recommendationResumeOn != null) throw invalid()
+    return { wearAvoidanceReason: input.wearAvoidanceReason, recommendationResumeOn: null }
+  }
+  const resume = input.recommendationResumeOn === undefined && current.wearAvoidanceReason === reason
+    ? current.recommendationResumeOn : input.recommendationResumeOn
+  if (!resume || resume <= getKoreaDate()) throw invalid()
+  try { parseDateOnly(resume, '추천 재개일') } catch { throw invalid() }
+  return { wearAvoidanceReason: 'temporarily_unused' as const, recommendationResumeOn: resume }
 }
 
 const fashionAttributeValues = {
@@ -427,6 +458,16 @@ export const wardrobeService = {
     }
     validateGarmentMeasurements(input)
 
+    const registrationRequestId = input.registrationRequestId?.toLowerCase()
+    if (registrationRequestId != null) {
+      if (!/^[a-f\d]{8}-[a-f\d]{4}-4[a-f\d]{3}-[89ab][a-f\d]{3}-[a-f\d]{12}$/i.test(registrationRequestId)) {
+        throw new ServiceError('등록 요청을 확인하지 못했어요. 사진을 다시 추가해주세요.', 'INVALID_REGISTRATION_REQUEST')
+      }
+      const existing = await wardrobeRepository.findByRegistrationRequest(userId, registrationRequestId)
+      if (existing?.archivedAt) throw new ServiceError('이미 삭제된 등록이에요. 사진을 다시 추가해주세요.', 'WARDROBE_REGISTRATION_ARCHIVED')
+      if (existing) return existing
+    }
+
     const assetIds = [
       input.displayImageAssetId,
       input.originalImageAssetId,
@@ -458,8 +499,10 @@ export const wardrobeService = {
     return wardrobeRepository.create({
       userId,
       ...input,
+      registrationRequestId,
       name,
       brandName: normalizeBrandName(input.brandName),
+      storageLocation: normalizeStorageLocation(input.storageLocation),
       additionalCategories: normalizeAdditionalCategories(
         input.category,
         input.additionalCategories,
@@ -499,8 +542,10 @@ export const wardrobeService = {
 
     return wardrobeRepository.update(itemId, {
       ...input,
+      ...normalizeWearPreference(input, currentItem),
       name: input.name?.trim(),
       brandName: normalizeBrandName(input.brandName),
+      storageLocation: normalizeStorageLocation(input.storageLocation),
       fashionAttributes:
         input.fashionAttributes === undefined
           ? undefined

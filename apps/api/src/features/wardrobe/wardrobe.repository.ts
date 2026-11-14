@@ -6,8 +6,11 @@ import type {
   Season,
 } from '@prisma/client'
 import { prisma } from '../../lib/prisma.js'
+import type { WearAvoidanceReason } from '@closet/types'
 import { confirmedWearWhere } from '../planner/planner-wear.js'
-import { aiTransaction } from '../../lib/ai/ai-storage.js'
+import { aiTransaction, touchAiMutex } from '../../lib/ai/ai-storage.js'
+import { randomUUID } from 'node:crypto'
+import { ServiceError } from '../../graphql/errors.js'
 import { lockWardrobeImagesForReference } from './wardrobe-image-lifecycle.js'
 
 export const wardrobeItemInclude = {
@@ -24,6 +27,8 @@ export interface CreateWardrobeItemData {
   userId: string
   name: string
   brandName?: string | null
+  storageLocation?: string | null
+  registrationRequestId?: string | null
   displayImageAssetId: string
   originalImageAssetId?: string | null
   category?: ClothingCategory | null
@@ -55,6 +60,9 @@ export interface CreateWardrobeItemData {
 export interface UpdateWardrobeItemData {
   name?: string
   brandName?: string | null
+  storageLocation?: string | null
+  wearAvoidanceReason?: WearAvoidanceReason | null
+  recommendationResumeOn?: string | null
   category?: ClothingCategory | null
   additionalCategories?: ClothingCategory[]
   subcategory?: string | null
@@ -86,6 +94,10 @@ const activeWardrobeItemFilter = {
 } satisfies Prisma.WardrobeItemWhereInput
 
 export const wardrobeRepository = {
+  /** 재시도를 같은 사용자의 등록 요청에 연결하며 다른 계정의 결과는 반환하지 않는다. */
+  findByRegistrationRequest(userId: string, registrationRequestId: string) {
+    return prisma.wardrobeItem.findFirst({ where: { userId, registrationRequestId }, include: wardrobeItemInclude })
+  },
   findMany(userId: string, filter: WardrobeFilter) {
     return prisma.wardrobeItem.findMany({
       where: {
@@ -177,6 +189,13 @@ export const wardrobeRepository = {
   /** 같은 사진을 다른 옷에 연결할 때도 삭제 claim과 직렬화해 정리 중인 사진의 재사용을 거절한다. */
   create(data: CreateWardrobeItemData) {
     return aiTransaction(async (tx) => {
+      // 같은 요청의 동시 전송을 직렬화하고 이미지 참조를 새로 만들기 전에 기존 등록을 확인한다.
+      if (data.registrationRequestId) {
+        await touchAiMutex(tx, `wardrobe-registration:${data.userId}:${data.registrationRequestId}`, randomUUID(), new Date())
+        const existing = await tx.wardrobeItem.findFirst({ where: { userId: data.userId, registrationRequestId: data.registrationRequestId }, include: wardrobeItemInclude })
+        if (existing?.archivedAt) throw new ServiceError('이미 삭제된 등록이에요. 사진을 다시 추가해주세요.', 'WARDROBE_REGISTRATION_ARCHIVED')
+        if (existing) return existing
+      }
       await lockWardrobeImagesForReference(tx, data.userId, [data.displayImageAssetId, ...(data.originalImageAssetId ? [data.originalImageAssetId] : [])])
       return tx.wardrobeItem.create({
         data: { ...data, archivedAt: null },

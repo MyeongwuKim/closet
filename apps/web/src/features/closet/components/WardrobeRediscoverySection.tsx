@@ -59,7 +59,7 @@ export function WardrobeRediscoverySection({ visible, onOpenItem }: Props) {
                   />)}
                 </div>
               ) : (
-                <p className="px-1 py-3 text-xs leading-6 text-muted">아직 다시 꺼내볼 옷이 없어요. 등록한 지 30일이 지나고 최근 착용 기록이 없는 옷을 여기에 모아둘게요.</p>
+                <p className="px-1 py-3 text-xs leading-6 text-muted">지금 확인할 옷이 없어요. 등록 후 30일이 지나고 최근 착용 기록이 없는 옷 중 추천 보류 중인 옷은 제외해요.</p>
               )}
             </div>
           </div>

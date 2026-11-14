@@ -25,7 +25,7 @@ function createItem(
     id,
     userId,
     name: id,
-    brandName: null,
+    brandName: null, storageLocation: null, registrationRequestId: null, wearAvoidanceReason: null, recommendationResumeOn: null,
     category,
     additionalCategories: [],
     subcategory: null,
@@ -81,6 +81,24 @@ function setupWardrobe(t: TestContext, items: WardrobeItem[]) {
   })
   return wardrobeLookup
 }
+
+test('보류한 옷은 자동 추천에서 제외하고 재개 날짜와 직접 고른 기준 옷은 허용한다', async (t) => {
+  setupWardrobe(t, [createItem('top', 'top', { wearAvoidanceReason: 'temporarily_unused', recommendationResumeOn: '2026-08-29' }), createItem('pants', 'bottom')])
+  assert.equal((await todayOutfitRecommendationService.recommend(userId, input)).ready, false)
+  assert.equal((await todayOutfitRecommendationService.recommend(userId, { ...input, date: '2026-08-29' })).ready, true)
+  const explicit = await todayOutfitRecommendationService.recommend(userId, { ...input, baseItemId: 'top' })
+  assert.equal(explicit.ready, true)
+  assert.ok(explicit.items.some((item) => item.id === 'top'))
+})
+
+test('선택 옷의 스타일 추천도 보류한 후보를 제외한다', async (t) => {
+  const top = createItem('top', 'top')
+  setupWardrobe(t, [createItem('paused', 'bottom', { wearAvoidanceReason: 'fit_issue' }), createItem('ready', 'bottom')])
+  t.mock.method(wardrobeRepository, 'findManyOwnedByIds', async () => [top])
+  const result = await outfitRecommendationService.recommend(userId, { selectedItemIds: ['top'], targetCategory: 'bottom' })
+  assert.ok(result.candidates.every((candidate) => candidate.item.id !== 'paused'))
+  assert.ok(result.candidates.some((candidate) => candidate.item.id === 'ready'))
+})
 
 test('개인 체감은 일평균으로 비교하고 실제 현재·체감 기온과 기준 옷을 유지한다', async (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-08-28T03:00:00Z') })

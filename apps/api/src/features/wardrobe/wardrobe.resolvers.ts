@@ -12,6 +12,9 @@ const isoDate = (value: Date | null | undefined) => value?.toISOString() ?? null
 
 export const wardrobeResolvers = {
   WardrobeItem: {
+    storageLocation: (item: { storageLocation?: string | null }) => item.storageLocation ?? null,
+    wearAvoidanceReason: (item: { wearAvoidanceReason?: string | null }) => item.wearAvoidanceReason ?? null,
+    recommendationResumeOn: (item: { recommendationResumeOn?: string | null }) => item.recommendationResumeOn ?? null,
     additionalCategories: (item: {
       additionalCategories?: ClothingCategory[] | null
     }) => item.additionalCategories ?? [],

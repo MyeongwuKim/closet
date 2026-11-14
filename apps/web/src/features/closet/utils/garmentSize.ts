@@ -1,4 +1,4 @@
-import type { ClothingCategory, WardrobeItem } from '@closet/types'
+import type { ClothingCategory } from '@closet/types'
 
 export interface GarmentSizeFormValue {
   sizeLabel: string
@@ -84,7 +84,7 @@ export const emptyGarmentSize: GarmentSizeFormValue = {
   hemWidthCm: '',
 }
 
-export function garmentSizeFromItem(item: WardrobeItem): GarmentSizeFormValue {
+export function garmentSizeFromItem(item: Partial<GarmentSizeInput>): GarmentSizeFormValue {
   return {
     sizeLabel: item.sizeLabel ?? '',
     shoulderWidthCm: item.shoulderWidthCm?.toString() ?? '',

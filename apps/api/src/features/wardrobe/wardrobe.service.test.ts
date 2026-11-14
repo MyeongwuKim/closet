@@ -100,6 +100,33 @@ const createInput = {
   seasons: ['autumn' as const],
 }
 
+test('보관 위치를 정규화해 등록하고 생략 유지·null 삭제로 수정한다', async (t) => {
+  mockWardrobeCreate(t)
+  const created = await wardrobeService.create('viewer', { ...createInput, storageLocation: '  본가　 겨울옷   박스  ' })
+  assert.equal(created.storageLocation, '본가 겨울옷 박스')
+  t.mock.method(wardrobeRepository, 'findById', async () => ({ ...created, storageLocation: '본가 겨울옷 박스' }) as never)
+  t.mock.method(wardrobeRepository, 'update', async (_id: string, data: UpdateWardrobeItemData) => ({
+    ...created, ...Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined)),
+  }) as never)
+  assert.equal((await wardrobeService.update('viewer', 'saved-item', { name: '새 이름' })).storageLocation, '본가 겨울옷 박스')
+  assert.equal((await wardrobeService.update('viewer', 'saved-item', { storageLocation: null })).storageLocation, null)
+  await assert.rejects(wardrobeService.update('viewer', 'saved-item', { storageLocation: '가'.repeat(41) }), { code: 'INVALID_STORAGE_LOCATION' })
+})
+
+test('일시 보류는 유효한 미래 재개일을 저장하고 사유 해제 시 날짜도 비운다', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-14T03:00:00Z') })
+  const current = { category: 'top', additionalCategories: [], wearAvoidanceReason: null, recommendationResumeOn: null }
+  t.mock.method(wardrobeRepository, 'findById', async () => current as never)
+  t.mock.method(wardrobeRepository, 'update', async (_id: string, data: UpdateWardrobeItemData) => ({ ...current, ...data }) as never)
+  const saved = await wardrobeService.update('viewer', 'item', { wearAvoidanceReason: 'temporarily_unused', recommendationResumeOn: '2026-11-15' })
+  assert.equal(saved.recommendationResumeOn, '2026-11-15')
+  const cleared = await wardrobeService.update('viewer', 'item', { wearAvoidanceReason: null })
+  assert.equal(cleared.recommendationResumeOn, null)
+  for (const recommendationResumeOn of [undefined, '2026-11-14', '2026-02-30']) {
+    await assert.rejects(wardrobeService.update('viewer', 'item', { wearAvoidanceReason: 'temporarily_unused', recommendationResumeOn }), { code: 'INVALID_WEAR_PREFERENCE' })
+  }
+})
+
 test('새 옷은 배경 제거 PNG를 표시 자산으로 확인한 뒤에만 저장한다', async (t) => {
   t.mock.method(imageRepository, 'findOwnedByIds', async () => [
     { id: 'display-image', uploadStatus: 'ready', kind: 'wardrobeOriginal', mimeType: 'image/jpeg' },

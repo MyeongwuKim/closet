@@ -13,6 +13,7 @@ import { ServiceError } from '../../graphql/errors.js'
 import { colorHexToRgb } from '../classification/color.js'
 import { categoryLabels } from '../classification/taxonomy.js'
 import { COLOR_RULES_VERSION, recommendOutfitColors } from './outfit-color-rules.js'
+import { getKoreaDate, isWardrobeRecommendationPaused } from '@closet/types/wardrobe-preferences'
 import {
   wardrobeItemInclude,
   wardrobeRepository,
@@ -333,7 +334,7 @@ export const outfitRecommendationService = {
     )
     const selectedIdSet = new Set(selectedItemIds)
     const candidates = (await wardrobeRepository.findMany(userId, { category: input.targetCategory })).filter(
-      (item) => !selectedIdSet.has(item.id) && item.classificationStatus === 'classified',
+      (item) => !selectedIdSet.has(item.id) && item.classificationStatus === 'classified' && !isWardrobeRecommendationPaused(item, getKoreaDate()),
     ) as WardrobeItemWithImages[]
 
     const fallback = createFallbackRecommendation(

@@ -23,6 +23,8 @@
 
 ## 캐시와 추천 기록
 
+- 미착용 사유·추천 보류를 바꾸면 `@closet/types/wardrobe-preferences`의 자동 후보 판정을 재발견·오늘/내일 코디·스타일 후보에 함께 적용한다. 직접 선택한 기준 옷과 수동 코디는 허용한다. 오늘 추천은 새 옷장 조회를 완료한 뒤 현재 설정으로 기록 복원·이전 데이터·응답을 확인하며, 설정 변경만으로 유료 추천을 재실행하지 않는다. 재개일은 한국 날짜로 비교하고 과거 기록은 보존한다. 관련 검사는 웹 `wardrobePreferences.test.ts`, `tests/wardrobe-preferences.spec.ts`와 API 옷장·추천 테스트다.
+
 - [queryKeys.ts](../../../../apps/web/src/lib/queryKeys.ts)의 사용자·규칙 버전·선택 조건 구분을 유지한다. 오늘 추천 쿼리는 날짜·계절·색감·재추천 순서·아우터 제외·기준 옷·날씨·개인 체감 근거 revision을 구분한다. 서버 실행기·사용권 입력 키와 브라우저 저장 기록은 각각 역할에 맞는 키를 사용하므로 동일한 형태로 억지로 합치지 않는다.
 - 스타일 제안의 [outfitRecommendationCache.ts](../../../../apps/web/src/features/lookbook/api/outfitRecommendationCache.ts)는 옷장 생성·수정·보관·브랜드 삭제 이후 결과를 revision으로 분리한다. 조회는 명시적 사용권 확인 뒤에만 실행한다. 수정이나 invalidate가 유료 요청을 자동 실행하거나 옛 진행 응답이 새 revision의 결과가 되지 않게 한다.
 - [todayOutfitQueries.ts](../../../../apps/web/src/features/plan/api/todayOutfitQueries.ts)의 초기 데이터·이전 데이터 표시·응답 검증에서 기준 옷이 실제 아이템에 포함되는지 확인한다. 준비되지 않은 결과나 기준 옷이 빠진 결과를 새 추천 기록으로 저장하지 않는다.

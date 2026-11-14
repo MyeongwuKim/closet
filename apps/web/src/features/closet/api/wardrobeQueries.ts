@@ -5,8 +5,10 @@ import type {
   FashionItemAttributes,
   Season,
   WardrobeItem,
+  WearAvoidanceReason,
 } from '@closet/types'
 import { graphqlRequest } from '../../../lib/graphql'
+import { getAccessToken } from '../../../lib/auth'
 import { queryKeys } from '../../../lib/queryKeys'
 import { useClosetStore } from '../stores/useClosetStore'
 import { clearWardrobeBrandFromItems, getWardrobeBrandKey } from '../utils/wardrobeBrands'
@@ -16,6 +18,9 @@ export interface WardrobeItemPayload {
   id: string
   name: string
   brandName: string | null
+  storageLocation?: string | null
+  wearAvoidanceReason?: WearAvoidanceReason | null
+  recommendationResumeOn?: string | null
   createdAt: string
   archivedAt?: string | null
   category: ClothingCategory | null
@@ -51,6 +56,9 @@ export function toWardrobeItem(item: WardrobeItemPayload): WardrobeItem {
     id: item.id,
     name: item.name,
     brandName: item.brandName ?? undefined,
+    storageLocation: item.storageLocation ?? null,
+    wearAvoidanceReason: item.wearAvoidanceReason ?? null,
+    recommendationResumeOn: item.recommendationResumeOn ?? null,
     createdAt: item.createdAt,
     archivedAt: item.archivedAt ?? null,
     category: item.category,
@@ -82,17 +90,18 @@ export function toWardrobeItem(item: WardrobeItemPayload): WardrobeItem {
   }
 }
 
-export function useWardrobeItemsQuery(enabled = true) {
+export function useWardrobeItemsQuery(enabled = true, options: { refetchOnMount?: 'always' } = {}) {
   return useQuery({
     queryKey: queryKeys.wardrobe.list(),
     enabled,
+    refetchOnMount: options.refetchOnMount,
     queryFn: async ({ signal }) => {
       const data = await graphqlRequest<{ wardrobeItems: WardrobeItemPayload[] }>(
         `
           query WardrobeItems {
             wardrobeItems {
               id name brandName createdAt archivedAt category additionalCategories subcategory colorName colorDetailName
-              colorHex colorMode seasons tags
+              colorHex colorMode seasons tags storageLocation wearAvoidanceReason recommendationResumeOn
               fashionAttributes {
                 layerRole silhouette pattern material texture warmth formality confidence
                 ribbedCuffs ribbedHem ribbedNeckline
@@ -165,6 +174,9 @@ export interface UpdateWardrobeItemVariables {
   input: {
     name?: string
     brandName?: string | null
+    storageLocation?: string | null
+    wearAvoidanceReason?: WearAvoidanceReason | null
+    recommendationResumeOn?: string | null
     category?: ClothingCategory
     additionalCategories?: ClothingCategory[]
     subcategory?: string
@@ -191,7 +203,7 @@ export interface UpdateWardrobeItemVariables {
 
 export const wardrobeItemFields = `
   id name brandName createdAt archivedAt category additionalCategories subcategory colorName colorDetailName
-  colorHex colorMode seasons tags
+  colorHex colorMode seasons tags storageLocation wearAvoidanceReason recommendationResumeOn
   fashionAttributes {
     layerRole silhouette pattern material texture warmth formality confidence
     ribbedCuffs ribbedHem ribbedNeckline
@@ -210,7 +222,9 @@ export function useUpdateWardrobeItemMutation() {
   const queryClient = useQueryClient()
 
   return useMutation({
+    onMutate: () => ({ token: getAccessToken() }),
     mutationFn: async ({ id, input }: UpdateWardrobeItemVariables) => {
+      const token = getAccessToken()
       const data = await graphqlRequest<
         { updateWardrobeItem: WardrobeItemPayload },
         UpdateWardrobeItemVariables
@@ -224,9 +238,11 @@ export function useUpdateWardrobeItemMutation() {
         `,
         { id, input },
       )
+      if (getAccessToken() !== token) throw new Error('로그인 상태가 바뀌었어요. 다시 확인해주세요.')
       return toWardrobeItem(data.updateWardrobeItem)
     },
-    onSuccess: (updatedItem) => {
+    onSuccess: (updatedItem, _variables, session) => {
+      if (getAccessToken() !== session?.token) return
       advanceOutfitRecommendationRevision(queryClient)
       useClosetStore.getState().mergeItems([updatedItem])
       queryClient.setQueryData(['wardrobe', 'detail', updatedItem.id], updatedItem)
@@ -256,7 +272,7 @@ export function useUpdateWardrobeItemMutation() {
             : currentData,
       )
       void queryClient.invalidateQueries({ queryKey: queryKeys.wardrobe.all })
-      void queryClient.invalidateQueries({ queryKey: ['planner', 'today-recommendation'] })
+      void queryClient.invalidateQueries({ queryKey: ['planner', 'today-recommendation'], refetchType: 'none' })
       void queryClient.invalidateQueries({ queryKey: ['outfits', 'recommendation'] })
       void queryClient.invalidateQueries({ queryKey: queryKeys.outfits.all })
     },
@@ -311,7 +327,7 @@ export function useArchiveWardrobeItemMutation() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.planner.all })
       void queryClient.invalidateQueries({ queryKey: queryKeys.outfits.all })
       void queryClient.invalidateQueries({ queryKey: queryKeys.wardrobe.all })
-      void queryClient.invalidateQueries({ queryKey: ['planner', 'today-recommendation'] })
+      void queryClient.invalidateQueries({ queryKey: ['planner', 'today-recommendation'], refetchType: 'none' })
       void queryClient.invalidateQueries({ queryKey: ['outfits', 'recommendation'] })
     },
   })

@@ -6,7 +6,7 @@ export const wardrobeRediscoveryRepository = {
   findCandidates(userId: string) {
     return prisma.wardrobeItem.findMany({
       where: { userId, OR: [{ archivedAt: null }, { archivedAt: { isSet: false } }] },
-      select: { id: true, createdAt: true, seasons: true, category: true, classificationStatus: true },
+      select: { id: true, createdAt: true, seasons: true, category: true, classificationStatus: true, wearAvoidanceReason: true, recommendationResumeOn: true },
     })
   },
   /** 사용자 ID를 문서 기본키로 사용해 하루 선택과 노출 이력을 계정별로 조회한다. */

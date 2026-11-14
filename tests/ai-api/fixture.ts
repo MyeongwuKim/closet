@@ -36,7 +36,7 @@ function toItem(item: ColorApiCase['items'][number], userId: string): WardrobeIt
     seasons: ['autumn'], classificationStatus: 'classified', classificationConfidence: 0.9, classificationModel: null,
     classificationCandidates: null, tags: [], wearCount: 0, lastWornAt: null, archivedAt: null, createdAt: at, updatedAt: at,
     displayImageAssetId: null, originalImageAssetId: null, displayImageAsset: null, originalImageAsset: null,
-    brandName: null, sizeLabel: null, shoulderWidthCm: null, chestWidthCm: null, sleeveLengthCm: null, totalLengthCm: null,
+    brandName: null, storageLocation: null, wearAvoidanceReason: null, recommendationResumeOn: null, registrationRequestId: null, sizeLabel: null, shoulderWidthCm: null, chestWidthCm: null, sleeveLengthCm: null, totalLengthCm: null,
     waistWidthCm: null, hipWidthCm: null, inseamCm: null, thighWidthCm: null, riseCm: null, hemWidthCm: null,
   }
 }

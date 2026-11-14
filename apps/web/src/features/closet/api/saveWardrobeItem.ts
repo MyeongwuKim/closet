@@ -1,4 +1,5 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { getAccessToken } from '../../../lib/auth'
 import { advanceOutfitRecommendationRevision } from '../../lookbook/api/outfitRecommendationCache'
 import type {
   ClothingCategory,
@@ -26,6 +27,7 @@ interface WardrobeItemPayload {
   id: string
   name: string
   brandName: string | null
+  storageLocation?: string | null
   createdAt: string
   category: ClothingCategory | null
   additionalCategories: ClothingCategory[]
@@ -57,6 +59,7 @@ interface WardrobeItemPayload {
 export interface SaveWardrobeItemInput {
   name: string
   brandName?: string | null
+  storageLocation?: string | null
   category: ClothingCategory
   additionalCategories: ClothingCategory[]
   subcategory: string
@@ -83,6 +86,7 @@ export interface SaveWardrobeItemInput {
 export interface SaveWardrobeItemVariables {
   candidate: ClassificationCandidate
   input: SaveWardrobeItemInput
+  signal?: AbortSignal
 }
 
 export class WardrobeSaveError extends Error {
@@ -95,11 +99,23 @@ export class WardrobeSaveError extends Error {
   }
 }
 
+interface SaveSession { token: string | null; signal?: AbortSignal }
+const uploadedImages = new WeakMap<ClassificationCandidate, { token: string | null; asset: ImageAssetPayload }>()
+
+/** 각 업로드 단계와 결과 반영 전에 같은 로그인 세션인지 확인한다. */
+function assertSaveSession(session: SaveSession) {
+  if (session.signal?.aborted || session.token !== getAccessToken()) {
+    throw new WardrobeSaveError('로그인 상태가 바뀌어 등록을 중단했어요.', 'REGISTRATION_SESSION_CHANGED')
+  }
+}
+
 async function prepareUpload(
   blob: Blob,
   kind: 'wardrobeOriginal' | 'wardrobeCutout',
   originalFilename: string,
+  session: SaveSession,
 ) {
+  assertSaveSession(session)
   const data = await graphqlRequest<{
     prepareImageUpload: PreparedUploadPayload
   }>(
@@ -119,20 +135,25 @@ async function prepareUpload(
         mimeType: blob.type,
       },
     },
+    session.signal,
   )
 
+  assertSaveSession(session)
   return data.prepareImageUpload
 }
 
 async function uploadToCloudflare(
   blob: Blob,
   prepared: PreparedUploadPayload,
+  session: SaveSession,
 ) {
+  assertSaveSession(session)
   const form = new FormData()
   form.append('file', blob, prepared.uploadFilename)
   const response = await fetch(prepared.uploadUrl, {
     method: 'POST',
     body: form,
+    signal: session.signal,
   })
 
   if (!response.ok) {
@@ -142,6 +163,7 @@ async function uploadToCloudflare(
     )
   }
 
+  assertSaveSession(session)
   const data = await graphqlRequest<{ confirmImageUpload: ImageAssetPayload }>(
     `
       mutation ConfirmImageUpload($assetId: ID!) {
@@ -149,8 +171,10 @@ async function uploadToCloudflare(
       }
     `,
     { assetId: prepared.asset.id },
+    session.signal,
   )
 
+  assertSaveSession(session)
   return data.confirmImageUpload
 }
 
@@ -158,15 +182,17 @@ async function uploadImage(
   imageUrl: string,
   kind: 'wardrobeOriginal' | 'wardrobeCutout',
   originalFilename: string,
+  session: SaveSession,
 ) {
-  const imageResponse = await fetch(imageUrl)
+  assertSaveSession(session)
+  const imageResponse = await fetch(imageUrl, { signal: session.signal })
   if (!imageResponse.ok) {
     throw new WardrobeSaveError('저장할 이미지를 읽지 못했습니다.')
   }
 
   const blob = await imageResponse.blob()
-  const prepared = await prepareUpload(blob, kind, originalFilename)
-  return uploadToCloudflare(blob, prepared)
+  const prepared = await prepareUpload(blob, kind, originalFilename, session)
+  return uploadToCloudflare(blob, prepared, session)
 }
 
 /**
@@ -176,7 +202,10 @@ async function uploadImage(
 export async function saveWardrobeItem(
   candidate: ClassificationCandidate,
   input: SaveWardrobeItemInput,
+  signal?: AbortSignal,
 ): Promise<WardrobeItem> {
+  const session: SaveSession = { token: getAccessToken(), signal }
+  assertSaveSession(session)
   if (!candidate.originalImageUrl) {
     throw new WardrobeSaveError(
       '사진의 배경 제거가 끝나지 않았어요. 사진을 다시 추가해 주세요.',
@@ -185,18 +214,22 @@ export async function saveWardrobeItem(
   }
   const originalFilename =
     candidate.originalFilename ?? `${input.name.replaceAll(' ', '_')}.png`
-  const displayAsset = await uploadImage(
+  const uploaded = uploadedImages.get(candidate)
+  const displayAsset = uploaded?.token === session.token ? uploaded.asset : await uploadImage(
     candidate.imageUrl,
     'wardrobeCutout',
     originalFilename,
+    session,
   )
+  assertSaveSession(session)
+  uploadedImages.set(candidate, { token: session.token, asset: displayAsset })
 
   const data = await graphqlRequest<{ createWardrobeItem: WardrobeItemPayload }>(
     `
       mutation CreateWardrobeItem($input: CreateWardrobeItemInput!) {
         createWardrobeItem(input: $input) {
           id name brandName createdAt category additionalCategories subcategory colorName colorDetailName
-          colorHex colorMode seasons tags
+          colorHex colorMode seasons tags storageLocation
           fashionAttributes {
             layerRole silhouette pattern material texture warmth formality confidence
             ribbedCuffs ribbedHem ribbedNeckline
@@ -215,19 +248,23 @@ export async function saveWardrobeItem(
       input: {
         ...input,
         displayImageAssetId: displayAsset.id,
+        registrationRequestId: candidate.itemId,
         classificationStatus: 'classified',
         classificationConfidence: candidate.confidence,
         classificationModel: candidate.model,
         fashionAttributes: input.fashionAttributes,
       },
     },
+    signal,
   )
+  assertSaveSession(session)
   const item = data.createWardrobeItem
 
   return {
     id: item.id,
     name: item.name,
     brandName: item.brandName ?? undefined,
+    storageLocation: item.storageLocation ?? null,
     createdAt: item.createdAt,
     category: item.category,
     additionalCategories: item.additionalCategories,
@@ -257,13 +294,25 @@ export async function saveWardrobeItem(
   }
 }
 
-export function useSaveWardrobeItemMutation() {
+/** 일괄 등록은 각 성공 결과를 반영한 뒤 마지막에 조회 무효화를 한 번 수행한다. */
+export function invalidateSavedWardrobeQueries(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.wardrobe.all })
+  void queryClient.invalidateQueries({ queryKey: ['planner', 'today-recommendation'], refetchType: 'none' })
+  void queryClient.invalidateQueries({ queryKey: ['outfits', 'recommendation'], refetchType: 'none' })
+}
+
+export function useSaveWardrobeItemMutation(options: { deferInvalidation?: boolean } = {}) {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ candidate, input }: SaveWardrobeItemVariables) =>
-      saveWardrobeItem(candidate, input),
-    onSuccess: (item) => {
+    onMutate: () => ({ token: getAccessToken() }),
+    mutationFn: ({ candidate, input, signal }: SaveWardrobeItemVariables) =>
+      saveWardrobeItem(candidate, input, signal),
+    onSuccess: (item, variables, session) => {
+      if (session?.token !== getAccessToken()) return
+      // 영속 URL로 교체한 표시 이미지와 저장에 쓰지 않는 원본의 임시 URL을 해제한다.
+      if (variables.candidate.imageUrl.startsWith('blob:') && item.imageUrl !== variables.candidate.imageUrl) URL.revokeObjectURL(variables.candidate.imageUrl)
+      if (variables.candidate.originalImageUrl?.startsWith('blob:')) URL.revokeObjectURL(variables.candidate.originalImageUrl)
       advanceOutfitRecommendationRevision(queryClient)
       queryClient.setQueryData<WardrobeItem[]>(
         queryKeys.wardrobe.list(),
@@ -272,9 +321,7 @@ export function useSaveWardrobeItemMutation() {
           ...currentItems.filter((currentItem) => currentItem.id !== item.id),
         ],
       )
-      void queryClient.invalidateQueries({ queryKey: queryKeys.wardrobe.all })
-      void queryClient.invalidateQueries({ queryKey: ['planner', 'today-recommendation'] })
-      void queryClient.invalidateQueries({ queryKey: ['outfits', 'recommendation'] })
+      if (!options.deferInvalidation) invalidateSavedWardrobeQueries(queryClient)
     },
   })
 }

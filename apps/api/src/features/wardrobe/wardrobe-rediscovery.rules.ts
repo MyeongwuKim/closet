@@ -1,4 +1,5 @@
 import type { ClothingCategory, Season } from '@prisma/client'
+import { isWardrobeRecommendationPaused } from '@closet/types/wardrobe-preferences'
 
 const DAY_MS = 86_400_000
 /** 한 번에 표시하는 하루 하이라이트의 최대 개수. */
@@ -11,6 +12,8 @@ export interface RediscoveryCandidate {
   seasons: Season[]
   category: ClothingCategory | null
   classificationStatus: string
+  wearAvoidanceReason?: string | null
+  recommendationResumeOn?: string | null
 }
 
 export interface RediscoveryWearStats {
@@ -45,6 +48,7 @@ export function rankRediscoveryCandidates(
   return items.filter((item) => {
     const lastWornAt = wear.get(item.id)?.lastWornAt
     return item.classificationStatus === 'classified' && item.category && item.category !== 'other'
+      && !isWardrobeRecommendationPaused(item, today.toISOString().slice(0, 10))
       && item.seasons.length > 0 && item.createdAt.getTime() <= cutoff
       && (!lastWornAt || lastWornAt.getTime() <= cutoff)
   }).sort((left, right) => {

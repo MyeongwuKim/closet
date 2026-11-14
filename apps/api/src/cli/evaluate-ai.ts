@@ -68,7 +68,7 @@ function item(id: string, category: ClothingCategory, name: string, colorName: s
   return { id, userId, name, category, additionalCategories: [], subcategory: category === 'top' ? '반팔 티셔츠' : '일반 긴바지',
     colorName, colorHex, colorDetailName: colorName, colorMode: 'solid', seasons: ['autumn', 'spring'], classificationStatus: 'classified',
     wearCount: 0, lastWornAt: null, archivedAt: null, fashionAttributes: null, updatedAt: at, createdAt: at, tags: [],
-    brandName: null, displayImageAssetId: `fixture-${id}`, originalImageAssetId: null, classificationConfidence: null,
+    brandName: null, storageLocation: null, registrationRequestId: null, wearAvoidanceReason: null, recommendationResumeOn: null, displayImageAssetId: `fixture-${id}`, originalImageAssetId: null, classificationConfidence: null,
     classificationModel: null, classificationCandidates: null, sizeLabel: null, shoulderWidthCm: null, chestWidthCm: null,
     sleeveLengthCm: null, totalLengthCm: null, waistWidthCm: null, hipWidthCm: null, inseamCm: null, thighWidthCm: null, riseCm: null, hemWidthCm: null,
     displayImageAsset: { id: `fixture-${id}`, userId, createdAt: at, updatedAt: at, cloudflareImageId: id, kind: 'wardrobeCutout', uploadStatus: 'ready',

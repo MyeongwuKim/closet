@@ -68,6 +68,7 @@ export function wardrobePageWhere(userId: string, input: WardrobePageInput, tags
       ...tokens(input.search).map((term) => ({ OR: [
         { name: contains(term) }, { subcategory: contains(term) },
         { brandName: contains(term) },
+        { storageLocation: contains(term) },
         { colorName: contains(term) }, { colorDetailName: contains(term) },
         { category: { in: matchingCategories(term) } },
         { additionalCategories: { hasSome: matchingCategories(term) } },

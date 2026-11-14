@@ -10,6 +10,10 @@
 
 코디 만들기와 오늘 추천은 코디북 저장 화면을 공유한다. 추천에서는 이름과 계절을 미리 채우고 추천 조합을 날짜 배정과 별도로 저장한다. 같은 옷 조합을 찾으면 `/lookbook?outfit=<id>`의 기존 코디 상세로 연결한다. 코디북은 목록에 없을 때도 해당 ID를 조회한다.
 
+여러 사진을 함께 고르면 `WardrobeBatchRegistrationDialog`에서 확인 결과를 목록으로 표시한다. `useWardrobeRegistration`은 후보 ID별 초안·선택·공통 계절·부분 실패만 관리하고 분석 사진은 기존 확인 대기열을 참조한다. 저장 클릭 시 대상 ID를 고정해 기존 한 벌 저장 함수를 순서대로 호출하며 성공한 항목만 제거한다. 분석이 진행 중이면 목록이 잠시 비어도 창과 공통 계절을 유지한다. 세부 수정·유사도 비교는 `ClassificationConfirmModal`을 입력 확인 모드로 재사용하며, 이 모드에서는 서버 저장이나 후보 제거를 하지 않는다. 한 장 등록은 기존 확인 화면을 사용한다. 검사는 `tests/wardrobe-batch-registration.spec.ts`, `tests/registration.spec.ts`다.
+
+옷 등록·정보 수정은 선택적인 `storageLocation`을 저장하고 상세·간단 상세에서 표시한다. 서버 목록 검색과 `wardrobeItemMatchesSearch`에 보관 위치를 함께 포함한다. 태그와 장소는 별개이며 장소 관리 테이블이나 필터 탭은 추가하지 않는다. `WardrobeWearPreferenceSheet`는 재발견 카드와 옷 상세에서 최신 미착용 사유·재개일을 수정한다. 보류 설정 저장은 기존 옷 수정 mutation을 사용하고, 보류 해제도 이 창에서 한다. 검사는 `tests/wardrobe-preferences.spec.ts`다.
+
 ## 공통 팝업과 상태
 
 [GlobalUi.tsx](../../apps/web/src/components/GlobalUi.tsx)는 분류 확인·최근 착용 안내·사용권 안내·생성 완료 안내·토스트를 연결한다. 분류 확인은 `useUiStore`의 대기열을 사용한다. 저장 중에는 취소를 막고 완료는 후보 ID로 처리해 다음 사진을 제거하지 않는다.

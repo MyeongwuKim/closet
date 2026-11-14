@@ -155,10 +155,18 @@ export interface ClothingClassificationResult {
   candidates: ClothingClassificationSuggestion[]
 }
 
+export type WearAvoidanceReason = 'hard_to_style' | 'fit_issue' | 'temporarily_unused'
+
 export interface WardrobeItem {
   id: string
   name: string
   brandName?: string
+  /** 사용자가 직접 입력한 현재 보관 장소. 미입력·구버전 데이터는 null 또는 누락이다. */
+  storageLocation?: string | null
+  /** 최신 미착용 사유. 실제 착용 기록이나 시스템의 재발견 선정 근거와 별개다. */
+  wearAvoidanceReason?: WearAvoidanceReason | null
+  /** 일시 보류를 해제하는 한국 날짜. 이 날짜부터 다시 자동 추천에 포함한다. */
+  recommendationResumeOn?: string | null
   createdAt: string
   /** 옷장에서 삭제한 시각. 값이 있어도 기존 코디·플래너의 구성 표시에는 유지한다. */
   archivedAt?: string | null

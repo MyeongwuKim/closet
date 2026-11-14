@@ -32,6 +32,7 @@ const stopClassificationCodes = new Set([
 interface QueuedPhoto {
   id: string
   file: File
+  isBatch?: boolean
 }
 
 interface FailedWardrobePhoto extends QueuedPhoto {
@@ -129,6 +130,7 @@ export const useWardrobeImageAnalysis = create<WardrobeImageAnalysis>((set, get)
           .join(' ')
 
       enqueueClassification({
+        isBatch: photo.isBatch,
         itemId: photo.id,
         imageUrl,
         originalImageUrl,
@@ -216,7 +218,7 @@ export const useWardrobeImageAnalysis = create<WardrobeImageAnalysis>((set, get)
         pushToast('일부 파일은 형식 또는 10MB 제한 때문에 제외했습니다.', 'error')
       }
 
-      return queuePhotos(validFiles.map((file) => ({ id: crypto.randomUUID(), file })))
+      return queuePhotos(validFiles.map((file) => ({ id: crypto.randomUUID(), file, isBatch: validFiles.length > 1 })))
     },
     /** 실패 목록의 원본을 그대로 다시 대기열에 넣는다. 성공한 사진과 다른 실패 사진은 건드리지 않는다. */
     retryPhoto: (id) => {
@@ -225,7 +227,7 @@ export const useWardrobeImageAnalysis = create<WardrobeImageAnalysis>((set, get)
       if (!photo) return
 
       get().dismissPhoto(id)
-      queuePhotos([{ id, file: photo.file }])
+      queuePhotos([{ id, file: photo.file, isBatch: photo.isBatch }])
     },
     dismissPhoto: (id) => set((state) => ({
       failedPhotos: state.failedPhotos.filter((photo) => photo.id !== id),

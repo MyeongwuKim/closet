@@ -19,6 +19,7 @@ import { requestAiJson } from '../../lib/ai/ai-http.js'
 import { createHash } from 'node:crypto'
 import type { TodayOutfitColorScheme, ThermalRecommendationContext } from '@closet/types'
 import { getThermalRecommendationContext } from './thermal-recommendation.service.js'
+import { isWardrobeRecommendationPaused } from '@closet/types/wardrobe-preferences'
 import type {
   OutfitStyle,
   Prisma,
@@ -539,7 +540,7 @@ export const todayOutfitRecommendationService = {
       )
     }
     const seasonalItems = classifiedItems.filter((item) =>
-      isSeasonSuitable(item, season),
+      isSeasonSuitable(item, season) && (item.id === baseItemId || !isWardrobeRecommendationPaused(item, input.date)),
     )
     const recommendationItems = excludeOuterItems(
       seasonalItems,

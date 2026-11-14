@@ -2,6 +2,7 @@ import type { WardrobeRediscovery } from '@closet/types'
 import { ArrowUpRight } from 'lucide-react'
 import { ClosetItemVisual } from './ClosetItemVisual'
 import { useRediscoveryImpression } from '../hooks/useRediscoveryImpression'
+import { WardrobeWearPreferenceControl } from './WardrobeWearPreferenceSheet'
 
 interface Props {
   entry: WardrobeRediscovery['items'][number]
@@ -28,6 +29,7 @@ export function WardrobeRediscoveryCard({ entry, day, viewerId, enabled, onOpen,
         <button type="button" onClick={onRecommend} aria-label={`${entry.item.name} 코디 추천`} className="mt-3 inline-flex min-h-8 items-center gap-1 self-start rounded-lg bg-sage px-2.5 text-[11px] font-bold text-ink transition hover:bg-sage/70 focus-visible:outline-2 focus-visible:outline-accent">
           이 옷으로 코디 <ArrowUpRight size={13} aria-hidden="true" />
         </button>
+        <WardrobeWearPreferenceControl item={entry.item} onRecommend={onRecommend} />
       </div>
     </article>
   )

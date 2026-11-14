@@ -8,6 +8,8 @@ import type {
 import type { RecentWearReminderRequest } from '../features/plan/utils/recentWearReminder'
 
 export interface ClassificationCandidate {
+  /** 여러 사진을 함께 고른 등록 묶음인지 표시한다. 마지막 한 벌만 남아도 목록 확인 화면을 유지한다. */
+  isBatch?: boolean
   itemId: string
   imageUrl: string
   originalImageUrl?: string

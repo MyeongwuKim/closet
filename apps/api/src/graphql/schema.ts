@@ -342,10 +342,15 @@ export const typeDefs = `#graphql
     uploadFilename: String!
   }
 
+  enum WearAvoidanceReason { hard_to_style fit_issue temporarily_unused }
+
   type WardrobeItem {
     id: ID!
     name: String!
     brandName: String
+    storageLocation: String
+    wearAvoidanceReason: WearAvoidanceReason
+    recommendationResumeOn: String
     displayImageAsset: ImageAsset
     originalImageAsset: ImageAsset
     category: ClothingCategory
@@ -391,8 +396,10 @@ export const typeDefs = `#graphql
   }
 
   input CreateWardrobeItemInput {
+    registrationRequestId: String
     name: String!
     brandName: String
+    storageLocation: String
     displayImageAssetId: ID!
     originalImageAssetId: ID
     category: ClothingCategory
@@ -424,6 +431,9 @@ export const typeDefs = `#graphql
   input UpdateWardrobeItemInput {
     name: String
     brandName: String
+    storageLocation: String
+    wearAvoidanceReason: WearAvoidanceReason
+    recommendationResumeOn: String
     category: ClothingCategory
     additionalCategories: [ClothingCategory!]
     subcategory: String

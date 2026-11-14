@@ -36,6 +36,11 @@ test('브랜드명으로 옷을 검색한다', () => {
   assert.equal(wardrobeItemMatchesSearch(item, 'COS'), false)
 })
 
+test('보관 위치와 옷 이름을 함께 검색하며 위치가 없는 옷도 처리한다', () => {
+  assert.equal(wardrobeItemMatchesSearch({ ...item, storageLocation: '본가 겨울옷 박스' }, '본가 코트'), true)
+  assert.equal(wardrobeItemMatchesSearch(item, '본가'), false)
+})
+
 test('태그 비교는 대소문자와 앞쪽 #을 무시한다', () => {
   assert.equal(wardrobeItemHasTag(item, '#출근'), true)
   assert.equal(wardrobeItemHasTag({ ...item, tags: ['TRAVEL'] }, 'travel'), true)

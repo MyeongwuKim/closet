@@ -4,6 +4,10 @@
   "version": "0.1.0",
   "type": "module",
   "exports": {
+    "./wardrobe-preferences": {
+      "types": "./src/wardrobePreferences.d.ts",
+      "default": "./src/wardrobePreferences.js"
+    },
     "./outfit-colors": {
       "types": "./src/outfitColors.d.ts",
       "default": "./src/outfitColors.js"

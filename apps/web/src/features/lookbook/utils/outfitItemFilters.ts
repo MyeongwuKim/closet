@@ -3,7 +3,7 @@
  * 직접 코디에서 고를 수 있는 옷을 검색어와 계절, 색상, 최근 착용 조건으로 추린다.
  *
  * 동작 방식:
- * 이름과 분류·색상·태그를 검색하고 선택된 계절과 색상을 함께 적용한다.
+ * 이름과 보관 위치·분류·색상·태그를 검색하고 선택된 계절과 색상을 함께 적용한다.
  * 추천 색 필터에서는 의미가 분명한 하위 색상 이름만 대표색에 포함한다.
  */
 import type { Season, WardrobeItem } from '@closet/types'
@@ -52,6 +52,7 @@ export function filterOutfitItems(
 
     const searchableText = [
       item.name,
+      item.storageLocation,
       item.subcategory,
       item.colorName,
       item.colorDetailName,

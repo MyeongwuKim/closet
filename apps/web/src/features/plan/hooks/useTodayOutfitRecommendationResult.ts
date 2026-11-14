@@ -7,6 +7,9 @@
  * 선택한 아이템과 추천 당시 기온을 플래너에 함께 저장한다.
  */
 import { useState } from 'react'
+import { canReuseWardrobeRecommendation } from '@closet/types/wardrobe-preferences'
+import { useWardrobeItemsQuery } from '../../closet/api/wardrobeQueries'
+import { getWardrobePreferenceKey } from '../../closet/utils/wardrobePreferences'
 import type {
   OutfitPreview,
   Season,
@@ -59,17 +62,28 @@ export function useTodayOutfitRecommendationResult({
   const [initialHistory] = useState(() =>
     readTodayRecommendationHistory(viewerId, date, season, null, baseItemId, colorScheme),
   )
+  const wardrobeQuery = useWardrobeItemsQuery(true, { refetchOnMount: 'always' })
+  const preferenceKey = getWardrobePreferenceKey(wardrobeQuery.data ?? [])
+  const wardrobeReady = wardrobeQuery.isSuccess && wardrobeQuery.isFetchedAfterMount && !wardrobeQuery.isFetching
+  // 이 화면을 연 클릭이 허용한 최초 설정만 자동 실행한다. 이후 설정 변경은 재시도 버튼으로 승인한다.
+  const [allowedPreferenceKey, setAllowedPreferenceKey] = useState<string | null>(null)
+  if (wardrobeReady && allowedPreferenceKey === null) setAllowedPreferenceKey(preferenceKey)
+  const preferencesChanged = allowedPreferenceKey !== null && allowedPreferenceKey !== preferenceKey
+  // 최초 무료 확인 뒤의 같은 설정 재조회는 추천을 disable→enable 하지 않는다.
+  // stale인 유료 쿼리가 재활성화되거나 상세 편집 상태가 사라지는 것을 막는다.
+  const hasWardrobeContext = allowedPreferenceKey !== null
   const thermalQuery = useThermalRecommendationContextQuery(viewerId, date, weather)
   const requiresThermalContext = getThermalRecommendationMean(weather) !== null
   const isThermalContextReady = !requiresThermalContext ||
     (thermalQuery.isSuccess && thermalQuery.isFetchedAfterMount && !thermalQuery.isFetching)
   const thermalContext = requiresThermalContext ? thermalQuery.data : undefined
   const thermalRevision = thermalContext?.revision
-  const storedRecommendation = isThermalContextReady ? initialHistory.find((entry) =>
+  const storedRecommendation = isThermalContextReady && hasWardrobeContext && !preferencesChanged ? initialHistory.find((entry) =>
     matchesTodayRecommendationWeather(entry.recommendation, weather) &&
-    matchesThermalRecommendationContext(entry.recommendation, thermalRevision),
+    matchesThermalRecommendationContext(entry.recommendation, thermalRevision) &&
+    canReuseWardrobeRecommendation(entry.recommendation.items, wardrobeQuery.data ?? [], date, baseItemId ? [baseItemId] : []),
   ) ?? null : null
-  const scope = JSON.stringify([date, season, colorScheme, baseItemId, weather, thermalRevision])
+  const scope = JSON.stringify([date, season, colorScheme, baseItemId, weather, thermalRevision, preferenceKey])
   /** 재추천 조건은 체감 근거별로 구분하며 새 근거에는 이전 아우터 제외 조건을 이어 붙이지 않는다. */
   const [refresh, setRefresh] = useState<{
     scope: string; variation: number; excludedOuterItemIds: string[]; sourceItems: WardrobeItem[]
@@ -88,7 +102,9 @@ export function useTodayOutfitRecommendationResult({
       baseItemId,
       weather,
       thermalContext,
-      enabled: isThermalContextReady,
+      enabled: isThermalContextReady && hasWardrobeContext && !preferencesChanged,
+      wardrobe: wardrobeQuery.data,
+      preferenceKey,
       initialData:
         storedRecommendation?.variation === variation &&
         matchesTodayRecommendationWeather(storedRecommendation.recommendation, weather)
@@ -96,21 +112,28 @@ export function useTodayOutfitRecommendationResult({
           : undefined,
     },
   )
-  const hasContextError = requiresThermalContext && thermalQuery.isError
-  const isWaitingForContext = requiresThermalContext && !isThermalContextReady && !hasContextError
+  const hasContextError = (requiresThermalContext && thermalQuery.isError) || wardrobeQuery.isError || preferencesChanged
+  const isWaitingForContext = (!hasWardrobeContext || (requiresThermalContext && !isThermalContextReady)) && !hasContextError
   // 무료 근거 확인 중에는 이전 추천을 숨기고 기존 화면의 로딩·재시도 표시를 사용한다.
   const recommendationQuery = {
     ...query,
-    data: isThermalContextReady ? query.data : undefined,
-    error: hasContextError ? thermalQuery.error : query.error,
+    data: isThermalContextReady && hasWardrobeContext && !preferencesChanged ? query.data : undefined,
+    error: preferencesChanged ? new Error('옷장 설정이 바뀌었어요. 다시 추천받아주세요.') : wardrobeQuery.error ?? (hasContextError ? thermalQuery.error : query.error),
     isError: hasContextError || (!isWaitingForContext && query.isError),
     isPending: hasContextError ? false : isWaitingForContext || query.isPending,
     isLoading: !hasContextError && (isWaitingForContext || query.isLoading),
-    isFetching: (requiresThermalContext && thermalQuery.isFetching) || query.isFetching,
-    isSuccess: isThermalContextReady && query.isSuccess,
+    isFetching: wardrobeQuery.isFetching || (requiresThermalContext && thermalQuery.isFetching) || query.isFetching,
+    isSuccess: isThermalContextReady && hasWardrobeContext && !preferencesChanged && query.isSuccess,
     status: hasContextError ? 'error' as const : isWaitingForContext ? 'pending' as const : query.status,
     /** 재시도에서는 체감 근거부터 다시 읽고, 같은 버전일 때만 현재 추천을 재요청한다. 새 버전은 새 키가 자동 조회한다. */
     refetch: async () => {
+      const wardrobe = await wardrobeQuery.refetch()
+      if (!wardrobe.data || wardrobe.error) return wardrobe
+      const freshPreferenceKey = getWardrobePreferenceKey(wardrobe.data)
+      if (freshPreferenceKey !== allowedPreferenceKey) {
+        setAllowedPreferenceKey(freshPreferenceKey)
+        return wardrobe
+      }
       if (requiresThermalContext) {
         const result = await thermalQuery.refetch()
         if (!result.data || result.error || result.data.revision !== thermalRevision) return result

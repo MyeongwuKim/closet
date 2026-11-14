@@ -48,6 +48,11 @@ test('옷 이름과 세부 종류, 색상, 태그를 검색한다', () => {
   }
 })
 
+test('수동 코디에서 보관 위치로 옷을 찾을 수 있다', () => {
+  const stored = createItem('본가 셔츠', { storageLocation: '침대 아래 겨울옷 박스' })
+  assert.deepEqual(filterOutfitItems([stored, ...items], { query: '겨울옷 박스', season: null, color: null }).map((item) => item.id), ['본가 셔츠'])
+})
+
 test('검색어와 계절, 색상 조건을 함께 적용한다', () => {
   assert.deepEqual(
     filterOutfitItems(items, {

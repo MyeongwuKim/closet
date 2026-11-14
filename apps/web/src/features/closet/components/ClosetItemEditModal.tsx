@@ -12,6 +12,7 @@ import { SeasonMultiSelect } from '../../../components/SeasonMultiSelect'
 import { CategoryMultiSelectField } from './CategoryMultiSelectField'
 import { ClosetItemVisual } from './ClosetItemVisual'
 import { WardrobeTagField } from './WardrobeTagField'
+import { WardrobeStorageLocationField } from './WardrobeStorageLocationField'
 import { FashionAttributeFields } from './FashionAttributeFields'
 import { WardrobeBrandField } from './WardrobeBrandField'
 import { closetSubcategoryOptions } from '../constants'
@@ -33,6 +34,7 @@ import {
 export interface ClosetItemUpdates {
   name: string
   brandName: string | null
+  storageLocation: string | null
   category: ClothingCategory
   additionalCategories: ClothingCategory[]
   subcategory: string
@@ -58,6 +60,7 @@ export function ClosetItemEditModal({
 }: ClosetItemEditModalProps) {
   const [name, setName] = useState(item.name)
   const [brandName, setBrandName] = useState(item.brandName ?? '')
+  const [storageLocation, setStorageLocation] = useState(item.storageLocation ?? '')
   const [category, setCategory] = useState<ClothingCategory | ''>(
     item.category ?? '',
   )
@@ -106,6 +109,7 @@ export function ClosetItemEditModal({
       await onSave({
         name: name.trim(),
         brandName: brandName.trim() || null,
+        storageLocation: storageLocation.trim() || null,
         category,
         additionalCategories,
         subcategory: subcategory.trim(),
@@ -256,6 +260,7 @@ export function ClosetItemEditModal({
                 onChange={setTags}
                 defaultOpen={tags.length > 0}
               />
+              <WardrobeStorageLocationField value={storageLocation} onChange={setStorageLocation} disabled={isSaving} />
             </div>
           </div>
         </div>
