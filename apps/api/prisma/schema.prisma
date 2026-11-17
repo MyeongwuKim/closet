@@ -145,6 +145,17 @@ model User {
   pushDevices     PushDevice[]
 }
 
+// 탈퇴 트랜잭션에 남긴 원격 파일 삭제 번호. 계정·사진 정보 없이 실패한 Cloudflare 삭제만 재시도한다.
+model AccountImageCleanup {
+  cloudflareImageId String   @id @map("_id")
+  retryAt           DateTime @default(now())
+  leaseToken        String?
+  leaseUntil        DateTime?
+  createdAt         DateTime @default(now())
+
+  @@index([retryAt])
+}
+
 model PushDevice {
   id               String       @id @default(auto()) @map("_id") @db.ObjectId
   userId           String       @db.ObjectId
@@ -224,9 +235,16 @@ model UserSettings {
   intervalDays               Int      @default(7)
   combinationReminderEnabled Boolean  @default(true)
   itemReminderEnabled        Boolean  @default(true)
+  // 기존 완료 알림 수신은 유지하되 사용자가 별도로 끌 수 있다.
+  completionPushEnabled      Boolean  @default(true)
+  // 잠든 옷 푸시는 별도 동의가 있어야 발송한다. 다음 검사 시각을 원자적으로 선점해 중복 발송을 막는다.
+  rediscoveryPushEnabled     Boolean  @default(false)
+  rediscoveryPushNextAt      DateTime?
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @updatedAt
   user                       User     @relation(fields: [userId], references: [id])
+
+  @@index([rediscoveryPushEnabled, rediscoveryPushNextAt])
 }
 
 model UserStylePreference {

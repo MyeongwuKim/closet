@@ -12,11 +12,11 @@ async function ensureTtlIndex(collection: string, field: string, name: string) {
   }
 }
 
-/** MongoDB 트랜잭션의 쓰기 충돌·동시 최초 생성만 다시 시도한다. API 호출 같은 외부 처리는 콜백에 넣지 않는다. */
-export async function aiTransaction<T>(operation: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+/** MongoDB 쓰기 충돌·동시 최초 생성만 재시도한다. 기본 제한은 10초이며 계정 일괄 삭제는 timeout을 늘린다. 외부 호출은 콜백에 넣지 않는다. */
+export async function aiTransaction<T>(operation: (tx: Prisma.TransactionClient) => Promise<T>, options: { timeout?: number } = {}): Promise<T> {
   for (let attempt = 0; ; attempt += 1) {
     try {
-      return await prisma.$transaction(operation, { maxWait: 5000, timeout: 10_000 })
+      return await prisma.$transaction(operation, { maxWait: 5000, timeout: options.timeout ?? 10_000 })
     } catch (error) {
       const code = error instanceof Prisma.PrismaClientKnownRequestError ? error.code : undefined
       if (attempt >= 5 || !['P2034', 'P2002'].includes(code ?? '')) throw error

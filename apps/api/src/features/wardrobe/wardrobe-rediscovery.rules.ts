@@ -31,7 +31,7 @@ export function parseRediscoveryImpressions(value: unknown): Record<string, stri
 
 /**
  * 등록 후 30일 이상 지나고 최근 30일간 착용 기록이 없는 옷을 고른다.
- * 미노출·오래전에 노출한 순서로 순환하고 노출일이 같으면 한국 날짜의 현재 계절을 우선한다.
+ * 한국 날짜의 현재 계절에 해당하는 옷만 미노출·오래전에 노출한 순서로 순환한다.
  * 같은 날의 선택 고정은 서비스가 담당하며 입력 배열은 변경하지 않는다.
  */
 export function rankRediscoveryCandidates(
@@ -49,13 +49,12 @@ export function rankRediscoveryCandidates(
     const lastWornAt = wear.get(item.id)?.lastWornAt
     return item.classificationStatus === 'classified' && item.category && item.category !== 'other'
       && !isWardrobeRecommendationPaused(item, today.toISOString().slice(0, 10))
-      && item.seasons.length > 0 && item.createdAt.getTime() <= cutoff
+      && item.seasons.includes(season) && item.createdAt.getTime() <= cutoff
       && (!lastWornAt || lastWornAt.getTime() <= cutoff)
   }).sort((left, right) => {
-    const seasonOrder = Number(!left.seasons.includes(season)) - Number(!right.seasons.includes(season))
     const exposureOrder = (impressions[left.id] ?? '').localeCompare(impressions[right.id] ?? '')
     const lastWear = (item: RediscoveryCandidate) => wear.get(item.id)?.lastWornAt?.getTime() ?? 0
-    return exposureOrder || seasonOrder || lastWear(left) - lastWear(right)
+    return exposureOrder || lastWear(left) - lastWear(right)
       || left.createdAt.getTime() - right.createdAt.getTime() || left.id.localeCompare(right.id)
   })
 }

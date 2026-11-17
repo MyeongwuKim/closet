@@ -99,13 +99,13 @@ export function WardrobeWearPreferenceSheet({ item, onClose, onRecommend }: Shee
 }
 
 /** 카드·옷 상세에서 현재 사유와 보류 상태를 표시하고 같은 설정 창을 연다. */
-export function WardrobeWearPreferenceControl({ item, onRecommend }: Omit<SheetProps, 'onClose'>) {
+export function WardrobeWearPreferenceControl({ item, onRecommend, label = '안 입는 이유' }: Omit<SheetProps, 'onClose'> & { label?: string }) {
   const [open, setOpen] = useState(false)
   const paused = isWardrobeRecommendationPaused(item, getKoreaDate())
   return <div className="mt-2">
     <button type="button" onClick={() => setOpen(true)} className="inline-flex min-h-11 items-center gap-1.5 text-xs font-medium text-muted underline-offset-4 hover:text-ink hover:underline">
       {paused && <PauseCircle size={14} />}
-      {paused ? item.wearAvoidanceReason === 'fit_issue' ? '사이즈 문제로 추천 보류 중' : `${item.recommendationResumeOn}부터 추천 재개` : item.wearAvoidanceReason === 'hard_to_style' ? '조합이 어려워요 · 이유 수정' : '안 입는 이유'}
+      {paused ? item.wearAvoidanceReason === 'fit_issue' ? '사이즈 문제로 추천 보류 중' : `${item.recommendationResumeOn}부터 추천 재개` : item.wearAvoidanceReason === 'hard_to_style' ? '조합이 어려워요 · 이유 수정' : label}
     </button>
     {open && <WardrobeWearPreferenceSheet item={item} onClose={() => setOpen(false)} onRecommend={onRecommend} />}
   </div>

@@ -23,10 +23,12 @@ test('미착용 사유에 따른 보류와 재개일을 재발견 후보에도 �
   assert.deepEqual(rankRediscoveryCandidates(candidates, new Map(), {}, today).map((entry) => entry.id), [id(3), id(4)])
 })
 
-test('노출 이력이 없는 옷은 현재 계절과 오래된 등록일을 우선한다', () => {
+test('계절이 다른 옷은 제외하고 복수 계절·사계절 옷은 현재 계절이 포함되면 남긴다', () => {
   const candidates = [item(1, { seasons: ['summer'] }), item(2, { createdAt: new Date('2025-03-01') }), item(3)]
-  assert.deepEqual(rankRediscoveryCandidates(candidates, new Map(), {}, today).map((entry) => entry.id), [id(3), id(2), id(1)])
-  assert.deepEqual(candidates.map((entry) => entry.id), [id(1), id(2), id(3)])
+  candidates.push(item(4, { seasons: ['spring', 'autumn'] }), item(5, { seasons: ['spring', 'summer', 'autumn', 'winter'] }))
+  assert.deepEqual(rankRediscoveryCandidates(candidates, new Map(), {}, today).map((entry) => entry.id), [id(3), id(4), id(5), id(2)])
+  assert.deepEqual(rankRediscoveryCandidates(candidates, new Map(), { [id(3)]: '2026-11-03' }, new Date('2026-12-01')).map((entry) => entry.id), [id(5)])
+  assert.deepEqual(candidates.map((entry) => entry.id), [id(1), id(2), id(3), id(4), id(5)])
 })
 
 test('노출된 옷을 뒤로 보내 전체 후보가 먼저 한 번씩 돌아가게 한다', () => {

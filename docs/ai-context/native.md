@@ -26,6 +26,8 @@
 
 앱 복귀 시 웹에 상태·재활성 이벤트를 전달해 작업과 날씨를 다시 확인한다. [notificationNavigation.ts](../../apps/native/src/notifications/notificationNavigation.ts)는 알림 경로를 정규화하고 실행 중 룩북 완료 알림의 자동 이동을 생략한다. 딥 링크는 [deepLinks.ts](../../apps/native/src/navigation/deepLinks.ts), hash/browser 이동은 `webViewNavigation.ts`, 외부 링크는 `externalLinkBridge.ts`에 있다.
 
+`wardrobe-rediscovery` 푸시는 `/closet/rediscovery`만 허용하며 수신 즉시 화면을 바꾸지 않는다. 사용자가 누르면 기존 마지막 알림 복구·인증·웹 준비 대기 경로를 거쳐 전체 화면 재발견 목록을 연다. `notification-navigation.test.mjs`에서 전용 경로·외부 경로 거절·전면 자동 이동 생략을 검사한다.
+
 ## 빌드 환경과 검사
 
 | 설정 | 위치 |

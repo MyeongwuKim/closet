@@ -26,6 +26,7 @@ for (const width of [390, 1440]) {
     await page.goto('/closet')
     await page.getByRole('button', { name: '잊고 있던 옷 확인하기' }).click()
     await expect(page.getByRole('button', { name: '보관한 셔츠 코디 추천' })).toHaveCount(0)
+    await page.getByRole('button', { name: '잊고 있던 옷 닫기' }).click()
     await page.getByRole('button', { name: '옷장 검색', exact: true }).click()
     await page.getByRole('searchbox', { name: '옷장 검색어' }).fill('본가')
     await expect(page.getByRole('button', { name: '보관한 셔츠 옷 상세 보기' })).toBeVisible()

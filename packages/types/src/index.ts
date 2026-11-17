@@ -205,6 +205,8 @@ export interface WardrobeRediscovery {
     item: WardrobeItem
     reason: 'no_wear_record' | 'long_unworn'
     daysSinceLastWorn: number | null
+    /** 마지막 착용일 하루의 평균 기온(℃). 착용·기온 기록이 없으면 null이며 이전 날짜의 기온으로 대체하지 않는다. */
+    lastWornTemperatureC: number | null
   }>
 }
 

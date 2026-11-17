@@ -99,8 +99,26 @@ test('당일 선정 이후 최근 착용한 옷과 보관된 옷은 다시 표�
   const fixture = setup(t)
   await service.get(userId)
   fixture.candidates.splice(0, 1)
-  fixture.records.push({ wornAt: new Date('2026-11-04T10:00:00Z'), date: new Date('2026-11-04'), outfit: { items: [{ wardrobeItemId: ids[1] }] } })
+  fixture.records.push({ wornAt: new Date('2026-11-04T10:00:00Z'), date: new Date('2026-11-04'), wearTemperatureC: null, outfit: { items: [{ wardrobeItemId: ids[1] }] } })
   assert.deepEqual((await service.get(userId)).items.map((entry) => entry.item.id), [ids[2]])
+})
+
+test('마지막 착용일 기온만 반환하고 누락을 더 오래된 기록의 기온으로 대신하지 않는다', async (t) => {
+  const fixture = setup(t)
+  fixture.candidates.splice(3)
+  const record = (date: string, temperature: number | null, selected: string[]) => ({ date: new Date(date), wornAt: new Date(`${date}T10:00:00Z`), wearTemperatureC: temperature, outfit: { items: selected.map((wardrobeItemId) => ({ wardrobeItemId })) } })
+  fixture.records.push(record('2026-08-01', 25, [ids[0], ids[1]]), record('2026-09-01', 0, [ids[0]]), record('2026-09-02', null, [ids[1]]))
+  const result = await service.get(userId)
+  assert.equal(result.items.find((entry) => entry.item.id === ids[0])?.lastWornTemperatureC, 0)
+  assert.equal(result.items.find((entry) => entry.item.id === ids[1])?.lastWornTemperatureC, null)
+  assert.equal(result.items.find((entry) => entry.item.id === ids[2])?.lastWornTemperatureC, null)
+})
+
+test('당일 고정된 옷도 계절 태그가 맞지 않게 바뀌면 목록에서 제외한다', async (t) => {
+  const fixture = setup(t)
+  await service.get(userId)
+  fixture.candidates[0].seasons = []
+  assert.deepEqual((await service.get(userId)).items.map((entry) => entry.item.id), ids.slice(1, 3))
 })
 
 test('하이라이트 조회와 노출 저장은 로그인 없이는 실행되지 않는다', async (t) => {

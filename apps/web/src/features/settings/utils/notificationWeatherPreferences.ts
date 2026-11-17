@@ -1,6 +1,6 @@
 /**
  * 용도:
- * 알림·위치 기반 날씨 사용 설정을 화면 간에 공유한다.
+ * 위치 기반 날씨 사용 설정을 화면 간에 공유한다.
  *
  * 동작 방식:
  * 브라우저 저장소에서 설정을 읽고, 누락되거나 잘못된 값은 기본값으로 정리한다.
@@ -11,6 +11,7 @@ export interface NotificationWeatherPreferences {
   locationWeatherDisabled: boolean
 }
 
+// 알림 화면 분리 전의 날씨 사용 선택을 유지하기 위해 기존 저장 키를 사용한다.
 const STORAGE_KEY = 'closet:notification-weather-preferences:v1'
 const defaultPreferences: NotificationWeatherPreferences = {
   locationWeather: false,

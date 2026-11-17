@@ -1,10 +1,11 @@
 /**
  * 용도:
- * 로그인한 기기의 Expo 푸시 토큰을 검증하고 테스트·AI 완료 알림을 발송한다.
+ * 로그인한 기기의 Expo 푸시 토큰을 검증하고 테스트·AI 완료·옷 재발견 알림을 발송한다.
  *
  * 동작 방식:
  * 토큰을 현재 계정·세션에 저장하고 유효한 세션의 기기에만 알림을 보낸다.
- * 완료 알림은 등록 기기가 없으면 조용히 건너뛰고, 테스트 알림은 오류를 반환한다.
+ * 완료·실패 알림은 계정 수신 설정을 발송 직전에 확인하며, 꺼져 있거나 등록 기기가 없으면 건너뛴다.
+ * 테스트 알림은 수신 설정과 별개이며 등록 기기가 없으면 오류를 반환한다.
  */
 import type { PushPlatform } from '@prisma/client'
 import { hashSessionToken } from '../auth/sessionToken.js'
@@ -15,8 +16,8 @@ const expoPushEndpoint = 'https://exp.host/--/api/v2/push/send'
 const expoTokenPattern = /^(?:Expo|Exponent)PushToken\[[A-Za-z0-9_-]+\]$/
 
 interface ExpoPushResponse {
-  data?: Array<{ status: 'ok' | 'error'; message?: string }>
-  errors?: Array<{ message?: string }>
+  data?: Array<{ status: 'ok' | 'error'; message?: string; details?: { error?: string } }>
+  errors?: Array<{ code?: string; message?: string }>
 }
 
 export type CompletionPushKind =
@@ -100,10 +101,11 @@ async function sendToUser(userId: string, message: PushMessage, requireDevice: b
       result.data.length !== batch.length ||
       result.data.some((ticket) => ticket.status !== 'ok')
     ) {
+      // 제공자 오류 문구에 기기 토큰이 포함될 수 있어 응답 원문 대신 오류 코드만 남긴다.
       console.error('[push] Expo notification rejected', {
         status: response.status,
-        errors: result?.errors,
-        tickets: result?.data,
+        errorCodes: Array.isArray(result?.errors) ? result.errors.map((error) => error?.code) : undefined,
+        ticketErrors: Array.isArray(result?.data) ? result.data.map((ticket) => ticket?.details?.error) : undefined,
       })
       throw new ServiceError(
         '알림을 보내지 못했어요. Expo 푸시 키 설정을 확인해주세요.',
@@ -140,11 +142,21 @@ export const pushService = {
     }, true)
   },
 
+  /** worker가 동의·주기를 확인한 계정 또는 명시적 테스트 CLI의 대상 계정에 목록 진입 푸시를 보낸다. 유효한 로그인 기기가 없으면 false다. */
+  async sendRediscovery(userId: string) {
+    return sendToUser(userId, {
+      title: '옷장에 잠들어 있던 옷을 확인해보세요!',
+      body: '이번 계절에 다시 입어볼 옷을 모았어요.',
+      data: { type: 'wardrobe-rediscovery', path: '/closet/rediscovery' },
+    }, false)
+  },
+
   async sendCompletion(
     userId: string,
     kind: CompletionPushKind,
     data: Record<string, string> = {},
   ) {
+    if (!await pushDeviceRepository.isCompletionPushEnabled(userId)) return false
     const message = completionMessages[kind]
     return sendToUser(userId, {
       ...message,
@@ -157,6 +169,7 @@ export const pushService = {
     kind: FailurePushKind,
     data: Record<string, string> = {},
   ) {
+    if (!await pushDeviceRepository.isCompletionPushEnabled(userId)) return false
     const message = failureMessages[kind]
     return sendToUser(userId, {
       ...message,

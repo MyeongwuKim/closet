@@ -212,18 +212,22 @@ function validateGarmentMeasurements(
 interface WardrobeWearHistoryRecord {
   date: Date
   wornAt?: Date | null
+  wearTemperatureC?: number | null
   outfit: { items: Array<{ wardrobeItemId: string }> } | null
 }
 
-/** 실제 착용을 확인한 일정만 옷별로 집계하며 같은 옷·날짜의 중복 기록은 한 번으로 계산한다. */
+/** 실제 착용을 확인한 날짜를 중복 없이 집계한다. 마지막 착용일의 평균 기온은 그 날짜의 기록만 사용하며 누락을 과거 값으로 채우지 않는다. */
 export function getWardrobeWearStats(records: WardrobeWearHistoryRecord[]) {
-  const datesByItemId = new Map<string, Map<number, Date>>()
+  const datesByItemId = new Map<string, Map<number, WardrobeWearHistoryRecord>>()
 
   for (const record of records) {
     if (!record.wornAt || !Number.isFinite(record.wornAt.getTime())) continue
     for (const item of record.outfit?.items ?? []) {
       const dates = datesByItemId.get(item.wardrobeItemId) ?? new Map()
-      dates.set(record.date.getTime(), record.date)
+      const previous = dates.get(record.date.getTime())
+      if (!previous || record.wornAt.getTime() > (previous.wornAt?.getTime() ?? 0)) {
+        dates.set(record.date.getTime(), record)
+      }
       datesByItemId.set(item.wardrobeItemId, dates)
     }
   }
@@ -231,13 +235,15 @@ export function getWardrobeWearStats(records: WardrobeWearHistoryRecord[]) {
   return new Map(
     [...datesByItemId].map(([itemId, dates]) => {
       const wornDates = [...dates.values()].sort(
-        (left, right) => left.getTime() - right.getTime(),
+        (left, right) => left.date.getTime() - right.date.getTime(),
       )
+      const last = wornDates.at(-1)
       return [
         itemId,
         {
           wearCount: wornDates.length,
-          lastWornAt: wornDates.at(-1) ?? null,
+          lastWornAt: last?.date ?? null,
+          lastWornTemperatureC: last?.wearTemperatureC != null && Number.isFinite(last.wearTemperatureC) ? last.wearTemperatureC : null,
         },
       ]
     }),

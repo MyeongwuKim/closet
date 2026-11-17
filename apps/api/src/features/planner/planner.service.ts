@@ -27,6 +27,8 @@ export interface SetPlannerEntryInput {
   outfitId: string
   /** 착용 기록을 다시 담을 때 삭제된 옷의 새 배정을 막는다. 기존 날짜 표시·복사 계약은 유지한다. */
   activeItemsOnly?: boolean | null
+  /** 실제 입은 코디로 등록할 때만 true다. 생략·false는 기존 착용 상태를 바꾸지 않는다. */
+  confirmWorn?: boolean | null
   title?: string | null
   occasion?: string | null
   weatherSummary?: string | null
@@ -54,6 +56,8 @@ export interface SetDirectPlannerEntryInput {
   weekStartsOn: string
   date: string
   itemIds: string[]
+  /** 코디 저장과 실제 착용 확인을 같은 트랜잭션에서 처리한다. 미래 날짜는 허용하지 않는다. */
+  confirmWorn?: boolean | null
   /** 직접 구성하거나 착용 기록에서 바꿔 담은 코디의 이름·스타일. 추천 메타데이터와 구분한다. */
   name?: string | null
   style?: string | null
@@ -82,6 +86,16 @@ export interface RecentWearConflictInput {
 
 const objectIdPattern = /^[a-f\d]{24}$/i
 const dayInMilliseconds = 24 * 60 * 60 * 1000
+
+/** 사용자가 이미 입었다고 선택한 저장만 확인 시각을 만든다. 미래·잘못된 플래그는 코디 준비나 DB 쓰기 전에 거절한다. */
+function plannerWearConfirmation(confirmWorn: boolean | null | undefined, date: Date) {
+  if (confirmWorn != null && typeof confirmWorn !== 'boolean') {
+    throw new ServiceError('올바른 착용 확인 여부를 선택해주세요.', 'INVALID_PLANNER_WEAR')
+  }
+  if (!confirmWorn) return undefined
+  if (date > getKoreaTodayUtc()) throw new ServiceError('미래의 코디는 아직 착용 완료로 표시할 수 없어요.', 'FUTURE_PLANNER_WEAR')
+  return new Date()
+}
 
 function validateRecentWearConflictInput(input: RecentWearConflictInput) {
   if (
@@ -278,6 +292,7 @@ export const plannerService = {
       input.weekStartsOn,
       input.date,
     )
+    const confirmWornAt = plannerWearConfirmation(input.confirmWorn, date)
     const outfit = await outfitRepository.findById(userId, input.outfitId)
     if (!outfit) {
       throw new ServiceError('코디를 찾을 수 없어요.', 'OUTFIT_NOT_FOUND')
@@ -295,6 +310,7 @@ export const plannerService = {
       date,
       outfitId: outfit.id,
       activeItemsOnly: input.activeItemsOnly ?? false,
+      confirmWornAt,
       title: input.title?.trim() || outfit.name,
       occasion: input.occasion?.trim() || null,
       weatherSummary: input.weatherSummary?.trim() || null,
@@ -313,6 +329,7 @@ export const plannerService = {
       input.weekStartsOn,
       input.date,
     )
+    const confirmWornAt = plannerWearConfirmation(input.confirmWorn, date)
     const currentWeek = await plannerRepository.findWeek(userId, weekStartsOn)
     const previousOutfit = currentWeek?.entries.find(
       (entry) => entry.date.getTime() === date.getTime(),
@@ -333,6 +350,7 @@ export const plannerService = {
       plannerWeekId: week.id,
       date,
       outfitData: outfit,
+      confirmWornAt,
       title: outfit.name,
       weatherSummary: input.weatherSummary?.trim() || null,
       temperatureC: input.temperatureC,

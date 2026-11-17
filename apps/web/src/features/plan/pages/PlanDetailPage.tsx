@@ -41,6 +41,8 @@ import { PlanTomorrowForecast } from '../components/PlanTomorrowForecast'
 import { useKoreaPlannerToday } from '../hooks/useKoreaPlannerToday'
 import { getPlanEntryItems } from '../utils/plannerItems'
 import { getKoreaPlannerTomorrow } from '../utils/plannerWear'
+import { PlannerSaveIntent } from '../components/PlannerSaveIntent'
+import { getAccessToken } from '../../../lib/auth'
 
 /** 아직 생성하지 않았거나 구성이 바뀐 플래너 미리보기의 닫힌 초기 상태를 만든다. */
 function createPreviewDialogState(): OutfitPreviewState {
@@ -62,6 +64,7 @@ export function PlanDetailPage() {
   const { date } = useParams()
   const [searchParams] = useSearchParams()
   const today = useKoreaPlannerToday()
+  const [saveIntent, setSaveIntent] = useState({ date: date ?? '', confirmWorn: false })
   const items = useClosetStore((state) => state.items)
   const entries = usePlanStore((state) => state.entries)
   const setWeek = usePlanStore((state) => state.setWeek)
@@ -184,6 +187,7 @@ export function PlanDetailPage() {
   const isCopiedToLookbook = copiedRecordKey === recordKey
   const hasPlannerOutfit = Boolean(entry.outfitId || entry.itemIds.length > 0)
   const isWearProtected = Boolean(entry.wornAt)
+  const confirmWorn = !isWearProtected && entry.date <= today && saveIntent.date === entry.date && saveIntent.confirmWorn
   const isTomorrow = entry.date === getKoreaPlannerTomorrow(today)
   const entryDate = new Date(`${entry.date}T00:00:00`)
   const formattedDate = new Intl.DateTimeFormat('ko-KR', {
@@ -263,6 +267,7 @@ export function PlanDetailPage() {
   }
 
   const saveDirectOutfit = async () => {
+    const sessionToken = getAccessToken()
     if (hasArchivedItems) {
       pushToast('변경사항을 저장하려면 삭제된 옷을 교체해주세요.', 'error')
       return false
@@ -278,7 +283,7 @@ export function PlanDetailPage() {
       confirmLabel: '그래도 저장',
       cancelLabel: '코디 다시 고르기',
     })
-    if (!confirmed) return false
+    if (!confirmed || sessionToken !== getAccessToken()) return false
 
     try {
       const nextEntries = await setDirectPlannerEntry.mutateAsync({
@@ -287,7 +292,9 @@ export function PlanDetailPage() {
         itemIds: outfitItems.map((item) => item.id),
         previewImage: readyPreview ?? undefined,
         recommendationStyle: entry.outfitStyle,
+        ...(confirmWorn ? { confirmWorn: true } : {}),
       })
+      if (sessionToken !== getAccessToken()) return false
       hydrateEntries(nextEntries)
       const savedEntry = nextEntries.find(
         (nextEntry) => nextEntry.date === entry.date,
@@ -295,7 +302,7 @@ export function PlanDetailPage() {
       if (!savedEntry?.outfitId) {
         throw new Error('저장된 코디 정보를 찾을 수 없어요.')
       }
-      pushToast('변경한 코디를 이 날짜에 저장했어요.', 'success')
+      pushToast(confirmWorn ? '착용 기록을 남겼어요.' : '변경한 코디를 이 날짜에 저장했어요.', 'success')
       return true
     } catch (error) {
       pushToast(
@@ -461,6 +468,11 @@ export function PlanDetailPage() {
 
       <footer className="shrink-0 border-t border-line bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(27,27,24,0.06)]">
         <div className="mx-auto grid max-w-3xl grid-cols-[0.95fr_1.05fr] gap-2">
+          {!isWearProtected && <div className="col-span-2 [&_.planner-save-intent]:mt-0">
+            <PlannerSaveIntent date={entry.date} today={today} confirmWorn={confirmWorn}
+              disabled={isCheckingRecentWear || setDirectPlannerEntry.isPending}
+              onChange={(value) => setSaveIntent({ date: entry.date, confirmWorn: value })} />
+          </div>}
           {requiresPreviewCredit && <div className="col-span-2"><PreviewCreditSummary /></div>}
           <AiCreditActionButton
             requiresCredit={requiresPreviewCredit}
@@ -485,7 +497,7 @@ export function PlanDetailPage() {
               isEmpty ||
               hasArchivedItems ||
               Boolean(outfitCompletionMessage) ||
-              isDateSaved ||
+              (isDateSaved && !confirmWorn) ||
               isCheckingRecentWear ||
               setDirectPlannerEntry.isPending ||
               saveToLookbook.isPending
@@ -496,7 +508,7 @@ export function PlanDetailPage() {
             setDirectPlannerEntry.isPending ||
             saveToLookbook.isPending
               ? '저장 중…'
-              : isDateSaved ? '이 날짜에 저장됨' : '변경사항 저장'}
+              : confirmWorn ? '입은 코디로 기록' : isDateSaved ? '이 날짜에 저장됨' : '변경사항 저장'}
           </button>
           {entry.outfitId && (
             <button
@@ -517,6 +529,7 @@ export function PlanDetailPage() {
           key={entry.date}
           dayEntry={entry}
           lockBodyScroll={false}
+          initialConfirmWorn={confirmWorn}
           onClose={() => setIsOutfitPickerOpen(false)}
           onAssigned={resetPreviewAfterAssignment}
         />

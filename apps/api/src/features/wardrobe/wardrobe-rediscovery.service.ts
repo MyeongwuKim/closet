@@ -7,7 +7,7 @@ import { getRediscoveryReason, parseRediscoveryImpressions, rankRediscoveryCandi
 export const wardrobeRediscoveryService = {
   /**
    * 전체 옷장·오늘까지의 착용 기록으로 최대 세 벌을 선정하고 하루 선택을 계정에 고정한다.
-   * 삭제·분류 변경·최근 착용으로 자격을 잃은 옷은 당일에도 제외하며, 노출 기록은 별도 확인 요청에서만 남긴다.
+   * 삭제·계절·분류 변경·최근 착용으로 자격을 잃은 옷은 당일에도 제외한다. 마지막 착용일 기온을 함께 반환하며 노출은 별도 확인 요청에서만 남긴다.
    */
   async get(userId: string) {
     const today = getKoreaTodayUtc()
@@ -40,7 +40,7 @@ export const wardrobeRediscoveryService = {
           const item = items.find((candidate) => candidate.id === id)
           if (!item) return []
           const stats = wear.get(id)
-          return [{ item: { ...item, wearCount: stats?.wearCount ?? 0, lastWornAt: stats?.lastWornAt ?? null }, ...getRediscoveryReason(stats, today) }]
+          return [{ item: { ...item, wearCount: stats?.wearCount ?? 0, lastWornAt: stats?.lastWornAt ?? null }, ...getRediscoveryReason(stats, today), lastWornTemperatureC: stats?.lastWornTemperatureC ?? null }]
         }),
       }
     }

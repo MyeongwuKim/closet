@@ -36,6 +36,8 @@ export interface ViewerProfile {
   displayName: string | null
   email: string | null
   isTemporary: boolean
+  rediscoveryPushEnabled: boolean
+  completionPushEnabled: boolean
   styleProfile: {
     gender: Gender | null
     bodyBuild: BodyBuild | null
@@ -101,6 +103,8 @@ const viewerFields = `
   displayName
   email
   isTemporary
+  rediscoveryPushEnabled
+  completionPushEnabled
   styleProfile {
     gender
     bodyBuild
@@ -216,4 +220,34 @@ export function useUpdateWearReminderPreferencesMutation() {
 
   // 저장 중 화면을 닫았다가 돌아와도 다음 저장을 시작하기 전에 이전 응답을 기다린다.
   return { mutateAsync: mutation.mutateAsync, isPending: pendingSaves > 0 }
+}
+
+/** 잠든 옷 푸시의 별도 수신 동의를 저장한다. 다른 계정·재로그인 세션의 응답은 기존 Viewer 보호 경로에서 차단한다. */
+export function useSetRediscoveryPushEnabledMutation() {
+  const mutationKey = ['setWardrobeRediscoveryPushEnabled'] as const
+  const pending = useIsMutating({ mutationKey, exact: true })
+  const mutation = useViewerUpdateMutation(async (enabled: boolean) => {
+    const data = await graphqlRequest<{ setWardrobeRediscoveryPushEnabled: ViewerProfile }>(`
+      mutation SetWardrobeRediscoveryPushEnabled($enabled: Boolean!) {
+        setWardrobeRediscoveryPushEnabled(enabled: $enabled) { ${viewerFields} }
+      }
+    `, { enabled })
+    return data.setWardrobeRediscoveryPushEnabled
+  }, { mutationKey })
+  return { mutateAsync: mutation.mutateAsync, isPending: pending > 0 }
+}
+
+/** 완료·실패 푸시 수신 선택을 계정에 저장한다. 저장 중 재진입과 계정 변경은 기존 Viewer 세션 보호 경로를 따른다. */
+export function useSetCompletionPushEnabledMutation() {
+  const mutationKey = ['setCompletionPushEnabled'] as const
+  const pending = useIsMutating({ mutationKey, exact: true })
+  const mutation = useViewerUpdateMutation(async (enabled: boolean) => {
+    const data = await graphqlRequest<{ setCompletionPushEnabled: ViewerProfile }>(`
+      mutation SetCompletionPushEnabled($enabled: Boolean!) {
+        setCompletionPushEnabled(enabled: $enabled) { ${viewerFields} }
+      }
+    `, { enabled })
+    return data.setCompletionPushEnabled
+  }, { mutationKey })
+  return { mutateAsync: mutation.mutateAsync, isPending: pending > 0 }
 }

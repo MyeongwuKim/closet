@@ -32,6 +32,9 @@ import { getCurrentWeekStart, type PlanEntry } from '../data/weeklyPlan'
 import { useRecentWearReminder } from '../hooks/useRecentWearReminder'
 import { usePlanStore } from '../stores/usePlanStore'
 import { WeeklyPlanDayButton } from './WeeklyPlanDayButton'
+import { PlannerSaveIntent } from './PlannerSaveIntent'
+import { useKoreaPlannerToday } from '../hooks/useKoreaPlannerToday'
+import { getAccessToken } from '../../../lib/auth'
 
 interface PlannerOutfitPickerProps {
   /** 지정하면 해당 날짜에만 배정한다. 생략하면 현재 주의 요일을 선택해 편집한다. */
@@ -40,10 +43,11 @@ interface PlannerOutfitPickerProps {
   onAssigned?: () => void
   /** 날짜 상세처럼 이미 배경 스크롤을 잠근 화면 안에서는 끈다. */
   lockBodyScroll?: boolean
+  initialConfirmWorn?: boolean
 }
 
 /** 코디북 검색과 날짜별 배정을 제공한다. 착용 완료 날짜는 안내만 표시하고, 주간 편집에서는 다른 요일을 이어서 고를 수 있다. */
-export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScroll = true }: PlannerOutfitPickerProps) {
+export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScroll = true, initialConfirmWorn = false }: PlannerOutfitPickerProps) {
   const navigate = useNavigate()
   const items = useClosetStore((state) => state.items)
   const outfits = useLookbookStore((state) => state.outfits)
@@ -59,11 +63,14 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
   const [activeSeason, setActiveSeason] = useState<Season | null>(null)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const today = useKoreaPlannerToday()
+  const [saveIntent, setSaveIntent] = useState({ date: dayEntry?.date ?? '', confirmWorn: initialConfirmWorn })
   const wearSummaries = useOutfitWearSummaries(
     outfits.map((outfit) => outfit.id),
   )
   const activeEntry = dayEntry ?? entries.find((entry) => entry.date === activeWeekDate)
   const isWearConfirmed = Boolean(activeEntry?.wornAt)
+  const confirmWorn = Boolean(activeEntry && activeEntry.date <= today && saveIntent.date === activeEntry.date && saveIntent.confirmWorn)
   const formattedDay = dayEntry
     ? new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric' })
         .format(new Date(`${dayEntry.date}T00:00:00`))
@@ -107,6 +114,7 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
       ? getCurrentWeekStart(new Date(`${date}T00:00:00`))
       : entries[0]?.date
     if (!weekStartsOn) return
+    const sessionToken = getAccessToken()
 
     const confirmed = await confirmRecentWear({
       itemIds: outfit.layers.map((layer) => layer.wardrobeItemId),
@@ -114,7 +122,7 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
       confirmLabel: '그래도 추가',
       cancelLabel: '다른 코디 고르기',
     })
-    if (!confirmed) return
+    if (!confirmed || sessionToken !== getAccessToken()) return
 
     try {
       await setPlannerEntry.mutateAsync({
@@ -123,13 +131,15 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
         outfitId: outfit.id,
         title: outfit.name,
         occasion,
+        ...(confirmWorn ? { confirmWorn: true } : {}),
       })
     } catch (error) {
       pushToast(error instanceof Error ? error.message : '플래너를 저장하지 못했어요.', 'error')
       return
     }
 
-    pushToast(`${formattedDay ?? `${activeEntry.dayLabel}요일`} 코디를 설정했어요.`, 'success')
+    if (sessionToken !== getAccessToken()) return
+    pushToast(confirmWorn ? '착용 기록을 남겼어요.' : `${formattedDay ?? `${activeEntry.dayLabel}요일`} 코디를 설정했어요.`, 'success')
     if (dayEntry) {
       onAssigned?.()
       onClose()
@@ -207,10 +217,10 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
           <div className={`flex items-center justify-between gap-3 ${dayEntry ? '' : 'mt-6'}`}>
             <div>
               <h2 className="text-xl font-semibold">
-                {formattedDay ? `${formattedDay}에 넣을 코디` : `${activeEntry?.dayLabel ?? ''}요일에 입을 코디`}
+                {`${formattedDay ?? `${activeEntry?.dayLabel ?? ''}요일`}에 ${confirmWorn || isWearConfirmed ? '입은' : '넣을'} 코디`}
               </h2>
               <p className="mt-1 text-sm text-muted">
-                {isWearConfirmed ? '실제로 입은 코디가 기록되어 있어요.' : '저장된 코디 하나를 선택할 수 있어요.'}
+                {isWearConfirmed ? '실제로 입은 코디가 기록되어 있어요.' : confirmWorn ? '코디를 고르면 착용 기록으로 저장해요.' : '저장된 코디 하나를 선택할 수 있어요.'}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -241,6 +251,10 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
               )}
             </div>
           </div>
+
+          {!isWearConfirmed && activeEntry && outfits.length > 0 && <PlannerSaveIntent date={activeEntry.date} today={today}
+            confirmWorn={confirmWorn} disabled={isCheckingRecentWear || setPlannerEntry.isPending}
+            onChange={(value) => setSaveIntent({ date: activeEntry.date, confirmWorn: value })} />}
 
           {isWearConfirmed ? (
             <div className="mt-5 rounded-3xl border border-line bg-surface p-5">

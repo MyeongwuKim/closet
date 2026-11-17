@@ -10,6 +10,20 @@ import type { PushPlatform } from '@prisma/client'
 import { prisma } from '../../lib/prisma.js'
 
 export const pushDeviceRepository = {
+  /** 발송 시점의 완료·실패 푸시 수신 선택을 읽는다. 설정이나 필드가 없으면 기존 수신 동작을 유지한다. */
+  async isCompletionPushEnabled(userId: string) {
+    const settings = await prisma.userSettings.findUnique({
+      where: { userId },
+      select: { completionPushEnabled: true },
+    })
+    return settings?.completionPushEnabled ?? true
+  },
+
+  /** CLI에 명시한 기존 테스트 계정의 발송 대상만 조회한다. 비밀번호·푸시 토큰은 계정 조회 결과에 포함하지 않는다. */
+  findTestAccountTarget(loginId: string) {
+    return prisma.testAccount.findUnique({ where: { loginId }, select: { loginId: true, userId: true } })
+  },
+
   register(input: {
     userId: string
     sessionTokenHash: string

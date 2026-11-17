@@ -1,0 +1,12 @@
+.settings-account-info > div { display: flex; align-items: baseline; justify-content: space-between; gap: 20px; padding: 18px; font-size: .875rem; line-height: 1.6; }
+.settings-account-info dt { flex-shrink: 0; color: var(--color-muted); }
+.settings-account-info dd { min-width: 0; color: var(--color-ink); text-align: right; overflow-wrap: anywhere; }
+.settings-account-loading { color: var(--color-muted); font-size: .8125rem; line-height: 1.7; }
+.settings-account-actions { border-top: 1px solid var(--color-line); padding-top: 12px; }
+.settings-account-logout { display: flex; width: 100%; min-height: 52px; align-items: center; gap: 12px; padding: 12px 4px; color: var(--color-ink); font-size: .875rem; text-align: left; }
+.settings-account-logout svg { flex-shrink: 0; color: var(--color-accent); }
+.settings-account-logout:disabled { cursor: default; opacity: .5; }
+.settings-account-delete { display: block; min-height: 44px; margin-top: 12px; padding: 10px 4px; color: var(--color-muted); font-size: .8125rem; text-decoration: underline; text-underline-offset: 3px; }
+.settings-account-delete:hover, .settings-account-delete:focus-visible { color: var(--color-danger); }
+.settings-account-delete:disabled { cursor: default; opacity: .5; }
+@media (hover: hover) { .settings-account-logout:not(:disabled):hover { color: var(--color-accent); } }

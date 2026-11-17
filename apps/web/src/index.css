@@ -90,6 +90,33 @@ header button:focus-visible {
   gap: 8px;
 }
 
+/* 옷장·코디북의 기록 입구는 문구 길이와 관계없이 같은 폭으로 맞춘다. */
+.catalog-entry-action {
+  display: inline-flex;
+  width: 13rem;
+  max-width: 100%;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font-size: .75rem;
+  font-weight: 700;
+  line-height: 1rem;
+  text-align: left;
+  transition: border-color 160ms ease, color 160ms ease;
+}
+
+.catalog-entry-action > svg { flex-shrink: 0; }
+.catalog-entry-action > span { min-width: 0; flex: 1; word-break: keep-all; }
+@media (hover: hover) {
+  .catalog-entry-action:hover { border-color: var(--color-accent); color: var(--color-accent); }
+}
+@media (prefers-reduced-motion: reduce) { .catalog-entry-action { transition: none; } }
+
 .collection-title {
   font-size: 24px;
   font-weight: 600;

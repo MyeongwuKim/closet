@@ -32,6 +32,8 @@ export interface SetPlannerEntryData {
   date: Date
   outfitId?: string
   activeItemsOnly?: boolean
+  /** 서비스에서 검증한 명시적 착용 등록 시각. 기존 확인 시각·체감은 덮어쓰지 않는다. */
+  confirmWornAt?: Date
   /** 직접 선택한 옷은 원본 코디를 만들기 전에 날짜 복사본으로 함께 저장한다. */
   outfitData?: CreateOutfitData
   title?: string | null
@@ -199,7 +201,7 @@ export const plannerRepository = {
     })
   },
 
-  /** 날짜 코디를 복사해 연결한다. 착용 완료 후에는 같은 옷 구성의 사진·이름 등만 변경할 수 있다. */
+  /** 날짜 코디 복사와 명시적 착용 확인을 함께 저장한다. 착용 완료 후에는 같은 옷 구성의 사진·이름 등만 변경할 수 있다. */
   async setEntry(data: SetPlannerEntryData) {
     return aiTransaction(async (transaction) => {
       const week = await transaction.plannerWeek.findUnique({ where: { id: data.plannerWeekId }, select: { userId: true } })
@@ -224,7 +226,7 @@ export const plannerRepository = {
         await lockWardrobeItemsForReference(transaction, week.userId, snapshotData.items.map(item => item.wardrobeItemId), { allowArchived: false })
       }
       const copy = canReuse ? previous!.outfit! : await createOutfitSnapshot(transaction, snapshotData, true, { allowArchived: !data.outfitData && !data.activeItemsOnly })
-      const { outfitId: _sourceId, outfitData: _snapshotData, activeItemsOnly: _activeItemsOnly, ...entryData } = data
+      const { outfitId: _sourceId, outfitData: _snapshotData, activeItemsOnly: _activeItemsOnly, confirmWornAt, ...entryData } = data
       await transaction.plannerEntry.upsert({
         where,
         update: {
@@ -240,8 +242,9 @@ export const plannerRepository = {
             weatherLatitude: data.weatherLatitude ?? null,
             weatherLongitude: data.weatherLongitude ?? null,
           } : {}),
+          ...(confirmWornAt && !previous?.wornAt ? { wornAt: confirmWornAt, wearFeeling: null } : {}),
         },
-        create: { ...entryData, outfitId: copy.id, wornAt: null, wearFeeling: null },
+        create: { ...entryData, outfitId: copy.id, wornAt: confirmWornAt ?? null, wearFeeling: null },
       })
 
       return transaction.plannerWeek.findUnique({

@@ -3,6 +3,7 @@ import type { ImageAssetKind, Prisma } from '@prisma/client'
 import { ServiceError } from '../../graphql/errors.js'
 import { cloudflareImagesClient } from './cloudflare-images.client.js'
 import { imageRepository } from './image.repository.js'
+import { accountImageCleanupRepository } from '../user/account-image-cleanup.repository.js'
 
 const mimeTypeExtensions: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -129,7 +130,7 @@ export const imageService = {
         metadata: { ...input.metadata, model: input.model },
       })
     } catch (error) {
-      await cloudflareImagesClient.deleteImage(uploaded.id).catch(() => undefined)
+      await cloudflareImagesClient.deleteImage(uploaded.id).catch(() => accountImageCleanupRepository.enqueue(uploaded.id))
       throw error
     }
   },
@@ -276,15 +277,21 @@ export const imageService = {
       originalFilename: input.originalFilename,
       storageFilename,
     })
-    const asset = await imageRepository.create({
-      userId,
-      cloudflareImageId: directUpload.id,
-      kind: input.kind,
-      deliveryVariant: process.env.CLOUDFLARE_IMAGES_VARIANT ?? 'public',
-      originalFilename: input.originalFilename,
-      storageFilename,
-      mimeType: input.mimeType,
-    })
+    let asset
+    try {
+      asset = await imageRepository.create({
+        userId,
+        cloudflareImageId: directUpload.id,
+        kind: input.kind,
+        deliveryVariant: process.env.CLOUDFLARE_IMAGES_VARIANT ?? 'public',
+        originalFilename: input.originalFilename,
+        storageFilename,
+        mimeType: input.mimeType,
+      })
+    } catch (error) {
+      await cloudflareImagesClient.deleteImage(directUpload.id).catch(() => accountImageCleanupRepository.enqueue(directUpload.id))
+      throw error
+    }
 
     return {
       asset,

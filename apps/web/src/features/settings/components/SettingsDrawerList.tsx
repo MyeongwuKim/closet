@@ -1,4 +1,4 @@
-import { BarChart3, Bell, ChevronRight, History, Info, Shirt, type LucideIcon } from 'lucide-react'
+import { BarChart3, Bell, ChevronRight, CloudSun, History, Info, Shirt, UserRound, type LucideIcon } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useSettingsDrawerNavigation } from '../hooks/useSettingsDrawerNavigation'
 import './SettingsDrawerList.css'
@@ -20,8 +20,10 @@ const menuGroups: Array<{ title: string; items: SettingsMenuItem[] }> = [
   {
     title: '앱 설정',
     items: [
-      { path: '/settings/notifications-weather', title: '알림 및 날씨', icon: Bell },
+      { path: '/settings/notifications', title: '알림', icon: Bell },
+      { path: '/settings/weather-location', title: '날씨 및 위치', icon: CloudSun },
       { path: '/settings/app-info', title: '앱 정보', icon: Info },
+      { path: '/settings/account', title: '계정 관리', icon: UserRound },
     ],
   },
 ]

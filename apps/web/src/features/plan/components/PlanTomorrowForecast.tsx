@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { CloudSun, Sparkles } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { openNativeExternalUrl } from '../../../native-bridge'
 import { usePlannerLocationWeather } from '../hooks/usePlannerLocationWeather'
 import { TodayOutfitRecommendationPopover } from './today-outfit-recommendation/TodayOutfitRecommendationPopover'
+import { WearHistoryLink } from '../../wear-history/components/WearHistoryLink'
 
 interface PlanTomorrowForecastProps {
   date: string
@@ -13,8 +14,9 @@ interface PlanTomorrowForecastProps {
   onApplied?: () => void
 }
 
-/** 플래너의 내일에 해당 날짜 예보를 표시한다. 추천 버튼을 눌렀을 때만 예보를 추천에 넘겨 실행한다. */
+/** 내일 예보 안에서 과거 착용과 새 코디 추천을 선택한다. 기록은 해당 예보 평균으로 열고 추천 실행은 기존 버튼에 맡긴다. */
 export function PlanTomorrowForecast({ date, onOpenChange, onApplied }: PlanTomorrowForecastProps) {
+  const location = useLocation()
   const { weather, isEnabled, isCheckingPermission, errorMessage, actions } = usePlannerLocationWeather(date)
   const [isRecommendationOpen, setIsRecommendationOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -66,7 +68,7 @@ export function PlanTomorrowForecast({ date, onOpenChange, onApplied }: PlanTomo
               <button type="button" onClick={actions.retry} className="font-semibold text-accent underline underline-offset-2">다시 확인</button>
             </div>
           ) : (
-            <Link to="/settings/notifications-weather" className="mt-0.5 inline-block text-xs leading-5 text-accent underline underline-offset-2">
+            <Link to="/settings/weather-location" className="mt-0.5 inline-block text-xs leading-5 text-accent underline underline-offset-2">
               위치 기반 날씨 켜기
             </Link>
           )}
@@ -83,6 +85,8 @@ export function PlanTomorrowForecast({ date, onOpenChange, onApplied }: PlanTomo
         <Sparkles size={15} aria-hidden="true" />
         내일 코디 추천
       </button>
+      <WearHistoryLink variant="weather" date={date} from={`${location.pathname}${location.search}`}
+        temperature={isEnabled ? weather?.meanTemperatureC : null} />
       {isRecommendationOpen && (
         <TodayOutfitRecommendationPopover
           date={date}

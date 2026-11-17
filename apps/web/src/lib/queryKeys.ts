@@ -4,6 +4,7 @@ import { OUTFIT_COLOR_RULES_VERSION } from '@closet/types/outfit-colors'
 
 export const queryKeys = {
   me: ['me'] as const,
+  accountInfo: ['account-info'] as const,
   wardrobe: {
     all: ['wardrobe'] as const,
     statistics: ['wardrobe', 'statistics'] as const,

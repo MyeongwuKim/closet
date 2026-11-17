@@ -62,6 +62,9 @@ test('검증한 최근 착용 리마인드 설정을 사용자 계정에 저장�
     id: 'settings',
     userId: 'viewer',
     ...input,
+    rediscoveryPushEnabled: false,
+    completionPushEnabled: true,
+    rediscoveryPushNextAt: null,
     createdAt: new Date('2026-09-02T00:00:00.000Z'),
     updatedAt: new Date('2026-09-02T00:00:00.000Z'),
   }

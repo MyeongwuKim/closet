@@ -25,6 +25,7 @@ import { PlanPageHeader } from '../components/PlanPageHeader'
 import { PlanPeriodHeader } from '../components/PlanPeriodHeader'
 import { PlanPeriodSkeleton } from '../components/PlanPeriodSkeleton'
 import { PlanTodayCard } from '../components/PlanTodayCard'
+import { PlannerWearReview } from '../components/PlannerWearReview'
 import { PlanTomorrowForecast } from '../components/PlanTomorrowForecast'
 import { PlanViewToggle } from '../components/PlanViewToggle'
 import type { PlanViewMode } from '../components/PlanViewToggle'
@@ -49,7 +50,6 @@ import {
 import { usePlanStore } from '../stores/usePlanStore'
 import { useKoreaPlannerToday } from '../hooks/useKoreaPlannerToday'
 import { getKoreaPlannerTomorrow } from '../utils/plannerWear'
-import { PlanWearHistoryLink } from '../../wear-history/components/PlanWearHistoryLink'
 
 const weeklyPlanDndOptions = {
   enableMouseEvents: true,
@@ -364,6 +364,7 @@ export function PlanPage() {
     <section className={`plan-page mx-auto w-full max-w-3xl ${viewMode === 'today' ? 'plan-today-page' : viewMode === 'month' ? 'plan-month-page pb-8' : 'plan-week-page sm:pb-8'}`}>
       <PlanPageHeader
         today={isTomorrowView ? undefined : today}
+        historyDate={viewMode === 'today' ? selectedDate : undefined}
         onEditWeek={viewMode === 'week' ? () => setOutfitPickerView('week') : undefined}
       />
       <PlanViewToggle value={viewMode} onChange={changeViewMode} />
@@ -397,6 +398,7 @@ export function PlanPage() {
           viewMode !== 'month' ? 'flex min-h-0 flex-1 flex-col' : 'plan-month-content'
         }`}
       >
+        {viewMode === 'today' && selectedDate === today && <PlannerWearReview today={today} />}
         {isTomorrowView && <PlanTomorrowForecast key={selectedDate} date={selectedDate} />}
         {viewMode === 'today' && plannerDayQuery.isError ? (
           <div className="mt-4 rounded-3xl border border-dashed border-line px-6 py-12 text-center">
@@ -492,7 +494,6 @@ export function PlanPage() {
             today={today}
           />
         )}
-        {viewMode === 'today' && <PlanWearHistoryLink date={selectedDate} today={today} />}
       </div>
 
       {outfitPickerView === viewMode && (

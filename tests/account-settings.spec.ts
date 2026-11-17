@@ -112,6 +112,7 @@ test('프로필 저장 중 다른 계정으로 로그인해도 늦은 응답이 
     const { query, variables = {} } = route.request().postDataJSON()
     let data: unknown
     if (query.includes('query Me ')) data = { me: currentViewer }
+    else if (query.includes('query MyAccount ')) data = { myAccount: { displayName: currentViewer.displayName, email: null, loginId: currentViewer.id === accountA.id ? 'account_a' : 'account_b' } }
     else if (query.includes('mutation UpdateMyStyleProfile')) {
       saving = true
       await gate
@@ -129,6 +130,7 @@ test('프로필 저장 중 다른 계정으로 로그인해도 늦은 응답이 
     await page.getByRole('button', { name: '프로필 저장', exact: true }).click()
     await expect.poll(() => saving).toBe(true)
     await page.getByRole('link', { name: '스타일 프로필 닫기' }).click()
+    await page.getByRole('link', { name: '계정 관리', exact: true }).click()
     await page.getByRole('button', { name: /로그아웃/ }).click()
     await expect(page.getByRole('button', { name: '테스트 로그인' })).toBeVisible()
     await page.getByLabel('테스트 ID', { exact: true }).fill('account_b')
@@ -139,7 +141,10 @@ test('프로필 저장 중 다른 계정으로 로그인해도 늦은 응답이 
     release()
     await response
     await page.getByRole('navigation', { name: '주요 메뉴' }).getByRole('link', { name: '설정', exact: true }).click()
+    await page.getByRole('link', { name: '계정 관리', exact: true }).click()
     await expect(page.getByText('계정 B', { exact: true })).toBeVisible()
+    await expect(page.getByText('account_b', { exact: true })).toBeVisible()
+    await page.getByRole('link', { name: '계정 관리 닫기', exact: true }).click()
     await page.getByRole('link', { name: /스타일 프로필/ }).click()
     await expect(page.getByLabel('키', { exact: false })).toHaveValue('162')
     await expect(page.getByText('스타일 프로필을 저장했어요.', { exact: true })).toHaveCount(0)

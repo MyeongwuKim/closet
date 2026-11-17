@@ -133,6 +133,7 @@ export const wardrobeRepository = {
       select: {
         date: true,
         wornAt: true,
+        wearTemperatureC: true,
         outfit: {
           select: {
             items: { select: { wardrobeItemId: true } },

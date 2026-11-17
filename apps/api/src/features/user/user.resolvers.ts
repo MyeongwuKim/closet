@@ -7,6 +7,7 @@
  */
 import type { GraphQLContext } from '../../graphql/context.js'
 import { toGraphQLError } from '../../graphql/errors.js'
+import { accountDeletionService } from './account-deletion.service.js'
 import {
   toViewerResponse,
   userService,
@@ -16,6 +17,15 @@ import {
 
 export const userResolvers = {
   Query: {
+    myAccount: async (_parent: unknown, _args: unknown, context: GraphQLContext) => {
+      try {
+        const viewer = await context.getViewer()
+        return await userService.getAccountInfo(viewer.id)
+      } catch (error) {
+        throw toGraphQLError(error, '계정 정보를 불러오지 못했어요.', 'ACCOUNT_INFO_LOAD_FAILED')
+      }
+    },
+
     me: async (
       _parent: unknown,
       _args: unknown,
@@ -33,6 +43,33 @@ export const userResolvers = {
     },
   },
   Mutation: {
+    deleteMyAccount: async (_parent: unknown, { confirmation }: { confirmation: string }, context: GraphQLContext) => {
+      try {
+        const viewer = await context.getViewer()
+        return await accountDeletionService.deleteAccount(viewer.id, confirmation)
+      } catch (error) {
+        throw toGraphQLError(error, '회원탈퇴를 완료하지 못했어요. 다시 시도해주세요.', 'ACCOUNT_DELETION_FAILED')
+      }
+    },
+
+    setCompletionPushEnabled: async (_parent: unknown, { enabled }: { enabled: boolean }, context: GraphQLContext) => {
+      try {
+        const viewer = await context.getViewer()
+        return toViewerResponse(await userService.setCompletionPushEnabled(viewer.id, enabled))
+      } catch (error) {
+        throw toGraphQLError(error, '작업 완료 알림 설정을 저장하지 못했어요.', 'COMPLETION_PUSH_PREFERENCE_UPDATE_FAILED')
+      }
+    },
+
+    setWardrobeRediscoveryPushEnabled: async (_parent: unknown, { enabled }: { enabled: boolean }, context: GraphQLContext) => {
+      try {
+        const viewer = await context.getViewer()
+        return toViewerResponse(await userService.setRediscoveryPushEnabled(viewer.id, enabled))
+      } catch (error) {
+        throw toGraphQLError(error, '잠든 옷 알림 설정을 저장하지 못했어요.', 'REDISCOVERY_PUSH_PREFERENCE_UPDATE_FAILED')
+      }
+    },
+
     updateMyStyleProfile: async (
       _parent: unknown,
       { input }: { input: UpdateMyStyleProfileInput },

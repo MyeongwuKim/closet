@@ -16,7 +16,7 @@
 
 세부 선택은 `color`·`brand`·`tag` 반복 URL 파라미터와 `unbranded=1`로 순서를 보존한다. `wardrobeFilters.ts`는 기존 단일 값 URL도 읽고, `ClosetFilterSelection`은 고른 순서대로 칩을 한 줄에 쌓아 가로 스크롤한다. 새 조건은 오른쪽 끝에 붙이고 칩을 다시 누르면 그 조건만 해제한다. 서랍 초기화는 계절·카테고리·검색어를 유지한다.
 
-옷장·코디북의 상단 조작부는 목록 개수를 받기 전부터 표시한다. `TabRouteSkeleton`은 실제 필터 높이와 `WardrobeCabinet`을 재사용해 코드 로딩 → 필터 조회 → 목록 조회 사이에도 카드 위치를 유지한다. 선택 칩·옷장 검색·태그 결과 안내와 접힌 하이라이트 공간도 로딩 때 확보한다. 회귀 검사는 `tests/catalog-loading.spec.ts`, 서랍 조건·초점·복원 검사는 `tests/closet-filters.spec.ts`, 복수 선택·칩 순서·가로 스크롤·브랜드 삭제 검사는 `tests/closet-multifilters.spec.ts`다.
+옷장·코디북의 상단 조작부는 목록 개수를 받기 전부터 표시한다. `TabRouteSkeleton`은 실제 필터 높이와 `WardrobeCabinet`을 재사용해 코드 로딩 → 필터 조회 → 목록 조회 사이에도 카드 위치를 유지한다. 선택 칩·옷장 검색·태그 결과 안내와 재발견 진입 버튼 공간도 로딩 때 확보한다. 회귀 검사는 `tests/catalog-loading.spec.ts`, 서랍 조건·초점·복원 검사는 `tests/closet-filters.spec.ts`, 복수 선택·칩 순서·가로 스크롤·브랜드 삭제 검사는 `tests/closet-multifilters.spec.ts`다.
 
 코디 만들기와 오늘 추천은 코디북 저장 화면을 공유한다. 추천에서는 이름과 계절을 미리 채우고 추천 조합을 날짜 배정과 별도로 저장한다. 같은 옷 조합을 찾으면 `/lookbook?outfit=<id>`의 기존 코디 상세로 연결한다. 코디북은 목록에 없을 때도 해당 ID를 조회한다.
 
@@ -25,6 +25,8 @@
 월간 달력은 모바일에도 12px 코디명과 전체 아이템 수를 표시한다. 6주 달력이 들어가는 높이를 유지하고 짧은 영역에서는 달력 안을 스크롤한다. 긴 코디명은 모바일에서 줄이고 전체 이름은 날짜 링크의 접근성 이름과 상세에 유지한다. `tests/planner-month-outfit.spec.ts`가 날짜 배정·복귀와 캡션·개수를 확인한다.
 
 스타일 프로필은 성별·체형을 필수, 키·몸무게·상세 치수·선호 핏 입력을 선택으로 표시한다. 상세 치수는 기본으로 접고 입력한 항목 수를 알려준다. 접어도 값을 지우지 않으며, 숫자 범위 검증에 실패하면 해당 영역을 펼친다. 저장 입력과 세션 변경 방어는 기존 경로를 유지한다. 회귀는 `tests/account-settings.spec.ts`다.
+
+설정 목록은 옷장 관리·앱 설정으로 묶고 ‘계정 관리’(`/settings/account`)에서 로그인 정보·로그아웃·회원탈퇴를 제공한다. `useAccountInfoQuery`는 `myAccount`로 본인의 이름·로그인 ID·이메일을 읽는다. 회원탈퇴는 `AccountDeletionDialog`에서 삭제 범위·복구 불가를 확인한 뒤 `useDeleteAccountMutation`으로 서버에 요청한다. 성공한 현재 세션만 토큰·네이티브 인증·Query·옷장·코디북·플래너·스타일 프로필을 비우고 로그인으로 이동한다. 실패 시 계정·인증을 유지하며 재시도할 수 있고, 계정이 바뀐 늦은 응답은 새 세션을 지우지 않는다. 확인창은 초점 순환·Escape·초점 복귀·처리 중 중복 방지를 자체 처리한다. 하단 탭이 있는 설정 목록은 마지막 메뉴를 탭 위까지 스크롤할 수 있는 여백을 확보한다. 계정 상세는 `SettingsDetailLayout`의 복귀·초점 순환을 공유하고 권한 새로고침은 표시하지 않는다. 화면·긴 계정 정보·작은 높이·로그아웃 검사는 `tests/account-management.spec.ts`, 탈퇴는 `tests/account-deletion.spec.ts`와 `apps/web/tests/accountDeletionSession.test.ts`다.
 
 여러 사진을 함께 고르면 `WardrobeBatchRegistrationDialog`에서 확인 결과를 목록으로 표시한다. `useWardrobeRegistration`은 후보 ID별 초안·선택·공통 계절·부분 실패만 관리하고 분석 사진은 기존 확인 대기열을 참조한다. 저장 클릭 시 대상 ID를 고정해 기존 한 벌 저장 함수를 순서대로 호출하며 성공한 항목만 제거한다. 분석이 진행 중이면 목록이 잠시 비어도 창과 공통 계절을 유지한다. 세부 수정·유사도 비교는 `ClassificationConfirmModal`을 입력 확인 모드로 재사용하며, 이 모드에서는 서버 저장이나 후보 제거를 하지 않는다. 한 장 등록은 기존 확인 화면을 사용한다. 검사는 `tests/wardrobe-batch-registration.spec.ts`, `tests/registration.spec.ts`다.
 
@@ -76,9 +78,19 @@
 
 ## 잊고 있던 옷
 
-옷장 기본 목록의 스크롤 영역 맨 앞에 `WardrobeRediscoverySection`의 ‘잊고 있던 옷 확인하기’ 버튼을 표시한다. 기본은 접힌 상태이며 눌러 펼칠 때 조회·카드 표시를 시작한다. 닫으면 노출 관찰도 멈추고 재열기에서는 같은 날의 선택을 재사용한다. 검색·필터·다중 선택·옷 상세에서는 숨긴다. `useWardrobeRediscovery`는 계정 ID와 한국 날짜로 조회를 구분하고 날짜 전환·앱 복귀 시 날짜를 갱신한다. 후보는 현재 페이지나 Store 목록이 아닌 서버의 전체 활성 옷장에서 선정한다.
+옷장 기본 목록의 스크롤 영역 맨 앞에 `WardrobeRediscoverySection`의 ‘잊고 있던 옷 확인하기’ 버튼을 표시한다. 버튼이나 재발견 푸시에서 `/closet/rediscovery`의 `WardrobeRediscoveryPage` 전체 화면 목록을 연다. 검색·필터·다중 선택·옷 상세에서는 입구 버튼을 숨긴다. `useWardrobeRediscovery`는 화면을 연 동안 계정 ID와 한국 날짜로 조회를 구분하고 재진입·날짜 전환·앱 복귀 시 현재 후보를 확인한다. 후보는 현재 페이지나 Store 목록이 아닌 서버의 전체 활성 옷장에서 선정한다.
 
-`useRediscoveryImpression`은 카드가 절반 이상 보이고 앱이 전면일 때 해당 ID를 확인한다. 가로 영역 밖의 카드와 추천 시트 뒤에서는 기록하지 않는다. 확인 실패는 다음 노출·복귀·재펼침 이벤트에서 다시 시도하며 체류시간 조건은 없다. 후보가 세 벌 이하이면 다음 날에도 같은 옷이 나올 수 있다. 선정 결과는 당일 유지하며 노출 확인으로 재조회하거나 옷 수정 시각을 바꾸지 않는다. `이 옷으로 코디`는 기존 `TodayOutfitRecommendationPopover`의 `baseItem` 진입점을 사용하므로 계절·색감·사용권 확인과 추천 기록을 그대로 거친다.
+`WardrobeRediscoveryCarousel`은 한 벌의 큰 사진과 다음 카드 일부를 보여주며 직접 스와이프·버튼·방향키로만 이동한다. 한 벌이면 넘김 조작을 숨긴다. 마지막 착용 기록의 경과일과 `lastWornTemperatureC`(그날 하루 평균)를 표시하고, 기록이 없으면 경과일·기온을 만들지 않는다. 옷 상세의 `from` 경로에 현재 카드 ID를 담아 돌아오면 해당 카드로 복원한다. 로딩·오류 재시도·후보 소멸의 빈 상태를 제공한다.
+
+`useRediscoveryImpression`은 현재 카드가 절반 이상 보이고 앱이 전면일 때만 해당 ID를 확인한다. 가로 영역 밖의 카드와 추천 시트 뒤에서는 기록하지 않는다. 확인 실패는 다음 노출·복귀·재진입 이벤트에서 다시 시도하며 체류시간 조건은 없다. 후보가 세 벌 이하이면 다음 날에도 같은 옷이 나올 수 있다. 선정 결과는 당일 유지하며 노출 확인으로 재조회하거나 옷 수정 시각을 바꾸지 않는다. `이 옷으로 코디 만들기`는 기존 `TodayOutfitRecommendationPopover`의 `baseItem` 진입점을 사용하므로 계절·색감·사용권 확인과 추천 기록을 그대로 거친다. `당분간 안 보기`는 기존 사유·재개일 설정 창을 연다.
+
+설정 → 알림(`/settings/notifications`)의 `RediscoveryPushSetting`은 ‘잊고 있던 옷 알림’으로 계정별 `rediscoveryPushEnabled`를 표시하고 `setWardrobeRediscoveryPushEnabled`로 저장한다. 기본 OFF이며 기기 알림 권한이 없으면 저장된 수신 선택을 유지한 채 비활성화한다. 권한을 허용하면 기존 선택을 변경할 수 있다. 프로필 저장과 같은 세션 보호 경로를 사용하며 웹에서는 앱 전용으로 비활성화한다. 재발견 목록의 `RediscoveryNotificationLink`에서도 같은 화면으로 이동하고, `from=rediscovery`와 현재 `item`을 전달해 닫기·Escape 시 보던 옷으로 복원한다.
+
+알림은 수신 종류·기기 알림 권한·접힌 테스트 전송 안내를, 날씨 및 위치(`/settings/weather-location`)는 날씨 사용·위치 권한·위치 사용 안내를 관리한다. 기존 `/settings/notifications-weather`는 알림 화면으로 교체 이동한다. 두 화면은 `SettingsDetailLayout`과 `useSettingsDetailFocus`의 헤더·복귀 경로·Tab 순환·Escape 닫기를 공유하고, `useSettingsPermission`은 해당 종류의 권한만 읽는다. `useWeatherLocationSettings`만 기존 날씨 저장 키와 변경 이벤트를 갱신한다. 기기 권한은 요청 또는 설정 이동 행으로, 수신 동의·웹 날씨 사용은 스위치로 표시한다. 기존 최근 착용 리마인드는 앱 안에서 재선택을 확인하는 별도 기능으로 유지한다. 화면 흐름 검사는 `tests/notification-weather.spec.ts`다.
+
+알림 화면은 수신에 먼저 필요한 기기 권한을 위에 표시한다. 기기 권한이 없으면 ‘받을 알림’ 전체를 `disabled` fieldset으로 흐리게 표시하고 허용 필요 안내를 한 줄로 제공한다. 저장된 ON/OFF 선택은 바꾸지 않으며 권한 허용 후에만 두 스위치를 조작할 수 있다. 항목 요약은 짧게 표시하고 발송 조건·테스트 전송은 접힌 ‘알림 안내’에 모은다.
+
+‘작업 완료 알림’은 계정별 `completionPushEnabled`를 `setCompletionPushEnabled`로 저장한다. 기본 ON을 유지하며 끄면 서버의 AI 완료·실패 기기 알림을 생략한다. `PushPreferenceSetting`이 두 알림의 권한별 비활성화·저장 결과 표시를 공유하고, mutation이 본인 세션을 보호한다. 계정 설정 조회 실패의 재시도는 화면에서 한 번만 표시하며 두 수신 선택은 독립적이다. 앱 안에서 보는 결과와 완료 팝업은 이 설정으로 끄지 않는다.
 
 웹 진입점은 `features/closet/api/wardrobeRediscoveryQueries.ts`, 화면 검사는 `tests/wardrobe-rediscovery.spec.ts`다.
 

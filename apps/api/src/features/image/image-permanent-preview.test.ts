@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { ImageAsset } from '@prisma/client'
+import type { ImageAsset, Prisma } from '@prisma/client'
 import { prisma } from '../../lib/prisma.js'
 import { cloudflareImagesClient } from './cloudflare-images.client.js'
 import { imageRepository, type CreateImageAssetData } from './image.repository.js'
@@ -41,6 +41,11 @@ test('저장소는 생성 이미지의 조회 만료를 비우고 일반 업로�
   const original = prisma.imageAsset.create
   prisma.imageAsset.create = (async (args: unknown) => { calls.push(args); return asset() }) as unknown as typeof original
   t.after(() => { prisma.imageAsset.create = original })
+  const originalTransaction = prisma.$transaction
+  prisma.$transaction = (async (operation: unknown) => (operation as (tx: Prisma.TransactionClient) => Promise<unknown>)({
+    aiLease: { upsert: async () => ({}) }, user: { updateMany: async () => ({ count: 1 }) }, imageAsset: { create: prisma.imageAsset.create },
+  } as unknown as Prisma.TransactionClient)) as typeof originalTransaction
+  t.after(() => { prisma.$transaction = originalTransaction })
   const input = { userId, kind: 'outfitGenerated' as const, cloudflareImageId: 'cloud', storageFilename: 'image.png', retention: 'temporary' as const, expiresAt: new Date('2020-01-01') }
   await imageRepository.create(input)
   assert.equal(calls[0].data.retention, 'permanent')

@@ -32,7 +32,7 @@ export function useTestLoginMutation() {
             testLogin(input: $input) {
               accessToken
               viewer {
-                id displayName email isTemporary
+                id displayName email isTemporary rediscoveryPushEnabled completionPushEnabled
                 styleProfile {
                   gender bodyBuild heightCm weightKg
                   chestCircumferenceCm waistCircumferenceCm hipCircumferenceCm

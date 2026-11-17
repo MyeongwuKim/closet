@@ -30,7 +30,9 @@ export function PlanRouteSkeleton() {
       className={`plan-page mx-auto w-full max-w-3xl ${viewMode === 'today' ? 'plan-today-page' : viewMode === 'month' ? 'plan-month-page pb-8' : 'pb-8'}`}
       aria-busy="true"
     >
-      <CollectionHeading title="플래너" actions={<span className="block h-10 w-21 rounded-xl bg-line/40" aria-hidden="true" />} />
+      <CollectionHeading title="플래너"
+        titleAccessory={viewMode === 'today' && <span className="block h-11 w-24 animate-pulse rounded-full bg-line/40" aria-hidden="true" />}
+        actions={<span className="block h-10 w-21 rounded-xl bg-line/40" aria-hidden="true" />} />
       <div className="plan-view-tabs mt-3 flex animate-pulse sm:mt-6" aria-hidden="true">
         {Array.from({ length: 3 }, (_, index) => <span className="h-9 flex-1 rounded-xl bg-surface/65" key={index} />)}
       </div>
@@ -49,7 +51,6 @@ export function PlanRouteSkeleton() {
       ) : (
         <>
           <PlanPeriodSkeleton viewMode={viewMode} />
-          {viewMode === 'today' && <WearHistoryLink planner from={`/plan?${searchParams}`} date={searchParams.get('date') ?? undefined} />}
         </>
       )}
     </section>
@@ -72,7 +73,7 @@ function CatalogRouteSkeleton({ variant }: { variant: 'wardrobe' | 'outfit' }) {
     <CatalogScrollRegion label={isWardrobe ? '옷장 화면 로딩 중' : '코디북 화면 로딩 중'} resetKey="loading">
       {!isWardrobe && <WearHistoryLink from={`/lookbook${location.search}`} />}
       {isWardrobe && location.pathname === '/closet' && !hasWardrobeFilters && (
-        <div className="mb-4" aria-hidden="true"><span className="block h-10 w-44 animate-pulse rounded-full bg-line/40" /></div>
+        <div className="mb-4" aria-hidden="true"><span className="block h-11 w-52 max-w-full animate-pulse rounded-full bg-line/40" /></div>
       )}
       <WardrobeCabinet
         label={isWardrobe ? (activeSeason ? `${seasonLabels[activeSeason]}에 입는 옷` : '전체 옷장') : '모아둔 코디'}
@@ -149,12 +150,12 @@ export function SettingsRouteSkeleton() {
           <span className="flex-1"><span className={`block h-5 w-28 ${block}`} /><span className={`mt-2 block h-3 w-40 max-w-full ${block}`} /></span>
           <span className="size-5 rounded-full bg-line/40" />
         </div>
-        {['옷장 관리', '앱 설정'].map((label) => (
+        {[{ label: '옷장 관리', count: 2 }, { label: '앱 설정', count: 4 }].map(({ label, count }) => (
           <div key={label}>
             <span className={`mb-2.5 block h-3 w-17 ${block}`} aria-hidden="true" />
             <div className="overflow-hidden rounded-2xl border border-line bg-surface" aria-hidden="true">
-              {[0, 1].map((index) => (
-                <div className={`flex min-h-16 items-center gap-4 px-5 ${index === 0 ? 'border-b border-line' : ''}`} key={index}>
+              {Array.from({ length: count }, (_, index) => (
+                <div className={`flex min-h-16 items-center gap-4 px-5 ${index > 0 ? 'border-t border-line' : ''}`} key={index}>
                   <span className="size-6 shrink-0 rounded-lg bg-sage" />
                   <span className={`block h-4 w-36 max-w-full flex-1 ${block}`} />
                   <span className="size-4 rounded-full bg-line/40" />
@@ -163,11 +164,6 @@ export function SettingsRouteSkeleton() {
             </div>
           </div>
         ))}
-        <div className="flex min-h-16 items-center gap-4 border-t border-line pt-3" aria-hidden="true">
-          <span className="size-6 shrink-0 rounded-lg bg-sage" />
-          <span className="flex-1"><span className={`block h-4 w-20 ${block}`} /><span className={`mt-2 block h-3 w-28 ${block}`} /></span>
-          <span className="size-4 rounded-full bg-line/40" />
-        </div>
       </div>
     </section>
   )

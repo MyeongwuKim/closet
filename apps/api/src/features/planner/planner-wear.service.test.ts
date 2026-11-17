@@ -8,7 +8,8 @@ import { outfitRepository, type outfitInclude } from '../outfit/outfit.repositor
 import { outfitService } from '../outfit/outfit.service.js'
 import { wardrobeRepository } from '../wardrobe/wardrobe.repository.js'
 import { plannerRepository } from './planner.repository.js'
-import { plannerService } from './planner.service.js'
+import { plannerService, type SetPlannerEntryInput, type SetDirectPlannerEntryInput } from './planner.service.js'
+import { wearWeatherRepository } from './wear-weather.repository.js'
 
 const userId = '000000000000000000000001'
 const outfitId = '000000000000000000000002'
@@ -132,6 +133,81 @@ test('착용 취소는 기온 결과·재시도도 초기화하고 중복 취소
   fixture.entries[0].wornAt = null
   await plannerRepository.setEntryWorn(plannerWeekId, date, outfitId, false, new Date())
   assert.equal(fixture.writes.length, 1)
+})
+
+test('미래의 착용 등록과 잘못된 확인 플래그는 코디 조회·생성 전에 거절한다', async (t) => {
+  freezeToday(t)
+  const load = t.mock.method(outfitRepository, 'findById', async () => { throw new Error('조회 전에 거절해야 한다') })
+  const prepare = t.mock.method(outfitService, 'preparePlannerOutfit', async () => { throw new Error('생성 전에 거절해야 한다') })
+  for (const confirmWorn of [true, 'true' as unknown as boolean]) {
+    const code = confirmWorn === true ? 'FUTURE_PLANNER_WEAR' : 'INVALID_PLANNER_WEAR'
+    await assert.rejects(plannerService.setEntry(userId, { weekStartsOn, date: '2026-11-05', outfitId, confirmWorn }), { code })
+    await assert.rejects(plannerService.setDirectEntry(userId, { weekStartsOn, date: '2026-11-05', itemIds: ['top', 'bottom'], confirmWorn }), { code })
+  }
+  assert.equal(load.mock.callCount(), 0)
+  assert.equal(prepare.mock.callCount(), 0)
+})
+
+test('코디북·직접 등록 모두 명시한 실제 착용만 같은 저장 요청으로 전달한다', async (t) => {
+  freezeToday(t)
+  const current = week()
+  t.mock.method(plannerRepository, 'findWeek', async () => current)
+  t.mock.method(outfitRepository, 'findById', async (owner: string) => {
+    assert.equal(owner, userId)
+    return { id: outfitId, name: '코디' } as unknown as Awaited<ReturnType<typeof outfitRepository.findById>>
+  })
+  t.mock.method(outfitService, 'preparePlannerOutfit', async () => ({ userId, name: '직접 코디' }) as Awaited<ReturnType<typeof outfitService.preparePlannerOutfit>>)
+  t.mock.method(wearWeatherRepository, 'getLocation', async () => ({ weatherLatitude: null, weatherLongitude: null }))
+  const save = t.mock.method(plannerRepository, 'setEntry', async () => current)
+  await plannerService.setEntry(userId, { weekStartsOn, date: '2026-11-04', outfitId, confirmWorn: true })
+  await plannerService.setDirectEntry(userId, { weekStartsOn, date: '2026-11-04', itemIds: ['top', 'bottom'], confirmWorn: true })
+  for (const call of save.mock.calls) {
+    assert.ok(call.arguments[0])
+    assert.equal(call.arguments[0].confirmWornAt?.toISOString(), '2026-11-04T14:59:00.000Z')
+  }
+  await plannerService.setEntry(userId, { weekStartsOn, date: '2026-11-04', outfitId })
+  assert.ok(save.mock.calls[2].arguments[0])
+  assert.equal(save.mock.calls[2].arguments[0].confirmWornAt, undefined)
+})
+
+test('코디 저장의 같은 upsert에서 착용을 확인하고 중복 저장은 기존 시각·체감을 보존한다', async (t) => {
+  const fixture = repositoryFixture(t, outfitId, null)
+  await plannerRepository.setEntry({ plannerWeekId, date, outfitId, confirmWornAt: confirmedAt })
+  assert.equal(fixture.writes[0].kind, 'upsert')
+  assert.equal(fixture.writes[0].args.update.wornAt, confirmedAt)
+  assert.equal(fixture.writes[0].args.create.wornAt, confirmedAt)
+  assert.equal('confirmWornAt' in fixture.writes[0].args.create, false)
+  fixture.entries[0].wornAt = confirmedAt
+  await plannerRepository.setEntry({ plannerWeekId, date, outfitId, confirmWornAt: new Date('2026-11-04T12:00:00Z') })
+  assert.equal('wornAt' in fixture.writes[1].args.update, false)
+  assert.equal('wearFeeling' in fixture.writes[1].args.update, false)
+  await assert.rejects(plannerRepository.setEntry({ plannerWeekId, date, outfitId: replacementId, confirmWornAt: confirmedAt }), { code: 'PLANNER_WEAR_CONFIRMED' })
+})
+
+test('두 저장 mutation은 인증한 본인과 명시한 착용 등록 여부를 서비스로 전달한다', async (t) => {
+  const app = await buildApp()
+  t.after(() => app.close())
+  const fields = `weekStartsOn: "${weekStartsOn}", date: "2026-11-04", confirmWorn: true`
+  const savedQuery = `mutation { setPlannerEntry(input: { ${fields}, outfitId: "${outfitId}" }) { id } }`
+  const anonymous = await app.inject({ method: 'POST', url: '/graphql', payload: { query: savedQuery } })
+  assert.equal(anonymous.json().errors[0].extensions.code, 'UNAUTHENTICATED')
+  t.mock.method(authService, 'getViewer', async () => ({ id: userId }))
+  const saved = t.mock.method(plannerService, 'setEntry', async (owner: string, input: SetPlannerEntryInput) => {
+    assert.equal(owner, userId)
+    assert.equal(input.confirmWorn, true)
+    return week()
+  })
+  const direct = t.mock.method(plannerService, 'setDirectEntry', async (owner: string, input: SetDirectPlannerEntryInput) => {
+    assert.equal(owner, userId)
+    assert.equal(input.confirmWorn, true)
+    return week()
+  })
+  for (const query of [savedQuery, `mutation { setDirectPlannerEntry(input: { ${fields}, itemIds: ["top", "bottom"] }) { id } }`]) {
+    const response = await app.inject({ method: 'POST', url: '/graphql', headers: { authorization: 'Bearer test-owner' }, payload: { query } })
+    assert.equal(response.json().errors, undefined)
+  }
+  assert.equal(saved.mock.callCount(), 1)
+  assert.equal(direct.mock.callCount(), 1)
 })
 
 test('저장 직전 다른 코디이면 쓰지 않는다', async (t) => {

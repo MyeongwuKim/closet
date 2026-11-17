@@ -99,7 +99,8 @@ export const authService = {
       throw new ServiceError('로그인 세션이 만료됐어요.', 'UNAUTHENTICATED')
     }
 
-    void authRepository.touchSession(session.id)
+    // 인증 직후 탈퇴·다른 기기의 로그아웃으로 세션이 지워져도 사용 시각 갱신은 요청을 실패시키지 않는다.
+    void authRepository.touchSession(session.id).catch(() => undefined)
     return session.user
   },
 

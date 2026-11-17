@@ -15,11 +15,14 @@ import {
 import { RequireAuth } from '../features/auth/components/RequireAuth'
 import { LoginPage } from '../features/auth/pages/LoginPage'
 import { ClosetDetailPage } from '../features/closet/pages/ClosetDetailPage'
+import { WardrobeRediscoveryPage } from '../features/closet/pages/WardrobeRediscoveryPage'
 import { OutfitComposerPage } from '../features/lookbook/pages/OutfitComposerPage'
 import { PlanDetailPage } from '../features/plan/pages/PlanDetailPage'
 import { AppInfoPage } from '../features/settings/pages/AppInfoPage'
+import { AccountSettingsPage } from '../features/settings/pages/AccountSettingsPage'
 import { WardrobeStatisticsPage } from '../features/settings/pages/WardrobeStatisticsPage'
-import { NotificationWeatherPage } from '../features/settings/pages/NotificationWeatherPage'
+import { NotificationsPage } from '../features/settings/pages/NotificationsPage'
+import { WeatherLocationPage } from '../features/settings/pages/WeatherLocationPage'
 import { WearReminderSettingsPage } from '../features/settings/pages/WearReminderSettingsPage'
 import { isNativeWebViewRuntime } from '../native-bridge'
 import { WearHistoryPage } from '../features/wear-history/pages/WearHistoryPage'
@@ -58,6 +61,7 @@ export const router = createRouter([
             element: <Suspense fallback={<ClosetRouteSkeleton />}><ClosetPage /></Suspense>,
             children: [{ path: ':itemId', element: <ClosetDetailPage /> }],
           },
+          { path: 'closet/rediscovery', element: <WardrobeRediscoveryPage /> },
           {
             path: 'lookbook',
             element: <Suspense fallback={<LookbookRouteSkeleton />}><LookbookPage /></Suspense>,
@@ -80,9 +84,12 @@ export const router = createRouter([
           },
           {
             path: 'settings/notifications-weather',
-            element: <NotificationWeatherPage />,
+            element: <Navigate to="/settings/notifications" replace />,
           },
+          { path: 'settings/notifications', element: <NotificationsPage /> },
+          { path: 'settings/weather-location', element: <WeatherLocationPage /> },
           { path: 'settings/app-info', element: <AppInfoPage /> },
+          { path: 'settings/account', element: <AccountSettingsPage /> },
           {
             path: 'profile',
             element: <Navigate to="/settings/style-profile" replace />,

@@ -13,6 +13,7 @@
     "test:background": "pnpm build && node scripts/test-background-removal.mjs",
     "cleanup:outfit-previews": "tsx src/cli/cleanup-outfit-previews.ts",
     "cleanup:cloudflare-orphans": "tsx src/cli/cleanup-cloudflare-orphans.ts",
+    "push:rediscovery": "tsx src/cli/send-rediscovery-push.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",

@@ -281,6 +281,14 @@ export const typeDefs = `#graphql
     isTemporary: Boolean!
     styleProfile: ViewerStyleProfile!
     wearReminderPreferences: WearReminderPreferences!
+    rediscoveryPushEnabled: Boolean!
+    completionPushEnabled: Boolean!
+  }
+
+  type AccountInfo {
+    displayName: String
+    email: String
+    loginId: String
   }
 
   input TestLoginInput {
@@ -389,6 +397,7 @@ export const typeDefs = `#graphql
     item: WardrobeItem!
     reason: WardrobeRediscoveryReason!
     daysSinceLastWorn: Int
+    lastWornTemperatureC: Float
   }
   type WardrobeRediscovery {
     day: String!
@@ -799,6 +808,7 @@ export const typeDefs = `#graphql
     date: String!
     outfitId: ID!
     activeItemsOnly: Boolean
+    confirmWorn: Boolean
     title: String
     occasion: String
     weatherSummary: String
@@ -824,6 +834,7 @@ export const typeDefs = `#graphql
     weekStartsOn: String!
     date: String!
     itemIds: [ID!]!
+    confirmWorn: Boolean
     name: String
     style: String
     previewImage: OutfitPreviewImageInput
@@ -970,6 +981,7 @@ export const typeDefs = `#graphql
     wardrobeRediscovery: WardrobeRediscovery!
     health: ApiHealth!
     me: Viewer!
+    myAccount: AccountInfo!
     wardrobeItems(category: ClothingCategory, subcategory: String): [WardrobeItem!]!
     wardrobeBrandOptions: [String!]!
     wardrobeItem(id: ID!): WardrobeItem!
@@ -997,10 +1009,13 @@ export const typeDefs = `#graphql
     refillTestAiCredits: PreviewCredits!
     testLogin(input: TestLoginInput!): AuthPayload!
     logout: Boolean!
+    deleteMyAccount(confirmation: String!): Boolean!
     registerMyPushToken(token: String!, platform: PushPlatform!): Boolean!
     sendTestPushNotification: Boolean!
     updateMyStyleProfile(input: UpdateMyStyleProfileInput!): Viewer!
     updateWearReminderPreferences(input: UpdateWearReminderPreferencesInput!): Viewer!
+    setWardrobeRediscoveryPushEnabled(enabled: Boolean!): Viewer!
+    setCompletionPushEnabled(enabled: Boolean!): Viewer!
     prepareImageUpload(input: PrepareImageUploadInput!): PreparedImageUpload!
     confirmImageUpload(assetId: ID!): ImageAsset!
     createWardrobeItem(input: CreateWardrobeItemInput!): WardrobeItem!

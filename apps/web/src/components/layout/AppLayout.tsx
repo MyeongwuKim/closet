@@ -24,7 +24,10 @@ export function AppLayout() {
     '/settings/statistics',
     '/settings/wear-reminder',
     '/settings/notifications-weather',
+    '/settings/notifications',
+    '/settings/weather-location',
     '/settings/app-info',
+    '/settings/account',
   ]
     .some((pattern) => matchPath(pattern, location.pathname))
   const room = location.pathname.startsWith('/closet') || location.pathname.startsWith('/lookbook') ? 'wardrobe' : 'drawer'

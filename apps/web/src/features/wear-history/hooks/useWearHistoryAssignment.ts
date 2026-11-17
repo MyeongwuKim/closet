@@ -12,7 +12,7 @@ import type { WearHistoryGroup } from '../types'
  * 담을 날짜를 재조회해 착용 완료를 보호하고, 기존 코디 교체·최근 착용 확인 후 날짜 복사본을 저장한다.
  * 같은 구성은 과거 사진을 함께 복사하고 바꾼 구성은 새 직접 코디로 저장하며 과거 기록에는 쓰지 않는다.
  */
-export function useWearHistoryAssignment(group: WearHistoryGroup, date: string, selectedItems: WardrobeItem[]) {
+export function useWearHistoryAssignment(group: WearHistoryGroup, date: string, selectedItems: WardrobeItem[], confirmWorn = false) {
   const navigate = useNavigate()
   const pushToast = useUiStore(state => state.pushToast)
   const target = usePlannerEntriesQuery(date, date, Boolean(date))
@@ -56,12 +56,12 @@ export function useWearHistoryAssignment(group: WearHistoryGroup, date: string, 
       const originalIds = group.outfit.layers.map(layer => layer.wardrobeItemId)
       const unchanged = itemIds.length === originalIds.length && originalIds.every(id => itemIds.includes(id))
       if (unchanged) {
-        await setEntry.mutateAsync({ weekStartsOn, date, outfitId: group.outfit.id, title: group.outfit.name, activeItemsOnly: true })
+        await setEntry.mutateAsync({ weekStartsOn, date, outfitId: group.outfit.id, title: group.outfit.name, activeItemsOnly: true, ...(confirmWorn ? { confirmWorn: true } : {}) })
       } else {
-        await setDirect.mutateAsync({ weekStartsOn, date, itemIds, name: group.outfit.name, style: group.outfit.style })
+        await setDirect.mutateAsync({ weekStartsOn, date, itemIds, name: group.outfit.name, style: group.outfit.style, ...(confirmWorn ? { confirmWorn: true } : {}) })
       }
       if (!isCurrent()) return
-      pushToast('선택한 날짜에 코디를 담았어요.', 'success')
+      pushToast(confirmWorn ? '착용 기록을 남겼어요.' : '선택한 날짜에 코디를 담았어요.', 'success')
       navigate(`/plan?view=today&date=${date}`)
     } catch (error) {
       if (isCurrent()) pushToast(error instanceof Error ? error.message : '플래너에 코디를 담지 못했어요.', 'error')

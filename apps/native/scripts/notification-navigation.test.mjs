@@ -2,6 +2,15 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { getForegroundNotificationWebPath, getNotificationWebPath } from '../src/notifications/notificationNavigation.ts'
 
+test('재발견 알림은 누르면 전용 목록으로 이동하고 실행 중 수신만으로는 화면을 바꾸지 않는다', () => {
+  const data = { type: 'wardrobe-rediscovery', path: '/closet/rediscovery' }
+  assert.equal(getNotificationWebPath(data), data.path)
+  assert.equal(getForegroundNotificationWebPath(data), null)
+  for (const path of ['https://evil.example/closet/rediscovery', '/closet/other', '/settings', '/closet/rediscovery?redirect=external']) {
+    assert.equal(getNotificationWebPath({ ...data, path }), null)
+  }
+})
+
 test('AI 완료 알림의 앱 내부 경로를 그대로 복구한다', () => {
   assert.equal(
     getNotificationWebPath({

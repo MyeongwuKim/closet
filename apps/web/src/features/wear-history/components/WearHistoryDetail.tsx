@@ -9,6 +9,8 @@ import { getSavedOutfitItems } from '../../lookbook/utils/savedOutfitItems'
 import { useWearHistoryAssignment } from '../hooks/useWearHistoryAssignment'
 import { formatTemperatureWearDate, formatWearTemperature, readWearHistoryDate, wearFeelingLabels } from '../utils/temperatureHistory'
 import type { WearHistoryGroup } from '../types'
+import { useKoreaPlannerToday } from '../../plan/hooks/useKoreaPlannerToday'
+import { PlannerSaveIntent } from '../../plan/components/PlannerSaveIntent'
 
 /** 과거 구성과 날짜별 체감을 보여주고 선택한 날짜에 그대로 또는 옷을 바꿔 복사한다. 과거 기록은 편집하지 않는다. */
 export function WearHistoryDetail({ group, initialDate, onClose }: { group: WearHistoryGroup; initialDate: string; onClose: () => void }) {
@@ -16,8 +18,11 @@ export function WearHistoryDetail({ group, initialDate, onClose }: { group: Wear
   const [selectedItems, setSelectedItems] = useState(originalItems)
   const [isEditing, setIsEditing] = useState(false)
   const [date, setDate] = useState(initialDate)
+  const today = useKoreaPlannerToday()
+  const [saveAsWorn, setSaveAsWorn] = useState(false)
   const wardrobe = useWardrobeItemsQuery()
-  const assignment = useWearHistoryAssignment(group, date, selectedItems)
+  const confirmWorn = Boolean(date && date <= today && saveAsWorn)
+  const assignment = useWearHistoryAssignment(group, date, selectedItems, confirmWorn)
   const activeItems = wardrobe.data?.filter(item => !item.archivedAt) ?? []
   const hasUnavailable = selectedItems.some(item => item.archivedAt || !activeItems.some(active => active.id === item.id))
   const missingItems = selectedItems.length !== group.outfit.layers.length && !isEditing
@@ -60,6 +65,8 @@ export function WearHistoryDetail({ group, initialDate, onClose }: { group: Wear
       <footer className="shrink-0 border-t border-line bg-surface px-4 pt-3 pb-[calc(.75rem+env(safe-area-inset-bottom))] sm:px-6">
         <div className="mx-auto max-w-4xl">
           <label className="flex items-center gap-3 text-sm font-semibold"><CalendarDays size={18} strokeWidth={1.6} aria-hidden="true" /><span>담을 날짜</span><input type="date" aria-label="담을 날짜" value={date} onChange={event => setDate(readWearHistoryDate(event.target.value, ''))} disabled={isLocked} className="ml-auto min-h-11 min-w-0 max-w-44 rounded-xl border border-line bg-canvas px-3 text-sm font-medium outline-none focus:border-accent focus:ring-2 focus:ring-accent/20" /></label>
+          {date && !protectedDate && <PlannerSaveIntent date={date} today={today} confirmWorn={confirmWorn}
+            disabled={isLocked || assignment.target.isPending || assignment.target.isError} onChange={setSaveAsWorn} />}
           <div className="mt-2 min-h-5 text-xs leading-5 text-muted" role="status">
             {wardrobe.isError ? <span>옷장을 불러오지 못했어요. <button type="button" onClick={() => void wardrobe.refetch()} className="font-semibold text-accent underline">다시 시도</button></span>
               : assignment.target.isError ? <span>이 날짜의 코디를 확인하지 못했어요. <button type="button" onClick={() => void assignment.target.refetch()} className="font-semibold text-accent underline">다시 시도</button></span>
@@ -70,7 +77,7 @@ export function WearHistoryDetail({ group, initialDate, onClose }: { group: Wear
           </div>
           <div className="mt-2 grid grid-cols-2 gap-2">
             <button type="button" disabled={isLocked || wardrobe.isPending || wardrobe.isError} onClick={() => { if (isEditing) setSelectedItems(originalItems); setIsEditing(!isEditing) }} className="min-h-12 rounded-xl border border-line px-3 text-sm font-semibold disabled:opacity-40">{isEditing ? '변경 취소' : '옷 바꿔서 담기'}</button>
-            <button type="button" disabled={isLocked || !canAssign} onClick={() => void assignment.assign()} className="min-h-12 rounded-xl bg-accent px-3 text-sm font-semibold text-white disabled:opacity-40">{assignment.isBusy ? '날짜에 담는 중…' : '이 날짜에 담기'}</button>
+            <button type="button" disabled={isLocked || !canAssign} onClick={() => void assignment.assign()} className="min-h-12 rounded-xl bg-accent px-3 text-sm font-semibold text-white disabled:opacity-40">{assignment.isBusy ? '저장 중…' : confirmWorn ? '입은 코디로 기록' : '이 날짜에 담기'}</button>
           </div>
         </div>
       </footer>

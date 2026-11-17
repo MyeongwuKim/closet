@@ -9,6 +9,7 @@
     "api:local": "pnpm --filter @closet/api dev:local",
     "api:cleanup:outfit-previews": "pnpm --filter @closet/api cleanup:outfit-previews",
     "api:cleanup:cloudflare-orphans": "pnpm --filter @closet/api cleanup:cloudflare-orphans",
+    "api:push:rediscovery": "pnpm --filter @closet/api push:rediscovery",
     "web:dev": "pnpm --filter @closet/web dev",
     "native:dev": "pnpm --filter @closet/native start",
     "native:bundle": "pnpm --filter @closet/native bundle:web",

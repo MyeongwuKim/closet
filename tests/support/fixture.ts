@@ -86,7 +86,9 @@ export type MockApi = {
   wardrobeItems: WardrobeItem[]
   outfits: Outfit[]
   plannerEntries: PlannerEntry[]
-  rediscoveryItems: Array<{ item: WardrobeItem; reason: 'no_wear_record' | 'long_unworn'; daysSinceLastWorn: number | null }>
+  rediscoveryItems: Array<{ item: WardrobeItem; reason: 'no_wear_record' | 'long_unworn'; daysSinceLastWorn: number | null; lastWornTemperatureC?: number | null }>
+  rediscoveryPushEnabled: boolean
+  completionPushEnabled: boolean
   rediscoverySeenIds: string[]
   operations: string[]
   uploadKinds: string[]
@@ -138,6 +140,8 @@ function createMockApi(): MockApi {
     outfits: [createOutfit()],
     plannerEntries: [],
     rediscoveryItems: [],
+    rediscoveryPushEnabled: false,
+    completionPushEnabled: true,
     rediscoverySeenIds: [],
     operations: [],
     uploadKinds: [],
@@ -251,12 +255,21 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
   const input = variables.input ?? {}
 
   switch (operation) {
+    case 'Logout': return { logout: true }
+    case 'DeleteMyAccount': {
+      if (variables.confirmation !== '회원탈퇴') throw new MockGraphqlError('회원탈퇴 확인이 필요해요.', 'ACCOUNT_DELETION_CONFIRMATION_REQUIRED')
+      api.wardrobeItems = []
+      api.outfits = []
+      api.plannerEntries = []
+      return { deleteMyAccount: true }
+    }
+    case 'MyAccount': return { myAccount: { displayName: '테스트 사용자', email: null, loginId: 'closet_test' } }
     case 'ThermalRecommendationContext': return { thermalRecommendationContext: { revision: 'fixture-thermal-neutral', direction: 'neutral', strength: 0, sampleCount: 0 } }
     case 'WardrobeRediscovery': return { wardrobeRediscovery: {
       day: new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date()),
       items: api.rediscoveryItems.flatMap((entry) => {
         const item = api.wardrobeItems.find((item) => item.id === entry.item.id && !item.archivedAt)
-        return item && !isWardrobeRecommendationPaused(item, getKoreaDate()) ? [{ ...entry, item }] : []
+        return item && !isWardrobeRecommendationPaused(item, getKoreaDate()) ? [{ ...entry, lastWornTemperatureC: entry.lastWornTemperatureC ?? null, item }] : []
       }),
     } }
     case 'MarkWardrobeRediscoverySeen': {
@@ -331,7 +344,7 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
       api.plannerEntries = api.plannerEntries.filter((entry) => entry.date !== input.date)
       api.plannerEntries.push({
         date: input.date,
-        wornAt: sameItems ? previous?.wornAt ?? null : null,
+        wornAt: sameItems && previous?.wornAt ? previous.wornAt : input.confirmWorn ? new Date().toISOString() : null,
         wearFeeling: sameItems ? previous?.wearFeeling ?? null : null,
         wearTemperatureC: sameItems ? previous?.wearTemperatureC ?? null : null,
         title: input.title ?? outfit.name,
@@ -360,7 +373,7 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
       api.plannerEntries = api.plannerEntries.filter((entry) => entry.date !== input.date)
       api.plannerEntries.push({ date: input.date, title: outfit.name, occasion: null,
         weatherSummary: input.weatherSummary ?? null, temperatureC: input.temperatureC ?? previous?.temperatureC ?? null,
-        wornAt: sameItems ? previous?.wornAt ?? null : null, wearFeeling: sameItems ? previous?.wearFeeling ?? null : null,
+        wornAt: sameItems && previous?.wornAt ? previous.wornAt : input.confirmWorn ? new Date().toISOString() : null, wearFeeling: sameItems ? previous?.wearFeeling ?? null : null,
         wearTemperatureC: sameItems ? previous?.wearTemperatureC ?? null : null, outfit })
       return { setDirectPlannerEntry: plannerWeekPayload(api, input.weekStartsOn) }
     }
@@ -409,8 +422,18 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
     }
     case 'PreviewCredits': return { previewCredits: { freeRemaining: 5, rewardRemaining: 0, totalRemaining: 5, capacity: 5, nextRefillAt: null, serverNow: new Date().toISOString(), adRewardsRemaining: null, rewardMode: 'test', resetsAt: new Date(Date.now() + 86_400_000).toISOString(), pendingRewardSessionId: null } }
     case 'AcknowledgeOutfitPreviewJob': return { acknowledgeOutfitPreviewJob: true }
+    case 'SetWardrobeRediscoveryPushEnabled': {
+      api.rediscoveryPushEnabled = variables.enabled
+      return { setWardrobeRediscoveryPushEnabled: handleGraphql(api, { query: 'query Me { me { id } }' }).me }
+    }
+    case 'SetCompletionPushEnabled': {
+      api.completionPushEnabled = variables.enabled
+      return { setCompletionPushEnabled: handleGraphql(api, { query: 'query Me { me { id } }' }).me }
+    }
     case 'Me': return { me: {
       id: 'e2e-user', displayName: 'E2E 사용자', email: null, isTemporary: true,
+      rediscoveryPushEnabled: api.rediscoveryPushEnabled,
+      completionPushEnabled: api.completionPushEnabled,
       styleProfile: { gender: null, bodyBuild: null, heightCm: null, weightKg: null, chestCircumferenceCm: null, waistCircumferenceCm: null, hipCircumferenceCm: null, thighCircumferenceCm: null, shoulderWidthCm: null, inseamCm: null, preferredFit: 'regular', preferredStyles: [] },
       wearReminderPreferences: { enabled: false, intervalDays: 7, combinationReminderEnabled: false, itemReminderEnabled: false },
     } }

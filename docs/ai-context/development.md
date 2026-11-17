@@ -27,6 +27,23 @@ API 기본 포트는 4000이다. `pnpm api:dev`와 `pnpm dev`의 API는 `.env` �
 
 `db:push`는 DB 스키마를 반영한다. 이미지 정리 CLI는 기본적으로 삭제 후보만 확인하고 `--execute`에서 실제 삭제한다. 환경 선택과 번들 전달 구조는 [네이티브](native.md#빌드-환경과-검사)에 있다.
 
+## 재발견 푸시 직접 테스트
+
+`pnpm api:push:rediscovery --login-id <테스트 ID>`는 해당 ID의 기존 `TestAccount`와 유효한 로그인 세션의 등록 기기 수만 조회한다. `--execute`를 붙여야 실제 재발견 푸시를 보낸다. 계정을 새로 만들거나 전체 사용자에게 발송하지 않으며 비밀번호·토큰·DB 주소는 출력하지 않는다.
+
+기본 환경은 `local`이다. CLI가 API 모듈을 읽기 전에 `apps/api/.env`와 `.env.local`을 읽으며, `--env development`를 지정하면 환경별 파일을 `.env.development`로 바꾼다. 두 환경 파일이 필요하고 값의 우선순위는 위 API 실행 명령과 같다. `--help`는 환경 파일·DB 없이 동작한다.
+
+```sh
+# 계정·기기 확인만
+pnpm api:push:rediscovery --login-id closet_test
+# 해당 계정에 실제 발송
+pnpm api:push:rediscovery --login-id closet_test --execute
+# 개발 환경 DB의 계정에 실제 발송
+pnpm api:push:rediscovery --env development --login-id closet_test --execute
+```
+
+이 명령은 수신 설정·주간 간격·발송 시간·후보 유무를 건너뛰고 기존 `pushService.sendRediscovery`를 호출한다. 기기에서는 같은 환경의 최신 앱으로 해당 ID에 로그인하고 알림 권한을 허용해야 한다. Expo의 접수 성공은 실제 수신 확인과 다르다. 알림을 누르면 `/closet/rediscovery`의 실제 후보를 조회하므로 후보가 없으면 빈 상태를 보여준다. 옷·착용 기록·당일 선정·노출·수신 설정·자동 발송 예약을 변경하거나 AI를 실행하지 않는다. 자동 검사인 `send-rediscovery-push.test.ts`는 DB·푸시를 대체해 입력·환경 우선순위·대상 제한·조회/발송 분기를 확인한다.
+
 ## 타입과 정적 검사
 
 | 대상 | 명령 |
@@ -68,6 +85,7 @@ GraphQL·알림 이동처럼 TypeScript를 직접 import하는 `.mjs`는 로컬 
 
 | 실제 DB 통합 검사 | 실행 조건과 데이터 영향 |
 | --- | --- |
+| 회원탈퇴 | `TEST_DATABASE_URL`에 별도의 빈 `closet_account_test_숫자` MongoDB 주소를 지정하고 API 작업 디렉터리에서 `node --import tsx --test src/features/user/account-deletion.integration.test.ts`로 실행한다. 기존 컬렉션이 있으면 중단하며 트랜잭션을 지원하는 인스턴스가 필요하다. 테스트 계정 삭제·롤백·모든 세션 폐기·다른 계정 보존·늦은 이미지 저장·사진 정리 재시도를 확인하고 소유한 전용 DB만 종료 시 삭제한다. CF는 대체한다. |
 | 공유 실행기·미리보기 작업·공통 사용권 | `AI_INTEGRATION_DATABASE`가 skip을 제어한다. DB 연결은 별도의 `DATABASE_URL`을 사용하며 플래그 자체가 주소를 테스트 DB로 바꾸지 않는다. |
 | 이미지 참조·고아·삭제 옷 사진 정리 | `TEST_DATABASE_URL`에 별도의 빈 `closet_image_orphan_test_숫자` MongoDB 주소를 지정한다. `image-orphan-cleanup.integration.test.ts`와 `archived-wardrobe-image-cleanup.integration.test.ts`는 각각 독립 프로세스·별도 빈 DB에서 실행한다. 트랜잭션을 지원하는 테스트 인스턴스가 필요하며 종료 시 소유한 전용 DB를 삭제한다. CF는 대체한다. |
 | 테스트 사용권 충전 | `TEST_CREDIT_REFILL_INTEGRATION_DATABASE`로 실행을 제어하고 별도 `DATABASE_URL`의 DB 이름이 `closet_credit_refill_test_숫자`인지 검사한다. 종료 시 해당 DB를 삭제하므로 새로 만든 빈 DB만 지정한다. |

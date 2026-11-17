@@ -7,6 +7,8 @@ import { queryKeys } from '../src/lib/queryKeys'
 import {
   useUpdateStyleProfileMutation,
   useUpdateWearReminderPreferencesMutation,
+  useSetRediscoveryPushEnabledMutation,
+  useSetCompletionPushEnabledMutation,
   ViewerSessionChangedError,
   type ViewerProfile,
 } from '../src/features/settings/api/profileQueries'
@@ -14,7 +16,7 @@ import { useStyleProfileStore } from '../src/features/settings/stores/useStylePr
 
 function createViewer(id: string, heightCm = 170): ViewerProfile {
   return {
-    id, displayName: id, email: null, isTemporary: true,
+    id, displayName: id, email: null, isTemporary: true, rediscoveryPushEnabled: false, completionPushEnabled: true,
     styleProfile: {
       gender: 'male', bodyBuild: 'average', heightCm, weightKg: 65,
       chestCircumferenceCm: null, waistCircumferenceCm: null, hipCircumferenceCm: null, thighCircumferenceCm: null,
@@ -31,7 +33,7 @@ function captureHook<T>(client: QueryClient, useValue: () => T): T {
   return value
 }
 
-for (const kind of ['profile', 'reminder'] as const) {
+for (const kind of ['profile', 'reminder', 'rediscovery', 'completion'] as const) {
   for (const transition of ['same-session', 'different-viewer', 'same-viewer-new-session', 'logout', 'before-cache-write'] as const) {
     test(`${kind}: ${transition}에서는 저장을 시작한 인증 세션의 결과만 반영한다`, async (t) => {
       const originalWindow = globalThis.window
@@ -54,6 +56,8 @@ for (const kind of ['profile', 'reminder'] as const) {
       const before = createViewer('viewer-A')
       const saved = {
         ...createViewer('viewer-A', 185),
+        rediscoveryPushEnabled: kind === 'rediscovery',
+        completionPushEnabled: kind !== 'completion',
         styleProfile: { ...createViewer('viewer-A', 185).styleProfile, thighCircumferenceCm: 70 },
         wearReminderPreferences: { ...before.wearReminderPreferences, enabled: true },
       }
@@ -66,7 +70,7 @@ for (const kind of ['profile', 'reminder'] as const) {
             await gate
             return { ok: true, payload: { data: kind === 'profile'
               ? { updateMyStyleProfile: saved }
-              : { updateWearReminderPreferences: saved } } }
+              : kind === 'reminder' ? { updateWearReminderPreferences: saved } : kind === 'rediscovery' ? { setWardrobeRediscoveryPushEnabled: saved } : { setCompletionPushEnabled: saved } } }
           } },
         },
       })
@@ -79,7 +83,8 @@ for (const kind of ['profile', 'reminder'] as const) {
       client.setQueryData(queryKeys.me, before)
       const pending = kind === 'profile'
         ? captureHook(client, useUpdateStyleProfileMutation).mutateAsync({ ...saved.styleProfile, gender: 'male', bodyBuild: 'average' })
-        : captureHook(client, useUpdateWearReminderPreferencesMutation).mutateAsync(saved.wearReminderPreferences)
+        : kind === 'reminder' ? captureHook(client, useUpdateWearReminderPreferencesMutation).mutateAsync(saved.wearReminderPreferences)
+          : kind === 'rediscovery' ? captureHook(client, useSetRediscoveryPushEnabledMutation).mutateAsync(true) : captureHook(client, useSetCompletionPushEnabledMutation).mutateAsync(false)
       await requested
       if (transition !== 'same-session' && transition !== 'before-cache-write') {
         client.clear()

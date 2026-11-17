@@ -13,6 +13,7 @@ import type {
   Prisma,
 } from '@prisma/client'
 import { prisma } from '../../lib/prisma.js'
+import { nextRediscoveryMorning } from '../push/rediscovery-push.rules.js'
 
 export const viewerInclude = {
   styleProfile: true,
@@ -47,6 +48,33 @@ export interface UpdateWearReminderPreferencesData {
 }
 
 export const userRepository = {
+  /** 계정 관리에 필요한 본인 이름·이메일·로그인 ID만 읽는다. 비밀번호 해시와 세션 정보는 선택하지 않는다. */
+  findAccountInfoById(userId: string) {
+    return prisma.user.findUnique({
+      where: { id: userId },
+      select: { displayName: true, email: true, testAccount: { select: { loginId: true } } },
+    })
+  },
+
+  /** 완료·실패 푸시 수신 여부만 저장하고 다른 알림·리마인드 설정은 유지한다. */
+  async setCompletionPushEnabled(userId: string, enabled: boolean) {
+    await prisma.userSettings.upsert({
+      where: { userId },
+      update: { completionPushEnabled: enabled },
+      create: { userId, completionPushEnabled: enabled },
+    })
+    return this.findViewerById(userId)
+  },
+
+  /** 재발견 푸시 동의를 별도로 저장한다. 같은 값의 재요청은 이미 정한 발송 간격을 초기화하지 않는다. */
+  async setRediscoveryPushEnabled(userId: string, enabled: boolean) {
+    const current = await prisma.userSettings.findUnique({ where: { userId } })
+    if (current?.rediscoveryPushEnabled === enabled) return this.findViewerById(userId)
+    const data = { rediscoveryPushEnabled: enabled, rediscoveryPushNextAt: enabled ? nextRediscoveryMorning(new Date()) : null }
+    await prisma.userSettings.upsert({ where: { userId }, update: data, create: { userId, ...data } })
+    return this.findViewerById(userId)
+  },
+
   findViewerById(userId: string) {
     return prisma.user.findUnique({
       where: { id: userId },

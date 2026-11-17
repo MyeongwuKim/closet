@@ -378,7 +378,6 @@ export function ClosetPage() {
         <CatalogScrollRegion label="옷장 목록" resetKey={searchParams.toString()}>
           {!isEmptyWardrobe && <WardrobeRediscoverySection
             visible={!hasActiveFilters && selectedIds.length === 0}
-            onOpenItem={handleItemClick}
           />}
           <WardrobeCabinet
             key={activeSeason ?? 'all'}

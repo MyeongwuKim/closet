@@ -5,19 +5,17 @@
  * 계정에서 관리할 수 있는 설정 메뉴를 보여주고 스타일 프로필을 편집한다.
  *
  * 구조:
- * 스타일 프로필 카드, 옷장·앱 설정 메뉴, 계정 영역과 스타일 프로필 입력 화면으로 구성되어 있다.
+ * 스타일 프로필 카드, 옷장·앱 설정 메뉴와 스타일 프로필 입력 화면으로 구성한다. 로그인 정보와 세션 관리는 계정 관리 화면에서 제공한다.
  */
 import { useState } from 'react'
 import {
   ChevronLeft,
   ChevronDown,
-  ChevronRight,
-  LogOut,
   Ruler,
   Save,
   Weight,
 } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { PageTitle } from '../../../components/PageTitle'
 import { CollectionHeading } from '../../../components/CollectionHeading'
 import { SegmentedControl } from '../../../components/SegmentedControl'
@@ -28,7 +26,6 @@ import {
   useUpdateStyleProfileMutation,
   ViewerSessionChangedError,
 } from '../api/profileQueries'
-import { useLogoutMutation } from '../../auth/api/authQueries'
 import { SettingsDrawerList } from '../components/SettingsDrawerList'
 import {
   type BodyBuild,
@@ -420,36 +417,12 @@ export function StyleProfilePage() {
 }
 
 export function SettingsPage() {
-  const navigate = useNavigate()
-  const meQuery = useMeQuery()
-  const logout = useLogoutMutation()
-  const accountName = meQuery.data?.displayName || meQuery.data?.email
-
   return (
     <section className="settings-page">
       <CollectionHeading title="설정" />
 
       <SettingsDrawerList />
 
-      <div className="settings-account">
-        <button
-          type="button"
-          onClick={() =>
-            void logout.mutateAsync().finally(() => {
-              navigate('/login', { replace: true })
-            })
-          }
-          disabled={logout.isPending}
-          className="settings-logout"
-        >
-          <LogOut className="settings-logout-icon" size={22} strokeWidth={1.6} aria-hidden="true" />
-          <span className="settings-logout-copy">
-            <strong>{logout.isPending ? '로그아웃 중…' : '로그아웃'}</strong>
-            {accountName && <span>{accountName}</span>}
-          </span>
-          <ChevronRight className="settings-menu-arrow" size={19} strokeWidth={1.6} aria-hidden="true" />
-        </button>
-      </div>
     </section>
   )
 }

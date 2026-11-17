@@ -1,0 +1,12 @@
+.planner-wear-review { display: flex; flex-shrink: 0; flex-wrap: wrap; align-items: center; gap: 10px; margin-block: 4px 10px; padding: 10px; border: 1px solid var(--color-line); border-radius: 12px; background: var(--color-surface); }
+.planner-wear-review-photo { display: flex; width: 48px; height: 56px; flex-shrink: 0; align-items: center; justify-content: center; overflow: hidden; border-radius: 8px; background: var(--color-canvas); }
+.planner-wear-review-photo img { width: 100%; height: 100%; object-fit: contain; }
+.planner-wear-review-photo > :not(img) { width: 50%; min-width: 0; }
+.planner-wear-review-copy { min-width: min(100%, 7.5rem); flex: 1 1 7.5rem; }
+.planner-wear-review-copy p { font-size: .75rem; font-weight: 600; line-height: 1.5; word-break: keep-all; }
+.planner-wear-review-copy > span { display: block; overflow: hidden; margin-top: 3px; color: var(--color-muted); font-size: .6875rem; text-overflow: ellipsis; white-space: nowrap; }
+.planner-wear-review-actions { display: flex; flex-shrink: 0; align-items: center; gap: 4px; margin-left: auto; }
+.planner-wear-review-actions button { min-height: 44px; padding: 8px; border-radius: 10px; font-size: .75rem; font-weight: 600; }
+.planner-wear-review-actions button:first-child { background: var(--color-accent); color: var(--color-surface); }
+.planner-wear-review-actions button:last-child { color: var(--color-muted); }
+.planner-wear-review-actions button:disabled { cursor: wait; opacity: .5; }

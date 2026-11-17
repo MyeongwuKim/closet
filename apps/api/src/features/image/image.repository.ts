@@ -6,8 +6,9 @@ import type {
   Prisma,
 } from '@prisma/client'
 import { prisma } from '../../lib/prisma.js'
+import { randomUUID } from 'node:crypto'
 import { ServiceError } from '../../graphql/errors.js'
-import { aiTransaction } from '../../lib/ai/ai-storage.js'
+import { aiTransaction, touchAiMutex } from '../../lib/ai/ai-storage.js'
 
 /** 미저장 생성 결과는 만들어진 시각부터 24시간이 지난 뒤 고아 정리 대상이 된다. 조회 만료 기한은 아니다. */
 export const GENERATED_PREVIEW_ORPHAN_GRACE_MS = 24 * 60 * 60 * 1000
@@ -120,9 +121,14 @@ export interface CreateImageAssetData {
 }
 
 export const imageRepository = {
-  /** 생성 이미지에는 1시간 조회 제한을 두지 않는다. 미참조 결과의 24시간 정리는 createdAt으로 따로 판단한다. */
+  /** 탈퇴와 같은 User 행을 잠근 뒤 자산을 만든다. 늦게 끝난 업로드는 계정·사진을 복원하지 않는다. 생성 결과의 고아 정리는 createdAt 기준이다. */
   create(data: CreateImageAssetData) {
-    return prisma.imageAsset.create({ data: data.kind === 'outfitGenerated' ? { ...data, retention: 'permanent', expiresAt: null } : data })
+    return aiTransaction(async tx => {
+      await touchAiMutex(tx, `account-lifecycle:${data.userId}`, randomUUID(), new Date())
+      const owner = await tx.user.updateMany({ where: { id: data.userId }, data: { updatedAt: new Date() } })
+      if (owner.count !== 1) throw new ServiceError('로그인이 필요해요.', 'UNAUTHENTICATED')
+      return tx.imageAsset.create({ data: data.kind === 'outfitGenerated' ? { ...data, retention: 'permanent', expiresAt: null } : data })
+    })
   },
 
   /** 중단된 생성 작업의 저장된 결과를 찾는다. 과거 temporary의 만료 시각은 무시하되 삭제 중인 결과는 제외한다. */

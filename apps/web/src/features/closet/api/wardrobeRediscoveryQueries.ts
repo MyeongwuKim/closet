@@ -10,12 +10,13 @@ export function useWardrobeRediscoveryQuery(viewerId: string | null, day: string
     queryKey: queryKeys.wardrobe.rediscovery(viewerId, day),
     enabled: Boolean(viewerId) && enabled,
     staleTime: 60_000,
+    refetchOnMount: 'always',
     queryFn: async ({ signal }): Promise<WardrobeRediscovery> => {
       const data = await graphqlRequest<{ wardrobeRediscovery: {
         day: string
         items: Array<Omit<WardrobeRediscovery['items'][number], 'item'> & { item: WardrobeItemPayload }>
       } }>(`query WardrobeRediscovery {
-        wardrobeRediscovery { day items { reason daysSinceLastWorn item { ${wardrobeItemFields} } } }
+        wardrobeRediscovery { day items { reason daysSinceLastWorn lastWornTemperatureC item { ${wardrobeItemFields} } } }
       }`, undefined, signal)
       return { ...data.wardrobeRediscovery, items: data.wardrobeRediscovery.items.map((entry) => ({ ...entry, item: toWardrobeItem(entry.item) })) }
     },

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import type { WearFeeling } from '@closet/types'
 import { GraphqlRequestError, graphqlRequest } from '../../../lib/graphql'
 import { queryKeys } from '../../../lib/queryKeys'
+import { getAccessToken } from '../../../lib/auth'
 import { usePlanStore } from '../stores/usePlanStore'
 import { toOutfitPreviewImageInput, type OutfitPreviewImageInput } from '../../lookbook/utils/outfitPreviewInput'
 import { invalidateCompletedOutfitPreviews } from '../../lookbook/utils/completedPreviewCache'
@@ -72,7 +73,7 @@ function applyPlannerWearResult(queryClient: QueryClient, weekStartsOn: string, 
 }
 
 /** 빈 하루에도 서버가 배정한 코디를 즉시 넣고, 같은 주의 상세와 착용 관련 조회를 갱신한다. */
-function applyPlannerAssignmentResult(queryClient: QueryClient, input: { weekStartsOn: string; date: string }, entries: PlanEntry[]) {
+function applyPlannerAssignmentResult(queryClient: QueryClient, input: { weekStartsOn: string; date: string; confirmWorn?: boolean }, entries: PlanEntry[]) {
   const savedEntry = entries.find((entry) => entry.date === input.date)
   if (savedEntry?.outfitId) {
     queryClient.setQueriesData<PlanEntry[]>(
@@ -80,8 +81,8 @@ function applyPlannerAssignmentResult(queryClient: QueryClient, input: { weekSta
       [savedEntry],
     )
   }
-  // 배정은 착용 근거를 바꾸지 않으므로 열린 추천을 새로 실행하지 않는다.
-  void applyPlannerWearResult(queryClient, input.weekStartsOn, entries, false)
+  // 예정만 저장하면 추천 근거를 유지하고, 실제 착용을 함께 기록했을 때는 기존 착용 확인과 같은 갱신 경로를 쓴다.
+  void applyPlannerWearResult(queryClient, input.weekStartsOn, entries, input.confirmWorn === true)
   void invalidateCompletedOutfitPreviews(queryClient)
 }
 
@@ -91,6 +92,7 @@ export interface SetPlannerEntryVariables {
   outfitId: string
   /** 온도별 기록을 새 날짜에 담을 때 현재 옷장에 있는 옷만 허용한다. */
   activeItemsOnly?: boolean
+  confirmWorn?: boolean
   title?: string
   occasion?: string
 }
@@ -99,6 +101,7 @@ export interface SetDirectPlannerEntryVariables {
   weekStartsOn: string
   date: string
   itemIds: string[]
+  confirmWorn?: boolean
   name?: string
   style?: string
   previewImage?: OutfitPreviewImageInput
@@ -281,6 +284,7 @@ export function useSetDirectPlannerEntryMutation() {
   const queryClient = useQueryClient()
 
   return useMutation({
+    onMutate: () => getAccessToken(),
     mutationFn: async (input: SetDirectPlannerEntryVariables) => {
       const data = await graphqlRequest<
         { setDirectPlannerEntry: PlannerWeekPayload },
@@ -306,7 +310,8 @@ export function useSetDirectPlannerEntryMutation() {
       return data.setDirectPlannerEntry.entries.map(toPlanEntry)
     },
     onError: (error) => refreshProtectedPlanner(queryClient, error),
-    onSuccess: (entries, input) => {
+    onSuccess: (entries, input, sessionToken) => {
+      if (sessionToken !== getAccessToken()) return
       applyPlannerAssignmentResult(queryClient, input, mergeWeeklyPlanEntries(input.weekStartsOn, entries))
     },
   })
@@ -317,6 +322,7 @@ export function useSetPlannerEntryWornMutation() {
   const queryClient = useQueryClient()
 
   return useMutation({
+    onMutate: () => getAccessToken(),
     mutationFn: async (input: SetPlannerEntryWornVariables) => {
       const data = await graphqlRequest<
         { setPlannerEntryWorn: PlannerWeekPayload },
@@ -341,7 +347,10 @@ export function useSetPlannerEntryWornMutation() {
         data.setPlannerEntryWorn.entries.map(toPlanEntry),
       )
     },
-    onSuccess: (entries, input) => applyPlannerWearResult(queryClient, input.weekStartsOn, entries),
+    onSuccess: (entries, input, sessionToken) => {
+      if (sessionToken !== getAccessToken()) return
+      return applyPlannerWearResult(queryClient, input.weekStartsOn, entries)
+    },
   })
 }
 
@@ -486,6 +495,7 @@ export function useSetPlannerEntryMutation() {
   const queryClient = useQueryClient()
 
   return useMutation({
+    onMutate: () => getAccessToken(),
     mutationFn: async (input: SetPlannerEntryVariables) => {
       const data = await graphqlRequest<
         { setPlannerEntry: PlannerWeekPayload },
@@ -508,7 +518,10 @@ export function useSetPlannerEntryMutation() {
       return mergeWeeklyPlanEntries(data.setPlannerEntry.weekStartsOn, data.setPlannerEntry.entries.map(toPlanEntry))
     },
     onError: (error) => refreshProtectedPlanner(queryClient, error),
-    onSuccess: (entries, input) => applyPlannerAssignmentResult(queryClient, input, entries),
+    onSuccess: (entries, input, sessionToken) => {
+      if (sessionToken !== getAccessToken()) return
+      applyPlannerAssignmentResult(queryClient, input, entries)
+    },
   })
 }
 
