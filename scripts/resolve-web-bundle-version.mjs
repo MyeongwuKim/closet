@@ -51,7 +51,7 @@ function compareVersionSeries(left, right) {
 }
 
 /** 발행 경로에 참여하는 앱의 버전 계열을 계산한다. 구형 운영 앱은 기존 R2 경로에 남는다. */
-export function resolveNativeVersionSeries(appVersions, channel) {
+export function resolveNativeVersionSeries(appVersions, channel, productionMinimum = webBundleRuntime.prod.minimumNativeVersion) {
   const channelVersions = appVersions?.[channel];
 
   if (!channelVersions || typeof channelVersions !== "object") {
@@ -67,7 +67,7 @@ export function resolveNativeVersionSeries(appVersions, channel) {
     `${channel}.android native version`
   );
 
-  const minVersion = parseNumericVersion(webBundleRuntime.prod.minimumNativeVersion);
+  const minVersion = parseNumericVersion(productionMinimum);
   const participants = channel === "prod"
     ? [iosVersion, androidVersion].filter(version => compareVersions(version, minVersion) >= 0)
     : [iosVersion, androidVersion];
