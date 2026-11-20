@@ -32,13 +32,15 @@ GitHub 저장소 **Settings → Secrets and variables → Actions**에서 다음
 | --- | --- | --- | --- |
 | Secret | `R2_ACCESS_KEY_ID_DEV` | `R2_ACCESS_KEY_ID_PROD` | Cloudflare R2 API 토큰의 Access Key ID. 각 버킷으로 권한 제한. |
 | Secret | `R2_SECRET_ACCESS_KEY_DEV` | `R2_SECRET_ACCESS_KEY_PROD` | 같은 토큰의 Secret Access Key. |
-| Variable | `R2_ENDPOINT_DEV` | `R2_ENDPOINT_PROD` | 버킷 Settings의 S3 API 엔드포인트. 버킷명 경로 제외. |
+| Variable | `R2_ENDPOINT_DEV` | `R2_ENDPOINT_PROD` | 버킷 Settings의 S3 API 엔드포인트. 버킷명 경로 제외. 발행기는 실수로 붙인 동일 버킷명 경로를 제거하며 다른 경로는 거절한다. |
 | Variable | `R2_BUCKET_DEV` | `R2_BUCKET_PROD` | 실제 버킷명. |
 | Variable | `WEB_BUNDLE_BASE_URL_DEV` | `WEB_BUNDLE_BASE_URL_PROD` | 버킷의 공개 다운로드 URL 또는 연결한 도메인. 운영은 운영용 도메인을 사용한다. |
 
 R2 키는 CI 업로드 단계에만 전달한다. 앱 환경 파일과 Vite 공개 변수에 넣지 않는다. 현재 GraphQL 전송은 `ClosetNative.requestGraphql` → 네이티브 세션·고정 API를 사용하는 기존 브리지다. 원격 번들 CI에는 `VITE_API_URL_DEV/PROD`가 필요하지 않다. 독립 브라우저용 웹의 API 설정은 기존 방식을 따른다.
 
 앱은 local `.env`, development `.env.development`, production `.env.production` 중 선택한 파일 하나를 사용한다. 기존 `EXPO_PUBLIC_API_URL`은 해당 환경 API 주소다. 원격 환경에는 `EXPO_PUBLIC_WEB_BUNDLE_BASE_URL`을 추가하고 **동일 채널의 공개 다운로드 주소**를 넣는다. local에는 필요 없다. 앱 설정이 manifest URL과 정책 URL을 계산한다. 이 네이티브 업데이트 로더는 새 바이너리 배포 후부터 작동한다. 기존 설치 앱에 R2 업로드만으로 로더를 추가할 수는 없다.
+
+버킷 안에 동일한 버킷명 폴더가 추가되면 `R2_ENDPOINT_DEV/PROD`에 `/버킷명`이 붙었는지 확인한다. S3 주소는 호스트까지만 사용하고 버킷은 별도로 지정한다. 기존 중복 경로의 객체는 코드 수정만으로 이동·삭제되지 않는다. 루트에 번들·정책을 다시 발행하고 앱 다운로드를 확인한 다음 기존 중복 경로를 정리한다.
 
 ## 실행·검증
 

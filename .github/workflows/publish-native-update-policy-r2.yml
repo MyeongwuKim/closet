@@ -4,6 +4,8 @@ on:
   push:
     branches: [develop]
     paths:
+      - 'scripts/r2-config.mjs'
+      - 'scripts/r2-config.test.mjs'
       - 'apps/native/minimum-app-versions.json'
       - 'scripts/publish-native-update-policy-r2.mjs'
       - 'scripts/publish-native-update-policy-r2.test.mjs'
@@ -41,7 +43,7 @@ jobs:
         run: |
           test -n "$R2_ENDPOINT"
           test -n "$R2_BUCKET_NAME"
-      - run: node --test scripts/publish-native-update-policy-r2.test.mjs
+      - run: node --test scripts/publish-native-update-policy-r2.test.mjs scripts/r2-config.test.mjs
       - run: node scripts/publish-native-update-policy-r2.mjs --validate-only
       - name: Publish native update policy
         env:

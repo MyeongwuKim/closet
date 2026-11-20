@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { normalizeR2Endpoint } from "./r2-config.mjs";
 
 /**
  * 용도:
@@ -27,8 +28,8 @@ import { parseNumericVersion } from "./resolve-web-bundle-version.mjs";
 
 const env = process.env;
 
-const endpoint = required("R2_ENDPOINT");
 const bucketName = required("R2_BUCKET_NAME");
+const endpoint = normalizeR2Endpoint(required("R2_ENDPOINT"), bucketName);
 const accessKeyId = env.R2_ACCESS_KEY_ID || env.AWS_ACCESS_KEY_ID;
 const secretAccessKey = env.R2_SECRET_ACCESS_KEY || env.AWS_SECRET_ACCESS_KEY;
 

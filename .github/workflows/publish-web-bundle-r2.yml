@@ -4,6 +4,8 @@ on:
   push:
     branches: [develop]
     paths:
+      - 'scripts/r2-config.mjs'
+      - 'scripts/r2-config.test.mjs'
       - 'apps/web/**'
       - 'packages/types/**'
       - 'apps/native/app.config.js'

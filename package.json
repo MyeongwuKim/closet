@@ -35,7 +35,7 @@
     "ios:prod": "pnpm --filter @closet/native ios:prod",
     "ios:local": "pnpm --filter @closet/native ios:local",
     "ios:device": "pnpm --filter @closet/native ios:device",
-    "test:web-bundle-scripts": "node --test scripts/publish-web-bundle-r2.test.mjs scripts/resolve-web-bundle-version.test.mjs",
+    "test:web-bundle-scripts": "node --test scripts/publish-web-bundle-r2.test.mjs scripts/resolve-web-bundle-version.test.mjs scripts/r2-config.test.mjs",
     "publish:web-bundle:r2": "node scripts/publish-web-bundle-r2.mjs",
     "resolve:web-bundle-version": "node scripts/resolve-web-bundle-version.mjs",
     "build:web-bundle": "node apps/native/scripts/sync-web-build.mjs --remote",

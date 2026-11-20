@@ -54,3 +54,10 @@ test('publishes channel policy history before latest; a failed history upload ne
   assert.equal(failed.run([], { FAIL_RELEASE: '1' }).status, 1)
   assert.equal(failed.calls().length, 1)
 })
+
+test('policy publisher normalizes an endpoint containing the bucket name', t => {
+  const f = fixture(t);
+  const result = f.run([], { R2_ENDPOINT: 'https://test.r2.cloudflarestorage.com/test-dev/' });
+  assert.equal(result.status, 0, result.stderr);
+  for (const { args } of f.calls()) assert.equal(args[args.indexOf('--endpoint-url') + 1], 'https://test.r2.cloudflarestorage.com');
+});

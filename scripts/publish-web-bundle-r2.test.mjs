@@ -313,11 +313,11 @@ function createFixture({ failCopy = false, failList = false, rmFailures = 0, cha
         .filter(Boolean)
         .map((line) => JSON.parse(line));
     },
-    run() {
+    run(extraEnv = {}) {
       return spawnSync(process.execPath, [publishScriptPath], {
         cwd: repositoryRoot,
         encoding: "utf8",
-        env: childEnv
+        env: { ...childEnv, ...extraEnv }
       });
     }
   };
@@ -357,5 +357,14 @@ function assertLatestWasActivatedBeforeCleanup(calls) {
     assert.equal(removals.length, 1);
     assert.ok(removals[0].args.includes('s3://test-bucket/releases/1.0.0/'));
     assert.ok(calls.findIndex(isRemoveCall) > calls.findIndex(({ args }) => args.includes('s3://test-bucket/latest/manifest.json')));
+  } finally { fixture.cleanup(); }
+});
+
+test('web publisher sends the bucket separately from a normalized S3 endpoint', () => {
+  const fixture = createFixture({});
+  try {
+    const result = fixture.run({ R2_ENDPOINT: 'https://test-account.r2.cloudflarestorage.com/test-bucket' });
+    assert.equal(result.status, 0, result.stderr);
+    for (const { args } of fixture.readCalls()) assert.equal(args[args.indexOf('--endpoint-url') + 1], 'https://test-account.r2.cloudflarestorage.com');
   } finally { fixture.cleanup(); }
 });
