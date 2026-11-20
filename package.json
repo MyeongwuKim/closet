@@ -34,7 +34,14 @@
     "ios:dev": "pnpm --filter @closet/native ios:dev",
     "ios:prod": "pnpm --filter @closet/native ios:prod",
     "ios:local": "pnpm --filter @closet/native ios:local",
-    "ios:device": "pnpm --filter @closet/native ios:device"
+    "ios:device": "pnpm --filter @closet/native ios:device",
+    "test:web-bundle-scripts": "node --test scripts/publish-web-bundle-r2.test.mjs scripts/resolve-web-bundle-version.test.mjs",
+    "publish:web-bundle:r2": "node scripts/publish-web-bundle-r2.mjs",
+    "resolve:web-bundle-version": "node scripts/resolve-web-bundle-version.mjs",
+    "build:web-bundle": "node apps/native/scripts/sync-web-build.mjs --remote",
+    "test:e2e:web-bundle": "playwright test --config playwright.web-bundle.config.ts",
+    "validate:native-update-policy": "node scripts/publish-native-update-policy-r2.mjs --validate-only",
+    "publish:native-update-policy:r2": "node scripts/publish-native-update-policy-r2.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",

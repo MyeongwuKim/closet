@@ -1,0 +1,26 @@
+{
+  "dev": {
+    "ios": {
+      "enabled": false,
+      "minimumVersion": "0.1.0",
+      "storeUrl": null
+    },
+    "android": {
+      "enabled": false,
+      "minimumVersion": "0.1.0",
+      "storeUrl": null
+    }
+  },
+  "prod": {
+    "ios": {
+      "enabled": false,
+      "minimumVersion": "0.1.0",
+      "storeUrl": null
+    },
+    "android": {
+      "enabled": false,
+      "minimumVersion": "0.1.0",
+      "storeUrl": null
+    }
+  }
+}

@@ -1,0 +1,81 @@
+name: Publish web bundle to R2
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'apps/web/**'
+      - 'packages/types/**'
+      - 'apps/native/app.config.js'
+      - 'apps/native/app-versions.json'
+      - 'apps/native/scripts/sync-web-build.mjs'
+      - 'apps/native/scripts/native-document.mjs'
+      - 'config/web-bundle-runtime.json'
+      - 'scripts/*web-bundle*'
+      - '.github/workflows/publish-web-bundle-r2.yml'
+      - '.github/workflows/regression.yml'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Bundle channel
+        type: choice
+        options: [dev, prod]
+        default: dev
+        required: true
+      version:
+        description: 'Optional web version (x.y.z, same native major/minor)'
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-web-bundle-r2-${{ inputs.channel || 'dev' }}
+  cancel-in-progress: false
+
+jobs:
+  regression:
+    uses: ./.github/workflows/regression.yml
+  publish:
+    needs: regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOSET_WEB_BUNDLE_CHANNEL: ${{ inputs.channel || 'dev' }}
+      REQUESTED_WEB_VERSION: ${{ inputs.version }}
+      R2_ENDPOINT: ${{ (inputs.channel == 'prod' && (vars.R2_ENDPOINT_PROD || secrets.R2_ENDPOINT_PROD)) || (inputs.channel != 'prod' && (vars.R2_ENDPOINT_DEV || secrets.R2_ENDPOINT_DEV)) || '' }}
+      R2_BUCKET_NAME: ${{ (inputs.channel == 'prod' && (vars.R2_BUCKET_PROD || secrets.R2_BUCKET_PROD)) || (inputs.channel != 'prod' && (vars.R2_BUCKET_DEV || secrets.R2_BUCKET_DEV)) || '' }}
+      R2_PUBLIC_BASE_URL: ${{ (inputs.channel == 'prod' && (vars.WEB_BUNDLE_BASE_URL_PROD || secrets.WEB_BUNDLE_BASE_URL_PROD)) || (inputs.channel != 'prod' && (vars.WEB_BUNDLE_BASE_URL_DEV || secrets.WEB_BUNDLE_BASE_URL_DEV)) || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.20.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Validate channel configuration
+        run: |
+          test -n "$R2_ENDPOINT"
+          test -n "$R2_BUCKET_NAME"
+          test -n "$R2_PUBLIC_BASE_URL"
+      - run: pnpm test:web-bundle-scripts
+      - run: pnpm --filter @closet/native test:web-bundle
+      - run: pnpm resolve:web-bundle-version
+      - run: pnpm build:web-bundle
+      - run: pnpm --filter @closet/native exec tsc --noEmit
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e:web-bundle
+      - name: Publish verified release and switch latest
+        env:
+          R2_ACCESS_KEY_ID: ${{ (inputs.channel == 'prod' && secrets.R2_ACCESS_KEY_ID_PROD) || (inputs.channel != 'prod' && secrets.R2_ACCESS_KEY_ID_DEV) || '' }}
+          R2_SECRET_ACCESS_KEY: ${{ (inputs.channel == 'prod' && secrets.R2_SECRET_ACCESS_KEY_PROD) || (inputs.channel != 'prod' && secrets.R2_SECRET_ACCESS_KEY_DEV) || '' }}
+          CLOSET_WEB_DIST_DIR: .web-bundle/dist
+          CLOSET_WEB_BUNDLE_RETENTION: '5'
+        run: pnpm publish:web-bundle:r2

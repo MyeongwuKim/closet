@@ -8,6 +8,7 @@ const require = createRequire(import.meta.url)
 const nativeRoot = fileURLToPath(new URL('..', import.meta.url))
 const expoCli = require.resolve('expo/bin/cli')
 const { variant, env, envFile } = loadBuildEnvironment(process.argv[2])
+env.CLOSET_BUILD_PLATFORM = 'ios'
 const device = process.argv.slice(3).includes('--device')
 const isRelease = variant.environment !== 'local'
 console.log(`wearroom 빌드: ${variant.name} / ${envFile} / ${isRelease ? 'Release' : 'Debug'}`)

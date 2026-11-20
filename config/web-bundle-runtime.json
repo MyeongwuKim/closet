@@ -1,0 +1,10 @@
+{
+  "dev": {
+    "prefix": "",
+    "minimumNativeVersion": "0.1.0"
+  },
+  "prod": {
+    "prefix": "runtime/v1",
+    "minimumNativeVersion": "0.1.0"
+  }
+}

@@ -6,7 +6,7 @@ export default defineConfig({
   testDir: './tests',
   testMatch: '**/*.spec.ts',
   // 실제 유료 AI 호출은 별도 설정으로 요청할 때만 실행한다.
-  testIgnore: ['**/ai-api/**'],
+  testIgnore: ['**/ai-api/**', '**/web-bundle/**'],
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: 0,

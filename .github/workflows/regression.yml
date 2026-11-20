@@ -1,6 +1,7 @@
 name: E2E regression
 
 on:
+  workflow_call:
   push:
     branches:
       - main
@@ -9,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: regression-${{ github.ref }}
+  group: regression-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

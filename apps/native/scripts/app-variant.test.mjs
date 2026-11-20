@@ -23,6 +23,8 @@ test('웨어룸은 이름 끝의 식별자와 서로 다른 설치 식별자로 
 
 test('Expo 설정은 iOS·Android·딥 링크를 함께 나누고 기존 EAS 연결을 보존한다', () => {
   const previous = process.env.WEAROOM_APP_ENV
+  const previousBase = process.env.EXPO_PUBLIC_WEB_BUNDLE_BASE_URL
+  process.env.EXPO_PUBLIC_WEB_BUNDLE_BASE_URL = 'https://bundle.example.test'
   try {
     for (const environment of ['development', 'local', 'production']) {
       process.env.WEAROOM_APP_ENV = environment
@@ -38,6 +40,8 @@ test('Expo 설정은 iOS·Android·딥 링크를 함께 나누고 기존 EAS 연
       assert.equal(config.extra.eas.projectId, base.extra.eas.projectId)
     }
   } finally {
+    if (previousBase === undefined) delete process.env.EXPO_PUBLIC_WEB_BUNDLE_BASE_URL
+    else process.env.EXPO_PUBLIC_WEB_BUNDLE_BASE_URL = previousBase
     if (previous === undefined) delete process.env.WEAROOM_APP_ENV
     else process.env.WEAROOM_APP_ENV = previous
   }

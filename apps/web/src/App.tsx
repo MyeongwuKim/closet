@@ -6,9 +6,12 @@ import { queryClient } from './lib/queryClient'
 
 function App() {
   useEffect(() => {
-    window.ReactNativeWebView?.postMessage(
-      JSON.stringify({ type: 'closet:web-app-ready' }),
+    const notifyReady = () => window.ReactNativeWebView?.postMessage(
+      JSON.stringify({ type: 'closet:web-app-ready', loadKey: (window as Window & { __closetBundleLoadKey?: string }).__closetBundleLoadKey }),
     )
+    notifyReady()
+    window.addEventListener('closet:request-web-app-ready', notifyReady)
+    return () => window.removeEventListener('closet:request-web-app-ready', notifyReady)
   }, [])
 
   return (

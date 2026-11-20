@@ -11,6 +11,7 @@ const nativeRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
 const webRoot = path.resolve(nativeRoot, '../web')
 const webDist = path.join(webRoot, 'dist')
 const generatedFile = path.join(nativeRoot, 'src/generated/webBundle.ts')
+const isRemote = process.argv.includes('--remote')
 const shouldSkipBuild = process.argv.includes('--skip-build')
 const webBundleBaseUrl = 'https://closet.native/'
 const moduleSpecifierPrefix = '@closet-web/'
@@ -38,7 +39,9 @@ function buildWeb() {
   }
 }
 
-const { variant, env } = loadBuildEnvironment(process.env.WEAROOM_APP_ENV)
+const { variant, env } = isRemote
+  ? { variant: { environment: process.env.CLOSET_WEB_BUNDLE_CHANNEL === 'prod' ? 'production' : 'development' }, env: { ...process.env, VITE_API_URL: '' } }
+  : loadBuildEnvironment(process.env.WEAROOM_APP_ENV)
 webBundleVersion =
   env.CLOSET_WEB_BUNDLE_VERSION?.trim() || createWebBundleVersion()
 
@@ -321,6 +324,12 @@ html = html.replace(
   `${await createNativeModuleScripts(entryScriptPaths)}\n  </head>`,
 )
 
+if (isRemote) {
+  const remoteDist = path.join(nativeRoot, '../../.web-bundle/dist')
+  await mkdir(remoteDist, { recursive: true })
+  await writeFile(path.join(remoteDist, 'index.html'), html)
+  console.log('Generated .web-bundle/dist/index.html')
+}
 await mkdir(path.dirname(generatedFile), { recursive: true })
 await writeFile(
   generatedFile,

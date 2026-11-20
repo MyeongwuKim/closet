@@ -6,6 +6,8 @@
 
 [sync-web-build.mjs](../../apps/native/scripts/sync-web-build.mjs)는 웹 빌드에서 `apps/native/src/generated/webBundle.ts`를 생성한다. WebView의 기준 주소는 `https://closet.native/`다. 웹 개발 서버와 앱 안의 번들은 별개이며, `pnpm native:web:sync`는 번들 생성 후 실행 앱을 다시 불러온다.
 
+원격 웹 번들·강제 업데이트 정책·R2 경로·GitHub 설정·검증 명령은 [웹 번들·앱 업데이트](web-bundle-updates.md)에 있다. local은 내장 번들을, dev/prod는 채널·호환성·해시를 검사한 로컬 저장본을 사용한다. 현재 버전은 `apps/native/app-versions.json`, 스토어 강제 업데이트 정책은 `apps/native/minimum-app-versions.json`이다.
+
 ## 브리지와 기기 기능
 
 | 역할 | 위치 |
@@ -22,7 +24,7 @@
 
 ## 준비 신호와 화면 이동
 
-브리지 설치 완료인 `closet:native-bridge-ready`와 웹 앱 준비 완료인 `closet:web-app-ready`는 별개다. WebView는 웹 앱 준비 전에 받은 이동 요청을 보관했다가 처리한다.
+브리지 설치 완료인 `closet:native-bridge-ready`와 웹 앱 준비 완료인 `closet:web-app-ready`는 별개다. WebView는 웹 앱 준비 전에 받은 이동 요청을 보관했다가 처리한다. 웹 준비 신호의 로드 키가 현재 WebView와 일치해야 번들을 확정하며, 신호 재요청·재로딩·이전 번들 복구는 `src/webBundle/webViewReadyRecovery.ts`와 `NativeWebViewScreen.tsx`에 있다.
 
 앱 복귀 시 웹에 상태·재활성 이벤트를 전달해 작업과 날씨를 다시 확인한다. [notificationNavigation.ts](../../apps/native/src/notifications/notificationNavigation.ts)는 알림 경로를 정규화하고 실행 중 룩북 완료 알림의 자동 이동을 생략한다. 딥 링크는 [deepLinks.ts](../../apps/native/src/navigation/deepLinks.ts), hash/browser 이동은 `webViewNavigation.ts`, 외부 링크는 `externalLinkBridge.ts`에 있다.
 

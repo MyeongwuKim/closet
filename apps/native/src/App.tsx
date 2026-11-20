@@ -8,6 +8,8 @@
  * 권한 안내, 인증 확인, 서버 연결 오류, 로그인, 로그인 완료 WebView와
  * 하단 탭과 자연스럽게 이어지는 기기 세이프 영역으로 구성되어 있다.
  */
+import { useNativeUpdate } from './nativeUpdate/useNativeUpdate'
+import { NativeUpdateScreen } from './nativeUpdate/NativeUpdateScreen'
 import { wearroomColors } from './theme/wearroomTheme'
 import * as SplashScreen from 'expo-splash-screen'
 import { StatusBar } from 'expo-status-bar'
@@ -27,6 +29,7 @@ const SPLASH_SETTLE_DELAY_MS = 400
 
 export default function App() {
   const auth = useNativeAuth()
+  const nativeUpdate = useNativeUpdate()
   const splashReleaseStarted = useRef(false)
   const [isSplashHidden, setIsSplashHidden] = useState(false)
   const [notificationPath, setNotificationPath] = useState<string | null>(null)
@@ -53,7 +56,14 @@ export default function App() {
       .finally(() => setTimeout(() => setIsSplashHidden(true), SPLASH_SETTLE_DELAY_MS))
   }, [])
 
-  if (!isPermissionFlowComplete || auth.status === 'checking') {
+  if (nativeUpdate.status === 'required' && nativeUpdate.requirement) {
+    return <SafeAreaView onLayout={releaseSplash} style={styles.screen}>
+      <StatusBar style="dark" />
+      <NativeUpdateScreen requirement={nativeUpdate.requirement} onRetry={() => { void nativeUpdate.checkForNativeUpdate() }} />
+    </SafeAreaView>
+  }
+
+  if (!isPermissionFlowComplete || auth.status === 'checking' || nativeUpdate.status === 'checking') {
     return (
       <SafeAreaView style={styles.screen}>
         <StatusBar style="dark" />
@@ -62,7 +72,7 @@ export default function App() {
           onInitialFrameReady={releaseSplash}
           onTestLogin={auth.loginWithTestAccount}
         />
-        {!isPermissionFlowComplete ? (
+        {!isPermissionFlowComplete && nativeUpdate.status === 'ready' ? (
           <InitialPermissionPromptHost onComplete={completePermissionFlow} />
         ) : null}
       </SafeAreaView>
