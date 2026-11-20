@@ -1,7 +1,7 @@
 name: E2E regression
 
 on:
-  workflow_call:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Any future deployment job must depend on this job's success.
+  # Production web publication reuses this workflow's success for the exact commit.
   regression:
     name: TypeScript, build, and Playwright gate
     runs-on: ubuntu-latest
@@ -45,6 +45,9 @@ jobs:
           pnpm --filter @closet/api typecheck
           pnpm --filter @closet/web exec tsc -b --noEmit
           pnpm typecheck:e2e
+
+      - name: Check production gate logic
+        run: node --test scripts/check-regression-status.test.mjs
 
       - name: Run API unit tests
         run: pnpm test:unit:api

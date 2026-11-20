@@ -25,7 +25,7 @@ module.exports = ({ config }) => {
     scheme: variant.scheme,
     ios: { ...config.ios, bundleIdentifier: variant.identifier },
     android: { ...config.android, package: variant.identifier },
-    plugins: [...(config.plugins ?? []), ['react-native-google-mobile-ads', {
+    plugins: [...(config.plugins ?? []), ['./plugins/with-ios-build-identity.cjs', { schemeName: variant.xcodeScheme, version: versions.ios }], ['react-native-google-mobile-ads', {
       iosAppId: liveAdsAppId || 'ca-app-pub-3940256099942544~1458002511',
       androidAppId: 'ca-app-pub-3940256099942544~3347511713',
       delayAppMeasurementInit: true,

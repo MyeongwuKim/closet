@@ -23,7 +23,8 @@
     "test:build-environment": "node --test scripts/build-environment.test.mjs scripts/metro-environment.test.mjs",
     "test:app-variant": "node --test scripts/app-variant.test.mjs",
     "test:ios-provisioning": "node --test scripts/ios-provisioning.test.mjs",
-    "test:web-bundle": "node --test tests/webBundle*.test.cjs tests/webViewReadyRecovery.test.cjs"
+    "test:web-bundle": "node --test tests/webBundle*.test.cjs tests/webViewReadyRecovery.test.cjs",
+    "test:ios-build": "node --test scripts/confirm-ios-version.test.mjs scripts/ios-build-identity.test.mjs"
   },
   "dependencies": {
     "@closet/types": "workspace:*",

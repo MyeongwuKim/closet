@@ -25,34 +25,26 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  regression:
-    uses: ./.github/workflows/regression.yml
   publish:
-    needs: regression
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 5
     env:
       CLOSET_NATIVE_UPDATE_CHANNEL: ${{ inputs.channel || 'dev' }}
       R2_ENDPOINT: ${{ (inputs.channel == 'prod' && (vars.R2_ENDPOINT_PROD || secrets.R2_ENDPOINT_PROD)) || (inputs.channel != 'prod' && (vars.R2_ENDPOINT_DEV || secrets.R2_ENDPOINT_DEV)) || '' }}
       R2_BUCKET_NAME: ${{ (inputs.channel == 'prod' && (vars.R2_BUCKET_PROD || secrets.R2_BUCKET_PROD)) || (inputs.channel != 'prod' && (vars.R2_BUCKET_DEV || secrets.R2_BUCKET_DEV)) || '' }}
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10.20.0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
       - name: Validate channel configuration
         run: |
           test -n "$R2_ENDPOINT"
           test -n "$R2_BUCKET_NAME"
       - run: node --test scripts/publish-native-update-policy-r2.test.mjs
-      - run: pnpm validate:native-update-policy
+      - run: node scripts/publish-native-update-policy-r2.mjs --validate-only
       - name: Publish native update policy
         env:
           R2_ACCESS_KEY_ID: ${{ (inputs.channel == 'prod' && secrets.R2_ACCESS_KEY_ID_PROD) || (inputs.channel != 'prod' && secrets.R2_ACCESS_KEY_ID_DEV) || '' }}
           R2_SECRET_ACCESS_KEY: ${{ (inputs.channel == 'prod' && secrets.R2_SECRET_ACCESS_KEY_PROD) || (inputs.channel != 'prod' && secrets.R2_SECRET_ACCESS_KEY_DEV) || '' }}
-        run: pnpm publish:native-update-policy:r2
+        run: node scripts/publish-native-update-policy-r2.mjs

@@ -67,7 +67,7 @@ Cloud Build 인라인 구성은 `docker build ... . -f Dockerfile` → Artifact 
 
 웹에는 전용 `typecheck` 스크립트가 없다. 루트 `pnpm typecheck`는 네이티브 검사에 포함된 웹 빌드를 통해 웹 타입을 간접 검사하며 네이티브 환경 설정과 번들 생성이 필요하다. 루트 `pnpm lint`는 스크립트가 정의된 웹 패키지만 검사한다.
 
-`typecheck:e2e`는 브라우저 E2E와 AI 테스트용 tsconfig를 모두 검사하지만 브라우저·DB·AI 호출은 실행하지 않는다. [CI 검사](../../.github/workflows/regression.yml)는 main push에서 Node 22로 타입, API·웹 단위 테스트, 빌드, 모의 E2E 순으로 실행한다. 실제 DB 통합 테스트는 별도 실행이 필요하다.
+`typecheck:e2e`는 브라우저 E2E와 AI 테스트용 tsconfig를 모두 검사하지만 브라우저·DB·AI 호출은 실행하지 않는다. [CI 검사](../../.github/workflows/regression.yml)는 main push에서 Node 22로 타입, API·웹 단위 테스트, 빌드, 모의 E2E 순으로 실행한다. 전체 검사는 수동 실행도 지원하며 prod 웹 발행은 같은 커밋의 통과 기록을 재사용한다. develop 웹 발행은 관련 단위·타입·빌드·번들 핵심 E2E만 수행하고, 정책 JSON 발행은 정책 검사만 수행한다. 실제 DB 통합 테스트는 별도 실행이 필요하다.
 
 ## 단위 테스트와 통합 테스트
 

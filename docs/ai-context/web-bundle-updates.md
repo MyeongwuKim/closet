@@ -4,7 +4,7 @@
 
 | 파일 | 역할 |
 | --- | --- |
-| [app-versions.json](../../apps/native/app-versions.json) | dev/prod별 iOS·Android 현재 네이티브 버전. 기존 앱 설정의 0.1.0에서 시작한다. 빌드 번호는 기존 app.json/EAS 설정을 따른다. |
+| [app-versions.json](../../apps/native/app-versions.json) | dev/prod별 iOS·Android 현재 네이티브 버전. 실제 값은 해당 JSON을 기준으로 한다. 빌드 번호는 기존 app.json/EAS 설정을 따른다. |
 | [minimum-app-versions.json](../../apps/native/minimum-app-versions.json) | dev/prod·플랫폼별 강제 업데이트 활성화, `minimumVersion`, `storeUrl`. 실제 주소가 없어서 초기값은 `enabled: false`, `storeUrl: null`이다. |
 | [web-bundle-runtime.json](../../config/web-bundle-runtime.json) | 채널별 번들 prefix·호환 최소 네이티브 버전. dev는 루트, prod는 `runtime/v1`이다. 호환되지 않는 브리지 변경 시 새 prefix와 최소 버전을 함께 지정하고 새 바이너리를 배포한다. |
 
@@ -18,11 +18,13 @@ ZIP → 버전별 manifest → latest manifest 순서로 업로드한다. 이후
 
 ## 배포 흐름과 설정
 
-[웹 발행 workflow](../../.github/workflows/publish-web-bundle-r2.yml)는 develop의 웹·공용 타입·생성기·버전·발행 설정 변경 시 dev를 발행한다. prod는 자동 발행하지 않는다. GitHub Actions의 **Publish web bundle to R2 → Run workflow**에서 채널·선택적 웹 버전을 지정한다. 수동 실행 workflow는 GitHub 기본 브랜치에도 파일이 있어야 목록에 표시된다. 회귀 검사 성공 후 발행 테스트·네이티브 타입·독립 번들 브라우저 검사를 거친다.
+[웹 발행 workflow](../../.github/workflows/publish-web-bundle-r2.yml)는 develop의 웹·공용 타입·생성기·버전·발행 설정 변경 시 dev를 발행한다. prod는 자동 발행하지 않는다. GitHub Actions의 **Publish web bundle to R2 → Run workflow**에서 채널·선택적 웹 버전을 지정한다. 수동 실행 workflow는 GitHub 기본 브랜치에도 파일이 있어야 목록에 표시된다. dev는 공용 타입·웹 단위·발행 스크립트·번들 로더 검사 후 웹 번들 빌드·네이티브 타입·번들 핵심 E2E를 거쳐 배포한다. API 전체 검사와 250개 전체 화면 E2E를 선행하지 않는다.
+
+전체 회귀 검사는 [regression workflow](../../.github/workflows/regression.yml)의 main push 또는 수동 실행에서만 수행한다. prod 웹 수동 발행은 GitHub Actions API로 **배포할 커밋 SHA와 같은 커밋**의 해당 workflow 통과 기록을 확인하고 재사용한다. 다른 커밋·실패·진행 중·취소 기록으로는 배포하지 않는다. 통과 기록이 없으면 전체 검사를 해당 커밋에서 먼저 완료하고 prod 발행을 다시 실행한다. prod 발행이 전체 검사를 중복 실행하지 않는다. 기본 GITHUB_TOKEN의 actions 읽기 권한을 사용하므로 추가 Secret은 필요 없다.
 
 웹 major/minor는 선택 채널의 네이티브 major/minor를 따른다. patch는 해당 버킷·runtime prefix의 최신 manifest에서 증가하며 처음에는 0이다. 양 플랫폼이 참여하면 major/minor가 같아야 한다. 수동 버전도 같은 계열이며 최신 웹 버전보다 커야 한다. 채널별 동시 발행은 직렬화한다.
 
-[네이티브 정책 workflow](../../.github/workflows/publish-native-update-policy-r2.yml)는 develop에서 정책 관련 파일 변경 시 dev에 발행하며 수동 dev/prod 실행도 지원한다. prod는 수동 발행한다. 웹 번들 배포가 네이티브 강제 업데이트 정책을 임의 변경하지 않는다. `enabled: true`로 바꾸려면 실제 스토어 URL을 먼저 지정해야 하며 Apple App Store/TestFlight 또는 Google Play URL을 검사한다.
+[네이티브 정책 workflow](../../.github/workflows/publish-native-update-policy-r2.yml)는 develop에서 정책 관련 파일 변경 시 dev에 발행하며 수동 dev/prod 실행도 지원한다. prod는 수동 발행한다. 정책 발행은 Node 22에서 정책 스크립트 테스트와 JSON 검증만 수행하며 의존성 전체 설치·앱 빌드·브라우저 E2E는 실행하지 않는다. 웹 번들 배포가 네이티브 강제 업데이트 정책을 임의 변경하지 않는다. `enabled: true`로 바꾸려면 실제 스토어 URL을 먼저 지정해야 하며 Apple App Store/TestFlight 또는 Google Play URL을 검사한다.
 
 GitHub 저장소 **Settings → Secrets and variables → Actions**에서 다음 이름을 사용한다. Variables는 같은 이름의 Secrets로도 등록할 수 있다. 서로 다른 채널의 누락 값을 상대 채널로 대체하지 않는다.
 
@@ -45,6 +47,7 @@ R2 키는 CI 업로드 단계에만 전달한다. 앱 환경 파일과 Vite 공�
 ```sh
 pnpm install --frozen-lockfile
 pnpm test:web-bundle-scripts
+node --test scripts/check-regression-status.test.mjs
 pnpm --filter @closet/native test:web-bundle
 pnpm validate:native-update-policy
 node --test scripts/publish-native-update-policy-r2.test.mjs

@@ -12,7 +12,7 @@ test('웨어룸은 이름 끝의 식별자와 서로 다른 설치 식별자로 
   const development = getAppVariant('development')
   const local = getAppVariant('local')
   const production = getAppVariant('production')
-  assert.equal(development.name, 'wearroom(T)')
+  assert.equal(development.name, 'wearroomT')
   assert.equal(local.name, 'wearroom(L)')
   assert.equal(production.name, 'wearroom')
   assert.equal(new Set([development.identifier, local.identifier, production.identifier]).size, 3)

@@ -42,3 +42,9 @@
 환경은 `WEAROOM_APP_ENV`로 선택하며 local은 `.env`, development는 `.env.development`, production은 `.env.production` 하나를 사용한다. 선택한 `EXPO_PUBLIC_API_URL`은 웹 번들의 `VITE_API_URL`에도 전달된다. 다른 환경의 `EXPO_PUBLIC_*` 값은 가져오지 않는다.
 
 관련 검사는 `apps/native/scripts`의 브리지·권한·알림·광고·번들·환경 테스트다. 네이티브 `typecheck`는 웹 빌드·번들 생성을 먼저 수행한다. TypeScript 직접 import 테스트의 로더와 개별 실행 명령은 [개발과 검증](development.md#단위-테스트와-통합-테스트)에 있다.
+
+## iOS 빌드 확인과 Xcode 이름
+
+`native:ios:dev`와 `native:ios:prod`는 `app-versions.json`에서 해당 채널의 iOS 버전을 읽고 앱 이름·버전·식별자와 해당 채널의 강제 업데이트 최소 버전·활성 여부·스토어 URL·웹 번들 최소 네이티브 버전을 로컬 JSON 기준으로 표시한다. 웹 번들 호환 기준이나 활성 강제 업데이트 정책의 최소 버전보다 낮은 빌드는 확인 질문 전에 중단한다. 대화형 터미널에서 `y` 또는 `yes`를 입력해야 웹 생성·prebuild·서명을 시작한다. 빈 입력이나 다른 답은 취소하고, 비대화형 실행은 거절한다. local은 확인을 생략한다.
+
+개발 앱 이름과 Xcode scheme·제품 이름은 `wearroomT`, 운영은 `wearroom`이다. local scheme·제품은 `wearroomL`이고 설치 표시 이름은 기존 `wearroom(L)`이다. `plugins/with-ios-build-identity.cjs`가 prebuild 때 기존 타깃·서명을 유지하면서 현재 환경의 scheme과 `MARKETING_VERSION`을 갱신한다. `.xcodeproj`·`.xcworkspace` 자체 경로는 기존 것을 유지한다. Xcode에서 현재 환경의 scheme을 선택하며, 실행 명령도 `--scheme`을 명시한다. 버전 변경은 `app-versions.json`을 수정한 뒤 해당 명령을 다시 실행한다. 빌드 번호는 기존 설정을 유지한다. 검사는 `pnpm --filter @closet/native test:ios-build`다.
