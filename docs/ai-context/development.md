@@ -44,6 +44,14 @@ pnpm api:push:rediscovery --env development --login-id closet_test --execute
 
 이 명령은 수신 설정·주간 간격·발송 시간·후보 유무를 건너뛰고 기존 `pushService.sendRediscovery`를 호출한다. 기기에서는 같은 환경의 최신 앱으로 해당 ID에 로그인하고 알림 권한을 허용해야 한다. Expo의 접수 성공은 실제 수신 확인과 다르다. 알림을 누르면 `/closet/rediscovery`의 실제 후보를 조회하므로 후보가 없으면 빈 상태를 보여준다. 옷·착용 기록·당일 선정·노출·수신 설정·자동 발송 예약을 변경하거나 AI를 실행하지 않는다. 자동 검사인 `send-rediscovery-push.test.ts`는 DB·푸시를 대체해 입력·환경 우선순위·대상 제한·조회/발송 분기를 확인한다.
 
+## Cloud Run API 이미지
+
+루트 [Dockerfile](../../Dockerfile)은 Node 22 Debian 환경에서 API와 공용 타입의 의존성을 설치하고 Prisma Client 생성 및 API TypeScript 빌드를 수행한다. 저장소 루트를 컨텍스트로 `docker build -t wearroom-api .`를 실행한다. [.dockerignore](../../.dockerignore)는 API 빌드 입력만 허용하고 환경 파일·다른 앱·로컬 의존성·캐시·테스트를 제외한다. 런타임은 pnpm 링크와 Prisma 생성 결과를 유지하기 위해 빌드 단계의 의존성을 복사하므로 개발 의존성도 포함한다.
+
+Cloud Build 인라인 구성은 `docker build ... . -f Dockerfile` → Artifact Registry push → Cloud Run 서비스 업데이트 순서를 사용한다. 개발 트리거는 `^develop$`를 대상으로 한다. 파일을 해당 브랜치에 push해야 원격 빌드에 반영된다. DB 주소·인증키·`WEB_ORIGIN`은 이미지에 넣지 않고 Cloud Run 환경변수/보안 비밀로 전달한다. 서버는 Cloud Run의 `PORT`를 사용하며 `0.0.0.0`에 바인딩한다. Hugging Face 캐시는 쓰기 가능한 `/app/.cache/huggingface`이며 인스턴스 교체 시 보존되지 않는다.
+
+빌드는 DB 연결이나 스키마 변경을 수행하지 않는다. 실제 서버 시작은 저장소 초기화와 worker 실행을 포함하므로 시작 검사는 격리된 테스트 환경에서만 수행한다. Cloud Run 요청 기반 CPU/최소 인스턴스 0에서는 요청 밖의 worker 상시 실행을 보장하지 않는다. 배포 전 작업 큐와 예약 작업의 실행 조건을 별도로 확인한다.
+
 ## 타입과 정적 검사
 
 | 대상 | 명령 |

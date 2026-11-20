@@ -1,0 +1,26 @@
+# Allow only API build inputs; local credentials and other apps stay outside the context.
+**
+!Dockerfile
+!.dockerignore
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!tsconfig.base.json
+!apps/
+!apps/api/
+!apps/api/package.json
+!apps/api/tsconfig.json
+!apps/api/prisma/
+!apps/api/prisma/**
+!apps/api/src/
+!apps/api/src/**
+!packages/
+!packages/types/
+!packages/types/package.json
+!packages/types/src/
+!packages/types/src/**
+**/.env
+**/.env.*
+**/node_modules
+**/.cache
+**/*.test.ts
