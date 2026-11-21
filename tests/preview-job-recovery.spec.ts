@@ -1,5 +1,5 @@
 import type { OutfitPreviewJob } from '../packages/types/src/index'
-import { test, expect } from './support/fixture'
+import { createOutfit, test, expect } from './support/fixture'
 import { readFileSync } from 'node:fs'
 
 const imageUrl = `data:image/png;base64,${readFileSync('tests/support/mock-shirt.png').toString('base64')}`
@@ -115,4 +115,43 @@ test('푸시의 결과 경로로 이미 진입했으면 완료 팝업을 겹쳐 
   await expect.poll(() => acknowledged).toBe(true)
   await expect(page.getByRole('dialog', { name: 'AI 룩북이 완성됐어요', exact: true })).toHaveCount(0)
   expect(mockApi.operations).not.toContain('StartOutfitPreview')
+})
+
+test('저장된 룩북 재생성 화면에서 진행 중 작업을 이어받고 푸시 경로에서 완료 이미지를 연다', async ({ page, mockApi }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  mockApi.outfits = [createOutfit({ generations: [{ status: 'completed', imageAsset: { deliveryUrl: imageUrl } }] })]
+  let state = { ...makeJob('processing'), style: 'casual' }
+  let reads = 0
+  let starts = 0
+  await page.route('**/graphql', async route => {
+    const { query } = route.request().postDataJSON()
+    if (query.includes('query OutfitPreviewJobs')) {
+      await route.fulfill({ json: { data: { outfitPreviewJobs: [state] } } })
+    } else if (query.includes('query OutfitPreviewJob(')) {
+      reads++
+      await route.fulfill({ json: { data: { outfitPreviewJob: state } } })
+    } else if (query.includes('mutation StartOutfitPreview')) {
+      starts++
+      await route.fulfill({ json: { data: { startOutfitPreview: state } } })
+    } else if (query.includes('query OutfitPreviewAsset')) {
+      await route.fulfill({ json: { data: { outfitPreviewAsset: { assetId: 'preview-asset-one', imageUrl, mimeType: 'image/png', model: 'fixture-model' } } } })
+    } else await route.fallback()
+  })
+
+  await page.addInitScript(() => { window.ClosetRuntimeConfig = { isNativeWebView: true, routerMode: 'hash' } })
+  await page.goto('/#/lookbook')
+  await page.getByRole('button', { name: '기본 코디 코디 상세 보기' }).click()
+  await page.getByRole('button', { name: 'AI 룩북 보기', exact: true }).click()
+  await page.getByRole('button', { name: '현재 프로필로 다시 만들기' }).click()
+  await expect(page.getByRole('dialog', { name: 'AI가 룩북을 만들고 있어요' })).toBeVisible()
+  await expect.poll(() => reads).toBeGreaterThan(0)
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('closet:native-app-state', { detail: { isActive: false } })))
+  state = { ...makeJob('completed'), style: 'casual' }
+  await page.evaluate((path) => {
+    window.location.hash = path
+    window.dispatchEvent(new Event('closet:native-app-active'))
+  }, state.path + '&style=casual')
+  await expect(page.getByRole('dialog', { name: 'AI 룩북 미리보기', exact: true })).toBeVisible()
+  await expect(page.getByRole('dialog', { name: 'AI가 룩북을 만들고 있어요' })).toHaveCount(0)
+  expect(starts).toBe(0)
 })

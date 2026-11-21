@@ -228,12 +228,15 @@ export function OutfitDetailModal({
       pushToast(outfitCompletionMessage, 'error')
       return
     }
-    const restoreCompleted = !forceNew && hasRestorablePreview
+    if (isPreviewInProgress) return
+    // 같은 작업이 진행 중이면 새 요청을 접수하지 않고 기존 작업을 끝까지 조회한다.
+    const resumeExisting = generateOutfitPreview.canResumeExisting
+    const restoreCompleted = !forceNew && !resumeExisting && hasRestorablePreview
     if (archivedItemMessage && !restoreCompleted && !generateOutfitPreview.willResume) {
       pushToast(archivedItemMessage, 'error')
       return
     }
-    if (!restoreCompleted && duplicateOutfit) {
+    if (!restoreCompleted && !resumeExisting && duplicateOutfit) {
       pushToast(
         `같은 옷 조합이 이미 '${duplicateOutfit.name}' 코디로 저장되어 있어요.`,
         'error',
@@ -251,12 +254,16 @@ export function OutfitDetailModal({
       model: null,
       errorMessage: null,
     })
-    if (!restoreCompleted && (generateOutfitPreview.isPending || generateOutfitPreview.isRestoringCompleted)) return
     const requestedPreviewKey = currentPreviewKey
 
-    void (restoreCompleted
-      ? generateOutfitPreview.completedPreview ? Promise.resolve(generateOutfitPreview.completedPreview) : generateOutfitPreview.restoreCompletedAsync()
-      : generateOutfitPreview.mutateAsync({ selectedItemIds: draftItemIds, style: draftStyle }))
+    const resultRequest = resumeExisting
+      ? generateOutfitPreview.resumeExistingAsync()
+      : restoreCompleted
+        ? generateOutfitPreview.completedPreview
+          ? Promise.resolve(generateOutfitPreview.completedPreview)
+          : generateOutfitPreview.restoreCompletedAsync()
+        : generateOutfitPreview.mutateAsync({ selectedItemIds: draftItemIds, style: draftStyle })
+    void resultRequest
       .then((result) => {
         if (previewKeyRef.current !== requestedPreviewKey) return
         setDraftPreview((current) => ({
