@@ -155,7 +155,8 @@ test('AI 추천 완료 알림은 해당 계정의 기기에만 전송한다', as
     }>
     assert.equal(messages.length, 1)
     assert.equal(messages[0]?.to, token)
-    assert.equal(messages[0]?.title, '오늘의 코디 추천이 준비됐어요')
+    assert.equal(messages[0]?.title, 'AI 추천 코디가 완성됐어요')
+    assert.equal(messages[0]?.body, '지금 눌러서 확인해보세요.')
     assert.deepEqual(messages[0]?.data, {
       type: 'ai-completion',
       kind: 'today-outfit-recommendation',

@@ -35,3 +35,23 @@ test('일반 모듈은 Metro의 기존 해석 경로를 유지한다', () => {
   }
   assert.equal(config.resolver.resolveRequest(context, 'react', 'ios'), expected)
 })
+
+test('Xcode 빌드는 선택한 채널의 내장 웹 번들을 사용한다', () => {
+  const previousIsolation = process.env.CLOSET_IOS_ISOLATED_WEB_BUNDLE
+  const previousEnvironment = process.env.WEAROOM_APP_ENV
+  process.env.CLOSET_IOS_ISOLATED_WEB_BUNDLE = '1'
+  try {
+    for (const channel of ['development', 'production']) {
+      process.env.WEAROOM_APP_ENV = channel
+      const resolution = config.resolver.resolveRequest({
+        resolveRequest: (_context, filePath) => filePath,
+      }, '../generated/webBundle', 'ios')
+      assert.equal(resolution, fileURLToPath(new URL(`../.native-web-build/${channel}/webBundle.ts`, import.meta.url)))
+    }
+  } finally {
+    if (previousIsolation === undefined) delete process.env.CLOSET_IOS_ISOLATED_WEB_BUNDLE
+    else process.env.CLOSET_IOS_ISOLATED_WEB_BUNDLE = previousIsolation
+    if (previousEnvironment === undefined) delete process.env.WEAROOM_APP_ENV
+    else process.env.WEAROOM_APP_ENV = previousEnvironment
+  }
+})

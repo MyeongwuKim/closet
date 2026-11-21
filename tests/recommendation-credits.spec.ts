@@ -213,3 +213,43 @@ test('충전 대기 시간과 광고 즉시 지급을 선택하고 보상 후 �
   await expect(sheet.getByRole('button', { name: '봄', exact: true })).toBeVisible()
   expect(mockApi.operations).not.toContain('StartOutfitPreview')
 })
+
+test('추천 서버에 저장된 결과를 첫 응답 연결이 끊긴 뒤 다시 불러온다', async ({ page, mockApi }) => {
+  await page.addInitScript(() => {
+    const fetchOriginal = window.fetch.bind(window)
+    let dropped = false
+    window.fetch = async (input, init) => {
+      const response = await fetchOriginal(input, init)
+      if (!dropped && typeof init?.body === 'string' && init.body.includes('query TodayOutfitRecommendation')) {
+        dropped = true
+        throw new TypeError('Connection reset')
+      }
+      return response
+    }
+  })
+  const inputs: unknown[] = []
+  let completed: unknown
+  await page.route('**/graphql', async (route) => {
+    const { query, variables } = route.request().postDataJSON()
+    if (!query.includes('query TodayOutfitRecommendation')) return route.fallback()
+    inputs.push(variables.input)
+    if (!completed) {
+      completed = {
+        date: variables.input.date, season: variables.input.season,
+        ready: true, headline: '복구한 추천 코디', summary: '저장한 결과예요.',
+        items: mockApi.wardrobeItems, reasons: [], profileSummary: [],
+        source: 'ai', colorSchemeApplied: true, weather: null,
+      }
+    }
+    await route.fulfill({ json: { data: { todayOutfitRecommendation: completed } } })
+  })
+  await page.goto('/#/plan')
+  await page.getByRole('button', { name: 'AI 코디 추천', exact: true }).click()
+  const sheet = page.getByRole('dialog', { name: '오늘의 AI 코디 추천' })
+  await sheet.getByRole('button', { name: '조건 바꾸기', exact: true }).click()
+  await sheet.getByRole('button', { name: '봄', exact: true }).click()
+  await sheet.getByRole('button', { name: /자동/ }).click()
+  await expect(sheet.getByText('복구한 추천 코디', { exact: true })).toBeVisible()
+  expect(inputs).toHaveLength(2)
+  expect(inputs[0]).toEqual(inputs[1])
+})

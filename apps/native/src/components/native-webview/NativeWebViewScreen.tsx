@@ -23,11 +23,17 @@ import {
   openExternalUrl,
   shouldKeepUrlInWebView,
 } from '../../webview/bridge/externalLinkBridge'
+import { INITIAL_WEB_BUNDLE_PROGRESS } from '../../webBundle/webBundleProgress'
+import type { WebBundleProgress } from '../../webBundle/webBundleTypes'
 import { NativeWebViewLoading } from './NativeWebViewLoading'
+
+const FIRST_FRAME_TIMEOUT_MS = 1500
+const FIRST_FRAME_MESSAGE = 'closet:web-first-frame'
 
 const WEB_ACCESS_TOKEN_KEY = 'closet-test-access-token'
 
 interface NativeWebViewScreenProps {
+  isSplashHidden: boolean
   accessToken: string
   notificationPath?: string | null
   onNotificationPathHandled?: () => void
@@ -35,6 +41,7 @@ interface NativeWebViewScreenProps {
 }
 
 export function NativeWebViewScreen({
+  isSplashHidden,
   accessToken,
   notificationPath,
   onNotificationPathHandled,
@@ -53,6 +60,9 @@ export function NativeWebViewScreen({
   const [resolveAttempt, setResolveAttempt] = useState(0)
   const [reloadKey, setReloadKey] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
+  const [firstFrameKey, setFirstFrameKey] = useState<string | null>(null)
+  const [showUpdateSteps, setShowUpdateSteps] = useState(false)
+  const [bundleProgress, setBundleProgress] = useState<WebBundleProgress>(INITIAL_WEB_BUNDLE_PROGRESS)
   const [loadError, setLoadError] = useState<string | null>(null)
   const bundleKey = bundle?.key ?? null
   const loadKey = (bundleKey ?? 'preparing') + ':' + reloadKey
@@ -79,6 +89,7 @@ export function NativeWebViewScreen({
       recoveryRef.current?.markReady(current.key)
       void markResolvedWebBundleReady(current).catch(() => failureRef.current('업데이트 저장에 실패했어요.'))
     }
+    setBundleProgress({ stage: 'ready', progress: 1, message: '옷장이 준비됐어요' })
     setIsLoading(false)
     setLoadError(null)
     webViewRef.current?.injectJavaScript(
@@ -90,6 +101,34 @@ export function NativeWebViewScreen({
     pendingWebPathRef.current = null
     webViewRef.current?.injectJavaScript(createWebViewNavigationScript(path))
   }, [])
+
+  // 기존 번들의 준비 신호는 라우터가 첫 본문을 그리기 전에 도착할 수 있다.
+  useEffect(() => {
+    if (isLoading || loadError || firstFrameKey === loadKey) return
+    const timeout = setTimeout(() => setFirstFrameKey(loadKey), FIRST_FRAME_TIMEOUT_MS)
+    webViewRef.current?.injectJavaScript(`
+      (() => {
+        const loadKey = ${JSON.stringify(loadKey)};
+        const deadline = Date.now() + ${FIRST_FRAME_TIMEOUT_MS};
+        const waitForContent = () => {
+          if (window.__closetBundleLoadKey !== loadKey || Date.now() >= deadline) return;
+          const content = document.querySelector('.app-main .room-page-enter');
+          if (!content?.firstElementChild || content.getBoundingClientRect().height === 0) {
+            requestAnimationFrame(waitForContent);
+            return;
+          }
+          requestAnimationFrame(() => requestAnimationFrame(() => {
+            window.ReactNativeWebView?.postMessage(JSON.stringify({
+              type: ${JSON.stringify(FIRST_FRAME_MESSAGE)}, loadKey
+            }));
+          }));
+        };
+        requestAnimationFrame(waitForContent);
+      })();
+      true;
+    `)
+    return () => clearTimeout(timeout)
+  }, [firstFrameKey, isLoading, loadError, loadKey])
 
   const navigateToWebPath = useCallback((path: string) => {
     if (!webReadyRef.current) {
@@ -125,8 +164,17 @@ export function NativeWebViewScreen({
     let cancelled = false
     setIsLoading(true)
     setLoadError(null)
-    void resolveWebBundle().then((resolved) => {
-      if (!cancelled) setBundle(resolved)
+    setBundleProgress(INITIAL_WEB_BUNDLE_PROGRESS)
+    setShowUpdateSteps(false)
+    void resolveWebBundle(progress => {
+      if (cancelled) return
+      setBundleProgress(progress)
+      if (progress.stage === 'downloading') setShowUpdateSteps(true)
+    }).then((resolved) => {
+      if (!cancelled) {
+        setBundleProgress({ stage: 'loading', progress: 0.94, message: '옷장을 열고 있어요' })
+        setBundle(resolved)
+      }
     }).catch(() => {
       if (!cancelled) { setLoadError('업데이트를 준비하지 못했어요.'); setIsLoading(false) }
     })
@@ -139,11 +187,13 @@ export function NativeWebViewScreen({
     recoveryRef.current?.stopWaiting(current.key)
     if (current.kind !== 'installed') { setLoadError(message); setIsLoading(false); return }
     rollingBackRef.current = true
+    setBundleProgress({ stage: 'rollback', progress: 0.92, message: '이전 버전으로 다시 열고 있어요' })
     void rollbackResolvedWebBundle(current).then((fallback) => {
       if (!mountedRef.current || bundleRef.current?.key !== current.key) return
       webReadyRef.current = false
       setLoadError(null)
       setIsLoading(true)
+      setBundleProgress({ stage: 'loading', progress: 0.94, message: '옷장을 열고 있어요' })
       setBundle(fallback)
       setReloadKey(key => key + 1)
     }).catch(() => {
@@ -160,6 +210,7 @@ export function NativeWebViewScreen({
         webReadyRef.current = false
         setLoadError(null)
         setIsLoading(true)
+        setBundleProgress({ stage: 'loading', progress: 0.94, message: '옷장을 열고 있어요' })
         setReloadKey(key => key + 1)
       },
       onRecoveryFailed: () => failureRef.current('화면 준비 시간이 초과됐어요.'),
@@ -203,6 +254,7 @@ export function NativeWebViewScreen({
         onLoadStart={() => {
           if (currentLoadKey.current !== loadKey) return
           webReadyRef.current = false
+          setFirstFrameKey(null)
           setIsLoading(true)
           setLoadError(null)
         }}
@@ -221,6 +273,10 @@ export function NativeWebViewScreen({
           if (currentLoadKey.current !== loadKey) return
           try {
             const message = JSON.parse(event.nativeEvent.data)
+            if (message.type === FIRST_FRAME_MESSAGE) {
+              if (message.loadKey === loadKey && webReadyRef.current) setFirstFrameKey(loadKey)
+              return
+            }
             if (message.type === 'closet:web-app-ready' && message.loadKey !== loadKey) return
           } catch { return }
           void handleNativeBridgeMessage(event, webViewRef, {
@@ -237,9 +293,14 @@ export function NativeWebViewScreen({
         }}
       /> : null}
 
-      {isLoading || loadError ? (
-        <NativeWebViewLoading error={loadError} onRetry={retry} />
-      ) : null}
+      <NativeWebViewLoading
+        canOpenWardrobe={isSplashHidden}
+        visible={isLoading || Boolean(loadError) || firstFrameKey !== loadKey}
+        stage={firstFrameKey !== loadKey && bundleProgress.stage === 'ready' ? 'loading' : bundleProgress.stage}
+        showUpdateSteps={showUpdateSteps}
+        error={loadError}
+        onRetry={retry}
+      />
     </View>
   )
 }

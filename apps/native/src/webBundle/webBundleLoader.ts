@@ -5,7 +5,7 @@ import { WEB_BUNDLE_BASE_URL, WEB_BUNDLE_HTML } from '../generated/webBundle'
 import { fetchWebBundleManifest } from './webBundleManifest'
 import { confirmWebBundleReady, installWebBundle, prepareWebBundleStorage, rollbackWebBundle } from './webBundleStorage'
 import { isWebBundleCompatible, shouldInstallWebBundle } from './webBundleVersionChecker'
-import type { InstalledWebBundle, ResolvedWebBundle, WebBundleProgressReporter } from './webBundleTypes'
+import type { InstalledWebBundle, ResolvedWebBundle, WebBundleProgress, WebBundleProgressReporter } from './webBundleTypes'
 
 function embedded(): ResolvedWebBundle {
   return { key: 'embedded', kind: 'embedded', version: null, source: { html: WEB_BUNDLE_HTML, baseUrl: WEB_BUNDLE_BASE_URL }, pending: false, readySignalRequired: true }
@@ -56,7 +56,18 @@ export async function rollbackResolvedWebBundle(bundle: ResolvedWebBundle) {
 export type { ResolvedWebBundle } from './webBundleTypes'
 
 let inFlight: Promise<ResolvedWebBundle> | null = null
+const reporters = new Set<WebBundleProgressReporter>()
+let latestProgress: WebBundleProgress | null = null
 export function resolveWebBundle(report?: WebBundleProgressReporter) {
-  if (!inFlight) inFlight = resolveOnce(report).finally(() => { inFlight = null })
-  return inFlight
+  if (!inFlight) {
+    latestProgress = null
+    inFlight = Promise.resolve().then(() => resolveOnce(progress => {
+      latestProgress = progress
+      for (const listener of reporters) listener(progress)
+    })).finally(() => { inFlight = null; latestProgress = null })
+  }
+  if (!report) return inFlight
+  reporters.add(report)
+  if (latestProgress) report(latestProgress)
+  return inFlight.finally(() => { reporters.delete(report) })
 }

@@ -17,6 +17,14 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     }
   }
 
+  if (moduleName === '../generated/webBundle' && process.env.CLOSET_IOS_ISOLATED_WEB_BUNDLE === '1') {
+    return context.resolveRequest(
+      context,
+      path.join(__dirname, '.native-web-build', process.env.WEAROOM_APP_ENV, 'webBundle.ts'),
+      platform,
+    )
+  }
+
   return defaultResolveRequest
     ? defaultResolveRequest(context, moduleName, platform)
     : context.resolveRequest(context, moduleName, platform)

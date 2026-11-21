@@ -107,6 +107,7 @@ export default function App() {
       <StatusBar style="dark" />
       <NativeWebViewScreen
         accessToken={auth.session.accessToken}
+        isSplashHidden={isSplashHidden}
         notificationPath={notificationPath}
         onNotificationPathHandled={clearNotificationPath}
         onAuthSessionChange={auth.updateSession}

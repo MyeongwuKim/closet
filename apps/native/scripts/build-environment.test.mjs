@@ -4,6 +4,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { syncXcodeEnvironment } from './xcode-environment.mjs'
 import { loadBuildEnvironment } from './build-environment.mjs'
 
 function createFixture(t) {
@@ -20,8 +21,8 @@ test('선택한 환경 파일만 네이티브와 웹 빌드에 전달하고 다�
   const inherited = { PATH: process.env.PATH, EXPO_PUBLIC_API_URL: 'https://old.example.com', EXPO_PUBLIC_OLD_ONLY: 'stale', VITE_API_URL: 'https://wrong.example.com' }
   const cases = [
     ['local', '.env', 'http://localhost:4000', 'wearroom(L)'],
-    ['development', '.env.development', 'https://dev.example.com', 'wearroomT'],
-    ['production', '.env.production', 'https://api.example.com', 'wearroom'],
+    ['development', '.env.development', 'https://dev.example.com', '웨어룸(T)'],
+    ['production', '.env.production', 'https://api.example.com', '웨어룸'],
   ]
   for (const [environment, file, apiUrl, name] of cases) {
     const { env, envFile, variant } = loadBuildEnvironment(environment, { root, inherited })
@@ -61,4 +62,28 @@ test('Release 번들을 만드는 자식 프로세스에도 개발 파일의 값
   const result = spawnSync(process.execPath, ['-e', 'console.log(JSON.stringify({ api: process.env.EXPO_PUBLIC_API_URL, webApi: process.env.VITE_API_URL, variant: process.env.WEAROOM_APP_ENV, autoLoad: process.env.EXPO_NO_DOTENV }))'], { env: { ...env, NODE_ENV: 'production' }, encoding: 'utf8' })
   assert.equal(result.status, 0)
   assert.deepEqual(JSON.parse(result.stdout), { api: 'https://dev.example.com', webApi: 'https://dev.example.com', variant: 'development', autoLoad: '1' })
+})
+
+test('별도로 시작한 Xcode 셸은 마지막으로 선택한 환경과 공개 값만 읽는다', t => {
+  const root = createFixture(t)
+  const file = path.join(root, '.xcode.env')
+  writeFileSync(file, 'export EXISTING=node-settings\n')
+  syncXcodeEnvironment(root, loadBuildEnvironment('local', { root }).env)
+  const { env } = loadBuildEnvironment('development', { root })
+  const publicValue = "it's $literal"
+  syncXcodeEnvironment(root, { ...env, EXPO_PUBLIC_FEATURE: publicValue, PRIVATE_TEST_SECRET: 'hidden' })
+
+  const result = spawnSync('bash', ['-c', 'source "$1"; exec "$2" -e "console.log(JSON.stringify(process.env))"', 'bash', file, process.execPath], {
+    env: { PATH: process.env.PATH },
+    encoding: 'utf8',
+  })
+  assert.equal(result.status, 0, result.stderr)
+  const actual = JSON.parse(result.stdout)
+  assert.equal(actual.EXISTING, 'node-settings')
+  assert.equal(actual.WEAROOM_APP_ENV, 'development')
+  assert.equal(actual.EXPO_PUBLIC_API_URL, 'https://dev.example.com')
+  assert.equal(actual.EXPO_PUBLIC_FEATURE, publicValue)
+  assert.equal(actual.EXPO_NO_DOTENV, '1')
+  assert.equal(actual.EXPO_PUBLIC_LOCAL_ONLY, undefined)
+  assert.equal(actual.PRIVATE_TEST_SECRET, undefined)
 })

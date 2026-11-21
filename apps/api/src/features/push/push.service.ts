@@ -41,8 +41,8 @@ const completionMessages: Record<CompletionPushKind, PushMessage> = {
     data: { type: 'ai-completion', kind: 'wardrobe-classification' },
   },
   'today-outfit-recommendation': {
-    title: '오늘의 코디 추천이 준비됐어요',
-    body: '플래너에서 추천 코디를 확인해보세요.',
+    title: 'AI 추천 코디가 완성됐어요',
+    body: '지금 눌러서 확인해보세요.',
     data: { type: 'ai-completion', kind: 'today-outfit-recommendation' },
   },
   'outfit-recommendation': {

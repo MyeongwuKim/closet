@@ -167,7 +167,7 @@ export function useTodayOutfitRecommendationQuery(
       const cached = client.getQueryData<TodayOutfitRecommendation>(queryKey)
       const hasCurrentCache = cached && matchesRecommendationDate(cached, date) && matchesThermalRecommendationContext(cached, thermalContextRevision) && matchesTodayRecommendationBaseItem(cached, baseItemId)
       if (!hasCurrentCache && !await requireAiCredit(client, viewerId, 'recommendation', signal)) throw new Error('잔액을 확인한 뒤 추천받기 버튼을 다시 눌러주세요.')
-      const request = async () => {
+      const request = async (retryConnection = true): Promise<{ todayOutfitRecommendation: TodayOutfitRecommendationPayload }> => {
         try {
           return await graphqlRequest<
             { todayOutfitRecommendation: TodayOutfitRecommendationPayload },
@@ -216,6 +216,10 @@ export function useTodayOutfitRecommendationQuery(
             signal,
           )
         } catch (error) {
+          // 응답 연결이 끊겨도 같은 입력으로 한 번 더 조회하면 서버가 완료한 결과를 재사용한다.
+          if (retryConnection && !signal.aborted && !(error instanceof GraphqlRequestError)) {
+            return request(false)
+          }
           if (error instanceof GraphqlRequestError && error.code === 'THERMAL_CONTEXT_CHANGED' && meanTemperatureC !== null && thermalContextRevision) {
             await refreshChangedThermalRecommendationContext(client, viewerId, date, meanTemperatureC, thermalContextRevision, signal)
           }

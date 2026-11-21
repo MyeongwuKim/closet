@@ -300,7 +300,7 @@ export function NativeLoginScreen({
           ]}
         >
           <WearroomWordmark width={236} />
-          <Text accessibilityLiveRegion="polite" style={styles.loadingCaption}>내 옷장을 준비하는 중</Text>
+          <Text accessibilityLiveRegion="polite" style={styles.loadingCaption}>오늘은 뭐 입을까요?</Text>
         </Animated.View>
       </KeyboardAvoidingView>
     </View>

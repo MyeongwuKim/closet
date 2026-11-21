@@ -45,6 +45,9 @@
       "bundleIdentifier": "com.myeongwu.wearoom",
       "buildNumber": "1",
       "supportsTablet": true,
+      "config": {
+        "usesNonExemptEncryption": false
+      },
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true

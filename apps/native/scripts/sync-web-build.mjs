@@ -9,8 +9,6 @@ import { loadBuildEnvironment } from './build-environment.mjs'
 
 const nativeRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
 const webRoot = path.resolve(nativeRoot, '../web')
-const webDist = path.join(webRoot, 'dist')
-const generatedFile = path.join(nativeRoot, 'src/generated/webBundle.ts')
 const isRemote = process.argv.includes('--remote')
 const shouldSkipBuild = process.argv.includes('--skip-build')
 const webBundleBaseUrl = 'https://closet.native/'
@@ -24,7 +22,7 @@ function createWebBundleVersion() {
 
 /** 앱과 같은 환경 파일의 API 주소를 웹 번들에도 적용한다. Vite 모드는 앱 환경에 맞춰 지정한다. */
 function buildWeb() {
-  const result = spawnSync('pnpm', ['run', 'build', '--mode', variant.environment === 'local' ? 'development' : variant.environment], {
+  const result = spawnSync('pnpm', ['run', 'build', '--mode', variant.environment === 'local' ? 'development' : variant.environment, ...(isIsolatedIos ? ['--outDir', webDist, '--emptyOutDir'] : [])], {
     cwd: webRoot,
     env: {
       ...env,
@@ -42,6 +40,10 @@ function buildWeb() {
 const { variant, env } = isRemote
   ? { variant: { environment: process.env.CLOSET_WEB_BUNDLE_CHANNEL === 'prod' ? 'production' : 'development' }, env: { ...process.env, VITE_API_URL: '' } }
   : loadBuildEnvironment(process.env.WEAROOM_APP_ENV)
+const isIsolatedIos = !isRemote && process.env.CLOSET_IOS_ISOLATED_WEB_BUNDLE === '1'
+const bundleRoot = path.join(nativeRoot, '.native-web-build', variant.environment)
+const webDist = isIsolatedIos ? path.join(bundleRoot, 'dist') : path.join(webRoot, 'dist')
+const generatedFile = isIsolatedIos ? path.join(bundleRoot, 'webBundle.ts') : path.join(nativeRoot, 'src/generated/webBundle.ts')
 webBundleVersion =
   env.CLOSET_WEB_BUNDLE_VERSION?.trim() || createWebBundleVersion()
 

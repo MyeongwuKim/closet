@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { confirmIosVersion } from './confirm-ios-version.mjs'
 
-const build = { environment: 'development', name: 'wearroomT', version: '1.0.0', identifier: 'com.myeongwu.wearoom.dev' }
+const build = { environment: 'development', name: '웨어룸(T)', version: '1.0.0', identifier: 'com.myeongwu.wearoom.dev' }
 const output = { write() {} }
 
 test('dev/prod는 명시적으로 y 또는 yes라고 답한 경우에만 진행한다', async () => {
@@ -15,7 +15,7 @@ test('dev/prod는 명시적으로 y 또는 yes라고 답한 경우에만 진행�
 test('확인 화면은 실제 선택한 앱 이름·버전·식별자를 표시한다', async () => {
   let message = ''
   await confirmIosVersion(build, { output: { write(text) { message += text } }, ask: async () => 'n' })
-  assert.match(message, /wearroomT/)
+  assert.match(message, /웨어룸\(T\)/)
   assert.match(message, /1\.0\.0/)
   assert.match(message, /com\.myeongwu\.wearoom\.dev/)
 })

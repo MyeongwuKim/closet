@@ -53,7 +53,11 @@ export async function confirmIosVersion(build, { ask, input = process.stdin, out
   output.write(summary.text)
   if (!summary.compatible) throw new Error('빌드할 앱 버전이 웹 번들 최소 네이티브 버전보다 낮습니다. 로컬 JSON 설정을 확인해주세요.')
   if (policy.enabled && !summary.policyCompatible) throw new Error('빌드할 앱 버전이 강제 업데이트 최소 앱 버전보다 낮습니다. 로컬 JSON 설정을 확인해주세요.')
-  const prompt = '이 설정으로 빌드를 진행할까요? (y/N) '
+  return confirmIosPrompt('이 설정으로 빌드를 진행할까요? (y/N) ', { ask, input, output })
+}
+
+/** 비대화형 터미널에서는 입력을 기다리지 않고 중단한다. */
+export async function confirmIosPrompt(prompt, { ask, input = process.stdin, output = process.stdout } = {}) {
   if (ask) return /^(y|yes)$/i.test((await ask(prompt)).trim())
   if (!input.isTTY || !output.isTTY) throw new Error('dev/prod iOS 빌드는 터미널에서 버전을 확인해야 합니다. 대화형 터미널에서 다시 실행해주세요.')
   const readline = createInterface({ input, output })

@@ -1,3 +1,6 @@
 src/generated/webBundle.ts
 ios/
+ios-dev/
+ios-prod/
 android/
+.native-web-build/

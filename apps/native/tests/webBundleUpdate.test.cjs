@@ -144,3 +144,18 @@ test('an unconfirmed release surviving a failed launch rolls back on the next la
   assert.equal((await h.prepareWebBundleStorage()).active.version, '0.1.2')
   assert.equal((await h.prepareWebBundleStorage()).active.version, '0.1.1')
 })
+
+test('shared installations report progress to every current subscriber and remove finished subscribers', async () => {
+  const h = loader()
+  const first = []
+  const second = []
+  await Promise.all([
+    h.resolveWebBundle(value => first.push(value.stage)),
+    h.resolveWebBundle(value => second.push(value.stage)),
+  ])
+  assert.deepEqual(first, ['checking'])
+  assert.deepEqual(second, ['checking'])
+  await h.resolveWebBundle(() => {})
+  assert.deepEqual(first, ['checking'])
+  assert.deepEqual(second, ['checking'])
+})
