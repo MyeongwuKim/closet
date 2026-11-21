@@ -48,6 +48,7 @@ export async function processPreviewJob(job: AiPreviewJob & { leaseToken: string
   try {
     const image = await aiExecutor.run(job.userId, 'preview', { jobId: job.id, attempt: job.attempts }, async () => {
       const preview = await outfitPreviewService.generate(job.userId, job.selectedItemIds, job.style, {
+        varyPreviousShot: true,
         onBeforeRequest: async () => {
           const started = await previewJobRepository.markRequestStarted(job.id, job.leaseToken)
           if (started.count !== 1) throw new ServiceError('AI 생성 작업의 실행 권한이 만료됐어요.', 'AI_INTERRUPTED')
@@ -55,7 +56,7 @@ export async function processPreviewJob(job: AiPreviewJob & { leaseToken: string
       })
       const asset = await imageService.storeGeneratedImage(job.userId, {
         ...preview, jobId: job.id,
-        metadata: { purpose: 'outfitPreview', selectedItemIds: job.selectedItemIds, ...(job.style ? { style: job.style } : {}) },
+        metadata: { purpose: 'outfitPreview', selectedItemIds: job.selectedItemIds, ...(job.style ? { style: job.style } : {}), ...(preview.lookbookShotIndex ? { lookbookShotIndex: preview.lookbookShotIndex } : {}) },
       })
       return { assetId: asset.id, model: preview.model }
     })

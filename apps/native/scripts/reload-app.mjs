@@ -24,7 +24,7 @@ async function reloadApp(port) {
   } catch {
     throw new Error(
       `Metro 개발 서버에 연결할 수 없습니다 (${serverUrl}). ` +
-        'pnpm native:ios:dev로 시뮬레이터 앱을 먼저 실행해주세요. ' +
+        'pnpm native:ios:local로 시뮬레이터 앱을 먼저 실행해주세요. ' +
         '다른 포트를 사용한다면 pnpm native:web:sync --port <포트>로 지정해주세요.',
     )
   }

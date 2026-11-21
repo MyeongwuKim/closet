@@ -28,7 +28,7 @@ function isValidLength(value: number | null | undefined): value is number {
   return value != null && Number.isFinite(value) && value > 0
 }
 
-function canOpenFront(attributes: unknown) {
+export function canOpenFront(attributes: unknown) {
   if (!attributes || typeof attributes !== 'object' || Array.isArray(attributes)) return false
   return ['buttons', 'zipper', 'wrap'].includes(String((attributes as Record<string, unknown>).frontOpeningStyle))
 }

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test, { type TestContext } from 'node:test'
 import type { ClothingCategory } from '@closet/types'
+import { imageRepository } from '../image/image.repository.js'
 import { userRepository } from '../user/user.repository.js'
 import { wardrobeRepository } from '../wardrobe/wardrobe.repository.js'
 import {
@@ -478,4 +479,56 @@ test('기존 아이템의 누락·null·잘못된 판정은 골지 원단이어�
       assert.match(garmentLine!, /ribbedCuffs=unknown, ribbedHem=unknown, ribbedNeckline=unknown/)
     })
   }
+})
+
+test('같은 조합의 후속 컷은 이전 이미지를 첨부하고 옷에 맞는 연출을 한 번만 요청한다', async (t) => {
+  const previousUrl = 'https://lookbook.example.test/previous.png'
+  const coat = createPreviewItem('coat', 'outer', { frontOpeningStyle: 'buttons' })
+  const dress = createPreviewItem('dress', 'dress')
+  let items = [createPreviewItem('top', 'top'), createPreviewItem('bottom', 'bottom'), coat]
+  let previous: { deliveryUrl: string; metadata: object } | null = null
+  t.mock.method(userRepository, 'findViewerById', async () => null)
+  t.mock.method(wardrobeRepository, 'findManyOwnedWithImagesByIds', async () => items)
+  t.mock.method(imageRepository, 'findLatestGeneratedPreviewForItems', async (userId: string, ids: string[], style: string | null) => {
+    assert.equal(userId, 'viewer')
+    assert.deepEqual(ids, items.map(item => item.id))
+    assert.equal(style, null)
+    return previous as Awaited<ReturnType<typeof imageRepository.findLatestGeneratedPreviewForItems>>
+  })
+  const requests: FormData[] = []
+  t.mock.method(globalThis, 'fetch', async (url: unknown, options?: RequestInit) => {
+    if (url === previousUrl || items.some(item => item.displayImageAsset.deliveryUrl === url)) {
+      return new Response('fixture', { headers: { 'content-type': 'image/png' } })
+    }
+    assert.equal(url, 'https://api.openai.com/v1/images/edits')
+    assert.ok(options?.body instanceof FormData)
+    requests.push(options.body)
+    return Response.json({ data: [{ b64_json: 'fixture' }] })
+  })
+  const previousKey = process.env.OPENAI_API_KEY
+  process.env.OPENAI_API_KEY = 'test-key'
+  t.after(() => {
+    if (previousKey === undefined) delete process.env.OPENAI_API_KEY
+    else process.env.OPENAI_API_KEY = previousKey
+  })
+  const generate = () => outfitPreviewService.generate('viewer', items.map(item => item.id), null, { varyPreviousShot: true })
+
+  assert.equal((await generate()).lookbookShotIndex, undefined)
+  assert.match(String(requests[0]?.get('prompt')), /same image-left orientation/)
+
+  previous = { deliveryUrl: previousUrl, metadata: {} }
+  assert.equal((await generate()).lookbookShotIndex, 1)
+  assert.match(String(requests[1]?.get('prompt')), /Change the fastening of garment reference 3/)
+  assert.match(String(requests[1]?.get('prompt')), /Supplementary image 4 is the previous lookbook shot/)
+  assert.equal(requests[1]?.getAll('image[]').length, 4)
+
+  items = [dress]
+  assert.equal((await generate()).lookbookShotIndex, 1)
+  assert.match(String(requests[2]?.get('prompt')), /straight-on front view/)
+  assert.doesNotMatch(String(requests[2]?.get('prompt')), /Change the fastening/)
+
+  previous.metadata = { lookbookShotIndex: 1 }
+  assert.equal((await generate()).lookbookShotIndex, 2)
+  assert.match(String(requests[3]?.get('prompt')), /toward image-right/)
+  assert.equal(requests.length, 4)
 })

@@ -23,8 +23,8 @@ export function useAiCreditAction(kind: AiCreditKind, requiresCredit = true) {
 
   /** 잔액이 있는 클릭만 동작을 실행한다. 0회이면 충전 선택 팝업만 열고, 광고 지급 후에도 원래 화면에 머문다. 중복 클릭·화면 종료 뒤 실행을 막는다. */
   const execute = async (action: () => void | Promise<void>) => {
-    if (activeRequest.current) return
     if (!requiresCredit) { await action(); return }
+    if (activeRequest.current) return
     if (!me.data) return
     const request = new AbortController()
     activeRequest.current = request

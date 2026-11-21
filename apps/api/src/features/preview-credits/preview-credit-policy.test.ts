@@ -13,13 +13,21 @@ test('이전 예약·추천 캐시의 날짜 키는 한국 시간 자정을 기�
 })
 
 test('운영은 테스트 보상을 차단하며 실제 광고 단위가 없으면 비활성화한다', (t) => {
-  const before = { NODE_ENV: process.env.NODE_ENV, ADMOB_REWARD_MODE: process.env.ADMOB_REWARD_MODE, ADMOB_REWARDED_AD_UNIT_ID: process.env.ADMOB_REWARDED_AD_UNIT_ID }
+  const before = { K_SERVICE: process.env.K_SERVICE, NODE_ENV: process.env.NODE_ENV, ADMOB_REWARD_MODE: process.env.ADMOB_REWARD_MODE, ADMOB_REWARDED_AD_UNIT_ID: process.env.ADMOB_REWARDED_AD_UNIT_ID }
   t.after(() => { for (const [key, value] of Object.entries(before)) { if (value === undefined) delete process.env[key]; else process.env[key] = value } })
   delete process.env.ADMOB_REWARD_MODE
+  delete process.env.K_SERVICE
   process.env.NODE_ENV = 'development'
   assert.equal(getPreviewRewardConfig().mode, 'test')
   process.env.NODE_ENV = 'production'
   assert.equal(getPreviewRewardConfig().mode, 'disabled')
+  process.env.ADMOB_REWARD_MODE = 'test'
+  assert.equal(getPreviewRewardConfig().mode, 'disabled')
+  process.env.K_SERVICE = 'wearroom-api-dev'
+  assert.equal(getPreviewRewardConfig().mode, 'test')
+  delete process.env.ADMOB_REWARD_MODE
+  assert.equal(getPreviewRewardConfig().mode, 'disabled')
+  process.env.K_SERVICE = 'wearroom-api-prod'
   process.env.ADMOB_REWARD_MODE = 'test'
   assert.equal(getPreviewRewardConfig().mode, 'disabled')
   process.env.ADMOB_REWARD_MODE = 'production'

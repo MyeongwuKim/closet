@@ -16,10 +16,12 @@ export function getPreviewCreditDay(userId: string, now = new Date(), kind: AiCr
   return { id: aiInputKey([kind === 'preview' ? 'preview-credit' : 'recommendation-credit', userId, day]), day, resetsAt }
 }
 
-/** 로컬은 테스트 광고를 기본으로 사용한다. 운영 서버는 명시적인 실제 광고 설정이 없으면 보상을 비활성화한다. */
+/** 로컬은 테스트 광고를 기본으로 사용한다. Cloud Run에서는 dev 서비스에 명시한 테스트 모드만 허용한다. */
 export function getPreviewRewardConfig() {
-  const configured = process.env.ADMOB_REWARD_MODE ?? (process.env.NODE_ENV === 'production' ? 'disabled' : 'test')
-  if (configured === 'test' && process.env.NODE_ENV !== 'production') return { mode: 'test' as const, adUnitId: TEST_REWARDED_AD_UNIT }
+  const service = process.env.K_SERVICE
+  const isLocal = !service && process.env.NODE_ENV !== 'production'
+  const configured = process.env.ADMOB_REWARD_MODE ?? (isLocal ? 'test' : 'disabled')
+  if (configured === 'test' && (isLocal || service === 'wearroom-api-dev')) return { mode: 'test' as const, adUnitId: TEST_REWARDED_AD_UNIT }
   const adUnitId = process.env.ADMOB_REWARDED_AD_UNIT_ID?.trim()
   if (configured === 'production' && adUnitId && /^ca-app-pub-\d{16}\/\d{10}$/.test(adUnitId) && !adUnitId.startsWith('ca-app-pub-3940256099942544/')) {
     return { mode: 'production' as const, adUnitId }

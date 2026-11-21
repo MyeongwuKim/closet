@@ -6,7 +6,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { loadBuildEnvironment } from './build-environment.mjs'
 import { renameIosProject, selectNamedIosWorkspace } from './rename-ios-project.mjs'
-import { prebuildReleaseIos } from './prepare-release-ios.mjs'
+import { prebuildReleaseIos, publishDevWorkspace } from './prepare-release-ios.mjs'
 import { syncXcodeEnvironment } from './xcode-environment.mjs'
 import { runWithIosProvisioning } from './ios-provisioning.mjs'
 
@@ -54,12 +54,23 @@ if (isRelease) {
   if (!existsSync(path.join(workspace, 'contents.xcworkspacedata'))) {
     throw new Error('CocoaPods가 Xcode 워크스페이스를 만들지 못했습니다.')
   }
-  console.log(`Xcode 워크스페이스: ${path.relative(nativeRoot, workspace)}`)
-} else {
+  const openWorkspace = variant.environment === 'development'
+    ? publishDevWorkspace(localIosRoot, variant.xcodeScheme)
+    : workspace
+  console.log(`Xcode 워크스페이스: ${path.relative(nativeRoot, openWorkspace)}`)
+} else if (device) {
   selectNamedIosWorkspace(iosRoot)
-  const restoredDefaultProject = ['웨어룸(T)', '웨어룸', 'wearroomT'].some(name => renameIosProject(iosRoot, name, 'closet'))
-  prebuild(nativeRoot)
-  syncXcodeEnvironment(iosRoot, env)
-  if (restoredDefaultProject) run('pod', ['install'], { cwd: iosRoot })
-  run(process.execPath, [expoCli, 'run:ios', '--scheme', variant.xcodeScheme, '--configuration', 'Debug', ...(device ? ['--device'] : [])], { refreshProvisioning: device })
+  try {
+    const restoredDefaultProject = ['웨어룸(T)', '웨어룸', 'wearroomT'].some(name => renameIosProject(iosRoot, name, 'closet'))
+    prebuild(nativeRoot)
+    syncXcodeEnvironment(iosRoot, env)
+    if (restoredDefaultProject) run('pod', ['install'], { cwd: iosRoot })
+    run(process.execPath, [expoCli, 'run:ios', '--scheme', variant.xcodeScheme, '--configuration', 'Debug', '--device'], { refreshProvisioning: true })
+  } finally {
+    if (existsSync(path.join(nativeRoot, 'ios-dev', '웨어룸(T).xcworkspace'))) {
+      publishDevWorkspace(localIosRoot, '웨어룸(T)')
+    }
+  }
+} else {
+  run(process.execPath, [expoCli, 'start', '--dev-client', '--ios', '--scheme', variant.scheme])
 }

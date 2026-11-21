@@ -133,8 +133,9 @@ export function OutfitDetailModal({
   const itemsChanged =
     originalItemIds.length !== draftItemIds.length ||
     originalItemIds.some((itemId, index) => itemId !== draftItemIds[index])
+  const isPreviewInProgress = draftPreview.status === 'loading' && draftPreview.compositionKey === currentPreviewKey
   const hasViewablePreview = hasRestorablePreview || hasCurrentDraftPreview || Boolean(outfit.previewImageUrl && !itemsChanged)
-  const requiresPreviewCredit = !hasViewablePreview && !generateOutfitPreview.willResume
+  const requiresPreviewCredit = !isPreviewInProgress && !hasViewablePreview && !generateOutfitPreview.willResume
   const originalItemIdSet = new Set(originalItemIds)
   const itemSetChanged =
     originalItemIds.length !== draftItemIds.length ||
@@ -344,10 +345,10 @@ export function OutfitDetailModal({
           {!isEditing && requiresPreviewCredit && <div className="col-span-2"><PreviewCreditSummary /></div>}
           {!isEditing ? <AiCreditActionButton
             requiresCredit={requiresPreviewCredit}
-            label={hasViewablePreview ? 'AI 룩북 보기' : 'AI 룩북 만들기'}
+            label={isPreviewInProgress ? '진행 상태 보기' : hasViewablePreview ? 'AI 룩북 보기' : 'AI 룩북 만들기'}
             adLabel="광고 보고 AI 룩북 만들기"
             onClick={() => {
-              if (hasCurrentDraftPreview) {
+              if (isPreviewInProgress || hasCurrentDraftPreview) {
                 setDraftPreview((current) => ({ ...current, isOpen: true }))
                 return
               }
@@ -363,7 +364,7 @@ export function OutfitDetailModal({
               createDraftPreview()
             }}
             disabled={
-              !hasViewablePreview &&
+              !isPreviewInProgress && !hasViewablePreview &&
               (hasArchivedItems || Boolean(outfitCompletionMessage) || Boolean(duplicateOutfit) || generateOutfitPreview.isPending || generateOutfitPreview.isRestoringCompleted)
             }
             title={

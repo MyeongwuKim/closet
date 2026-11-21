@@ -10,7 +10,7 @@ export function toRewardSession(session: PreviewRewardSession) {
     watchedAt: session.watchedAt?.toISOString() ?? null, validUntil: session.validUntil.toISOString() }
 }
 
-/** 광고 세션의 소유권과 로컬 테스트 허용 여부를 확인하고 생성권 저장소에 위임한다. */
+/** 광고 세션의 소유권과 테스트 허용 여부를 확인하고 생성권 저장소에 위임한다. */
 export const previewCreditService = {
   balance: previewCreditRepository.balance,
   /** 개발 중 로그인 계정의 공통 지갑을 최대치로 채운다. 운영에서는 DB 접근 전에 거절한다. */
@@ -22,10 +22,10 @@ export const previewCreditService = {
   async startReward(userId: string, kind: AiCreditKind = 'preview') { return toRewardSession(await previewCreditRepository.startReward(userId, kind)) },
   async rewardSession(userId: string, id: string) { return toRewardSession(await previewCreditRepository.rewardSession(userId, id)) },
   async markWatched(userId: string, id: string) { return toRewardSession(await previewCreditRepository.markWatched(userId, id)) },
-  /** Google 테스트 광고는 실제 SSV가 없으므로 로컬 서버에서만 앱의 완료 이벤트를 받아 지급한다. 운영에서는 항상 거절한다. */
+  /** Google 테스트 광고는 실제 SSV가 없으므로 테스트 광고가 허용된 서버에서 앱의 완료 이벤트를 받아 지급한다. */
   async completeTestReward(userId: string, id: string) {
     const config = getPreviewRewardConfig()
-    if (config.mode !== 'test' || process.env.NODE_ENV === 'production') throw new ServiceError('테스트 광고 보상은 개발 환경에서만 사용할 수 있어요.', 'TEST_REWARD_DISABLED')
+    if (config.mode !== 'test') throw new ServiceError('테스트 광고 보상은 개발 환경에서만 사용할 수 있어요.', 'TEST_REWARD_DISABLED')
     const session = await previewCreditRepository.rewardSession(userId, id)
     return toRewardSession(await previewCreditRepository.grantReward({ sessionId: session.id, mode: 'test', adUnitId: config.adUnitId, transactionId: `test-${session.id}`, eventAt: new Date() }))
   },

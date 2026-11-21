@@ -106,7 +106,7 @@ test('Metro가 아닌 서버에는 개발 서버 실행 방법을 안내한다',
   const result = await runReload(['--port', metro.port])
 
   assert.equal(result.code, 1)
-  assert.match(result.stderr, /pnpm native:ios:dev/)
+  assert.match(result.stderr, /pnpm native:ios:local/)
   assert.equal(metro.messages.length, 0)
 })
 

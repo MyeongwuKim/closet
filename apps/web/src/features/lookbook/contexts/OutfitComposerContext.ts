@@ -201,7 +201,7 @@ export function outfitComposerReducer(
         },
       }
     case 'REOPEN_PREVIEW':
-      if (state.preview.status !== 'success' || !state.preview.imageUrl) {
+      if (state.preview.status !== 'loading' && (state.preview.status !== 'success' || !state.preview.imageUrl)) {
         return state
       }
       return {

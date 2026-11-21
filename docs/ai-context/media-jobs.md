@@ -30,7 +30,7 @@
 
 플래너 상세는 복귀·새로고침 후 ‘AI 룩북 보기’로 완료 이미지를 연다. `completedPreview`는 조회한 완료 이미지, `hasCompletedPreview`는 복원할 완료 포인터, `isRestoringCompleted`는 영속 조회 또는 이미지 조회 중 여부다. 일시 오류는 `restoreCompletedAsync`로 조회만 재시도하고, 삭제·소유권 거절이 확정되면 포인터를 해제한다. 로컬 기록 없이 영속 조회가 실패하면 `isCompletedLookupError`로 새 생성 대신 조회 재시도를 표시한다. 새 생성이나 사용권 차감으로 자동 전환하지 않는다.
 
-코디 맞춰보기·코디 상세·오늘 추천도 같은 영속 결과를 기존 이미지 보기 팝업으로 연다. 원피스 단독을 포함한 완성 코디에서 조회하며, 서버는 해당 옷의 소유권과 구성 조건을 확인한다. 기존 결과 보기와 조회 재시도는 사용권을 요구하지 않고, 사용자가 ‘다시 만들기’를 선택한 경우에만 새 생성 흐름을 실행한다.
+코디 맞춰보기·코디 상세·오늘 추천에서 진행 팝업을 닫아도 현재 화면의 같은 작업을 ‘진행 상태 보기’로 다시 열 수 있다. 완료된 이미지는 ‘AI 룩북 보기’로 연다. 원피스 단독을 포함한 완성 코디에서 조회하며, 서버는 해당 옷의 소유권과 구성 조건을 확인한다. 기존 결과 보기와 조회 재시도는 사용권을 요구하지 않고, 사용자가 ‘다시 만들기’를 선택한 경우에만 새 생성 흐름을 실행한다.
 
 복구는 제공자 요청 여부와 저장된 결과에 따라 달라진다. 저장된 이미지는 기존 결과로 완료할 수 있고, 요청 전 중단 작업은 재대기할 수 있다. 요청 후 결과를 확인할 수 없는 작업은 `interrupted`로 남아 자동 재과금을 막는다.
 
@@ -78,7 +78,7 @@ DB 기록 자체가 없는 원격 고아는 별도 `pnpm api:cleanup:cloudflare-
 
 네이티브는 서버가 발급한 광고 세션을 다시 조회한다. 운영 보상은 [admob.routes.ts](../../apps/api/src/features/preview-credits/admob.routes.ts)의 공개 SSV 주소에서 서명·광고 단위·세션·거래 정보를 검증한 뒤 지급한다. 클라이언트의 시청 완료와 서버의 지급 완료는 별개다.
 
-[preview-credit.service.ts](../../apps/api/src/features/preview-credits/preview-credit.service.ts)는 테스트 보상과 개발용 지갑 충전을 제공하며 운영 환경에서는 거절한다. 모드 선택은 `preview-credit-policy.ts`와 `NODE_ENV`를 사용한다.
+[preview-credit.service.ts](../../apps/api/src/features/preview-credits/preview-credit.service.ts)는 테스트 보상과 개발용 지갑 충전을 제공하며 운영 환경에서는 거절한다. 로컬은 테스트 광고를 기본으로 사용한다. Cloud Run에서는 `K_SERVICE=wearroom-api-dev`와 `ADMOB_REWARD_MODE=test`가 함께 충족될 때 테스트 광고를 허용한다.
 
 ## 관련 검사
 

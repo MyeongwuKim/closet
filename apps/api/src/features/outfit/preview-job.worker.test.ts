@@ -22,12 +22,14 @@ test('이미지 저장이 끝난 작업만 완료 알림을 보내며 결과 경
   t.mock.method(aiExecutor, 'run', createAiExecutor().run)
   t.mock.method(previewJobRepository, 'markRequestStarted', async () => ({ count: 1 }))
   t.mock.method(outfitPreviewService, 'generate', async (...[_user, _ids, _style, options]: Parameters<typeof outfitPreviewService.generate>) => {
+    assert.equal(options?.varyPreviousShot, true)
     await options?.onBeforeRequest?.()
-    return { imageBase64: 'fixture', mimeType: 'image/png', model: 'model-test' }
+    return { imageBase64: 'fixture', mimeType: 'image/png', model: 'model-test', lookbookShotIndex: 2 }
   })
   const stored = t.mock.method(imageService, 'storeGeneratedImage', async (...[_owner, input]: Parameters<typeof imageService.storeGeneratedImage>) => {
     assert.equal(input.temporary, undefined)
     assert.equal(input.jobId, job.id)
+    assert.equal(input.metadata?.lookbookShotIndex, 2)
     return { id: 'asset-test', retention: 'permanent', expiresAt: null } as Awaited<ReturnType<typeof imageService.storeGeneratedImage>>
   })
   const completed = t.mock.method(previewJobRepository, 'complete', async () => ({ count: 1 }))

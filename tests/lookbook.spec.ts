@@ -82,16 +82,19 @@ test.describe('코디북', () => {
         createdAt: new Date().toISOString(),
         path: '/lookbook/new?items=item-1,item-2&preview=open&previewAssetId=new-look-preview',
       }
-      let started = false
+      let startCalls = 0
+      let finishGeneration = () => {}
+      const generation = new Promise<void>(resolve => { finishGeneration = resolve })
       let createInput: Record<string, unknown> | undefined
       await page.route('**/graphql', async (route) => {
         const { query, variables } = route.request().postDataJSON()
         let data: unknown
         if (query.includes('mutation StartOutfitPreview')) {
-          started = true
+          startCalls++
+          await generation
           data = { startOutfitPreview: job }
         } else if (query.includes('query OutfitPreviewJobs')) {
-          data = { outfitPreviewJobs: started ? [job] : [] }
+          data = { outfitPreviewJobs: startCalls > 0 ? [job] : [] }
         } else if (query.includes('query OutfitPreviewJob(')) {
           data = { outfitPreviewJob: job }
         } else {
@@ -105,6 +108,23 @@ test.describe('코디북', () => {
       await page.goto('/lookbook/new?items=item-1,item-2')
       await page.getByRole('button', { name: 'AI 룩북 만들기', exact: true }).click()
       const preview = page.getByRole('dialog', { name: 'AI 룩북 미리보기', exact: true })
+      const loadingPreview = page.getByRole('dialog', { name: 'AI가 룩북을 만들고 있어요', exact: true })
+      const closePreview = loadingPreview.getByRole('button', { name: 'AI 룩북 미리보기 닫기' })
+      const progress = page.getByRole('button', { name: '진행 상태 보기', exact: true })
+      try {
+        await expect(loadingPreview).toHaveAttribute('aria-busy', 'true')
+        await closePreview.click()
+        await progress.click()
+        await expect(loadingPreview).toHaveAttribute('aria-busy', 'true')
+        await closePreview.click()
+      } finally {
+        finishGeneration()
+      }
+      const viewLookbook = page.getByRole('button', { name: 'AI 룩북 보기', exact: true })
+      await expect(viewLookbook).toBeEnabled()
+      await expect(preview).toHaveCount(0)
+      await viewLookbook.click()
+      expect(startCalls).toBe(1)
       await expect(preview.getByAltText('선택한 옷으로 생성한 AI 룩북 미리보기')).toHaveAttribute('src', imageUrl)
       await preview.getByRole('button', { name: '코디북에 추가', exact: true }).click()
       const save = page.getByRole('dialog', { name: '이 코디를 저장할까요?', exact: true })

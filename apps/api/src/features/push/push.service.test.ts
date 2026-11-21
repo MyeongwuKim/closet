@@ -151,6 +151,7 @@ test('AI 추천 완료 알림은 해당 계정의 기기에만 전송한다', as
     const messages = JSON.parse(String(options?.body)) as Array<{
       to: string
       title: string
+      body: string
       data: { type: string; kind: string }
     }>
     assert.equal(messages.length, 1)

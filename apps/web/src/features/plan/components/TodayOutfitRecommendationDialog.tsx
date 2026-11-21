@@ -209,7 +209,12 @@ export function TodayOutfitRecommendationDialog({
       })
   }
 
+  const isPreviewInProgress = preview.status === 'loading'
   const openOrGeneratePreview = () => {
+    if (isPreviewInProgress) {
+      setPreview((current) => ({ ...current, isOpen: true }))
+      return
+    }
     if (hasRestorablePreview) {
       generatePreview()
       return
@@ -329,11 +334,11 @@ export function TodayOutfitRecommendationDialog({
             )}
             <div className="grid grid-cols-2 gap-2">
               <AiCreditActionButton
-                requiresCredit={!hasRestorablePreview && !(preview.status === 'success' && preview.imageUrl) && !generateOutfitPreview.willResume}
-                label={hasRestorablePreview || (preview.status === 'success' && preview.imageUrl) ? 'AI 룩북 보기' : 'AI 룩북 만들기'}
+                requiresCredit={!isPreviewInProgress && !hasRestorablePreview && !(preview.status === 'success' && preview.imageUrl) && !generateOutfitPreview.willResume}
+                label={isPreviewInProgress ? '진행 상태 보기' : hasRestorablePreview || (preview.status === 'success' && preview.imageUrl) ? 'AI 룩북 보기' : 'AI 룩북 만들기'}
                 adLabel="광고 보고 AI 룩북 만들기"
                 onClick={openOrGeneratePreview}
-                disabled={Boolean(completionMessage) || (!hasRestorablePreview && !(preview.status === 'success' && preview.imageUrl) && (generateOutfitPreview.isPending || generateOutfitPreview.isRestoringCompleted))}
+                disabled={Boolean(completionMessage) || (!isPreviewInProgress && !hasRestorablePreview && !(preview.status === 'success' && preview.imageUrl) && (generateOutfitPreview.isPending || generateOutfitPreview.isRestoringCompleted))}
                 className="flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-line bg-canvas px-3 py-3.5 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {preview.status === 'success' && preview.imageUrl ? (

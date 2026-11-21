@@ -12,7 +12,7 @@ interface OutfitCompletionActionsProps {
   existingOutfitPath?: string
   /** 기존 AI 이미지가 있으면 보기, 없으면 이미지 만들기 문구를 표시한다. */
   hasAvailableLookbook: boolean
-  /** 생성과 이전 이미지 조회를 구분해 진행 문구를 표시하고 새 생성 버튼을 막는다. */
+  /** 현재 생성 중이면 같은 작업을 열고 이전 이미지 조회 중이면 새 생성을 막는다. */
   isPreviewPending?: boolean
   isRestoringPreview?: boolean
   /** 복원할 작업이 있으면 이미 접수한 결과를 열기 전에 사용권을 다시 요구하지 않는다. */
@@ -50,11 +50,11 @@ export function OutfitCompletionActions({
       )}
       <div className="grid grid-cols-2 gap-2">
         <AiCreditActionButton
-          requiresCredit={!hasAvailableLookbook && !canResumePreview}
-          label={hasAvailableLookbook ? 'AI 룩북 보기' : isPreviewPending ? 'AI 룩북 만드는 중…' : isRestoringPreview ? '기존 이미지 확인 중…' : 'AI 룩북 만들기'}
+          requiresCredit={!isPreviewPending && !hasAvailableLookbook && !canResumePreview}
+          label={isPreviewPending ? '진행 상태 보기' : hasAvailableLookbook ? 'AI 룩북 보기' : isRestoringPreview ? '확인 중…' : 'AI 룩북 만들기'}
           adLabel="광고 보고 AI 룩북 만들기"
           onClick={onOpenLookbook}
-          disabled={Boolean(completionMessage) || (!hasAvailableLookbook && (isPreviewPending || isRestoringPreview))}
+          disabled={Boolean(completionMessage) || (!isPreviewPending && !hasAvailableLookbook && isRestoringPreview)}
           className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-2 text-xs font-semibold text-ink transition-colors hover:border-accent/40 hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-65"
         >
           <Sparkles size={16} strokeWidth={1.7} aria-hidden="true" />

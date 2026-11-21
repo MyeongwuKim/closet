@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdtempSync, readdirSync, renameSync, rmSync, symlinkSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { renameIosProject } from './rename-ios-project.mjs'
 
@@ -35,4 +35,20 @@ export function prebuildReleaseIos({ nativeRoot, iosRoot, localIosRoot, prebuild
   } finally {
     rmSync(stagingRoot, { recursive: true, force: true })
   }
+}
+
+/** 기존 Xcode 진입 경로에서 개발용 프로젝트와 Pods를 연다. */
+export function publishDevWorkspace(localRoot, scheme) {
+  const name = `${scheme}.xcworkspace`
+  const workspace = path.join(localRoot, name)
+  const saved = path.join(localRoot, '.inactive-workspaces', name)
+  if (!existsSync(workspace) && existsSync(saved)) renameSync(saved, workspace)
+  mkdirSync(workspace, { recursive: true })
+  writeFileSync(path.join(workspace, 'contents.xcworkspacedata'), `<?xml version="1.0" encoding="UTF-8"?>
+<Workspace version="1.0">
+  <FileRef location="group:../ios-dev/${scheme}.xcodeproj"></FileRef>
+  <FileRef location="group:../ios-dev/Pods/Pods.xcodeproj"></FileRef>
+</Workspace>
+`)
+  return workspace
 }

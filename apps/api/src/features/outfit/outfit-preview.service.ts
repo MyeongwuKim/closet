@@ -1,10 +1,11 @@
+import { imageRepository } from '../image/image.repository.js'
 import { requestAiJson } from '../../lib/ai/ai-http.js'
 /**
  * 용도:
  * 옷장 아이템과 사용자 체형 정보를 바탕으로 착장형 룩북 이미지를 생성한다.
  *
  * 요청 흐름:
- * 아이템 참조 이미지·분석 속성과 가능한 실측 레이어 도식을 이미지 편집 API에 전달한 뒤,
+ * 원본 옷과 실측 도식을 이미지 편집 API에 전달한다. 같은 조합의 후속 생성에는 이전 컷과 새 연출 지침을 함께 전달하고,
  * 저장 가능한 생성 이미지와 사용 모델 정보를 반환한다.
  */
 import type {
@@ -33,6 +34,7 @@ import {
 } from './lookbook-proportion-guide.js'
 import {
   buildLookbookLayerLayout,
+  canOpenFront,
   renderLookbookLayerLayout,
 } from './lookbook-layer-layout.js'
 
@@ -303,6 +305,22 @@ export function getLookbookBaseLayerGuide(items: LookbookLayerItem[]) {
   return 'Add one plain lightweight white crew-neck T-shirt as a supporting base layer under the referenced V-neck knit. Show a clean white crew neckline naturally inside the V opening. Keep its sleeves and hem hidden under the knit, with no logo, print, or visible extra styling. This T-shirt is a non-reference styling layer only; it must not replace, recolor, or obscure any referenced garment.'
 }
 
+const alternateShots = [
+  'Use a straight-on front view, with a relaxed, balanced standing pose.',
+  'Use a three-quarter front view turned about 25 degrees toward image-right. Do not mirror garment details.',
+  'Use a slight turn toward image-left and place one foot a small step forward, maintaining a natural upright pose.',
+  'Show a slightly stronger three-quarter view toward image-left so the side drape is visible. Keep both feet in frame and avoid a full profile.',
+]
+
+/** 기존 이미지의 연출 번호 다음 컷을 고른다. 번호가 없는 과거 이미지는 최초 컷으로 취급한다. */
+function nextShotIndex(metadata: unknown) {
+  const index = metadata && typeof metadata === 'object' && 'lookbookShotIndex' in metadata
+    ? metadata.lookbookShotIndex : undefined
+  return typeof index === 'number' && Number.isInteger(index) && index >= 1 && index <= alternateShots.length
+    ? index % alternateShots.length + 1
+    : 1
+}
+
 function buildPrompt(
   items: Awaited<
     ReturnType<typeof wardrobeRepository.findManyOwnedWithImagesByIds>
@@ -310,6 +328,7 @@ function buildPrompt(
   profile: Awaited<ReturnType<typeof userRepository.findViewerById>>,
   style?: string | null,
   layoutGuide?: string | null,
+  alternateShot?: { index: number; previousReferenceIndex: number | null },
 ) {
   const garments = items
     .map((item, index) =>
@@ -336,6 +355,22 @@ function buildPrompt(
   const footwearGuide = items.some((item) => item.category === 'shoes')
     ? 'Use only the referenced footwear. Do not replace it with generic sneakers or add another pair.'
     : 'No footwear was selected. Show the model barefoot, with natural bare feet visible. Do not invent shoes, sneakers, sandals or socks to complete the outfit.'
+
+  const closureIndex = alternateShot?.index === 1 && alternateShot.previousReferenceIndex !== null
+    ? items.findIndex((item) => (item.category === 'outer' || item.category === 'midlayer') && canOpenFront(item.fashionAttributes))
+    : -1
+  const varyClosure = closureIndex >= 0
+  const poseGuide = alternateShot
+    ? varyClosure
+      ? `Keep a clear front-facing view at approximately the same angle as the previous shot. Change the fastening of garment reference ${closureIndex + 1}: if it was open, close it naturally using the visible original fastening; if it was closed, open it to show the layers already selected. Keep the existing garment construction and other layers. If the actual garment cannot be naturally fastened in the opposite way, use a straight-on angle or a different natural stance instead. The layer diagram guides hem lengths only; its open front does not specify the closure for this shot.`
+      : alternateShots[alternateShot.index - 1]
+    : "Show the model in a three-quarter front view like a clean apparel catalog photo. Keep the model centered, then rotate the torso, hips, knees, feet, neck, and implied gaze together about 20 to 30 degrees away from straight-on toward the left edge of the final image from the viewer's perspective (image-left). Keep this same image-left orientation in every generation. Never turn or mirror the pose toward image-right, and never alternate the pose direction. Do not use a full side profile. Keep the torso upright, shoulders level, legs uncrossed, and both feet flat with a small natural gap. Use a neutral standing-at-attention pose, not an editorial fashion pose."
+  const poseArmGuide = alternateShot
+    ? 'Keep arms and hands relaxed, visible and outside pockets. Keep any selected bag visible without blocking garment details.'
+    : armsGuide
+  const previousShotGuide = alternateShot?.previousReferenceIndex
+    ? `Supplementary image ${alternateShot.previousReferenceIndex} is the previous lookbook shot, provided only for visual comparison. Create a visibly distinct shot. The garment references, current body guide, and measured lengths take priority.`
+    : ''
 
   return `Create a photorealistic fashion lookbook image using every garment from the first ${items.length} reference images exactly once.
 
@@ -374,11 +409,14 @@ Footwear rule: ${footwearGuide}
 
 Preserve each referenced garment's visible color, material, pattern, length, proportions, and distinctive details. Body chest, waist, and hip values are full circumferences, while garment chest, waist, and hip widths are flat measurements. When both are provided, use their relationship to depict plausible ease without treating the result as exact virtual fitting. Dress a single adult fashion model matching the body guide in the complete coordinated outfit.
 
-Show the model in a three-quarter front view like a clean apparel catalog photo. Keep the model centered, then rotate the torso, hips, knees, feet, neck, and implied gaze together about 20 to 30 degrees away from straight-on toward the left edge of the final image from the viewer's perspective (image-left). Keep this same image-left orientation in every generation. Never turn or mirror the pose toward image-right, and never alternate the pose direction. Do not use a full side profile. Keep the torso upright, shoulders level, legs uncrossed, and both feet flat with a small natural gap. Use a neutral standing-at-attention pose, not an editorial fashion pose. ${armsGuide}
+${previousShotGuide}
+${poseGuide} ${poseArmGuide}
 
 Frame the complete outfit from the neck to the feet, keeping the model's face entirely outside the image. Use a warm off-white studio background, soft natural light, realistic fabric folds, and a clean Korean fashion lookbook composition. ${extraGarmentRule} Do not add text, captions, logos, duplicate items, shopping UI, borders, or a collage. Do not infer or reproduce a real person's identity or face.
 
-Final hem check: leave the immediately visible inner layer's complete hem free and untucked at its measured depth inside an open coat. Respect natural coverage by other selected layers. No part of its front or sides may disappear into the trouser waistband. Do not lift the hem to reveal a trouser button or fly. Clothes may naturally cover the waistband; the restriction against obscuring the outfit applies to hands, hair and props, not to a correctly layered inner garment. Preserve the measured relative hem depths before rendering the final photo.`
+Final hem check: ${varyClosure
+  ? "Keep every inner hem at its measured length and untucked. The fastened outer layer may naturally hide the inner hem."
+  : "leave the immediately visible inner layer's complete hem free and untucked at its measured depth inside an open coat."} Respect natural coverage by other selected layers. No part of its front or sides may disappear into the trouser waistband. Do not lift the hem to reveal a trouser button or fly. Clothes may naturally cover the waistband; the restriction against obscuring the outfit applies to hands, hair and props, not to a correctly layered inner garment. Preserve the measured relative hem depths before rendering the final photo.`
 }
 
 async function downloadReferenceImage(url: string, index: number) {
@@ -435,7 +473,7 @@ export const outfitPreviewService = {
     userId: string,
     selectedItemIds: string[],
     style?: string | null,
-    options: { onBeforeRequest?: () => Promise<void> } = {},
+    options: { varyPreviousShot?: boolean; onBeforeRequest?: () => Promise<void> } = {},
   ) {
     const [items, profile] = await Promise.all([
       getOutfitPreviewItems(userId, selectedItemIds),
@@ -450,6 +488,15 @@ export const outfitPreviewService = {
       )
     }
 
+    const previous = options.varyPreviousShot
+      ? await imageRepository.findLatestGeneratedPreviewForItems(userId, selectedItemIds, style ?? null)
+      : null
+    // 이전 이미지가 정리됐거나 내려받을 수 없어도 원본 옷과 다른 구도 지침으로 생성한다.
+    const previousReference = previous?.deliveryUrl
+      ? await downloadReferenceImage(previous.deliveryUrl, items.length).catch(() => null)
+      : null
+    const lookbookShotIndex = previous ? nextShotIndex(previous.metadata) : null
+
     const references = await Promise.all(
       items.map((item, index) =>
         downloadReferenceImage(item.displayImageAsset!.deliveryUrl!, index),
@@ -460,7 +507,10 @@ export const outfitPreviewService = {
     const layoutImage = layout ? await renderLookbookLayerLayout(layout) : null
     const prompt = buildPrompt(items, profile, style, layout
       ? `Supplementary image ${items.length + 1} is a measured layer layout, not another garment reference. ${layout.guide}`
-      : null)
+      : null, lookbookShotIndex === null ? undefined : {
+        index: lookbookShotIndex,
+        previousReferenceIndex: previousReference ? items.length + (layoutImage ? 2 : 1) : null,
+      })
 
     const createForm = () => {
       const form = new FormData()
@@ -478,6 +528,9 @@ export const outfitPreviewService = {
       })
       if (layoutImage) {
         form.append('image[]', new Blob([layoutImage.bytes], { type: layoutImage.mimeType }), 'measured-layer-layout.png')
+      }
+      if (previousReference) {
+        form.append('image[]', new Blob([previousReference.bytes], { type: previousReference.mimeType }), `previous-lookbook.${previousReference.mimeType.split('/')[1]}`)
       }
       return form
     }
@@ -501,6 +554,7 @@ export const outfitPreviewService = {
       imageBase64,
       mimeType: 'image/png' as const,
       model,
+      ...(lookbookShotIndex === null ? {} : { lookbookShotIndex }),
     }
   },
 }
