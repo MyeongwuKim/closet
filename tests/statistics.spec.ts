@@ -69,3 +69,27 @@ test('옷장과 착용 기록이 비어 있으면 두 통계 탭에 빈 상태�
   await page.getByRole('tab', { name: '코디', exact: true }).click()
   await expect(page.getByText('코디북에 코디를 저장하고 플래너에 기록하면 순위가 생겨요.', { exact: true })).toBeVisible()
 })
+
+test('응답을 기다릴 때 요약과 막대 자리를 표시하고 수치가 도착하면 실제 통계를 연다', async ({ page, mockApi }, testInfo) => {
+  void mockApi
+  await page.setViewportSize({ width: 390, height: 844 })
+  let release = () => {}
+  const response = new Promise<void>((resolve) => { release = resolve })
+  await page.route('**/graphql', async (route) => {
+    if (!route.request().postDataJSON().query.includes('query WardrobeStatistics')) return route.fallback()
+    await response
+    await route.fulfill({ json: { data: { wardrobeStatistics: statistics } } })
+  })
+  try {
+    await page.goto('/settings/statistics')
+    await expect(page.getByRole('status')).toHaveText('옷장 통계를 불러오는 중')
+    await expect(page.locator('.statistics-loading-bars')).toBeVisible()
+    await expect(page.getByRole('tab')).toHaveCount(0)
+    await page.screenshot({ path: testInfo.outputPath('statistics-loading.png'), animations: 'disabled' })
+    release()
+    await expect(page.getByRole('tabpanel', { name: '옷장 구성' })).toContainText('네이비')
+    await expect(page.locator('.statistics-loading-bars')).toHaveCount(0)
+  } finally {
+    release()
+  }
+})

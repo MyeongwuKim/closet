@@ -1,4 +1,4 @@
-import { Search } from 'lucide-react'
+import { CollectionSearchButton } from '../../../components/CollectionSearchButton'
 import type { ReactNode, Ref } from 'react'
 import { CollectionAddButton } from '../../../components/CollectionAddButton'
 import { CollectionHeading } from '../../../components/CollectionHeading'
@@ -25,16 +25,7 @@ export function ClosetPageHeader({
     <CollectionHeading
       title="내 옷장"
       actions={<>
-        <button
-          type="button"
-          onClick={onToggleSearch}
-          className="collection-action"
-          aria-label={isSearchOpen ? '옷장 검색 닫기' : '옷장 검색'}
-          aria-expanded={isSearchOpen}
-          title={isSearchOpen ? '검색 닫기' : '옷장 검색'}
-        >
-          <Search size={20} />
-        </button>
+        <CollectionSearchButton label="옷장 검색" isOpen={isSearchOpen} onToggle={onToggleSearch} />
         {filterControl}
         <CollectionAddButton
           buttonRef={addButtonRef}

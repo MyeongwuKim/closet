@@ -1,3 +1,4 @@
+import { CollectionSearchButton } from '../../../components/CollectionSearchButton'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Season } from '@closet/types'
@@ -5,8 +6,8 @@ import {
   Check,
   ChevronLeft,
   Images,
-  Search,
   Sparkles,
+  Thermometer,
   Trash2,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -14,6 +15,10 @@ import { formatSeasonLabels, seasonLabels } from '../../../constants/seasons'
 import { getOutfitStyleLabel } from '../../../constants/styleOptions'
 import { useUiStore } from '../../../stores/useUiStore'
 import { useClosetStore } from '../../closet/stores/useClosetStore'
+import type { DateSortOrder } from '../../../components/DateSortButton'
+import { useOutfitFilterOptions } from '../../../lib/catalogQueries'
+import { LookbookFilters } from '../../lookbook/components/LookbookFilters'
+import { usePlannerLocationWeather } from '../hooks/usePlannerLocationWeather'
 import { OutfitCardVisual } from '../../lookbook/components/OutfitCardVisual'
 import { OutfitFilterControls } from '../../lookbook/components/OutfitFilterControls'
 import { OutfitWearStatus } from '../../lookbook/components/OutfitWearStatus'
@@ -63,7 +68,12 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
   const [activeSeason, setActiveSeason] = useState<Season | null>(null)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [activeColor, setActiveColor] = useState<string | null>(null)
+  const [sortOrder, setSortOrder] = useState<DateSortOrder>('latest')
+  const [filterByWeather, setFilterByWeather] = useState(false)
+  const { data: filterOptions, isPending: isLoadingFilterOptions } = useOutfitFilterOptions()
   const today = useKoreaPlannerToday()
+  const { weather } = usePlannerLocationWeather(today)
   const [saveIntent, setSaveIntent] = useState({ date: dayEntry?.date ?? '', confirmWorn: initialConfirmWorn })
   const wearSummaries = useOutfitWearSummaries(
     outfits.map((outfit) => outfit.id),
@@ -75,16 +85,31 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
     ? new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric' })
         .format(new Date(`${dayEntry.date}T00:00:00`))
     : null
-  const dialogTitle = dayEntry ? '하루 코디 선택' : '주간 코디 편집'
+  const dialogTitle = dayEntry ? '코디 고르기' : '주간 코디 편집'
   const isSavingDay = Boolean(dayEntry && setPlannerEntry.isPending)
   const visibleStyleOptions = getVisibleOutfitStyleOptions(outfits)
-  const visibleOutfits = filterSavedOutfits({
+  const forecastMean = weather?.meanTemperatureC
+  const todayTemperature = activeEntry?.date === today && forecastMean != null && Number.isFinite(forecastMean)
+    ? forecastMean
+    : null
+  const weatherFilterActive = filterByWeather && todayTemperature != null
+  const filteredOutfits = filterSavedOutfits({
     outfits,
     wardrobeItems: items,
     activeStyle,
     activeSeason,
+    activeColor,
     searchQuery,
   })
+  // 비교에는 카드에 표시하는 반올림 기온 대신 각 착용일의 실제 평균을 사용한다.
+  const visibleOutfits = (weatherFilterActive
+    ? filteredOutfits.filter((outfit) => wearSummaries.get(outfit.id)?.temperaturesC?.some(
+        (temperature) => temperature >= todayTemperature - 3 && temperature < todayTemperature + 3,
+      ))
+    : filteredOutfits
+  ).sort((first, second) => sortOrder === 'latest'
+    ? second.createdAt.localeCompare(first.createdAt)
+    : first.createdAt.localeCompare(second.createdAt))
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
@@ -93,6 +118,7 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
     const handleKeyDown = (event: KeyboardEvent) => {
       if (
         event.key === 'Escape' &&
+        !event.defaultPrevented &&
         !isSavingDay &&
         !useUiStore.getState().recentWearConfirmation
       ) {
@@ -184,7 +210,7 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
             onClick={onClose}
             disabled={isSavingDay}
             className="flex size-10 items-center justify-center rounded-full hover:bg-surface disabled:opacity-50"
-            aria-label={dayEntry ? '하루 코디 선택 닫기' : '주간 옷 설정 닫기'}
+            aria-label={dayEntry ? '코디 고르기 닫기' : '주간 옷 설정 닫기'}
             autoFocus
           >
             <ChevronLeft size={25} />
@@ -219,26 +245,23 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
               <h2 className="text-xl font-semibold">
                 {`${formattedDay ?? `${activeEntry?.dayLabel ?? ''}요일`}에 ${confirmWorn || isWearConfirmed ? '입은' : '넣을'} 코디`}
               </h2>
-              <p className="mt-1 text-sm text-muted">
-                {isWearConfirmed ? '실제로 입은 코디가 기록되어 있어요.' : confirmWorn ? '코디를 고르면 착용 기록으로 저장해요.' : '저장된 코디 하나를 선택할 수 있어요.'}
-              </p>
+              {(isWearConfirmed || confirmWorn) && <p className="mt-1 text-sm text-muted">
+                {isWearConfirmed ? '실제로 입은 코디가 기록되어 있어요.' : '코디를 고르면 착용 기록으로 저장해요.'}
+              </p>}
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {!isWearConfirmed && outfits.length > 0 && (
-                <button
-                  type="button"
-                  onClick={toggleSearch}
-                  className={`flex size-9 items-center justify-center rounded-full border transition ${
-                    isSearchOpen
-                      ? 'border-ink bg-ink text-white'
-                      : 'border-line bg-surface text-muted hover:text-ink'
-                  }`}
-                  aria-label={isSearchOpen ? '코디 검색 닫기' : '코디 검색'}
-                  aria-expanded={isSearchOpen}
-                  title={isSearchOpen ? '검색 닫기' : '코디 검색'}
-                >
-                  <Search size={17} />
-                </button>
+                <CollectionSearchButton label="코디 검색" isOpen={isSearchOpen} onToggle={toggleSearch} />
+              )}
+              {!isWearConfirmed && outfits.length > 0 && (
+                <LookbookFilters
+                  color={activeColor}
+                  colors={filterOptions?.colors ?? []}
+                  isLoading={isLoadingFilterOptions}
+                  sortOrder={sortOrder}
+                  onColorChange={setActiveColor}
+                  onSortChange={setSortOrder}
+                />
               )}
               {!isWearConfirmed && !dayEntry && activeEntry && activeEntry.itemIds.length > 0 && (
                 <button
@@ -282,6 +305,17 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
             </div>
           ) : (
             <>
+              {todayTemperature != null && (
+                <button
+                  type="button"
+                  aria-pressed={weatherFilterActive}
+                  onClick={() => setFilterByWeather(!weatherFilterActive)}
+                  className={`mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3 text-sm font-medium ${weatherFilterActive ? 'border-accent bg-sage text-ink' : 'border-line bg-surface text-muted'}`}
+                >
+                  <Thermometer size={16} aria-hidden="true" />
+                  오늘 기온 · 평균 {Math.round(todayTemperature)}℃
+                </button>
+              )}
               <OutfitFilterControls
                 activeSeason={activeSeason}
                 activeStyle={activeStyle}
@@ -296,16 +330,18 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
               {visibleOutfits.length === 0 ? (
                 <div className="mt-5 rounded-3xl border border-dashed border-line bg-surface p-8 text-center">
                   <h3 className="font-semibold">
-                    {searchQuery.trim()
-                      ? '검색 결과가 없어요'
-                      : activeSeason
-                        ? `${seasonLabels[activeSeason]} 코디가 없어요`
-                        : activeStyle !== 'all'
-                          ? `${getOutfitStyleLabel(activeStyle)} 코디가 없어요`
-                          : '조건에 맞는 코디가 없어요'}
+                    {weatherFilterActive
+                      ? '오늘과 비슷한 기온에 입은 코디가 없어요'
+                      : searchQuery.trim()
+                        ? '검색 결과가 없어요'
+                        : activeSeason
+                          ? `${seasonLabels[activeSeason]} 코디가 없어요`
+                          : activeStyle !== 'all'
+                            ? `${getOutfitStyleLabel(activeStyle)} 코디가 없어요`
+                            : '조건에 맞는 코디가 없어요'}
                   </h3>
                   <p className="mt-2 text-sm text-muted">
-                    다른 검색어나 계절, 스타일을 선택해보세요.
+                    다른 필터나 검색어로 다시 찾아보세요.
                   </p>
                 </div>
               ) : (
@@ -319,7 +355,7 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
                         disabled={
                           isCheckingRecentWear || setPlannerEntry.isPending
                         }
-                        className={`relative overflow-hidden rounded-3xl border bg-surface p-2 text-left transition ${
+                        className={`relative flex min-w-0 flex-col items-stretch overflow-hidden rounded-3xl border bg-surface p-2 text-left transition ${
                           isAssigned
                             ? 'border-accent ring-2 ring-accent/20'
                             : 'border-line hover:border-ink'
@@ -344,7 +380,7 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
                             </span>
                           )}
                         </div>
-                        <div className="px-2 pt-3 pb-2">
+                        <div className="min-w-0 px-2 pt-3 pb-2">
                           <div className="flex min-w-0 gap-1 overflow-hidden">
                             <span className="inline-flex shrink-0 rounded-full bg-sage px-2 py-1 text-[10px] font-bold">
                               {getOutfitStyleLabel(outfit.style)}

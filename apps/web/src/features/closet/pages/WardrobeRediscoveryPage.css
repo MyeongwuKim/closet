@@ -56,6 +56,38 @@
 .rediscovery-notification-link > svg:last-child { margin-left: auto; }
 .rediscovery-notification-link:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
 
+@media (prefers-reduced-motion: no-preference) {
+  .rediscovery-loading-hanger {
+    transform-origin: 50% 25%;
+    animation: rediscovery-hanger-sway 2.2s ease-in-out infinite;
+  }
+}
+
+@keyframes rediscovery-hanger-sway {
+  0%, 100% { transform: rotate(-7deg); }
+  50% { transform: rotate(7deg); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .rediscovery-carousel { scroll-behavior: auto; }
+}
+
+@media (max-height: 780px), (max-width: 639px) and (max-height: 900px) {
+  .rediscovery-header { min-height: 3.5rem; padding-block: .375rem; }
+  .rediscovery-body { padding-bottom: calc(.5rem + env(safe-area-inset-bottom)); }
+  .rediscovery-content { padding-top: .75rem; }
+  .rediscovery-intro { padding-bottom: .75rem; }
+  .rediscovery-intro h2 { font-size: 1.25rem; line-height: 1.75rem; }
+  .rediscovery-intro p { margin-top: .25rem; line-height: 1.25rem; }
+  .rediscovery-card-visual {
+    height: clamp(5.25rem, calc(100dvh - 29rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)), 32dvh);
+    padding: .75rem;
+  }
+  .rediscovery-card-content { padding-block: .625rem .25rem; }
+  .rediscovery-card-content > button:first-child { line-height: 1.5rem; }
+  .rediscovery-card-content > p { margin-top: .25rem; }
+  .rediscovery-card-content > div > div { margin-top: 0; }
+  .rediscovery-recommend { min-height: 2.75rem; margin-top: .75rem; padding-block: .5rem; }
+  .rediscovery-controls { margin-top: .375rem; padding-bottom: 0; }
+  .rediscovery-notification-link { min-height: 2.75rem; margin-top: .375rem; padding-block: .375rem; }
 }

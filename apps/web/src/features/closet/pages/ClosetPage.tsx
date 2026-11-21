@@ -168,11 +168,10 @@ export function ClosetPage() {
     setSearchParams((params) => toggleWardrobeFilterSelection(params, item), { replace: true })
   }
 
-  /** 삭제한 브랜드만 선택에서 빼고 미지정 옷을 포함한다. 함께 고른 다른 브랜드·색상·태그는 유지한다. */
+  /** 삭제한 브랜드만 선택에서 뺀다. 함께 고른 다른 브랜드·색상·태그는 유지한다. */
   const handleSelectedBrandDeleted = (brand: string) => {
     setSearchParams((params) => {
       const selection = readWardrobeFilterSelection(params).filter((item) => item.kind !== 'brand' || getWardrobeBrandKey(item.value) !== getWardrobeBrandKey(brand))
-      if (!selection.some((item) => item.kind === 'unbranded')) selection.push({ kind: 'unbranded', value: '1' })
       return writeWardrobeFilterSelection(params, selection)
     }, { replace: true })
   }

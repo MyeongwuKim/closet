@@ -5,10 +5,9 @@
  * 최근에 사용한 코디 조합과 개별 옷을 다시 선택할 때 보여줄 리마인드 기준을 관리한다.
  *
  * 구조:
- * 전체 사용 여부는 스위치에서 바로 저장한다. 기간과 확인 기준은 하단 버튼으로 저장한다.
+ * 스위치와 기간 선택을 바꾸는 즉시 저장한다.
  */
-import { useState } from 'react'
-import { ChevronLeft, Save } from 'lucide-react'
+import { ChevronLeft } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { PageTitle } from '../../../components/PageTitle'
 import { ToggleSwitch } from '../../../components/ToggleSwitch'
@@ -60,70 +59,37 @@ interface WearReminderSettingsFormProps {
 function WearReminderSettingsForm({ preferences }: WearReminderSettingsFormProps) {
   const pushToast = useUiStore((state) => state.pushToast)
   const updatePreferences = useUpdateWearReminderPreferencesMutation()
-  // 입력한 항목만 초안에 두어 스위치 저장 응답이나 재조회가 입력 중인 값을 덮지 않게 한다.
-  const [draft, setDraft] = useState<{
-    intervalDays?: string
-    combinationReminderEnabled?: boolean
-    itemReminderEnabled?: boolean
-  }>({})
-  const { enabled } = preferences
-  const intervalDays = draft.intervalDays ?? preferences.intervalDays.toString()
-  const combinationReminderEnabled = draft.combinationReminderEnabled ?? preferences.combinationReminderEnabled
-  const itemReminderEnabled = draft.itemReminderEnabled ?? preferences.itemReminderEnabled
+  const { enabled, combinationReminderEnabled, itemReminderEnabled, intervalDays } = preferences
   const { isPending } = updatePreferences
-  const selectedInterval = Number(intervalDays)
+  const presetSelected = quickIntervals.some((days) => days === intervalDays)
 
-  /** 서버가 저장을 확인한 경우에만 호출부에서 세부 설정의 초안을 지운다. */
-  const savePreferences = async (input: WearReminderPreferences) => {
+  /** 한 설정씩 저장하고, 서버 응답이 도착하면 Viewer 캐시에서 값을 갱신한다. */
+  const savePreferences = async (input: Partial<WearReminderPreferences>) => {
+    if (isPending) return
     try {
-      await updatePreferences.mutateAsync(input)
-      pushToast('최근 착용 리마인드 설정을 저장했어요.', 'success')
-      return true
+      await updatePreferences.mutateAsync({ ...preferences, ...input })
     } catch (error) {
-      if (error instanceof ViewerSessionChangedError) return false
+      if (error instanceof ViewerSessionChangedError) return
       pushToast(
         error instanceof Error
           ? error.message
           : '최근 착용 리마인드 설정을 저장하지 못했어요.',
         'error',
       )
-      return false
     }
-  }
-
-  const saveDetails = async () => {
-    if (isPending) return
-    if (!Number.isInteger(selectedInterval) || selectedInterval < 1 || selectedInterval > 30) {
-      pushToast('알림 기간은 1일에서 30일 사이로 입력해주세요.', 'error')
-      return
-    }
-
-    const saved = await savePreferences({
-      enabled,
-      intervalDays: selectedInterval,
-      combinationReminderEnabled,
-      itemReminderEnabled,
-    })
-    if (saved) setDraft({})
   }
 
   return (
-    <form
-      className="relative flex min-h-0 flex-1 flex-col"
-      onSubmit={(event) => {
-        event.preventDefault()
-        void saveDetails()
-      }}
-    >
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <div className="mx-auto max-w-2xl space-y-5 px-5 pt-6 pb-32 sm:px-6 sm:pt-8">
+        <div className="mx-auto max-w-2xl space-y-5 px-5 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-8">
           <section className="overflow-hidden rounded-3xl border border-line bg-surface">
             <ToggleRow
-              title="최근 착용 리마인드"
-              description="설정한 기간 안에 입었던 조합이나 옷을 다시 고르면 한 번 더 확인해요. 켜기와 끄기는 바로 저장돼요."
+              title="최근 착용 확인"
+              description="코디를 고를 때 최근에 입은 옷이 겹치면 알려드려요."
               checked={enabled}
               disabled={isPending}
-              onChange={(checked) => void savePreferences({ ...preferences, enabled: checked })}
+              onChange={(checked) => void savePreferences({ enabled: checked })}
             />
           </section>
 
@@ -131,42 +97,18 @@ function WearReminderSettingsForm({ preferences }: WearReminderSettingsFormProps
             disabled={!enabled || isPending}
             className="disabled:opacity-50"
           >
-            <legend className="px-1 text-sm font-black">알림 기간</legend>
-            <p className="mt-1 px-1 text-xs leading-5 text-muted">
-              최근 며칠 안에 사용한 코디와 옷을 알려줄지 정해요.
-            </p>
-
-            <div className="mt-3 rounded-3xl border border-line bg-surface p-4 transition disabled:opacity-40 sm:p-5">
-              <label className="block">
-                <span className="mb-2 block text-xs font-bold text-muted">
-                  직접 입력
-                </span>
-                <span className="relative block">
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min="1"
-                    max="30"
-                    step="1"
-                    value={intervalDays}
-                    onChange={(event) => setDraft({ ...draft, intervalDays: event.target.value })}
-                    className="w-full rounded-xl border border-line bg-canvas px-4 py-3 pr-12 text-sm font-bold outline-none transition focus:border-ink disabled:cursor-not-allowed"
-                    aria-label="최근 착용 알림 기간"
-                  />
-                  <span className="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 text-xs font-bold text-muted">
-                    일
-                  </span>
-                </span>
-              </label>
-
-              <div className="mt-3 grid grid-cols-4 gap-2">
+            <legend className="px-1 text-sm font-semibold">최근 며칠까지 확인할까요?</legend>
+            <div className="mt-3 rounded-3xl border border-line bg-surface p-4 sm:p-5">
+              <div className="grid grid-cols-4 gap-2">
                 {quickIntervals.map((days) => (
                   <button
                     type="button"
-                    onClick={() => setDraft({ ...draft, intervalDays: days.toString() })}
-                    aria-pressed={selectedInterval === days}
+                    onClick={() => {
+                      if (days !== intervalDays) void savePreferences({ intervalDays: days })
+                    }}
+                    aria-pressed={intervalDays === days}
                     className={`rounded-xl border px-2 py-2.5 text-xs font-bold transition ${
-                      selectedInterval === days
+                      intervalDays === days
                         ? 'border-ink bg-ink text-white'
                         : 'border-line bg-canvas text-muted hover:border-ink hover:text-ink'
                     }`}
@@ -176,6 +118,7 @@ function WearReminderSettingsForm({ preferences }: WearReminderSettingsFormProps
                   </button>
                 ))}
               </div>
+              {!presetSelected && <p className="mt-2 text-xs text-muted">현재 설정 · {intervalDays}일</p>}
             </div>
           </fieldset>
 
@@ -183,25 +126,22 @@ function WearReminderSettingsForm({ preferences }: WearReminderSettingsFormProps
             disabled={!enabled || isPending}
             className="disabled:opacity-50"
           >
-            <legend className="px-1 text-sm font-black">확인할 기준</legend>
-            <p className="mt-1 px-1 text-xs leading-5 text-muted">
-              필요한 기준만 켜둘 수 있어요.
-            </p>
+            <legend className="px-1 text-sm font-semibold">확인할 기준</legend>
 
             <div className="mt-3 divide-y divide-line overflow-hidden rounded-3xl border border-line bg-surface">
               <ToggleRow
-                title="같은 조합"
-                description="최근에 함께 입었던 핵심 옷 조합이 겹치면 알려줘요."
+                title="같은 코디 조합"
+                description="같은 코디를 다시 고르거나, 최근에 함께 입은 주요 옷이 두 벌 이상 겹치면 알려줘요."
                 checked={combinationReminderEnabled}
                 disabled={!enabled || isPending}
-                onChange={(checked) => setDraft({ ...draft, combinationReminderEnabled: checked })}
+                onChange={(checked) => void savePreferences({ combinationReminderEnabled: checked })}
               />
               <ToggleRow
-                title="개별 옷"
-                description="선택한 상의·하의·아우터 등 핵심 옷 중 최근에 입은 옷이 있으면 알려줘요."
+                title="최근에 입은 옷"
+                description="최근에 입은 주요 옷이 한 벌만 겹쳐도 알려줘요."
                 checked={itemReminderEnabled}
                 disabled={!enabled || isPending}
-                onChange={(checked) => setDraft({ ...draft, itemReminderEnabled: checked })}
+                onChange={(checked) => void savePreferences({ itemReminderEnabled: checked })}
               />
             </div>
           </fieldset>
@@ -214,27 +154,9 @@ function WearReminderSettingsForm({ preferences }: WearReminderSettingsFormProps
               </p>
             )}
 
-          {!enabled && (
-            <p className="rounded-2xl bg-sage/70 px-4 py-3.5 text-xs leading-5 text-muted">
-              리마인드를 다시 켜면 저장해둔 기간과 세부 기준을 그대로 사용해요.
-            </p>
-          )}
         </div>
       </div>
-
-      <div className="absolute inset-x-0 bottom-0 z-10 border-t border-line bg-surface/95 px-5 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(27,27,24,0.06)] backdrop-blur sm:px-6 sm:pt-4 sm:pb-[calc(1rem+env(safe-area-inset-bottom))]">
-        <div className="mx-auto max-w-2xl">
-          <button
-            type="submit"
-            disabled={isPending}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3 text-sm font-bold text-white disabled:cursor-wait disabled:opacity-60"
-          >
-            <Save size={17} />
-            {isPending ? '저장 중…' : '리마인드 설정 저장'}
-          </button>
-        </div>
-      </div>
-    </form>
+    </div>
   )
 }
 
@@ -247,21 +169,21 @@ export function WearReminderSettingsPage() {
       className="classification-page-enter fixed inset-0 z-[80] flex h-dvh flex-col overflow-hidden bg-canvas"
       role="dialog"
       aria-modal="true"
-      aria-label="최근 착용 리마인드"
+      aria-label="최근 착용 알림"
     >
       <header className="shrink-0 border-b border-line bg-canvas/95 backdrop-blur">
         <div className="mx-auto flex min-h-16 max-w-2xl items-center gap-2 px-3 py-2 sm:min-h-18 sm:px-5">
           <Link
             to="/settings"
             className="flex size-10 shrink-0 items-center justify-center rounded-full transition hover:bg-surface"
-            aria-label="최근 착용 리마인드 닫기"
+            aria-label="최근 착용 알림 닫기"
             autoFocus
           >
             <ChevronLeft size={24} strokeWidth={2.2} />
           </Link>
           <PageTitle
-            title="최근 착용 리마인드"
-            description="최근 착용을 확인할 기간과 대상을 정해요."
+            title="최근 착용 알림"
+            description="코디를 고를 때 적용할 확인 기준"
             compact
           />
         </div>

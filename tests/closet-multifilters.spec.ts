@@ -12,17 +12,19 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     await page.goto('/closet')
     await page.getByRole('button', { name: '옷장 필터', exact: true }).click()
     const drawer = page.getByRole('dialog', { name: '옷장 필터', exact: true })
-    const geometry = () => drawer.evaluate((element) => [element, element.querySelector('[role="tablist"]')!, element.querySelector('[role="tabpanel"]')!, element.querySelector('footer')!].flatMap((node) => {
+    const geometry = () => drawer.evaluate((element) => [element, element.querySelector('[role="tablist"]')!, element.querySelector('footer > button')!].flatMap((node) => {
       const { top, height } = node.getBoundingClientRect()
       return [top, height]
     }))
     const initial = await geometry()
+    await expect(drawer.getByRole('list', { name: '선택한 필터' })).toHaveCount(0)
     const expectStable = async () => {
       const current = await geometry()
       current.forEach((value, index) => expect(Math.abs(value - initial[index])).toBeLessThanOrEqual(1))
     }
     await drawer.getByRole('button', { name: '네이비', exact: true }).click()
     await expectStable()
+    await expect(drawer.locator('footer').getByRole('list', { name: '선택한 필터' })).toBeVisible()
     for (const tab of ['브랜드', '태그', '색상']) {
       await drawer.getByRole('tab', { name: new RegExp(`^${tab}`) }).click()
       await expectStable()
@@ -78,20 +80,16 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     await filters.getByRole('button', { name: '#출근', exact: true }).click()
     await filters.getByRole('button', { name: '#주말', exact: true }).click()
     await filters.getByRole('tab', { name: /^브랜드/ }).click()
-    await filters.getByRole('button', { name: '브랜드 미지정', exact: true }).click()
     const selected = filters.getByRole('list', { name: '선택한 필터', exact: true })
-    await filters.getByRole('button', { name: '브랜드 미지정', exact: true }).click()
-    await expect(filters.getByRole('button', { name: '브랜드 미지정', exact: true })).toHaveAttribute('aria-pressed', 'false')
-    await filters.getByRole('button', { name: '브랜드 미지정', exact: true }).click()
-    await expect(selected.getByRole('button')).toHaveText(['네이비', 'COS', '베이지', 'Arket', '#출근', '#주말', '브랜드 미지정'])
-    expect(await selected.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true)
+    await expect(filters.getByRole('button', { name: '브랜드 미지정', exact: true })).toHaveCount(0)
+    await expect(selected.getByRole('button')).toHaveText(['네이비', 'COS', '베이지', 'Arket', '#출근', '#주말'])
     await expect.poll(() => selected.evaluate((element) => element.scrollLeft + element.clientWidth >= element.scrollWidth - 2)).toBe(true)
     mkdirSync('.playwright-mcp/catalog-multifilter-review', { recursive: true })
     await page.screenshot({ path: `.playwright-mcp/catalog-multifilter-review/${viewport.width}-drawer.png`, animations: 'disabled' })
     await filters.getByRole('button', { name: '옷 보기', exact: true }).click()
     await expect(page.getByRole('button', { name: 'COS 네이비 셔츠 옷 상세 보기' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Arket 베이지 셔츠 옷 상세 보기' })).toBeVisible()
-    await expect(page.getByRole('button', { name: '미지정 셔츠 옷 상세 보기' })).toHaveCount(1)
+    await expect(page.getByRole('button', { name: '미지정 셔츠 옷 상세 보기' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'COS 브라운 셔츠 옷 상세 보기' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: '다른 브랜드 셔츠 옷 상세 보기' })).toHaveCount(0)
     const applied = page.getByRole('list', { name: '적용한 옷장 필터', exact: true })
@@ -104,13 +102,13 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     await page.keyboard.press('Escape')
     await expect(filters).toHaveCount(0)
     await page.reload()
-    await expect(applied.getByRole('button')).toHaveText(['COS', '베이지', 'Arket', '#출근', '#주말', '브랜드 미지정', '네이비'])
+    await expect(applied.getByRole('button')).toHaveText(['COS', '베이지', 'Arket', '#출근', '#주말', '네이비'])
     await page.screenshot({ path: `.playwright-mcp/catalog-multifilter-review/${viewport.width}-closet.png`, animations: 'disabled' })
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   })
 }
 
-test('선택한 브랜드를 삭제해도 다른 브랜드를 유지하고 미지정 옷을 함께 조회한다', async ({ page, mockApi }) => {
+test('선택한 브랜드를 삭제하면 다른 브랜드 조건만 유지한다', async ({ page, mockApi }) => {
   mockApi.wardrobeItems = [createWardrobeItem({ brandName: 'COS' }), createWardrobeItem({ id: 'item-2', brandName: 'Arket' })]
   await page.goto('/closet?brand=COS&brand=Arket')
   await page.getByRole('button', { name: '옷장 필터', exact: true }).click()
@@ -125,7 +123,7 @@ test('선택한 브랜드를 삭제해도 다른 브랜드를 유지하고 미�
   await filters.getByRole('button', { name: 'COS 브랜드 삭제' }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: '브랜드 삭제', exact: true }).click()
   await expect(page.getByRole('alertdialog')).toHaveCount(0)
-  await expect(filters.getByRole('list', { name: '선택한 필터' }).getByRole('button')).toHaveText(['Arket', '브랜드 미지정'])
+  await expect(filters.getByRole('list', { name: '선택한 필터' }).getByRole('button')).toHaveText(['Arket'])
   expect(mockApi.wardrobeItems[0].brandName).toBeNull()
   expect(mockApi.wardrobeItems[1].brandName).toBe('Arket')
 })

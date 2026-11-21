@@ -142,7 +142,7 @@ test('저장된 룩북 재생성 화면에서 진행 중 작업을 이어받고 
   await page.goto('/#/lookbook')
   await page.getByRole('button', { name: '기본 코디 코디 상세 보기' }).click()
   await page.getByRole('button', { name: 'AI 룩북 보기', exact: true }).click()
-  await page.getByRole('button', { name: '현재 프로필로 다시 만들기' }).click()
+  await page.getByRole('button', { name: 'AI 룩북 다시 만들기' }).click()
   await expect(page.getByRole('dialog', { name: 'AI가 룩북을 만들고 있어요' })).toBeVisible()
   await expect.poll(() => reads).toBeGreaterThan(0)
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('closet:native-app-state', { detail: { isActive: false } })))

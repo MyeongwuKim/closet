@@ -66,7 +66,7 @@ test('옷장이 비어도 보관된 옷의 기존 코디는 배정할 수 있다
 
   await expect(page.getByRole('link', { name: '첫 옷 사진 추가' })).toBeVisible()
   await page.getByRole('button', { name: '코디북에서 고르기' }).click()
-  const picker = page.getByRole('dialog', { name: '하루 코디 선택' })
+  const picker = page.getByRole('dialog', { name: '코디 고르기' })
   await picker.getByRole('button', { name: /기본 코디/ }).click()
   await expect(picker).toHaveCount(0)
   await expect(page.getByRole('link', { name: /기본 코디, 옷 설정하기/ })).toBeVisible()

@@ -297,7 +297,7 @@ test('새 AI 룩북으로 저장한 뒤 목록·새로고침에서도 교체한 
     await page.getByRole('button', { name: 'AI 룩북 보기', exact: true }).click()
     const saved = page.getByRole('dialog', { name: 'AI 룩북', exact: true })
     await expect(saved.getByRole('img', { name: '기본 코디 AI 룩북 이미지', exact: true })).toHaveAttribute('src', oldImageUrl)
-    await saved.getByRole('button', { name: '현재 프로필로 다시 만들기', exact: true }).click()
+    await saved.getByRole('button', { name: 'AI 룩북 다시 만들기', exact: true }).click()
     await expect.poll(() => state.startCalls).toBe(1)
     await expect(page.getByRole('dialog', { name: 'AI가 룩북을 만들고 있어요', exact: true })).toBeVisible()
     expect(mockApi.outfits[0].generations[0].imageAsset?.deliveryUrl).toBe(oldImageUrl)

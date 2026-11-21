@@ -12,10 +12,10 @@ import {
   ChevronLeft,
   ChevronDown,
   Ruler,
-  Save,
   Weight,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { SettingsSaveFooter } from '../components/SettingsSaveFooter'
 import { PageTitle } from '../../../components/PageTitle'
 import { CollectionHeading } from '../../../components/CollectionHeading'
 import { SegmentedControl } from '../../../components/SegmentedControl'
@@ -80,6 +80,10 @@ const detailedBodyFields: Array<{
   { key: 'inseamCm', label: '인심', placeholder: '76', min: 40, max: 130 },
 ]
 
+function measurementValue(value: string) {
+  return value === '' ? null : Number(value)
+}
+
 interface StyleProfileFormProps {
   initialProfile: StyleProfile
 }
@@ -105,8 +109,18 @@ function StyleProfileForm({ initialProfile }: StyleProfileFormProps) {
   const [preferredFit, setPreferredFit] = useState(
     initialProfile.preferredFit,
   )
+  const profileDraft: StyleProfile = { ...initialProfile, gender, bodyBuild, heightCm, weightKg, ...bodyMeasurements, preferredFit }
+  const [savedProfile, setSavedProfile] = useState(initialProfile)
+  const hasChanges = gender !== savedProfile.gender
+    || bodyBuild !== savedProfile.bodyBuild
+    || preferredFit !== savedProfile.preferredFit
+    || measurementValue(heightCm) !== measurementValue(savedProfile.heightCm)
+    || measurementValue(weightKg) !== measurementValue(savedProfile.weightKg)
+    || detailedBodyFields.some(({ key }) => measurementValue(bodyMeasurements[key]) !== measurementValue(savedProfile[key]))
+
   const saveProfile = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (!hasChanges || updateStyleProfile.isPending) return
 
     if (!gender) {
       pushToast('성별을 선택해주세요.', 'error')
@@ -162,6 +176,7 @@ function StyleProfileForm({ initialProfile }: StyleProfileFormProps) {
         preferredFit,
         preferredStyles: [],
       })
+      setSavedProfile(profileDraft)
       pushToast('스타일 프로필을 저장했어요.', 'success')
     } catch (error) {
       if (error instanceof ViewerSessionChangedError) return
@@ -336,18 +351,7 @@ function StyleProfileForm({ initialProfile }: StyleProfileFormProps) {
         </div>
       </div>
 
-      <div className="absolute inset-x-0 bottom-0 z-10 border-t border-line bg-surface/95 px-5 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(27,27,24,0.06)] backdrop-blur sm:px-6 sm:pt-4 sm:pb-[calc(1rem+env(safe-area-inset-bottom))]">
-        <div className="mx-auto max-w-2xl">
-          <button
-            type="submit"
-            disabled={updateStyleProfile.isPending}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3 text-sm font-bold text-white"
-          >
-            <Save size={17} />
-            {updateStyleProfile.isPending ? '저장 중…' : '프로필 저장'}
-          </button>
-        </div>
-      </div>
+      <SettingsSaveFooter label="프로필 저장" isPending={updateStyleProfile.isPending} disabled={!hasChanges} />
     </form>
   )
 }

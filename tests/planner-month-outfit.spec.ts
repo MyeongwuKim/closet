@@ -23,7 +23,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     const detailUrl = page.url()
     await page.screenshot({ path: testInfo.outputPath('month-date-detail.png'), animations: 'disabled' })
 
-    const picker = page.getByRole('dialog', { name: '하루 코디 선택' })
+    const picker = page.getByRole('dialog', { name: '코디 고르기' })
     await choose.click()
     await expect(picker.getByRole('heading', { name: '10월 28일에 넣을 코디' })).toBeVisible()
     await page.keyboard.press('Escape')

@@ -24,7 +24,7 @@ export function WardrobeRediscoveryCard({ entry, day, viewerId, active, enabled,
       <button type="button" onClick={onOpen} aria-label={`${entry.item.name} 다시 보기`} className="rediscovery-card-visual focus-visible:outline-2 focus-visible:outline-accent">
         <ClosetItemVisual item={entry.item} />
       </button>
-      <div className="px-5 pt-4 pb-3 sm:px-6 sm:pt-5">
+      <div className="rediscovery-card-content px-5 pt-4 pb-3 sm:px-6 sm:pt-5">
         <button type="button" onClick={onOpen} className="line-clamp-2 break-words text-left text-lg font-semibold leading-7 hover:text-accent focus-visible:outline-2 focus-visible:outline-accent" title={entry.item.name}>{entry.item.name}</button>
         <p className="mt-2 text-sm text-muted">
           {entry.reason === 'no_wear_record' ? '아직 착용 기록이 없어요' : <>마지막 착용 기록 <strong className="font-semibold text-ink">{entry.daysSinceLastWorn}일 전</strong></>}
@@ -34,7 +34,7 @@ export function WardrobeRediscoveryCard({ entry, day, viewerId, active, enabled,
             <Thermometer size={14} strokeWidth={1.5} aria-hidden="true" /> 그날 평균 기온 <span className="font-medium tabular-nums">{Math.round(temperature * 10) / 10}℃</span>
           </p>
         )}
-        <button type="button" onClick={onRecommend} aria-label={`${entry.item.name} 코디 추천`} className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-ink px-3 py-3 text-sm font-semibold text-white transition-colors hover:bg-ink/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+        <button type="button" onClick={onRecommend} aria-label={`${entry.item.name} 코디 추천`} className="rediscovery-recommend mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-ink px-3 py-3 text-sm font-semibold text-white transition-colors hover:bg-ink/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
           이 옷으로 코디 만들기 <ArrowUpRight size={16} strokeWidth={1.5} aria-hidden="true" />
         </button>
         <div className="flex justify-center"><WardrobeWearPreferenceControl item={entry.item} onRecommend={onRecommend} label="당분간 안 보기" /></div>

@@ -30,7 +30,7 @@ export function WardrobeRediscoveryCarousel({ data, viewerId, enabled, initialIt
         {data.items.map((entry, index) => <WardrobeRediscoveryCard key={entry.item.id} entry={entry} day={data.day} viewerId={viewerId} active={index === activeIndex} enabled={enabled}
           position={`${index + 1} / ${data.items.length}`} onOpen={() => onOpen(entry.item.id)} onRecommend={() => onRecommend(entry.item)} />)}
       </div>
-      {multiple && <div className="mx-5 mt-4 flex items-center justify-between gap-3 pb-2">
+      {multiple && <div className="rediscovery-controls mx-5 mt-4 flex items-center justify-between gap-3 pb-2">
         <p className="text-xs text-muted">옆으로 넘겨 다른 옷도 확인해보세요.</p>
         <div className="flex shrink-0 items-center gap-1">
           <button type="button" aria-label="이전 옷" disabled={activeIndex === 0} onClick={() => moveTo(activeIndex - 1)} className="flex size-11 items-center justify-center rounded-full border border-line bg-surface hover:border-accent focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-30"><ChevronLeft size={18} aria-hidden="true" /></button>

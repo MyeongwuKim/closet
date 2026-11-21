@@ -1,8 +1,9 @@
 import { useId, useRef, useState } from 'react'
-import { BarChart3, ChevronLeft, Shirt } from 'lucide-react'
+import { BarChart3, ChevronLeft, RefreshCw, Shirt } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { PageTitle } from '../../../components/PageTitle'
 import { useWardrobeStatisticsQuery, type WardrobeStatistics } from '../api/statisticsQueries'
+import { StatisticsSkeleton } from '../components/StatisticsSkeleton'
 import { StatisticsOverview } from '../components/StatisticsOverview'
 import { StatisticsWearPanel } from '../components/StatisticsWearPanel'
 
@@ -53,11 +54,17 @@ export function WardrobeStatisticsPage() {
             <ChevronLeft size={24} />
           </Link>
           <PageTitle title="옷장 통계" description="내 옷장과 기록으로 보는 취향" compact />
+          {data && query.isFetching && (
+            <span role="status" className="ml-auto text-muted">
+              <RefreshCw size={16} aria-hidden="true" className="motion-safe:animate-spin" />
+              <span className="sr-only">통계를 갱신하는 중</span>
+            </span>
+          )}
         </div>
       </header>
       {query.isPending ? (
-        <p role="status" className="py-16 text-center text-muted">통계를 불러오는 중…</p>
-      ) : query.isError ? (
+        <StatisticsSkeleton />
+      ) : !data && query.isError ? (
         <div role="alert" className="mx-auto mt-6 w-[calc(100%-2.5rem)] max-w-3xl rounded-3xl border border-line bg-surface p-8 text-center">
           <p>통계를 불러오지 못했어요.</p>
           <button type="button" onClick={() => void query.refetch()} className="mt-4 rounded-full bg-ink px-5 py-2 text-sm font-bold text-white">다시 시도</button>

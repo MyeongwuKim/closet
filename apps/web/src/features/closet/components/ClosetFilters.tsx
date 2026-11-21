@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { SlidersHorizontal, X } from 'lucide-react'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
+import { CollectionFilterButton, CollectionFilterDrawer, CollectionFilterSort } from '../../../components/CollectionFilterDrawer'
 import type { DateSortOrder } from '../../../components/DateSortButton'
 import { useDrawerDisclosure } from '../../../hooks/useDrawerDisclosure'
 import { useWardrobeBrandManagement } from '../hooks/useWardrobeBrandManagement'
@@ -23,7 +23,7 @@ interface ClosetFiltersProps {
   onReset: () => void
 }
 
-/** 제목 옆 도구에서 세부 필터를 연다. 서랍·선택 칩의 공간을 유지하고 탭의 긴 선택지만 내부에서 스크롤한다. 선택은 URL에 즉시 반영한다. */
+/** 제목 옆 도구에서 세부 필터를 연다. 서랍 높이를 유지하고 선택 칩은 하단에 표시하며 탭의 긴 선택지만 내부에서 스크롤한다. 선택은 URL에 즉시 반영한다. */
 export function ClosetFilters({ selection, colors, tags, isLoading, sortOrder, onToggle, onBrandDeleted, onSortChange, onReset }: ClosetFiltersProps) {
   const titleId = useId()
   const panelId = useId()
@@ -96,38 +96,16 @@ export function ClosetFilters({ selection, colors, tags, isLoading, sortOrder, o
 
   return (
     <>
-      <button ref={triggerRef} type="button" aria-label="옷장 필터" aria-haspopup="dialog" aria-expanded={isOpen} aria-controls={isVisible ? panelId : undefined}
-        onClick={open} title={activeCount ? `필터 ${activeCount}개 적용` : '옷장 필터'} className="collection-action relative">
-        <SlidersHorizontal size={19} aria-hidden="true" />
-        {activeCount > 0 && <span className="absolute -top-1 -right-1 flex min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] leading-4 text-surface" aria-label={`${activeCount}개 조건 적용`}>{activeCount}</span>}
-      </button>
+      <CollectionFilterButton label="옷장 필터" count={activeCount} isOpen={isOpen} panelId={isVisible ? panelId : undefined} buttonRef={triggerRef} onOpen={open} />
       {isVisible && createPortal(
         <>
-          <div className="fixed inset-0 z-[120] flex items-end justify-center bg-ink/30 sm:items-center sm:p-6" onMouseDown={(event) => { if (event.target === event.currentTarget) dismiss() }}>
-            <section ref={panelRef} id={panelId} role="dialog" aria-modal="true" aria-labelledby={titleId} inert={Boolean(management.brandToDelete)}
-              data-state={isOpen ? 'open' : 'closing'} className="room-drawer-sheet flex h-[min(32rem,calc(100dvh-1.5rem))] w-full max-w-lg flex-col">
-              <header className="flex shrink-0 items-center gap-3 border-b border-line px-4 py-2">
-                <h2 id={titleId} className="flex-1 text-lg font-semibold">옷장 필터</h2>
-                <button type="button" onClick={dismiss} autoFocus aria-label="옷장 필터 닫기" className="flex size-11 items-center justify-center rounded-full hover:bg-canvas focus-visible:ring-2 focus-visible:ring-accent"><X size={20} /></button>
-              </header>
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-3">
-                <div className="flex shrink-0 items-center gap-3">
-                  <span className="text-xs font-medium text-muted">정렬</span>
-                  <div className="flex gap-1 rounded-xl bg-canvas p-1" role="group" aria-label="정렬 순서">
-                    {([{ value: 'latest', label: '최신순' }, { value: 'oldest', label: '오래된순' }] as const).map((option) => <button key={option.value} type="button" aria-pressed={sortOrder === option.value} onClick={() => onSortChange(option.value)} className={`min-h-8 rounded-lg px-3 text-xs font-medium ${sortOrder === option.value ? 'bg-sage text-ink' : 'text-muted'}`}>{option.label}</button>)}
-                  </div>
-                  <button type="button" onClick={onReset} disabled={!activeCount} className="ml-auto min-h-10 px-1 text-xs font-medium text-accent disabled:opacity-40">초기화</button>
-                </div>
-                <div className="mt-2 h-11 shrink-0"><ClosetFilterSelection selection={selection} colors={colors} onToggle={onToggle} /></div>
-                <ClosetFilterOptions selection={selection} colors={colors} tags={tags} isLoading={isLoading} management={management} onToggle={onToggle}
-                  onDeleteBrand={(brand, trigger) => { deleteTriggerRef.current = trigger; management.requestDelete(brand) }} />
-                <p className="mt-2 shrink-0 text-xs text-muted">여러 개를 고를 수 있어요. 다시 누르면 해제돼요.</p>
-              </div>
-              <footer className="shrink-0 border-t border-line px-4 pt-3 pb-[calc(.75rem+env(safe-area-inset-bottom))]">
-                <button type="button" onClick={dismiss} className="min-h-11 w-full rounded-xl bg-accent px-4 text-sm font-semibold text-surface">옷 보기</button>
-              </footer>
-            </section>
-          </div>
+          <CollectionFilterDrawer title="옷장 필터" titleId={titleId} panelId={panelId} panelRef={panelRef} isOpen={isOpen} onDismiss={dismiss} actionLabel="옷 보기" inert={Boolean(management.brandToDelete)}
+            footerContent={selection.length > 0 && <ClosetFilterSelection selection={selection} colors={colors} onToggle={onToggle} />}>
+            <CollectionFilterSort order={sortOrder} onChange={onSortChange} onReset={onReset} canReset={activeCount > 0} />
+            <ClosetFilterOptions selection={selection} colors={colors} tags={tags} isLoading={isLoading} management={management} onToggle={onToggle}
+              onDeleteBrand={(brand, trigger) => { deleteTriggerRef.current = trigger; management.requestDelete(brand) }} />
+            <p className="mt-2 shrink-0 text-xs text-muted">여러 개를 고를 수 있어요. 다시 누르면 해제돼요.</p>
+          </CollectionFilterDrawer>
           {management.brandToDelete && <div ref={confirmationRef}><ConfirmDialog title="브랜드를 삭제할까요?" description={`${management.brandToDelete} 브랜드를 해제해요. 옷과 코디 기록은 그대로 남아요.`} confirmLabel="브랜드 삭제" isPending={management.isDeleting} onCancel={management.cancelDelete} onConfirm={() => void management.confirmDelete()} /></div>}
         </>,
         document.body,

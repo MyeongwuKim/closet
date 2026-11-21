@@ -71,12 +71,11 @@ export function ClosetFilterOptions({ selection, colors, tags, isLoading, manage
             </div>
             {brandsQuery.isPending ? <p role="status" className="py-3 text-sm text-muted">브랜드를 불러오는 중</p> : brandsQuery.isError ? <div className="flex items-center justify-between gap-2 text-sm"><p role="alert">브랜드를 불러오지 못했어요.</p><button type="button" onClick={() => void brandsQuery.refetch()} className="min-h-10 px-2 text-accent">다시 시도</button></div> : null}
             <div className="grid grid-cols-2 gap-2">
-              {!brandSearch && <button type="button" aria-pressed={selected('unbranded', '1')} onClick={() => onToggle({ kind: 'unbranded', value: '1' })} className={optionClass(selected('unbranded', '1'))}>브랜드 미지정{selected('unbranded', '1') && <Check size={13} aria-hidden="true" />}</button>}
               {brands.map((brand) => <div className="flex min-w-0 items-center gap-1" key={getWardrobeBrandKey(brand)}>
                 <button type="button" aria-pressed={selected('brand', brand)} onClick={() => onToggle({ kind: 'brand', value: brand })} disabled={management.isDeleting} className={`${optionClass(selected('brand', brand))} flex-1`}><span className="truncate">{brand}</span>{selected('brand', brand) && <Check size={13} className="shrink-0" aria-hidden="true" />}</button>
                 {management.isManaging && <button type="button" onClick={(event) => onDeleteBrand(brand, event.currentTarget)} disabled={management.isDeleting} aria-label={`${brand} 브랜드 삭제`} className="flex size-10 shrink-0 items-center justify-center rounded-xl text-danger hover:bg-danger-soft"><Trash2 size={15} aria-hidden="true" /></button>}
               </div>)}
-              {brandSearch && !brands.length && !brandsQuery.isPending && <p className="col-span-2 py-3 text-sm text-muted">검색한 브랜드가 없어요.</p>}
+              {brandsQuery.isSuccess && !brands.length && <p className="col-span-2 py-3 text-sm text-muted">{brandSearch ? '검색한 브랜드가 없어요.' : '등록된 브랜드가 없어요.'}</p>}
             </div>
           </>
         )}

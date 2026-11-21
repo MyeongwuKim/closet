@@ -1,4 +1,4 @@
-import { Search } from 'lucide-react'
+import { CollectionSearchButton } from '../../../components/CollectionSearchButton'
 import type { ReactNode } from 'react'
 import { CollectionAddButton } from '../../../components/CollectionAddButton'
 import { CollectionHeading } from '../../../components/CollectionHeading'
@@ -14,7 +14,7 @@ interface LookbookPageHeaderProps {
 export function LookbookPageHeader({ isSearchOpen, onToggleSearch, onCreate, filterControl }: LookbookPageHeaderProps) {
   return (
     <CollectionHeading title="내 코디북" actions={<>
-      <button type="button" onClick={onToggleSearch} className="collection-action" aria-label={isSearchOpen ? '코디 검색 닫기' : '코디 검색'} aria-expanded={isSearchOpen}><Search size={20} /></button>
+      <CollectionSearchButton label="코디 검색" isOpen={isSearchOpen} onToggle={onToggleSearch} />
       {filterControl}
       <CollectionAddButton onClick={onCreate} label="새 코디 만들기" />
     </>} />

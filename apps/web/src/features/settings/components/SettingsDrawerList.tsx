@@ -13,7 +13,7 @@ const menuGroups: Array<{ title: string; items: SettingsMenuItem[] }> = [
   {
     title: '옷장 관리',
     items: [
-      { path: '/settings/wear-reminder', title: '최근 착용 리마인드', icon: History },
+      { path: '/settings/wear-reminder', title: '최근 착용 알림', icon: History },
       { path: '/settings/statistics', title: '옷장 통계', icon: BarChart3 },
     ],
   },

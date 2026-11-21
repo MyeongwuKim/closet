@@ -229,3 +229,50 @@ test('하이라이트는 사용권 없이 볼 수 있고 코디 추천은 기존
   await expect(page.getByRole('dialog', { name: 'AI 사용권이 부족해요', exact: true })).toBeVisible()
   expect(recommendationCalls).toBe(0)
 })
+
+test('짧은 모바일 화면에서도 착용 기록과 알림 설정이 세로 스크롤 없이 보인다', async ({ page, mockApi }, testInfo) => {
+  await page.setViewportSize({ width: 320, height: 568 })
+  mockApi.rediscoveryItems = mockApi.wardrobeItems.map(item => ({
+    item: { ...item, name: '여러 계절에 입는 차콜 클래식 울 블렌드 오버핏 재킷' },
+    reason: 'long_unworn',
+    daysSinceLastWorn: 120,
+    lastWornTemperatureC: 12.5,
+  }))
+  await page.goto('/closet/rediscovery')
+  const dialog = page.getByRole('dialog', { name: '잊고 있던 옷', exact: true })
+  await expect(dialog.getByRole('button', { name: '다음 옷' })).toBeInViewport({ ratio: 1 })
+  await expect(dialog.getByRole('link', { name: '잊고 있던 옷 알림 설정' })).toBeInViewport({ ratio: 1 })
+  const body = dialog.locator('.rediscovery-body')
+  await expect.poll(() => body.evaluate(element => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(1)
+  await page.screenshot({ path: testInfo.outputPath('rediscovery-compact-mobile.png'), animations: 'disabled' })
+})
+
+test('응답을 기다리는 동안 실제 카드와 같은 자리를 보여준다', async ({ page, mockApi }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  mockApi.rediscoveryItems = [{ item: mockApi.wardrobeItems[0], reason: 'no_wear_record', daysSinceLastWorn: null }]
+  let release = () => {}
+  const response = new Promise<void>((resolve) => { release = resolve })
+  await page.route('**/graphql', async (route) => {
+    if (route.request().postDataJSON().query.includes('query WardrobeRediscovery')) await response
+    await route.fallback()
+  })
+
+  try {
+    await page.goto('/closet/rediscovery')
+    const dialog = page.getByRole('dialog', { name: '잊고 있던 옷', exact: true })
+    await expect(dialog.getByRole('status')).toHaveText('잊고 있던 옷을 불러오는 중')
+    await expect(dialog.getByText('지금 다시 꺼낼 옷이 없어요')).toHaveCount(0)
+    await expect(dialog.getByRole('button')).toHaveCount(1)
+    await dialog.evaluate(async (node) => { await Promise.all(node.getAnimations().map((animation) => animation.finished)) })
+    const loadingPhoto = await dialog.locator('.rediscovery-card-visual').boundingBox()
+    await page.screenshot({ path: testInfo.outputPath('rediscovery-loading.png'), animations: 'disabled' })
+    release()
+    const photo = dialog.getByRole('button', { name: '테스트 셔츠 다시 보기' })
+    await expect(photo).toBeVisible()
+    expect(await photo.boundingBox()).toEqual(loadingPhoto)
+    await dialog.getByRole('button', { name: '잊고 있던 옷 닫기' }).click()
+    await expect(dialog).toHaveCount(0)
+  } finally {
+    release()
+  }
+})

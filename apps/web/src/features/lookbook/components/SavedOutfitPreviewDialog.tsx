@@ -82,7 +82,7 @@ export function SavedOutfitPreviewDialog({
               onClick={onRegenerate}
               className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-canvas px-3 py-3 text-xs font-bold"
             >
-              <RefreshCw size={14} /> 현재 프로필로 다시 만들기
+              <RefreshCw size={14} /> AI 룩북 다시 만들기
             </button>
           )}
           <button

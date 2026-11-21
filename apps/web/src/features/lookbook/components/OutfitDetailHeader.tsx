@@ -13,13 +13,15 @@ interface Props {
   onDelete: () => void
 }
 
-/** 보기에서는 제목·삭제, 편집에서는 취소·정보 수정을 표시한다. 취소와 저장 동작은 부모가 관리한다. */
+/** 보기에서는 뒤로 가기와 삭제를, 편집에서는 제목과 정보 수정 버튼을 표시한다. */
 export function OutfitDetailHeader({ name, description, isEditing, isSaving, backLabel, wearSummary, onBack, onEditInfo, onDelete }: Props) {
   return <header className="shrink-0 border-b border-line bg-canvas/95 backdrop-blur">
     <div className="mx-auto flex min-h-16 max-w-3xl items-center gap-2 px-3 py-2 sm:min-h-18 sm:px-5">
-      <button type="button" onClick={onBack} disabled={isSaving} className="flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-surface disabled:opacity-40" aria-label={isEditing ? '코디 편집 취소' : backLabel} autoFocus>
-        {isEditing ? <span className="text-sm font-medium">취소</span> : <ChevronLeft size={25} strokeWidth={2.2} />}
-      </button>
+      {!isEditing && (
+        <button type="button" onClick={onBack} disabled={isSaving} className="flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-surface disabled:opacity-40" aria-label={backLabel} autoFocus>
+          <ChevronLeft size={25} strokeWidth={2.2} />
+        </button>
+      )}
       <div className="min-w-0 flex-1">
         <h1 className="truncate text-lg font-semibold tracking-tight">{isEditing ? '코디 편집' : name}</h1>
         <p className="mt-0.5 truncate text-xs text-muted">{isEditing ? `${name} · ${description}` : description}</p>

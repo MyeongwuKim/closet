@@ -326,7 +326,7 @@ export function OutfitDetailModal({
     >
       <OutfitDetailHeader name={draftName} description={`${draftSeasons.length ? `${formatSeasonLabels(draftSeasons)} · ` : ''}${getOutfitStyleLabel(draftStyle)} · 옷 ${draftItems.length}개`}
         isEditing={isEditing} isSaving={isSaving} backLabel={backLabel} wearSummary={wearSummary}
-        onBack={isEditing ? cancelEdit : onClose} onEditInfo={() => setIsInfoOpen(true)} onDelete={() => setIsDeleteConfirmOpen(true)} />
+        onBack={onClose} onEditInfo={() => setIsInfoOpen(true)} onDelete={() => setIsDeleteConfirmOpen(true)} />
 
       {hasArchivedItems && <p className="mx-auto w-full max-w-3xl shrink-0 px-4 py-2 text-center text-[11px] text-muted">삭제한 옷도 이 코디의 기록에는 남아 있어요.</p>}
 

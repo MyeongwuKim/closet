@@ -94,9 +94,9 @@ for (const [action, operation] of [
       submit = page.getByRole('button', { name: '변경사항 저장', exact: true })
     } else if (operation === 'SetPlannerEntry') {
       await page.getByRole('button', { name: '코디북에서 고르기' }).click()
-      const picker = page.getByRole('dialog', { name: '하루 코디 선택' })
+      const picker = page.getByRole('dialog', { name: '코디 고르기' })
       submit = picker.getByRole('button', { name: /교체용 코디/ })
-      dismiss = picker.getByRole('button', { name: '하루 코디 선택 닫기' })
+      dismiss = picker.getByRole('button', { name: '코디 고르기 닫기' })
     } else {
       await page.getByRole('button', { name: '이 날짜에서 코디 빼기' }).click()
       const confirm = page.getByRole('alertdialog', { name: '이 날짜에서 코디를 뺄까요?' })

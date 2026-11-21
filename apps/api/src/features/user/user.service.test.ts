@@ -26,6 +26,7 @@ function createViewer(
 test('설정이 없는 기존 사용자는 최근 착용 리마인드 기본값을 받는다', () => {
   const viewer = toViewerResponse(createViewer())
 
+  assert.equal(viewer.wearReminderPreferences.enabled, false)
   assert.deepEqual(
     viewer.wearReminderPreferences,
     defaultWearReminderPreferences,

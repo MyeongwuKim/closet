@@ -6,6 +6,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { trapDialogFocus } from '../../../lib/dialogFocus'
 import { useWardrobeRediscovery } from '../hooks/useWardrobeRediscovery'
 import { WardrobeRediscoveryCarousel } from '../components/WardrobeRediscoveryCarousel'
+import { WardrobeRediscoverySkeleton } from '../components/WardrobeRediscoverySkeleton'
 import { RediscoveryNotificationLink } from '../components/RediscoveryNotificationLink'
 import { TodayOutfitRecommendationPopover } from '../../plan/components/today-outfit-recommendation/TodayOutfitRecommendationPopover'
 import './WardrobeRediscoveryPage.css'
@@ -18,7 +19,8 @@ export function WardrobeRediscoveryPage() {
   const dialog = useRef<HTMLElement>(null)
   const [selection, setSelection] = useState<{ viewerId: string; item: WardrobeItem } | null>(null)
   const baseItem = selection?.viewerId === viewerId ? selection.item : null
-  const isError = query.isError || meQuery.isError
+  const isError = (query.isError && !query.data) || (meQuery.isError && !meQuery.data)
+  const isRetrying = query.isFetching || meQuery.isFetching
   const isPending = !isError && (query.isPending || meQuery.isPending)
 
   useLayoutEffect(() => {
@@ -45,7 +47,7 @@ export function WardrobeRediscoveryPage() {
     return () => { if (previous?.isConnected) previous.focus() }
   }, [baseItem])
 
-  const retry = () => { if (meQuery.isError) void meQuery.refetch(); else void query.refetch() }
+  const retry = () => { if (meQuery.isError && !meQuery.data) void meQuery.refetch(); else void query.refetch() }
 
   return createPortal(
     <>
@@ -57,19 +59,19 @@ export function WardrobeRediscoveryPage() {
           trapDialogFocus(event, dialog.current)
         }}>
         <header className="shrink-0 border-b border-line pt-[env(safe-area-inset-top)]">
-          <div className="mx-auto flex min-h-16 max-w-2xl items-center gap-2 px-3 py-2 sm:px-5">
+          <div className="rediscovery-header mx-auto flex min-h-16 max-w-2xl items-center gap-2 px-3 py-2 sm:px-5">
             <button type="button" onClick={() => navigate('/closet')} aria-label="잊고 있던 옷 닫기" className="flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-surface focus-visible:outline-2 focus-visible:outline-accent"><ChevronLeft size={23} strokeWidth={1.8} /></button>
             <h1 id="rediscovery-title" className="text-base font-semibold">잊고 있던 옷</h1>
           </div>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
-          <div className="mx-auto w-full max-w-2xl pt-6 sm:pt-8">
-            <div className="px-5 pb-5">
+        <div className="rediscovery-body min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+          <div className="rediscovery-content mx-auto w-full max-w-2xl pt-6 sm:pt-8">
+            <div className="rediscovery-intro px-5 pb-5">
               <h2 className="text-2xl font-semibold leading-9">다시 꺼내 입어볼까요?</h2>
               <p className="mt-2 text-sm leading-6 text-muted">이번 계절에 어울리는 옷 중<br className="sm:hidden" /> 최근 착용 기록이 없는 옷을 모았어요.</p>
             </div>
-            {isPending ? <p role="status" className="px-5 py-16 text-center text-sm text-muted">옷장에서 다시 입어볼 옷을 찾고 있어요.</p>
-              : isError ? <div className="px-5 py-16 text-center"><p role="alert" className="text-sm text-muted">잊고 있던 옷을 불러오지 못했어요.</p><button type="button" onClick={retry} disabled={query.isFetching || meQuery.isFetching} className="mt-5 min-h-11 rounded-xl border border-line bg-surface px-5 text-sm font-semibold disabled:opacity-50">다시 시도</button></div>
+            {isPending ? <WardrobeRediscoverySkeleton />
+              : isError ? <div className="px-5 py-16 text-center"><p role="alert" className="text-sm text-muted">잊고 있던 옷을 불러오지 못했어요.</p><button type="button" onClick={retry} disabled={isRetrying} className="mt-5 min-h-11 rounded-xl border border-line bg-surface px-5 text-sm font-semibold disabled:opacity-50">{isRetrying ? '다시 불러오는 중…' : '다시 시도'}</button></div>
                 : query.data?.items.length && viewerId ? <WardrobeRediscoveryCarousel key={`${viewerId}:${query.data.day}:${query.data.items.map((entry) => entry.item.id).join(',')}`} data={query.data} viewerId={viewerId} enabled={!baseItem} initialItemId={params.get('item')}
                   onOpen={(itemId) => navigate(`/closet/${encodeURIComponent(itemId)}?from=${encodeURIComponent(`/closet/rediscovery?item=${encodeURIComponent(itemId)}`)}`)}
                   onRecommend={(item) => setSelection({ viewerId, item })} />

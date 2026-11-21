@@ -3,6 +3,7 @@ import { formatRecentWearLabel, formatWearDate } from '../../../utils/wearDate'
 export interface OutfitWearSummary {
   label: string
   title: string
+  temperaturesC?: number[]
   temperatureLabel?: string
   temperatureTitle?: string
 }
@@ -29,6 +30,7 @@ export function createOutfitWearSummary(records: Array<{ date: string; wornAt?: 
     return {
       label: wornDates.length > 1 ? `${dateLabel} · ${wornDates.length}회` : dateLabel,
       title: `착용 기록: ${wornDates.map(formatWearDate).join(', ')}`,
+      temperaturesC: temperatures,
       temperatureLabel,
       temperatureTitle: temperatureLabel ? 'Open-Meteo 자료로 기록한 지난 착용일의 하루 평균 기온 범위예요. 기온이 없는 날은 제외했어요.' : undefined,
     }
