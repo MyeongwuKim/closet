@@ -11,6 +11,7 @@ import { requestAiJson } from '../../lib/ai/ai-http.js'
  * 동작 방식:
  * 선호 스타일·핏을 읽지 않고 기준 옷·계절·기온을 유지하면서 색감에 맞는 조합을 고른 뒤 AI 설명을 시도한다.
  * 실제 착용일 평균 기온과 비슷한 예보가 있으면 체감 이력으로 보온성 순위를 보정한다.
+ * 전날 플래너·추천 기록으로 전달받은 핵심 조합은 후보에서 제외한다.
  * 색감에 맞는 조합이 없으면 일반 추천으로 돌아가고 colorSchemeApplied로 그 결과를 구분한다.
  * AI는 계산된 근거 중 강조할 이유만 고르며, 근거에 없는 색·핏 설명은 사용하지 않는다.
  * AI를 사용할 수 없을 때도 같은 조합과 날씨 맥락을 포함한 결과를 반환한다.
@@ -52,6 +53,7 @@ interface TodayOutfitRecommendationInput {
   /** 이전 클라이언트의 요청을 받아도 추천에는 반영하지 않는 호환 필드다. */
   style?: OutfitStyle | null
   variation?: number | null
+  previousDayOutfitItemIds?: string[][] | null
   excludedOuterItemIds?: string[] | null
   weather?: WeatherSnapshot | null
   thermalContextRevision?: string | null
@@ -547,6 +549,11 @@ export const todayOutfitRecommendationService = {
       (input.excludedOuterItemIds ?? []).slice(0, 10),
       baseItemId,
     )
+    const previousDayOutfitKeys = new Set(
+      (input.previousDayOutfitItemIds ?? []).slice(0, 51)
+        .filter((ids) => ids.length > 0 && ids.length <= 5)
+        .map((ids) => JSON.stringify([...new Set(ids)].sort())),
+    )
     const combinations = buildOutfitCombinations(
       recommendationItems,
       season,
@@ -554,15 +561,23 @@ export const todayOutfitRecommendationService = {
       weather?.apparentTemperatureC,
       colorScheme,
       thermalContext ?? undefined,
+      previousDayOutfitKeys,
     )
     if (combinations.length === 0) {
+      const onlyPreviousDayOutfits = previousDayOutfitKeys.size > 0 && buildOutfitCombinations(
+        recommendationItems, season, baseItemId, weather?.apparentTemperatureC, colorScheme, thermalContext ?? undefined,
+      ).length > 0
       return { ...createEmptyRecommendation(
         input.date,
         season,
         seasonalItems,
         baseItem,
         weather,
-      ), thermalContext }
+      ), thermalContext, ...(onlyPreviousDayOutfits ? {
+        previousDayRepeatOnly: true,
+        headline: '전날과 다른 코디를 찾지 못했어요',
+        summary: '현재 조건에서 전날과 다른 조합이 없어요. 색감이나 기준 옷을 바꿔보세요.',
+      } : {}) }
     }
 
     const selectedCombination = combinations[variation % combinations.length]!

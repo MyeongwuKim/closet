@@ -523,6 +523,7 @@ export const typeDefs = `#graphql
 
   type TodayOutfitRecommendation {
     combinationCount: Int!
+    previousDayRepeatOnly: Boolean
     date: String!
     season: Season!
     ready: Boolean!
@@ -669,6 +670,7 @@ export const typeDefs = `#graphql
     style: OutfitStyle
     variation: Int
     excludedOuterItemIds: [ID!]
+    previousDayOutfitItemIds: [[ID!]!]
     weather: WeatherSnapshotInput
     thermalContextRevision: String
   }

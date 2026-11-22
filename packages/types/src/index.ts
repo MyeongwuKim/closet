@@ -273,6 +273,8 @@ export interface ThermalRecommendationContext {
 export interface TodayOutfitRecommendation {
   /** 현재 계절·날씨·제외 조건으로 추린 추천 후보 수. 이전 로컬 기록에는 없을 수 있다. */
   combinationCount?: number
+  /** 만들 수 있었던 후보들이 모두 전날의 핵심 구성과 겹쳤을 때 true다. */
+  previousDayRepeatOnly?: boolean | null
   date: string
   season: Season
   ready: boolean

@@ -35,13 +35,13 @@ function PreviewJobDialogContent({ job, onLater, onOpen }: { job: OutfitPreviewJ
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="preview-job-notification-title" aria-describedby="preview-job-notification-description" className="w-full max-w-sm rounded-3xl border border-line bg-surface p-5 shadow-2xl">
         <div className="flex items-start justify-between">
           <span className="flex size-12 items-center justify-center rounded-2xl bg-sage text-accent">{completed ? <CheckCircle2 size={25} /> : <AlertCircle size={25} />}</span>
-          <button ref={closeRef} type="button" aria-label="AI 룩북 완료 안내 닫기" onClick={onLater} className="rounded-full p-2 text-muted hover:bg-canvas"><X size={20} /></button>
+          <button ref={closeRef} type="button" aria-label="AI 룩북 안내 닫기" onClick={onLater} className="rounded-full p-2 text-muted hover:bg-canvas"><X size={20} /></button>
         </div>
         <h2 id="preview-job-notification-title" className="mt-4 text-lg font-semibold">{completed ? 'AI 룩북이 완성됐어요' : 'AI 룩북을 만들지 못했어요'}</h2>
-        <p id="preview-job-notification-description" className="mt-2 text-sm leading-6 text-muted">{completed ? '완성된 이미지를 확인해주세요.' : job.errorMessage ?? '생성 결과를 확인하고 다시 시도해주세요.'}</p>
+        <p id="preview-job-notification-description" className="mt-2 break-keep text-sm leading-6 text-muted">{completed ? '완성된 이미지를 확인해주세요.' : 'AI 사용권을 돌려드렸어요. 코디를 열어 다시 만들 수 있어요.'}</p>
         <div className="mt-5 grid grid-cols-2 gap-2">
           <button type="button" onClick={onLater} className="min-h-12 rounded-xl border border-line px-3 py-3 text-sm font-bold">나중에 보기</button>
-          <button type="button" onClick={onOpen} className="min-h-12 rounded-xl bg-accent px-3 py-3 text-sm font-bold text-white">{completed ? '보러 가기' : '결과 확인'}</button>
+          <button type="button" onClick={onOpen} className="min-h-12 rounded-xl bg-accent px-3 py-3 text-sm font-bold text-white">{completed ? '보러 가기' : '코디 열기'}</button>
         </div>
       </div>
     </div>, document.body,

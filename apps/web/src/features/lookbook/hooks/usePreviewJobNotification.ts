@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useIsMutating, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useMeQuery } from '../../settings/api/profileQueries'
+import { previewCreditKeys } from '../api/previewCreditQueries'
 import { previewJobKeys, useAcknowledgePreviewJob, useOutfitPreviewJobsQuery } from '../api/previewJobQueries'
 
 /**
@@ -26,10 +27,21 @@ export function usePreviewJobNotification() {
   /** 작업 목록 응답보다 미리보기가 먼저 열리고 닫혀도 유지하는 계정·이미지 번호의 조합. */
   const [viewedAssets, setViewedAssets] = useState<Set<string>>(() => new Set())
   const [visibleKey, setVisibleKey] = useState<string | null>(null)
+  const refreshedFailures = useRef(new Set<string>())
   const ownerId = me.data?.id ?? ''
   const job = jobs.data?.find((item) => !['queued', 'processing'].includes(item.status) && !dismissed.has(`${ownerId}:${item.id}`))
   const jobKey = job ? `${ownerId}:${job.id}` : null
   const wasViewed = Boolean(job?.imageAssetId && viewedAssets.has(`${ownerId}:${job.imageAssetId}`))
+
+  // 작업 목록에서 처음 확인한 실패·중단도 공용 지갑 잔액에 반영한다.
+  useEffect(() => {
+    if (!ownerId || !isForeground) return
+    const failures = jobs.data?.filter((item) => item.status === 'failed' || item.status === 'interrupted') ?? []
+    const newKeys = failures.map((item) => `${ownerId}:${item.id}`).filter((key) => !refreshedFailures.current.has(key))
+    if (newKeys.length === 0) return
+    for (const key of newKeys) refreshedFailures.current.add(key)
+    void client.invalidateQueries({ queryKey: [...previewCreditKeys.all, ownerId] })
+  }, [client, isForeground, jobs.data, ownerId])
 
   useEffect(() => {
     if (!ownerId || !isForeground) return

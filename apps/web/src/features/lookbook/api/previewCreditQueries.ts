@@ -60,7 +60,7 @@ export async function waitForPreviewReward(id: string, { timeoutMs = 15_000, wai
 }
 
 /** 서버 광고 번호 발급 → 네이티브 광고 표시 → 서버 지급 확인 순서로 처리한다. 취소·광고 실패에는 대기 중인 생성·추천 요청을 재개하지 않는다. 지급 대상은 서버가 해당 종류로 발급한 광고 번호에 저장한다. */
-export function useEarnPreviewCreditMutation(kind: AiCreditKind = 'preview') {
+export function useEarnPreviewCreditMutation(kind: AiCreditKind = 'preview', allowTopUp = false) {
   const client = useQueryClient()
   return useMutation({ mutationFn: async () => {
     if (!window.ClosetNative?.showRewardedAd || !isNativeWebViewRuntime()) throw new Error('광고 보상은 iOS 앱에서 이용할 수 있어요.')
@@ -69,7 +69,9 @@ export function useEarnPreviewCreditMutation(kind: AiCreditKind = 'preview') {
     const assertOwner = () => { if (client.getQueryData<{ id: string }>(queryKeys.me)?.id !== ownerId) throw new Error('계정이 바뀌었어요. 현재 계정에서 다시 시도해주세요.') }
     const balance = await getPreviewCredits(kind)
     assertOwner()
-    if (balance.totalRemaining > 0) return { ownerId, balance }
+    if (allowTopUp ? Boolean(balance.capacity && balance.totalRemaining >= balance.capacity && !balance.pendingRewardSessionId) : balance.totalRemaining > 0) {
+      return { ownerId, balance }
+    }
     let sessionId = balance.pendingRewardSessionId
     if (!sessionId) {
       const session = (await graphqlRequest<{ startPreviewReward: PreviewRewardSession }>(`mutation StartPreviewReward($kind: AiCreditKind!) { startPreviewReward(kind: $kind) { ${sessionFields} } }`, { kind })).startPreviewReward

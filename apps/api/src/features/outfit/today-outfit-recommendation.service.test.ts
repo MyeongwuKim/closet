@@ -16,6 +16,34 @@ type WardrobeItem = Awaited<ReturnType<typeof wardrobeRepository.findMany>>[numb
 const userId = 'viewer'
 const input = { date: '2026-08-28', season: 'autumn' as const }
 
+test('전날과 같은 핵심 구성은 신발이 달라도 제외하고 기준 아우터는 유지한다', async (t) => {
+  const items = [
+    createItem('outer', 'outer'),
+    createItem('top-a', 'top'),
+    createItem('top-b', 'top'),
+    createItem('bottom', 'bottom'),
+    createItem('shoe-a', 'shoes'),
+    createItem('shoe-b', 'shoes'),
+  ]
+  setupWardrobe(t, items)
+  const requested = { ...input, baseItemId: 'outer', previousDayOutfitItemIds: [['top-a', 'outer', 'bottom']] }
+  for (const variation of [0, 1, 10]) {
+    const result = await todayOutfitRecommendationService.recommend(userId, { ...requested, variation })
+    assert.equal(result.ready, true)
+    assert.ok(result.items.some((item) => item.id === 'top-b'))
+    assert.ok(result.items.some((item) => item.id === 'outer'))
+  }
+
+  const reserve = t.mock.method(recommendationCreditRepository, 'reserve', async () => { throw new Error('빈 결과에는 사용권을 예약하지 않는다') })
+  const empty = await todayOutfitRecommendationService.recommend(userId, {
+    ...requested,
+    previousDayOutfitItemIds: [...requested.previousDayOutfitItemIds, ['top-b', 'bottom', 'outer']],
+  })
+  assert.equal(empty.ready, false)
+  assert.equal(empty.headline, '전날과 다른 코디를 찾지 못했어요')
+  assert.equal(reserve.mock.callCount(), 0)
+})
+
 function createItem(
   id: string,
   category: ClothingCategory,

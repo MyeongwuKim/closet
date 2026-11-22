@@ -17,12 +17,13 @@ import type {
   WeatherSnapshot,
 } from '@closet/types'
 import { useUiStore } from '../../../stores/useUiStore'
-import { useSetDirectPlannerEntryMutation } from '../api/plannerQueries'
+import { usePlannerWeekQuery, useSetDirectPlannerEntryMutation } from '../api/plannerQueries'
 import {
+  readAllRecentTodayRecommendationHistory,
   readTodayRecommendationHistory,
   useTodayOutfitRecommendationQuery,
 } from '../api/todayOutfitQueries'
-import { getCurrentWeekStart } from '../data/weeklyPlan'
+import { formatDateOnly, getCurrentWeekStart } from '../data/weeklyPlan'
 import { usePlanStore } from '../stores/usePlanStore'
 import type { ColorScheme } from '../data/colorSchemes'
 import { useRecentWearReminder } from './useRecentWearReminder'
@@ -31,6 +32,7 @@ import { recommendationDayLabels, type RecommendationMode } from '../components/
 import { getThermalRecommendationMean, matchesThermalRecommendationContext, matchesTodayRecommendationWeather } from '../utils/thermalRecommendationContext'
 import {
   formatRecommendationHeadline,
+  getRecommendationCoreItemIds,
   getRefreshExcludedOuterItemIds,
 } from '../utils/todayOutfitRecommendation'
 
@@ -78,7 +80,29 @@ export function useTodayOutfitRecommendationResult({
     (thermalQuery.isSuccess && thermalQuery.isFetchedAfterMount && !thermalQuery.isFetching)
   const thermalContext = requiresThermalContext ? thermalQuery.data : undefined
   const thermalRevision = thermalContext?.revision
-  const storedRecommendation = isThermalContextReady && hasWardrobeContext && !preferencesChanged ? initialHistory.find((entry) =>
+  const previousDay = new Date(`${date}T00:00:00`)
+  previousDay.setDate(previousDay.getDate() - 1)
+  const previousDate = formatDateOnly(previousDay)
+  const previousWeekQuery = usePlannerWeekQuery(getCurrentWeekStart(previousDay), Boolean(viewerId))
+  const previousDayScope = JSON.stringify([viewerId, previousDate])
+  const [previousDaySnapshot, setPreviousDaySnapshot] = useState<{ scope: string; outfits: string[][]; hasPlan: boolean } | null>(null)
+  const previousDayContext = previousDaySnapshot?.scope === previousDayScope ? previousDaySnapshot : null
+  const previousDayOutfits = previousDayContext?.outfits ?? null
+  // 새로 연 추천에서 전날 플래너와 이 기기의 기록을 한 번 확인한다. 이후 일정 갱신이 유료 추천을 다시 시작하지 않는다.
+  if (!previousDayOutfits && previousWeekQuery.isSuccess && !previousWeekQuery.isFetching && hasWardrobeContext) {
+    const planned = previousWeekQuery.data.find((entry) => entry.date === previousDate)
+    const recorded = readAllRecentTodayRecommendationHistory(viewerId, previousDate)
+    const outfits = recorded.map((entry) => getRecommendationCoreItemIds(entry.recommendation.items))
+    const hasPlan = Boolean(planned?.itemIds.length)
+    if (planned && hasPlan) {
+      const items = planned.outfitItems?.length ? planned.outfitItems : (wardrobeQuery.data ?? []).filter((item) => planned.itemIds.includes(item.id))
+      outfits.unshift(getRecommendationCoreItemIds(items))
+    }
+    const uniqueOutfits = new Map(outfits.filter((ids) => ids.length > 0).map((ids) => [JSON.stringify(ids), ids]))
+    setPreviousDaySnapshot({ scope: previousDayScope, outfits: [...uniqueOutfits.keys()].sort().map((key) => uniqueOutfits.get(key)!), hasPlan })
+  }
+  const storedRecommendation = isThermalContextReady && hasWardrobeContext && !preferencesChanged && previousDayOutfits ? initialHistory.find((entry) =>
+    !previousDayOutfits.some((ids) => JSON.stringify(ids) === JSON.stringify(getRecommendationCoreItemIds(entry.recommendation.items))) &&
     matchesTodayRecommendationWeather(entry.recommendation, weather) &&
     matchesThermalRecommendationContext(entry.recommendation, thermalRevision) &&
     canReuseWardrobeRecommendation(entry.recommendation.items, wardrobeQuery.data ?? [], date, baseItemId ? [baseItemId] : []),
@@ -102,7 +126,8 @@ export function useTodayOutfitRecommendationResult({
       baseItemId,
       weather,
       thermalContext,
-      enabled: isThermalContextReady && hasWardrobeContext && !preferencesChanged,
+      enabled: isThermalContextReady && hasWardrobeContext && !preferencesChanged && previousDayOutfits !== null,
+      previousDayOutfits: previousDayOutfits ?? undefined,
       wardrobe: wardrobeQuery.data,
       preferenceKey,
       initialData:
@@ -112,23 +137,24 @@ export function useTodayOutfitRecommendationResult({
           : undefined,
     },
   )
-  const hasContextError = (requiresThermalContext && thermalQuery.isError) || wardrobeQuery.isError || preferencesChanged
-  const isWaitingForContext = (!hasWardrobeContext || (requiresThermalContext && !isThermalContextReady)) && !hasContextError
+  const hasContextError = (requiresThermalContext && thermalQuery.isError) || wardrobeQuery.isError || preferencesChanged || (previousDayOutfits === null && previousWeekQuery.isError)
+  const isWaitingForContext = (!hasWardrobeContext || (requiresThermalContext && !isThermalContextReady) || previousDayOutfits === null) && !hasContextError
   // 무료 근거 확인 중에는 이전 추천을 숨기고 기존 화면의 로딩·재시도 표시를 사용한다.
   const recommendationQuery = {
     ...query,
-    data: isThermalContextReady && hasWardrobeContext && !preferencesChanged ? query.data : undefined,
-    error: preferencesChanged ? new Error('옷장 설정이 바뀌었어요. 다시 추천받아주세요.') : wardrobeQuery.error ?? (hasContextError ? thermalQuery.error : query.error),
+    data: !hasContextError && !isWaitingForContext ? query.data : undefined,
+    error: preferencesChanged ? new Error('옷장 설정이 바뀌었어요. 다시 추천받아주세요.') : wardrobeQuery.error ?? (previousDayOutfits === null ? previousWeekQuery.error : null) ?? (hasContextError ? thermalQuery.error : query.error),
     isError: hasContextError || (!isWaitingForContext && query.isError),
     isPending: hasContextError ? false : isWaitingForContext || query.isPending,
     isLoading: !hasContextError && (isWaitingForContext || query.isLoading),
-    isFetching: wardrobeQuery.isFetching || (requiresThermalContext && thermalQuery.isFetching) || query.isFetching,
-    isSuccess: isThermalContextReady && hasWardrobeContext && !preferencesChanged && query.isSuccess,
+    isFetching: wardrobeQuery.isFetching || (previousDayOutfits === null && previousWeekQuery.isFetching) || (requiresThermalContext && thermalQuery.isFetching) || query.isFetching,
+    isSuccess: !hasContextError && !isWaitingForContext && query.isSuccess,
     status: hasContextError ? 'error' as const : isWaitingForContext ? 'pending' as const : query.status,
     /** 재시도에서는 체감 근거부터 다시 읽고, 같은 버전일 때만 현재 추천을 재요청한다. 새 버전은 새 키가 자동 조회한다. */
     refetch: async () => {
       const wardrobe = await wardrobeQuery.refetch()
       if (!wardrobe.data || wardrobe.error) return wardrobe
+      if (!previousDayOutfits) return previousWeekQuery.refetch()
       const freshPreferenceKey = getWardrobePreferenceKey(wardrobe.data)
       if (freshPreferenceKey !== allowedPreferenceKey) {
         setAllowedPreferenceKey(freshPreferenceKey)
@@ -228,6 +254,8 @@ export function useTodayOutfitRecommendationResult({
 
   return {
     recommendation,
+    previousDate,
+    hasPreviousDayPlan: previousDayContext?.hasPlan ?? false,
     recommendationQuery,
     refreshSourceItems,
     hasOtherCombination,

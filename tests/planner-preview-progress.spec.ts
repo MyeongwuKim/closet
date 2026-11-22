@@ -310,7 +310,7 @@ test('새 AI 룩북으로 저장한 뒤 목록·새로고침에서도 교체한 
     // 미리보기가 이미 닫힌 뒤 완료 목록이 도착해도 같은 결과를 다시 알리지 않는다.
     releaseNotifications()
     await expect.poll(() => state.acknowledged).toBe(true)
-    await expect(page.getByRole('button', { name: 'AI 룩북 완료 안내 닫기', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'AI 룩북 안내 닫기', exact: true })).toHaveCount(0)
     await page.getByRole('button', { name: '코디북으로 돌아가기', exact: true }).click()
     await expect(page.getByRole('img', { name: '기본 코디 AI 룩북 이미지', exact: true })).toHaveAttribute('src', imageUrl)
     await page.reload()
@@ -462,11 +462,15 @@ for (const status of ['completed', 'failed'] as const) {
 test('생성 실패는 오류 팝업으로 안내하고 사용자가 다시 만들기를 누를 때만 새 요청을 보낸다', async ({ page, mockApi }) => {
   mockApi.plannerEntries = [plannerEntry()]
   const state = await installPreviewJobs(page, mockApi)
-  state.status = 'failed'
+  state.credits = 4
   await page.goto(`/plan/${date}`)
   await page.getByRole('button', { name: 'AI 룩북 만들기', exact: true }).click()
   const failure = page.getByRole('dialog', { name: '미리보기를 만들지 못했어요', exact: true })
+  await expect(page.getByText('AI 사용권 4/5', { exact: true }).first()).toBeVisible()
+  state.credits = 5
+  state.status = 'failed'
   await expect(failure.getByText('테스트 이미지 생성 실패')).toBeVisible()
+  await expect(failure.getByText('AI 사용권 5/5', { exact: true })).toBeVisible()
   expect(state.startCalls).toBe(1)
   state.statusOnStart = 'processing'
   await failure.getByRole('button', { name: '다시 만들기', exact: true }).click()

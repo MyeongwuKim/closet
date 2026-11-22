@@ -28,7 +28,7 @@ function PreviewCreditDialogContent({ request }: { request: { id: string; ownerI
   const creditLabel = 'AI 사용권'
   const waitSeconds = useCreditRefillCountdown(usesWallet ? credits.data?.nextRefillAt : credits.data?.resetsAt, credits.data?.serverNow, credits.dataUpdatedAt)
   const support = useNativeRewardSupport(true)
-  const reward = useEarnPreviewCreditMutation(request.kind)
+  const reward = useEarnPreviewCreditMutation(request.kind, isInfo)
   const dialogRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const close = () => resolve(request.id, false)
@@ -50,7 +50,9 @@ function PreviewCreditDialogContent({ request }: { request: { id: string; ownerI
   const noNativeAdSupport = !support.isPending && !support.data
   const rewardsDisabled = credits.data?.rewardMode === 'disabled'
   const rewardLimitReached = credits.data?.adRewardsRemaining === 0 && !credits.data?.pendingRewardSessionId
-  const canShowAdAction = !noNativeAdSupport && !rewardsDisabled && !rewardLimitReached
+  const walletFull = Boolean(credits.data?.capacity && credits.data.totalRemaining >= credits.data.capacity)
+  const canShowAdAction = !noNativeAdSupport && !rewardsDisabled && !rewardLimitReached &&
+    (!walletFull || Boolean(credits.data?.pendingRewardSessionId))
   const canEarn = canShowAdAction && support.data && Boolean(credits.data)
   useEffect(() => {
     if (!isInfo && available && !reward.isPending) resolve(request.id, true)
@@ -86,11 +88,11 @@ function PreviewCreditDialogContent({ request }: { request: { id: string; ownerI
         {rewardsDisabled && !available && <p className="mt-3 text-xs text-muted">광고 보상을 준비 중이에요. 충전 후 다시 이용해주세요.</p>}
         {rewardLimitReached && !available && <p className="mt-3 text-xs text-muted">오늘의 광고 보상을 모두 받았어요. 충전 후 다시 이용해주세요.</p>}
         {(reward.error || credits.error) && <p role="alert" className="mt-3 text-xs leading-5 text-danger">{(reward.error ?? credits.error)?.message}</p>}
-        {(isInfo && available) || !canShowAdAction ? (
+        {!canShowAdAction ? (
           <button type="button" onClick={close} className="mt-5 min-h-12 w-full rounded-xl bg-accent px-4 py-2 text-sm font-bold text-white">확인</button>
         ) : (
           <div className="mt-5 grid grid-cols-2 gap-2">
-            <button type="button" onClick={close} className="min-h-12 rounded-xl border border-line bg-canvas px-2 py-2 text-sm font-bold">기다리기</button>
+            <button type="button" onClick={close} className="min-h-12 rounded-xl border border-line bg-canvas px-2 py-2 text-sm font-bold">{isInfo ? '닫기' : '기다리기'}</button>
             <button type="button" disabled={!canEarn || reward.isPending || credits.isPending} onClick={() => void handleReward()} className="flex min-h-12 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-accent px-2 py-2 text-sm font-bold text-white disabled:opacity-50">
               {reward.isPending ? <><LoaderCircle size={16} className="shrink-0 animate-spin" />확인 중…</> : credits.data?.pendingRewardSessionId ? '보상 확인' : '광고 보기'}
             </button>

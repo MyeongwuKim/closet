@@ -64,11 +64,44 @@ test('전송 후 중단된 작업은 안내를 표시하고 자동으로 새 생
     await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ data: { outfitPreviewJobs: [state] } }) })
   })
   await page.goto('/plan')
-  await expect(page.getByText(state.errorMessage!)).toBeVisible()
-  await page.getByRole('dialog', { name: 'AI 룩북을 만들지 못했어요', exact: true }).getByRole('button', { name: '결과 확인', exact: true }).click()
+  const popup = page.getByRole('dialog', { name: 'AI 룩북을 만들지 못했어요', exact: true })
+  await expect(popup.getByText('AI 사용권을 돌려드렸어요. 코디를 열어 다시 만들 수 있어요.')).toBeVisible()
+  await popup.getByRole('button', { name: '코디 열기', exact: true }).click()
   await expect(page.getByRole('heading', { name: '미리보기를 만들지 못했어요' })).toBeVisible()
   expect(startCalls).toBe(0)
   expect(mockApi.operations).not.toContain('GenerateOutfitPreview')
+})
+
+test('백그라운드에서 생성이 실패하면 복귀 시 잔액을 갱신하고 코디를 열 수 있다', async ({ page, mockApi }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  let failed = false
+  let acknowledged = false
+  await page.route('**/graphql', async (route) => {
+    const { query } = route.request().postDataJSON()
+    const remaining = failed ? 5 : 4
+    if (query.includes('query OutfitPreviewJobs')) {
+      const job = failed ? { ...makeJob('failed'), path: '/lookbook/new?items=item-1,item-2&preview=failed' } : makeJob('processing')
+      await route.fulfill({ json: { data: { outfitPreviewJobs: acknowledged ? [] : [job] } } })
+    } else if (query.includes('query PreviewCredits')) {
+      await route.fulfill({ json: { data: { previewCredits: { freeRemaining: remaining, rewardRemaining: 0, totalRemaining: remaining, capacity: 5, nextRefillAt: null, serverNow: new Date().toISOString(), rewardMode: 'test', resetsAt: new Date(Date.now() + 86_400_000).toISOString(), pendingRewardSessionId: null } } } })
+    } else if (query.includes('mutation AcknowledgeOutfitPreviewJob')) {
+      acknowledged = true
+      await route.fulfill({ json: { data: { acknowledgeOutfitPreviewJob: true } } })
+    } else await route.fallback()
+  })
+  await page.goto('/lookbook/new?items=item-1,item-2')
+  await expect(page.getByText('AI 사용권 4/5', { exact: true })).toBeVisible()
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('closet:native-app-state', { detail: { isActive: false } })))
+  failed = true
+  const popup = page.getByRole('dialog', { name: 'AI 룩북을 만들지 못했어요', exact: true })
+  await expect(popup).toHaveCount(0)
+  await page.evaluate(() => window.dispatchEvent(new Event('closet:native-app-active')))
+  await expect(popup.getByText('AI 사용권을 돌려드렸어요. 코디를 열어 다시 만들 수 있어요.')).toBeVisible()
+  await expect(page.getByText('AI 사용권 5/5', { exact: true })).toBeVisible()
+  await page.screenshot({ path: testInfo.outputPath('preview-job-failure-mobile.png'), animations: 'disabled' })
+  await popup.getByRole('button', { name: '코디 열기' }).click()
+  await expect(page.getByRole('heading', { name: '미리보기를 만들지 못했어요' })).toBeVisible()
+  expect(mockApi.operations).not.toContain('StartOutfitPreview')
 })
 
 

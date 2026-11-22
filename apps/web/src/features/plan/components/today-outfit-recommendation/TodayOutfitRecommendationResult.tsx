@@ -1,6 +1,7 @@
 import { AiCreditActionButton } from '../../../lookbook/components/AiCreditActionButton'
 import { PreviewCreditSummary } from '../../../lookbook/components/PreviewCreditSummary'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import type { Season, WardrobeItem, WeatherSnapshot } from '@closet/types'
 import {
   CalendarPlus,
@@ -19,6 +20,7 @@ import { formatRecommendationHeadline } from '../../utils/todayOutfitRecommendat
 import { TodayOutfitRecommendationDialog } from '../TodayOutfitRecommendationDialog'
 import { TodayOutfitRecommendationLoading } from '../TodayOutfitRecommendationLoading'
 import { RecommendationExplanationDialog } from './RecommendationExplanationDialog'
+import { RecommendationHistoryDialog } from './RecommendationHistoryDialog'
 import { RecommendationLookbookSave } from './RecommendationLookbookSave'
 import { WeatherSnapshotSummary } from '../../../weather/components/WeatherSnapshotSummary'
 import { recommendationDayLabels, type RecommendationMode } from './recommendationFlow'
@@ -111,7 +113,7 @@ export function TodayOutfitRecommendationResult({
   const dayLabel = recommendationDayLabels[mode]
   const closetItems = useClosetStore((state) => state.items)
   const [activeOverlay, setActiveOverlay] = useState<
-    'explanation' | 'detail-result' | 'detail-explanation' | null
+    'explanation' | 'detail-result' | 'detail-explanation' | 'previous-history' | null
   >(null)
   const isDetailOpen =
     activeOverlay === 'detail-result' ||
@@ -119,6 +121,8 @@ export function TodayOutfitRecommendationResult({
   const wardrobeQuery = useWardrobeItemsQuery(isDetailOpen)
   const {
     recommendation,
+    previousDate,
+    hasPreviousDayPlan,
     recommendationQuery,
     refreshSourceItems,
     hasOtherCombination,
@@ -170,6 +174,7 @@ export function TodayOutfitRecommendationResult({
   }
 
   if (!recommendation.ready) {
+    const actionClass = 'mt-4 flex w-full items-center justify-center gap-1 rounded-xl bg-ink px-4 py-3 text-sm font-bold text-white'
     return (
       <section className="flex h-full flex-col justify-center rounded-2xl border border-line bg-surface p-4">
         <div className="flex items-start gap-3">
@@ -188,13 +193,18 @@ export function TodayOutfitRecommendationResult({
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onOpenCloset}
-          className="mt-4 flex w-full items-center justify-center gap-1 rounded-xl bg-ink px-4 py-3 text-sm font-bold text-white"
-        >
-          옷 등록하러 가기 <ChevronRight size={16} />
-        </button>
+        {recommendation.previousDayRepeatOnly ? (
+          hasPreviousDayPlan ? (
+            <Link to={`/plan/${previousDate}`} onClick={onOpenLookbook} className={actionClass}>전날 코디 보기 <ChevronRight size={16} /></Link>
+          ) : (
+            <button type="button" onClick={() => setActiveOverlay('previous-history')} className={actionClass}>전날 코디 보기 <ChevronRight size={16} /></button>
+          )
+        ) : (
+          <button type="button" onClick={onOpenCloset} className={actionClass}>옷 등록하러 가기 <ChevronRight size={16} /></button>
+        )}
+        {activeOverlay === 'previous-history' && (
+          <RecommendationHistoryDialog date={previousDate} scope="all" onClose={() => setActiveOverlay(null)} onOpenLookbook={onOpenLookbook ?? (() => setActiveOverlay(null))} />
+        )}
       </section>
     )
   }

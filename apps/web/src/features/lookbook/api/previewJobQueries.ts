@@ -177,6 +177,7 @@ export function useGenerateOutfitPreviewJobMutation(inputScope?: PreviewInput) {
           throw error
         } finally {
           void client.invalidateQueries({ queryKey: previewJobKeys.all })
+          void client.invalidateQueries({ queryKey: [...previewCreditKeys.all, ownerId] })
         }
       })()
       inFlightPreviews.set(key, request)

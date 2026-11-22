@@ -1,4 +1,4 @@
-import { expect, test } from './support/fixture'
+import { createOutfit, createWardrobeItem, expect, test } from './support/fixture'
 
 type ColorScheme = 'auto' | 'tone-on-tone' | 'tone-in-tone' | 'achromatic' | 'accent'
 
@@ -12,6 +12,58 @@ type RecommendationRequest = {
     }
   }
 }
+
+for (const previousDayRepeatOnly of [false, true]) test(`전날 조합을 제외한 뒤 ${previousDayRepeatOnly ? '후보가 없으면 전날 코디를 열 수 있다' : '주가 바뀌어도 새 조합을 보여준다'}`, async ({ page, mockApi }) => {
+  const date = '2026-11-23'
+  const previousDate = '2026-11-22'
+  await page.clock.setFixedTime(new Date(`${date}T03:00:00Z`))
+  const previousTop = createWardrobeItem({ id: 'previous-top', name: '어제 추천 상의' })
+  const shoes = createWardrobeItem({ id: 'shoes', name: '신발', category: 'shoes' })
+  const nextTop = createWardrobeItem({ id: 'next-top', name: '새 추천 상의' })
+  mockApi.wardrobeItems.push(previousTop, shoes, nextTop)
+  mockApi.plannerEntries = [{
+    date: previousDate, title: null, occasion: null, weatherSummary: null, temperatureC: null,
+    outfit: { ...createOutfit(), plannerOnly: true },
+  }]
+  const previousRecommendation = {
+    date: previousDate, season: 'spring', ready: true, headline: '어제 추천', summary: '어제 입을 코디',
+    style: null, reasons: [], items: [previousTop, mockApi.wardrobeItems[1], shoes],
+  }
+  await page.addInitScript(({ previousDate, previousRecommendation }) => {
+    window.localStorage.setItem(`closet:today-outfit-recommendation:v8:e2e-user:${previousDate}:spring:wardrobe`, JSON.stringify([{
+      id: 'yesterday', date: previousDate, createdAt: `${previousDate}T01:00:00.000Z`,
+      season: 'spring', style: null, variation: 0, recommendation: previousRecommendation,
+    }]))
+  }, { previousDate, previousRecommendation })
+  const requested: string[][][] = []
+  await page.route('**/graphql', async (route) => {
+    const { query, variables } = route.request().postDataJSON()
+    if (!query.includes('query TodayOutfitRecommendation')) { await route.fallback(); return }
+    expect(variables.input.date).toBe(date)
+    requested.push(variables.input.previousDayOutfitItemIds)
+    await route.fulfill({ json: { data: { todayOutfitRecommendation: {
+      ...previousRecommendation, date, previousDayRepeatOnly, ready: !previousDayRepeatOnly,
+      combinationCount: previousDayRepeatOnly ? 0 : 1,
+      headline: previousDayRepeatOnly ? '전날과 다른 코디를 찾지 못했어요' : '오늘의 새 조합',
+      items: previousDayRepeatOnly ? [] : [nextTop, mockApi.wardrobeItems[1]], profileSummary: [], model: 'fixture',
+      source: 'fallback', colorSchemeApplied: true, weather: null,
+    } } } })
+  })
+  await page.goto('/plan')
+  await page.getByRole('button', { name: 'AI 코디 추천', exact: true }).click()
+  const sheet = page.getByRole('dialog', { name: '오늘의 AI 코디 추천' })
+  await sheet.getByRole('button', { name: '조건 바꾸기', exact: true }).click()
+  await sheet.getByRole('button', { name: '봄', exact: true }).click()
+  await sheet.getByRole('button', { name: '자동', exact: true }).click()
+  if (previousDayRepeatOnly) {
+    await expect(sheet.getByText('전날과 다른 코디를 찾지 못했어요', { exact: true })).toBeVisible()
+    await sheet.getByRole('link', { name: '전날 코디 보기' }).click()
+    await expect(page).toHaveURL(new RegExp(`/plan/${previousDate}$`))
+  } else {
+    await expect(sheet.getByText('오늘의 새 조합', { exact: true })).toBeVisible()
+  }
+  expect(requested).toEqual([[['item-1', 'item-2'], ['item-2', 'previous-top']]])
+})
 
 for (const viewport of [
   { name: 'mobile', width: 390, height: 844 },

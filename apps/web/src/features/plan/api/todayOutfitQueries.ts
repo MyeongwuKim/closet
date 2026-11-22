@@ -51,6 +51,7 @@ interface TodayOutfitRecommendationQueryOptions {
   wardrobe?: WardrobeItem[]
   preferenceKey?: string
   initialData?: TodayOutfitRecommendation
+  previousDayOutfits?: string[][]
   enabled?: boolean
   baseItemId?: string
   weather?: WeatherSnapshot | null
@@ -101,6 +102,7 @@ export function useTodayOutfitRecommendationQuery(
     wardrobe,
     preferenceKey,
     initialData,
+    previousDayOutfits,
     enabled = true,
     baseItemId,
     weather,
@@ -124,6 +126,7 @@ export function useTodayOutfitRecommendationQuery(
       weatherKey,
       thermalContextRevision,
       preferenceKey,
+      previousDayOutfits,
     ),
     enabled: enabled && Boolean(viewerId) && Boolean(date) && (meanTemperatureC === null || Boolean(thermalContextRevision)),
     initialData:
@@ -178,6 +181,7 @@ export function useTodayOutfitRecommendationQuery(
                 colorScheme: ColorScheme
                 variation: number
                 excludedOuterItemIds: string[]
+                previousDayOutfitItemIds?: string[][]
                 baseItemId?: string
                 weather?: WeatherSnapshot
                 thermalContextRevision?: string
@@ -189,7 +193,7 @@ export function useTodayOutfitRecommendationQuery(
                 $input: TodayOutfitRecommendationInput!
               ) {
                 todayOutfitRecommendation(input: $input) {
-                  date season ready combinationCount headline summary style reasons colorSchemeApplied
+                  date season ready combinationCount previousDayRepeatOnly headline summary style reasons colorSchemeApplied
                   profileSummary model source
                   thermalContext { revision direction strength sampleCount }
                   weather {
@@ -208,6 +212,7 @@ export function useTodayOutfitRecommendationQuery(
                 colorScheme,
                 variation,
                 excludedOuterItemIds,
+                ...(previousDayOutfits?.length ? { previousDayOutfitItemIds: previousDayOutfits } : {}),
                 ...(baseItemId !== undefined ? { baseItemId } : {}),
                 ...(weather ? { weather } : {}),
                 ...(thermalContextRevision ? { thermalContextRevision } : {}),

@@ -534,6 +534,7 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
   apparentTemperatureC?: number,
   colorScheme: TodayOutfitColorScheme = 'auto',
   thermalContext?: ThermalRecommendationContext,
+  previousDayOutfitKeys?: ReadonlySet<string>,
 ) {
   if (baseItemId !== undefined && !items.some((item) => item.id === baseItemId)) {
     return []
@@ -588,6 +589,10 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
     if (baseItemId !== undefined && !selectedItems.some((item) => item.id === baseItemId)) return
     const uniqueItems = [...new Map(selectedItems.map((item) => [item.id, item])).values()]
     if (uniqueItems.length !== selectedItems.length || uniqueItems.length > 5) return
+    // 신발·액세서리만 바꾼 조합도 전날과 같다고 보고 순위를 매기기 전에 제외한다.
+    if (previousDayOutfitKeys?.size && previousDayOutfitKeys.has(JSON.stringify(
+      uniqueItems.filter((item) => item.category !== 'shoes' && item.category !== 'accessory').map((item) => item.id).sort(),
+    ))) return
     if (
       apparentTemperatureC !== undefined &&
       !isWeatherCompatibleCombination(
@@ -667,7 +672,7 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
         getColorSchemeFitScore(combination.items, colorScheme) > 0,
       )
   if (colorScheme !== 'auto' && matchingCombinations.length === 0) {
-    return buildOutfitCombinations(items, season, baseItemId, apparentTemperatureC, 'auto', thermalContext)
+    return buildOutfitCombinations(items, season, baseItemId, apparentTemperatureC, 'auto', thermalContext, previousDayOutfitKeys)
   }
 
   return selectDiverseCombinations(matchingCombinations, 18)
