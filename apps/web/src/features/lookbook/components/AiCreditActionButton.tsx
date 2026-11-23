@@ -20,8 +20,8 @@ export function AiCreditActionButton({ kind = 'preview', requiresCredit = true, 
   return (
     <button aria-description={creditBalance ? `남은 AI 사용권 ${creditBalance}` : undefined} {...props} type="button" disabled={disabled || isCheckingCredit} onClick={() => void action.execute(onClick)}>
       {children && <span className="shrink-0">{children}</span>}
-      <span className="min-w-0 text-center leading-5 break-keep text-balance">{isCheckingCredit ? '확인 중…' : action.requiresAd ? (action.usesWallet ? '광고 보고 충전' : adLabel) : label}</span>
-      {creditBalance && (
+      <span className="min-w-0 truncate text-center leading-5">{isCheckingCredit ? '확인 중…' : action.requiresAd ? (action.usesWallet ? '광고 보고 충전' : adLabel) : label}</span>
+      {creditBalance && !action.requiresAd && (
         <span aria-hidden="true" className="shrink-0 rounded-md bg-black/6 px-1.5 py-0.5 text-xs font-bold leading-4 tabular-nums whitespace-nowrap">
           {creditBalance}
         </span>

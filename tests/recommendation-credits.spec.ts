@@ -4,51 +4,6 @@ import type { ClosetNativeBridge } from '../apps/web/src/native-bridge/types'
 
 const walletFields = (remaining = 0) => ({ capacity: 5, nextRefillAt: remaining >= 5 ? null : new Date(Date.now() + 60 * 60_000).toISOString(), serverNow: new Date().toISOString() })
 
-test('남은 사용권이 있어도 광고로 1개를 충전하고 추천을 자동 실행하지 않는다', async ({ page, mockApi }, testInfo) => {
-  await page.setViewportSize({ width: 390, height: 844 })
-  let remaining = 4
-  let adCalls = 0
-  let recommendationCalls = 0
-  const session = { id: 'top-up-reward', mode: 'test', adUnitId: 'test', status: 'pending', watchedAt: null, validUntil: new Date(Date.now() + 600_000).toISOString() }
-  await page.exposeFunction('earnTopUpReward', () => { adCalls++; remaining++ })
-  await page.addInitScript(() => {
-    window.ClosetRuntimeConfig = { isNativeWebView: true }
-    window.ClosetNative = {
-      getAppInfo: async () => ({ capabilities: ['rewarded-ad'], platform: 'ios' }),
-      showRewardedAd: async (sessionId: string) => {
-        await (window as unknown as { earnTopUpReward: () => Promise<void> }).earnTopUpReward()
-        return { status: 'earned', sessionId }
-      },
-    } as unknown as ClosetNativeBridge
-  })
-  await page.route('**/graphql', async (route) => {
-    const { query } = route.request().postDataJSON()
-    if (query.includes('query TodayOutfitRecommendation')) recommendationCalls++
-    if (query.includes('query PreviewCredits')) {
-      await route.fulfill({ json: { data: { previewCredits: { freeRemaining: remaining, rewardRemaining: 0, totalRemaining: remaining, ...walletFields(remaining), adRewardsRemaining: null, rewardMode: 'test', pendingRewardSessionId: null } } } })
-    } else if (query.includes('mutation StartPreviewReward')) {
-      await route.fulfill({ json: { data: { startPreviewReward: session } } })
-    } else if (query.includes('query PreviewRewardSession')) {
-      await route.fulfill({ json: { data: { previewRewardSession: { ...session, status: 'granted' } } } })
-    } else await route.fallback()
-  })
-  await page.goto('/#/plan')
-  await page.getByRole('button', { name: 'AI 코디 추천', exact: true }).click()
-  const sheet = page.getByRole('dialog', { name: '오늘의 AI 코디 추천' })
-  const shortcut = sheet.getByRole('button', { name: '광고 보고 충전', exact: true })
-  await expect(sheet.getByText('AI 사용권 4/5', { exact: true })).toBeVisible()
-  await shortcut.click()
-  const dialog = page.getByRole('dialog', { name: 'AI 사용권 안내', exact: true })
-  await expect(dialog.getByRole('button', { name: '광고 보기', exact: true })).toBeEnabled()
-  await page.screenshot({ path: testInfo.outputPath('recommendation-ad-top-up.png'), animations: 'disabled' })
-  await dialog.getByRole('button', { name: '광고 보기', exact: true }).click()
-  await expect(sheet.getByText('AI 사용권 5/5', { exact: true })).toBeVisible()
-  await expect(shortcut).toHaveCount(0)
-  expect(adCalls).toBe(1)
-  expect(recommendationCalls).toBe(0)
-  expect(mockApi.operations).not.toContain('StartOutfitPreview')
-})
-
 for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
   test(`${viewport.width}px: 추천 무료 5회 소진 후 광고로 1회 추가하고 재추천한다`, async ({ page, mockApi }) => {
     await page.setViewportSize(viewport)

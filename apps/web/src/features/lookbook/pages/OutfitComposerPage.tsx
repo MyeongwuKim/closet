@@ -280,7 +280,7 @@ export function OutfitComposerPage() {
     hydratedNotificationRouteRef.current = routeKey
 
     const syncDetailsTimer = window.setTimeout(() => {
-      if (routeStyle) setStyle(routeStyle)
+      setStyle(routeStyle ?? '')
       setOutfitSeasons(getCommonSeasons(resolvedItems))
       setOutfitName(getDefaultOutfitName(resolvedItems, outfits.length))
     }, 0)
@@ -295,6 +295,11 @@ export function OutfitComposerPage() {
     searchParams,
   ])
 
+  // 완료 링크를 열면 이미지 조회 중인 화면으로 전환해 이전 실패 상태를 지운다.
+  useEffect(() => {
+    if (shouldRestorePreview && previewAssetId) dispatch({ type: 'OPEN_PREVIEW' })
+  }, [previewAssetId, shouldRestorePreview])
+
   useEffect(() => {
     if (!shouldRestorePreview || !restoredPreview.data) return
     dispatch({
@@ -303,13 +308,13 @@ export function OutfitComposerPage() {
       assetId: restoredPreview.data.assetId,
       compositionKey: getOutfitPreviewCompositionKey(
         routeItemIds,
-        searchParams.get('style') ?? style,
+        searchParams.get('style') ?? '',
       ),
       mimeType: restoredPreview.data.mimeType,
       model: restoredPreview.data.model,
       open: true,
     })
-  }, [restoredPreview.data, routeItemIds, searchParams, shouldRestorePreview, style])
+  }, [restoredPreview.data, routeItemIds, searchParams, shouldRestorePreview])
 
   useEffect(() => {
     if (!meQuery.data?.id || !restoredPreview.data || !shouldRestorePreview) {
@@ -319,7 +324,7 @@ export function OutfitComposerPage() {
       meQuery.data.id,
       getOutfitPreviewCompositionKey(
         routeItemIds,
-        searchParams.get('style') ?? style,
+        searchParams.get('style') ?? '',
       ),
       restoredPreview.data,
     )
@@ -329,11 +334,10 @@ export function OutfitComposerPage() {
     routeItemIds,
     searchParams,
     shouldRestorePreview,
-    style,
   ])
 
   useEffect(() => {
-    if (!shouldRestorePreview || !restoredPreview.error) return
+    if (!shouldRestorePreview || restoredPreview.isFetching || !restoredPreview.error) return
     dispatch({
       type: 'PREVIEW_ERROR',
       message:
@@ -342,7 +346,7 @@ export function OutfitComposerPage() {
           : '완성된 AI 룩북을 불러오지 못했어요.',
       open: true,
     })
-  }, [restoredPreview.error, shouldRestorePreview])
+  }, [restoredPreview.error, restoredPreview.isFetching, shouldRestorePreview])
 
   useEffect(() => {
     if (!shouldRestorePreviewFailure) return
@@ -688,6 +692,11 @@ export function OutfitComposerPage() {
           model: restoredPreview.data.model,
           open: true,
         })
+      } else {
+        const nextSearchParams = new URLSearchParams(searchParams)
+        nextSearchParams.set('preview', 'open')
+        setSearchParams(nextSearchParams, { replace: true })
+        void restoredPreview.refetch()
       }
       return
     }
@@ -714,6 +723,13 @@ export function OutfitComposerPage() {
     }
 
     if (previewMutation.isPending || previewMutation.isRestoringCompleted) return
+    if (forceNew && searchParams.has('preview')) {
+      const nextSearchParams = new URLSearchParams(searchParams)
+      nextSearchParams.delete('preview')
+      nextSearchParams.delete('previewAssetId')
+      nextSearchParams.delete('previewJobId')
+      setSearchParams(nextSearchParams, { replace: true })
+    }
     dispatch({ type: 'OPEN_PREVIEW' })
 
     void (restoreCompleted
@@ -746,6 +762,8 @@ export function OutfitComposerPage() {
         })
         if (result.assetId) {
           const nextSearchParams = new URLSearchParams(searchParams)
+          nextSearchParams.delete('preview')
+          nextSearchParams.delete('previewJobId')
           nextSearchParams.set('previewAssetId', result.assetId)
           if (requestedStyle) nextSearchParams.set('style', requestedStyle)
           setSearchParams(nextSearchParams, { replace: true })
@@ -906,7 +924,14 @@ export function OutfitComposerPage() {
             </div>
           </footer>
         )}
-        <OutfitPreviewDialog isReadOnly={Boolean(duplicateOutfit)} creditSummary={<PreviewCreditSummary />} />
+        <OutfitPreviewDialog
+          isReadOnly={Boolean(duplicateOutfit)}
+          creditSummary={<PreviewCreditSummary />}
+          onRetryLoad={shouldRestorePreview && previewAssetId ? () => {
+            dispatch({ type: 'OPEN_PREVIEW' })
+            void restoredPreview.refetch()
+          } : undefined}
+        />
         <OutfitSaveDialog />
         {isSavedLookbookOpen &&
           canUseSavedLookbookPreview &&

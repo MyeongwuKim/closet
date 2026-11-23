@@ -28,6 +28,7 @@ interface OutfitPreviewDialogViewProps {
   isPrimaryPending?: boolean
   /** 생성권 조회는 호출한 화면에서 수행하고 여기에는 잔액 안내 UI만 전달한다. */
   creditSummary?: ReactNode
+  onRetryLoad?: () => void
 }
 
 export function OutfitPreviewDialogView({
@@ -40,6 +41,7 @@ export function OutfitPreviewDialogView({
   primaryAction = 'save',
   isPrimaryPending = false,
   creditSummary,
+  onRetryLoad,
 }: OutfitPreviewDialogViewProps) {
   const [loadingStage, setLoadingStage] = useState(0)
 
@@ -77,10 +79,10 @@ export function OutfitPreviewDialogView({
           <div className="min-w-0 flex-1">
             <h2 id="outfit-preview-title" className="text-base font-semibold">
               {isLoading
-                ? 'AI가 룩북을 만들고 있어요'
+                ? onRetryLoad ? '완성된 AI 룩북을 불러오고 있어요' : 'AI가 룩북을 만들고 있어요'
                 : isSuccess
                   ? 'AI 룩북 미리보기'
-                  : '미리보기를 만들지 못했어요'}
+                  : onRetryLoad ? '완성된 AI 룩북을 불러오지 못했어요' : '미리보기를 만들지 못했어요'}
             </h2>
             <p className="mt-0.5 text-[11px] text-muted">
               선택한 옷 {selectedItems.length}개로 만든 예시 이미지
@@ -123,13 +125,13 @@ export function OutfitPreviewDialogView({
               </div>
 
               <strong className="mt-8 text-base font-black">
-                {loadingMessages[loadingStage]}
+                {onRetryLoad ? '완성된 이미지를 확인하고 있어요.' : loadingMessages[loadingStage]}
               </strong>
-              <p className="mt-2 max-w-64 text-xs leading-5 text-muted">
+              {!onRetryLoad && <p className="mt-2 max-w-64 text-xs leading-5 text-muted">
                 {isNativeWebViewRuntime()
                   ? '앱을 닫아도 생성은 계속돼요. 알림을 허용하면 완료 알림을 받을 수 있어요.'
                   : '이미지 생성에는 시간이 조금 걸릴 수 있어요.'}
-              </p>
+              </p>}
 
               <div className="mt-6 flex gap-1.5" aria-hidden="true">
                 {loadingMessages.map((message, index) => (
@@ -164,7 +166,7 @@ export function OutfitPreviewDialogView({
             <div className="flex min-h-96 flex-col items-center justify-center rounded-3xl border border-dashed border-line bg-canvas px-6 text-center">
               <OutfitPreviewFailureIllustration className="size-28 shrink-0" />
               <strong className="mt-5 text-base font-black">
-                이미지를 완성하지 못했어요
+                {onRetryLoad ? '이미지를 불러오지 못했어요' : '이미지를 완성하지 못했어요'}
               </strong>
               <p className="mt-2 text-xs leading-5 text-muted">
                 {preview.errorMessage ??
@@ -178,9 +180,10 @@ export function OutfitPreviewDialogView({
           <footer className="grid shrink-0 grid-cols-2 gap-2 border-t border-line px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
             {creditSummary && <div className="col-span-2">{creditSummary}</div>}
             <AiCreditActionButton
-              label="다시 만들기"
+              label={!isSuccess && onRetryLoad ? '다시 불러오기' : '다시 만들기'}
               adLabel="광고 보고 다시 만들기"
-              onClick={() => generatePreview(true)}
+              requiresCredit={isSuccess || !onRetryLoad}
+              onClick={!isSuccess && onRetryLoad ? onRetryLoad : () => generatePreview(true)}
               className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-canvas px-3 py-3 text-xs font-bold"
             >
               <RefreshCw size={14} />
@@ -216,11 +219,13 @@ export function OutfitPreviewDialogView({
 interface OutfitPreviewDialogProps {
   isReadOnly?: boolean
   creditSummary?: ReactNode
+  onRetryLoad?: () => void
 }
 
 export function OutfitPreviewDialog({
   isReadOnly = false,
   creditSummary,
+  onRetryLoad,
 }: OutfitPreviewDialogProps) {
   const {
     selectedItems,
@@ -233,6 +238,7 @@ export function OutfitPreviewDialog({
   return (
     <OutfitPreviewDialogView
       creditSummary={creditSummary}
+      onRetryLoad={onRetryLoad}
       selectedItems={selectedItems}
       preview={preview}
       generatePreview={generatePreview}

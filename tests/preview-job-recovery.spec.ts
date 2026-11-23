@@ -131,6 +131,48 @@ test('백그라운드에서는 완료 팝업을 숨기고 복귀한 뒤 사용�
   expect(mockApi.operations).not.toContain('StartOutfitPreview')
 })
 
+test('완료 팝업은 기존 실패 화면을 즉시 바꾸고 이미지 조회 실패는 생성 없이 다시 읽는다', async ({ page, mockApi }) => {
+  const earlier = { ...makeJob('interrupted'), id: 'earlier-job' }
+  const completed = { ...makeJob('completed'), createdAt: '2026-10-31T00:00:00Z' }
+  let jobs = [earlier]
+  const acknowledged: string[] = []
+  let canLoad = false
+  let releaseLookup!: () => void
+  const pendingLookup = new Promise<void>((resolve) => { releaseLookup = resolve })
+  await page.route('**/graphql', async (route) => {
+    const { query, variables } = route.request().postDataJSON()
+    if (query.includes('query OutfitPreviewJobs')) {
+      await route.fulfill({ json: { data: { outfitPreviewJobs: jobs.filter((job) => !acknowledged.includes(job.id)) } } })
+    } else if (query.includes('query OutfitPreviewAsset')) {
+      await pendingLookup
+      if (!canLoad) {
+        await route.fulfill({ json: { errors: [{ message: '이미지 조회 실패', extensions: { code: 'OUTFIT_PREVIEW_LOAD_FAILED' } }] } })
+        return
+      }
+      await route.fulfill({ json: { data: { outfitPreviewAsset: { assetId: completed.imageAssetId, imageUrl, mimeType: 'image/png', model: 'fixture-model' } } } })
+    } else if (query.includes('mutation AcknowledgeOutfitPreviewJob')) {
+      acknowledged.push(variables.id)
+      await route.fulfill({ json: { data: { acknowledgeOutfitPreviewJob: true } } })
+    } else await route.fallback()
+  })
+  await page.goto(earlier.path)
+  await expect(page.getByRole('heading', { name: '미리보기를 만들지 못했어요' })).toBeVisible()
+  jobs = [completed, earlier]
+  await page.evaluate(() => window.dispatchEvent(new Event('closet:native-app-active')))
+  await page.getByRole('dialog', { name: 'AI 룩북이 완성됐어요' }).getByRole('button', { name: '보러 가기' }).click()
+  await expect(page.getByRole('heading', { name: '완성된 AI 룩북을 불러오고 있어요' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '미리보기를 만들지 못했어요' })).toHaveCount(0)
+  releaseLookup()
+  const loadError = page.getByRole('dialog', { name: '완성된 AI 룩북을 불러오지 못했어요' })
+  await expect(loadError).toBeVisible()
+  expect(acknowledged).toEqual([])
+  canLoad = true
+  await loadError.getByRole('button', { name: '다시 불러오기' }).click()
+  await expect(page.getByRole('heading', { name: 'AI 룩북 미리보기', exact: true })).toBeVisible()
+  await expect.poll(() => acknowledged.sort()).toEqual([earlier.id, completed.id].sort())
+  expect(mockApi.operations).not.toContain('StartOutfitPreview')
+})
+
 test('푸시의 결과 경로로 이미 진입했으면 완료 팝업을 겹쳐 띄우지 않는다', async ({ page, mockApi }) => {
   const completed = makeJob('completed')
   let acknowledged = false

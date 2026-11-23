@@ -25,8 +25,13 @@ async function getPreviewJobs() {
 
 /** 소유한 작업의 상태만 조회한다. 조회 중 새 이미지 생성 요청을 보내지 않는다. */
 export async function getPreviewJob(id: string) {
-  const data = await graphqlRequest<{ outfitPreviewJob: OutfitPreviewJob }>(`query OutfitPreviewJob($id: ID!) { outfitPreviewJob(id: $id) { ${fields} } }`, { id })
-  return data.outfitPreviewJob
+  try {
+    const data = await graphqlRequest<{ outfitPreviewJob: OutfitPreviewJob }>(`query OutfitPreviewJob($id: ID!) { outfitPreviewJob(id: $id) { ${fields} } }`, { id })
+    return data.outfitPreviewJob
+  } catch (error) {
+    if (error instanceof GraphqlRequestError && error.code) throw error
+    throw new GraphqlRequestError('AI 생성 상태를 불러오지 못했어요.', 'AI_JOB_LOAD_FAILED')
+  }
 }
 
 /** 앱 재실행·다른 화면 진입 후에도 서버에 남은 진행·미확인 완료 작업을 불러온다. */

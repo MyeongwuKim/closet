@@ -3,9 +3,10 @@ import { aiInputKey } from '../../lib/ai/ai-execution.js'
 
 export const TEST_REWARDED_AD_UNIT = 'ca-app-pub-3940256099942544/1712485313'
 
-/** 개발 서버에서만 광고 없이 사용권을 채우는 테스트 기능을 허용한다. */
+/** 로컬 개발 서버와 테스트 광고가 설정된 개발 Cloud Run에서만 테스트 충전을 허용한다. */
 export function canRefillTestAiCredits() {
-  return process.env.NODE_ENV !== 'production'
+  if (!process.env.K_SERVICE) return process.env.NODE_ENV !== 'production'
+  return process.env.K_SERVICE === 'wearroom-api-dev' && getPreviewRewardConfig().mode === 'test'
 }
 
 /** 추천 결과 캐시·이전 예약 반환에 쓰는 한국 시간 날짜 키를 계산한다. 공통 지갑의 시간 충전은 이 날짜와 무관하다. */

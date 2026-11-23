@@ -42,6 +42,16 @@ test('개발용 충전은 요청 인자가 아닌 로그인한 계정의 지갑�
   assert.equal((result as { totalRemaining: number }).totalRemaining, 5)
 })
 
+test('Cloud Run 테스트 충전은 테스트 광고를 켠 개발 서비스에서만 허용한다', (t) => {
+  t.mock.property(process, 'env', { ...process.env, NODE_ENV: 'production', K_SERVICE: 'wearroom-api-dev', ADMOB_REWARD_MODE: 'test' })
+  assert.equal(canRefillTestAiCredits(), true)
+  process.env.ADMOB_REWARD_MODE = 'production'
+  assert.equal(canRefillTestAiCredits(), false)
+  process.env.ADMOB_REWARD_MODE = 'test'
+  process.env.K_SERVICE = 'wearroom-api'
+  assert.equal(canRefillTestAiCredits(), false)
+})
+
 test('테스트 보상은 운영 모드에서 DB 조회 전에 차단된다', async (t) => {
   const before = process.env.NODE_ENV
   process.env.NODE_ENV = 'production'

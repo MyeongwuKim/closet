@@ -4,10 +4,11 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useMeQuery } from '../../settings/api/profileQueries'
 import { previewCreditKeys } from '../api/previewCreditQueries'
 import { previewJobKeys, useAcknowledgePreviewJob, useOutfitPreviewJobsQuery } from '../api/previewJobQueries'
+import { matchesExistingPreview } from '../utils/resumeExistingPreview'
 
 /**
  * 앱이 열린 상태에서 미확인 생성 완료·실패를 팝업으로 알린다. 진행 작업은 레이아웃에 표시하지 않는다.
- * 나중에 보기는 현재 실행 중에만 숨기고, 보러 가기는 서버에 확인 처리한 뒤 저장된 결과 경로로 이동한다.
+ * 나중에 보기는 현재 실행 중에만 숨긴다. 완료 알림은 실제 이미지가 표시된 뒤 확인 처리한다.
  * 이번 실행에서 이미 표시한 이미지도 계정별로 기억해, 늦게 조회된 완료 알림이 저장·닫기 뒤 다시 뜨지 않게 한다.
  * 네이티브 백그라운드·브라우저 숨김 상태에서는 팝업과 조회를 멈춘다.
  */
@@ -32,6 +33,9 @@ export function usePreviewJobNotification() {
   const job = jobs.data?.find((item) => !['queued', 'processing'].includes(item.status) && !dismissed.has(`${ownerId}:${item.id}`))
   const jobKey = job ? `${ownerId}:${job.id}` : null
   const wasViewed = Boolean(job?.imageAssetId && viewedAssets.has(`${ownerId}:${job.imageAssetId}`))
+  const params = new URLSearchParams(location.search)
+  const openingResult = Boolean(job?.imageAssetId && location.pathname === '/lookbook/new' &&
+    params.get('previewAssetId') === job.imageAssetId && params.get('preview') === 'open')
 
   // 작업 목록에서 처음 확인한 실패·중단도 공용 지갑 잔액에 반영한다.
   useEffect(() => {
@@ -90,17 +94,21 @@ export function usePreviewJobNotification() {
     if (!job || !jobKey || !isForeground || isGenerating) return
     // 직접 생성한 이미지가 같은 프레임에서 열릴 수 있어 잠시 기다린 뒤 화면의 자산 번호를 확인한다.
     const timer = window.setTimeout(() => {
-      const params = new URLSearchParams(location.search)
-      const openingFromNotification = job.imageAssetId && location.pathname === '/lookbook/new' && params.get('previewAssetId') === job.imageAssetId && params.get('preview') === 'open'
-      const alreadyOpen = wasViewed || openingFromNotification || (job.imageAssetId && [...document.querySelectorAll<HTMLElement>('[data-ai-preview-asset-id]')]
+      const alreadyOpen = wasViewed || (job.imageAssetId && [...document.querySelectorAll<HTMLElement>('[data-ai-preview-asset-id]')]
         .some((element) => element.dataset.aiPreviewAssetId === job.imageAssetId))
       if (alreadyOpen) {
-        setDismissed((current) => new Set(current).add(jobKey))
+        const earlierFailures = (jobs.data ?? []).filter((candidate) =>
+          (candidate.status === 'failed' || candidate.status === 'interrupted') &&
+          candidate.createdAt < job.createdAt &&
+          matchesExistingPreview(candidate, { selectedItemIds: job.selectedItemIds, style: job.style ?? undefined }),
+        )
+        setDismissed((current) => new Set([...current, jobKey, ...earlierFailures.map((candidate) => `${ownerId}:${candidate.id}`)]))
         acknowledge(job.id)
-      } else setVisibleKey(jobKey)
+        for (const candidate of earlierFailures) acknowledge(candidate.id)
+      } else if (!openingResult) setVisibleKey(jobKey)
     }, wasViewed ? 0 : 500)
     return () => window.clearTimeout(timer)
-  }, [acknowledge, isForeground, isGenerating, job, jobKey, location.pathname, location.search, wasViewed])
+  }, [acknowledge, isForeground, isGenerating, job, jobKey, jobs.data, openingResult, ownerId, wasViewed])
 
   /** 현재 실행 중에는 같은 작업을 다시 알리지 않는다. 서버의 미확인 기록은 다음 실행에서 확인할 수 있게 유지한다. */
   const dismiss = () => {
@@ -108,13 +116,16 @@ export function usePreviewJobNotification() {
     setVisibleKey(null)
   }
 
-  /** 결과 경로를 열기 전에 서버의 미확인 작업 목록에서 숨긴다. 생성 요청이나 이미지 삭제는 수행하지 않는다. */
+  /** 실패는 열 때 확인하고, 완료는 결과를 불러와 표시될 때까지 미확인으로 유지한다. */
   const openResult = () => {
     if (!job) return
-    dismiss()
-    acknowledge(job.id)
+    if (job.status === 'completed') setVisibleKey(null)
+    else {
+      dismiss()
+      acknowledge(job.id)
+    }
     navigate(job.path)
   }
 
-  return { job: isForeground && !isGenerating && !wasViewed && visibleKey === jobKey ? job : undefined, dismiss, openResult }
+  return { job: isForeground && !isGenerating && !wasViewed && !openingResult && visibleKey === jobKey ? job : undefined, dismiss, openResult }
 }

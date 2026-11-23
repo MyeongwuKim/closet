@@ -5,6 +5,7 @@ import { getAccessToken } from '../../lib/auth'
 import { useWardrobeImageAnalysis } from '../../features/closet/hooks/useWardrobeImageAnalysis'
 import { useClosetStore } from '../../features/closet/stores/useClosetStore'
 import { OutfitRecommendationActions } from '../../features/plan/components/OutfitRecommendationActions'
+import { TestAiCreditRefillButton } from '../../features/lookbook/components/TestAiCreditRefillButton'
 import { AppHeader } from './AppHeader'
 import { MobileTabBar } from './MobileTabBar'
 import { useWearWeatherLocationSync } from '../../features/plan/hooks/useWearWeatherLocationSync'
@@ -57,7 +58,12 @@ export function AppLayout() {
     <div className="app-layout flow-root min-h-dvh bg-canvas text-ink">
       <GlobalUi />
       <div className="wearroom-shell" data-room={room}>
-        <AppHeader actions={hasHeaderRecommendations ? <OutfitRecommendationActions placement="header" /> : undefined} />
+        <AppHeader actions={hasHeaderRecommendations ? (
+          <>
+            {location.pathname === '/plan' && <TestAiCreditRefillButton />}
+            <OutfitRecommendationActions placement="header" />
+          </>
+        ) : undefined} />
         <main className="app-main mx-auto w-full max-w-6xl px-4 pt-2 pb-6 sm:px-8 sm:pt-4 sm:pb-12">
           <div className="room-page-enter" key={location.pathname.split('/')[1]}><Outlet /></div>
         </main>

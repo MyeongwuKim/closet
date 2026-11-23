@@ -3,6 +3,7 @@ import test from 'node:test'
 import type { OutfitPreviewJob } from '@closet/types'
 import { clearPendingPreview, previewRequestKey, readPendingPreview, writePendingPreview } from '../src/features/lookbook/utils/pendingPreviewRequest'
 import { waitForPreviewJob } from '../src/features/lookbook/utils/waitForPreviewJob'
+import { GraphqlRequestError } from '../src/lib/graphql'
 
 class MemoryStorage implements Storage {
   private values = new Map<string, string>()
@@ -44,6 +45,17 @@ test('접수된 작업만 조회해 완료를 복원하고 이미지 생성 요�
     return { ...job, status: reads === 1 ? 'processing' : 'completed', imageAssetId: reads === 1 ? null : 'asset-one' }
   }, { wait: async () => undefined })
   assert.equal(reads, 2)
+  assert.equal(result.imageAssetId, 'asset-one')
+})
+
+test('접수된 작업의 일시 조회 실패는 같은 작업 번호로 다시 확인한다', async () => {
+  const requested: string[] = []
+  const result = await waitForPreviewJob(job, async (id) => {
+    requested.push(id)
+    if (requested.length === 1) throw new GraphqlRequestError('연결 실패', 'AI_JOB_LOAD_FAILED')
+    return { ...job, status: 'completed', imageAssetId: 'asset-one' }
+  }, { wait: async () => undefined })
+  assert.deepEqual(requested, [job.id, job.id])
   assert.equal(result.imageAssetId, 'asset-one')
 })
 

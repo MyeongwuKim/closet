@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
-import { TestAiCreditRefillButton } from '../../features/lookbook/components/TestAiCreditRefillButton'
 
 const navigation = [
   { label: '플래너', to: '/plan' },
@@ -13,7 +12,7 @@ interface AppHeaderProps {
   actions?: ReactNode
 }
 
-/** 브랜드·주요 메뉴와 화면별 조작을 표시한다. 개발 빌드에서는 서버가 허용한 테스트 충전 버튼도 오른쪽에 배치한다. */
+/** 브랜드·주요 메뉴와 호출 화면에서 전달한 조작을 표시한다. */
 export function AppHeader({ actions }: AppHeaderProps) {
   return (
     <header className="bg-canvas text-ink">
@@ -36,7 +35,6 @@ export function AppHeader({ actions }: AppHeaderProps) {
               </NavLink>
             ))}
           </nav>
-          {import.meta.env.MODE !== 'production' && <TestAiCreditRefillButton />}
           {actions}
         </div>
       </div>
