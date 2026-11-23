@@ -33,6 +33,7 @@ import { getThermalRecommendationMean, matchesThermalRecommendationContext, matc
 import {
   formatRecommendationHeadline,
   getRecommendationCoreItemIds,
+  uniqueRecommendationOutfits,
   getRefreshExcludedOuterItemIds,
 } from '../utils/todayOutfitRecommendation'
 
@@ -64,6 +65,10 @@ export function useTodayOutfitRecommendationResult({
   const [initialHistory] = useState(() =>
     readTodayRecommendationHistory(viewerId, date, season, null, baseItemId, colorScheme),
   )
+  // 날씨 추천을 다시 열면 대상 날짜에 앞서 본 조합을 제외한다. 같은 요청의 재시도는 이 목록을 유지한다.
+  const [initialSeenOutfits] = useState(() => weather ? uniqueRecommendationOutfits(
+    readAllRecentTodayRecommendationHistory(viewerId, date).map((entry) => getRecommendationCoreItemIds(entry.recommendation.items)),
+  ) : [])
   const wardrobeQuery = useWardrobeItemsQuery(true, { refetchOnMount: 'always' })
   const preferenceKey = getWardrobePreferenceKey(wardrobeQuery.data ?? [])
   const wardrobeReady = wardrobeQuery.isSuccess && wardrobeQuery.isFetchedAfterMount && !wardrobeQuery.isFetching
@@ -98,10 +103,9 @@ export function useTodayOutfitRecommendationResult({
       const items = planned.outfitItems?.length ? planned.outfitItems : (wardrobeQuery.data ?? []).filter((item) => planned.itemIds.includes(item.id))
       outfits.unshift(getRecommendationCoreItemIds(items))
     }
-    const uniqueOutfits = new Map(outfits.filter((ids) => ids.length > 0).map((ids) => [JSON.stringify(ids), ids]))
-    setPreviousDaySnapshot({ scope: previousDayScope, outfits: [...uniqueOutfits.keys()].sort().map((key) => uniqueOutfits.get(key)!), hasPlan })
+    setPreviousDaySnapshot({ scope: previousDayScope, outfits: uniqueRecommendationOutfits(outfits), hasPlan })
   }
-  const storedRecommendation = isThermalContextReady && hasWardrobeContext && !preferencesChanged && previousDayOutfits ? initialHistory.find((entry) =>
+  const storedRecommendation = !weather && isThermalContextReady && hasWardrobeContext && !preferencesChanged && previousDayOutfits ? initialHistory.find((entry) =>
     !previousDayOutfits.some((ids) => JSON.stringify(ids) === JSON.stringify(getRecommendationCoreItemIds(entry.recommendation.items))) &&
     matchesTodayRecommendationWeather(entry.recommendation, weather) &&
     matchesThermalRecommendationContext(entry.recommendation, thermalRevision) &&
@@ -110,11 +114,12 @@ export function useTodayOutfitRecommendationResult({
   const scope = JSON.stringify([date, season, colorScheme, baseItemId, weather, thermalRevision, preferenceKey])
   /** 재추천 조건은 체감 근거별로 구분하며 새 근거에는 이전 아우터 제외 조건을 이어 붙이지 않는다. */
   const [refresh, setRefresh] = useState<{
-    scope: string; variation: number; excludedOuterItemIds: string[]; sourceItems: WardrobeItem[]
+    scope: string; variation: number; excludedOuterItemIds: string[]; sourceItems: WardrobeItem[]; seenOutfits: string[][]
   } | null>(null)
   const variation = refresh?.scope === scope ? refresh.variation : storedRecommendation?.variation ?? 0
   const excludedOuterItemIds = refresh?.scope === scope ? refresh.excludedOuterItemIds : []
   const refreshSourceItems = refresh?.scope === scope ? refresh.sourceItems : []
+  const seenOutfits = refresh?.scope === scope ? refresh.seenOutfits : initialSeenOutfits
   const query = useTodayOutfitRecommendationQuery(
     viewerId,
     date,
@@ -128,6 +133,7 @@ export function useTodayOutfitRecommendationResult({
       thermalContext,
       enabled: isThermalContextReady && hasWardrobeContext && !preferencesChanged && previousDayOutfits !== null,
       previousDayOutfits: previousDayOutfits ?? undefined,
+      seenOutfits,
       wardrobe: wardrobeQuery.data,
       preferenceKey,
       initialData:
@@ -192,14 +198,15 @@ export function useTodayOutfitRecommendationResult({
   // 제외 조건이 없는 전체 후보가 하나일 때만 재추천을 막는다.
   const hasOtherCombination = recommendation?.combinationCount !== 1 || excludedOuterItemIds.length > 0
 
-  /** 다른 후보가 있을 때 직전 아우터를 제외하고 다음 조합을 조회한다. 기준 아이템은 유지한다. */
+  /** 날씨 추천은 본 조합을, 수동 조건은 직전 아우터를 제외한다. 기준 아이템은 유지한다. */
   const requestAnotherRecommendation = () => {
     if (recommendationQuery.isFetching || !hasOtherCombination) return
 
     const currentItems = recommendation?.items ?? []
     setRefresh({
-      scope, variation: (variation + 1) % 21,
-      excludedOuterItemIds: getRefreshExcludedOuterItemIds(currentItems, baseItemId),
+      scope, variation: weather ? 0 : (variation + 1) % 21,
+      excludedOuterItemIds: weather ? [] : getRefreshExcludedOuterItemIds(currentItems, baseItemId),
+      seenOutfits: weather ? uniqueRecommendationOutfits([...seenOutfits, getRecommendationCoreItemIds(currentItems)]) : [],
       sourceItems: currentItems,
     })
   }

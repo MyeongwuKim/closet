@@ -47,6 +47,7 @@ export const queryKeys = {
       thermalContextRevision?: string,
       preferenceKey?: string,
       previousDayOutfits?: string[][],
+      seenOutfits?: string[][],
     ) =>
       [
         'planner',
@@ -63,6 +64,7 @@ export const queryKeys = {
         ...(thermalContextRevision === undefined ? [] : [thermalContextRevision]),
         ...(preferenceKey === undefined ? [] : [preferenceKey]),
         ...(previousDayOutfits?.length ? [{ previousDayOutfits }] : []),
+        ...(seenOutfits?.length ? [{ seenOutfits }] : []),
       ] as const,
     thermalContext: (viewerId: string, date: string, meanTemperatureC: number | null) =>
       ['planner', 'thermal-context', viewerId, date, meanTemperatureC] as const,

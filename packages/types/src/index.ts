@@ -275,6 +275,8 @@ export interface TodayOutfitRecommendation {
   combinationCount?: number
   /** 만들 수 있었던 후보들이 모두 전날의 핵심 구성과 겹쳤을 때 true다. */
   previousDayRepeatOnly?: boolean | null
+  /** 전날 규칙을 통과한 조합을 대상 날짜에 이미 추천한 경우 true다. */
+  seenOutfitsOnly?: boolean | null
   date: string
   season: Season
   ready: boolean

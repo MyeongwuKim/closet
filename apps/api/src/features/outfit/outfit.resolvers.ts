@@ -86,6 +86,7 @@ export const outfitResolvers = {
           variation?: number | null
           excludedOuterItemIds?: string[] | null
           previousDayOutfitItemIds?: string[][] | null
+          seenOutfitItemIds?: string[][] | null
           weather?: WeatherSnapshot | null
           thermalContextRevision?: string | null
         }

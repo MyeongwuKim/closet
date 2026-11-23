@@ -113,7 +113,7 @@ export function TodayOutfitRecommendationResult({
   const dayLabel = recommendationDayLabels[mode]
   const closetItems = useClosetStore((state) => state.items)
   const [activeOverlay, setActiveOverlay] = useState<
-    'explanation' | 'detail-result' | 'detail-explanation' | 'previous-history' | null
+    'explanation' | 'detail-result' | 'detail-explanation' | 'previous-history' | 'current-history' | null
   >(null)
   const isDetailOpen =
     activeOverlay === 'detail-result' ||
@@ -193,7 +193,9 @@ export function TodayOutfitRecommendationResult({
             </p>
           </div>
         </div>
-        {recommendation.previousDayRepeatOnly ? (
+        {recommendation.seenOutfitsOnly ? (
+          <button type="button" onClick={() => setActiveOverlay('current-history')} className={actionClass}>이전 추천 보기 <ChevronRight size={16} /></button>
+        ) : recommendation.previousDayRepeatOnly ? (
           hasPreviousDayPlan ? (
             <Link to={`/plan/${previousDate}`} onClick={onOpenLookbook} className={actionClass}>전날 코디 보기 <ChevronRight size={16} /></Link>
           ) : (
@@ -202,8 +204,8 @@ export function TodayOutfitRecommendationResult({
         ) : (
           <button type="button" onClick={onOpenCloset} className={actionClass}>옷 등록하러 가기 <ChevronRight size={16} /></button>
         )}
-        {activeOverlay === 'previous-history' && (
-          <RecommendationHistoryDialog date={previousDate} scope="all" onClose={() => setActiveOverlay(null)} onOpenLookbook={onOpenLookbook ?? (() => setActiveOverlay(null))} />
+        {(activeOverlay === 'previous-history' || activeOverlay === 'current-history') && (
+          <RecommendationHistoryDialog date={activeOverlay === 'previous-history' ? previousDate : date} scope="all" onClose={() => setActiveOverlay(null)} onOpenLookbook={onOpenLookbook ?? (() => setActiveOverlay(null))} />
         )}
       </section>
     )

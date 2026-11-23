@@ -44,6 +44,29 @@ test('전날과 같은 핵심 구성은 신발이 달라도 제외하고 기준 
   assert.equal(reserve.mock.callCount(), 0)
 })
 
+test('같은 날짜에 본 조합도 전날 조합과 함께 제외하고 후보를 모두 봤으면 사용권을 예약하지 않는다', async (t) => {
+  setupWardrobe(t, [
+    createItem('outer', 'outer'), createItem('bottom', 'bottom'),
+    ...['top-a', 'top-b', 'top-c'].map((id) => createItem(id, 'top')),
+    createItem('shoes', 'shoes'),
+  ])
+  const requested = {
+    ...input, baseItemId: 'outer',
+    previousDayOutfitItemIds: [['top-a', 'outer', 'bottom']],
+    seenOutfitItemIds: [['top-b', 'bottom', 'outer']],
+  }
+  const result = await todayOutfitRecommendationService.recommend(userId, requested)
+  assert.equal(result.ready, true)
+  assert.deepEqual(result.items.map((item) => item.id).sort(), ['bottom', 'outer', 'shoes', 'top-c'])
+  const reserve = t.mock.method(recommendationCreditRepository, 'reserve', async () => { throw new Error('빈 결과에는 사용권을 예약하지 않는다') })
+  const empty = await todayOutfitRecommendationService.recommend(userId, {
+    ...requested, seenOutfitItemIds: [...requested.seenOutfitItemIds, ['outer', 'top-c', 'bottom']],
+  })
+  assert.equal(empty.ready, false)
+  assert.equal('seenOutfitsOnly' in empty && empty.seenOutfitsOnly, true)
+  assert.equal(reserve.mock.callCount(), 0)
+})
+
 function createItem(
   id: string,
   category: ClothingCategory,
@@ -357,8 +380,8 @@ test('AI 설명에 기준 아이템을 전달하고 응답에도 같은 기준 �
   assert.equal(prompt?.baseItemId, baseItem.id)
   assert.ok(prompt?.outfit.items.some((item) => item.id === baseItem.id))
   assert.equal(result.source, 'ai')
-  assert.equal(result.headline, 'base-outer 중심으로 골랐어요')
-  assert.match(result.summary, /무채색/)
+  assert.equal(result.headline, 'base-outer 중심 코디')
+  assert.match(result.summary, /겉에는 base-outer까지 매치했어요/)
   assert.ok(result.reasons.some((reason) => reason.includes('무채색')))
   assert.ok(result.items.some((item) => item.id === baseItem.id))
 })
@@ -401,8 +424,20 @@ test('기준을 지정하지 않은 기존 추천은 null 입력과 동일하게
   })
 
   assert.equal(original.ready, true)
-  assert.equal(original.headline, '오늘은 이 조합으로 입어보세요')
+  assert.equal(original.headline, 'top 중심 코디')
   assert.deepEqual(withoutBase, original)
+})
+
+test('추천 카드에서는 실제 옷을 말하고 색 대비 설명에서도 비교한 옷을 직접 부른다', async (t) => {
+  setupWardrobe(t, [
+    createItem('knit', 'top', { name: '아이보리 니트', colorHex: '#F2EFE1' }),
+    createItem('pants', 'bottom', { name: '브라운 팬츠', colorHex: '#503725' }),
+    createItem('coat', 'outer', { name: '올리브 코트', colorHex: '#45472C' }),
+  ])
+  const result = await todayOutfitRecommendationService.recommend(userId, { ...input, baseItemId: 'coat' })
+  assert.equal(result.headline, '올리브 코트 중심 코디')
+  assert.equal(result.summary, '아이보리 니트에 브라운 팬츠, 겉에는 올리브 코트까지 매치했어요.')
+  assert.ok(result.reasons.includes('아이보리 니트에 더 짙은 브라운 팬츠까지 매치했어요.'))
 })
 
 test('현재 위치 날씨를 추천 결과에 유지한다', async (t) => {
@@ -723,7 +758,7 @@ test('오늘의 코디는 색 판정과 모순되는 AI 설명을 버리고 검�
   const result = await todayOutfitRecommendationService.recommend(userId, { ...input, colorScheme: 'tone-on-tone' })
   assert.equal(result.source, 'fallback')
   assert.equal(result.colorSchemeApplied, false)
-  assert.match(result.summary, /조건을 충족하지 못해/)
+  assert.ok(result.reasons.some((reason) => reason.includes('조건을 충족하지 못해')))
   assert.doesNotMatch(result.summary + result.reasons.join(' '), /파란색|톤온톤/)
   assert.equal(settle.mock.calls[0].arguments[3], null)
 })

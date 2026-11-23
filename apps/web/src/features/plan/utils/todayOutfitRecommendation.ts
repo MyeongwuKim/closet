@@ -6,6 +6,12 @@ export function getRecommendationCoreItemIds(items: WardrobeItem[]) {
   return items.filter((item) => item.category !== 'shoes' && item.category !== 'accessory').map((item) => item.id).sort()
 }
 
+/** 같은 핵심 구성의 기록을 합치고, 기록 순서가 달라도 같은 제외 조건을 만든다. */
+export function uniqueRecommendationOutfits(outfits: string[][]) {
+  const entries = new Map(outfits.filter((ids) => ids.length > 0).map((ids) => [JSON.stringify(ids), ids]))
+  return [...entries.keys()].sort().map((key) => entries.get(key)!)
+}
+
 export function formatRecommendationHeadline(value: string) {
   const normalized = value
     .trim()

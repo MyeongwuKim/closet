@@ -5,7 +5,7 @@ import { OUTFIT_COLOR_RULES_VERSION } from '@closet/types/outfit-colors'
 import { QueryClient } from '@tanstack/react-query'
 import type { OutfitStyle } from '../src/constants/styleOptions'
 import { queryKeys } from '../src/lib/queryKeys'
-import { cleanRecommendationText } from '../src/features/plan/utils/recommendationText'
+import { cleanRecommendationText, normalizeRecommendationText } from '../src/features/plan/utils/recommendationText'
 import {
   matchesTodayRecommendationBaseItem,
   readAllRecentTodayRecommendationHistory,
@@ -124,6 +124,18 @@ test('기존 추천 기록의 깨진 설명을 복원할 때 제거하고 원본
     assert.equal(cleanRecommendationText('재킷의 비율을 정리합니다. }}}}}'), '재킷의 비율을 정리합니다.')
     assert.equal(cleanRecommendationText('색을 연결해요. }'), '색을 연결해요.')
   })
+})
+
+test('이전 추천 문구를 자연스럽게 표시하면서 저장된 문구는 보존한다', () => {
+  const recommendation = createEntry(0, 'winter', null).recommendation
+  const oldReason = '무채색을 함께 사용해 새로운 색 계열이 늘어나는 것을 줄였어요.'
+  recommendation.summary = `겨울에 입을 기본 구성을 골랐어요. ${oldReason}`
+  recommendation.reasons = [oldReason]
+
+  const displayed = normalizeRecommendationText(recommendation)
+  assert.equal(displayed.summary, '겨울에 입기 좋은 코디예요. 무채색을 섞어 전체 색감을 차분하게 맞췄어요.')
+  assert.deepEqual(displayed.reasons, ['무채색을 섞어 전체 색감을 차분하게 맞췄어요.'])
+  assert.deepEqual(recommendation.reasons, [oldReason])
 })
 
 test('계절과 스타일별 기록을 합쳐 최신 10개만 반환한다', () => {

@@ -196,8 +196,8 @@ export function getColorMatchEvidence(selected: ColorRuleItem[], candidate: Colo
     hue: hueDistance(color.hue, candidateColor.hue),
     neutral: color.chroma <= rules.neutralChroma || candidateColor.chroma <= rules.neutralChroma,
   }))
-  if (comparisons.every((pair) => pair.lightness >= 0.2)) return { relation: 'clean-contrast', reason: '고른 옷들과 이 아이템의 대표색 사이에 밝기 대비가 있어요.' }
-  if (comparisons.every((pair) => pair.neutral)) return { relation: 'soft-balance', reason: '무채색을 함께 사용해 새로운 색 계열이 늘어나는 것을 줄였어요.' }
+  if (comparisons.every((pair) => pair.lightness >= 0.2)) return { relation: 'clean-contrast', reason: '밝은 색과 짙은 색을 함께 맞췄어요.' }
+  if (comparisons.every((pair) => pair.neutral)) return { relation: 'soft-balance', reason: '무채색을 섞어 전체 색감을 차분하게 맞췄어요.' }
   if (comparisons.every((pair) => pair.hue <= 55)) return { relation: 'soft-balance', reason: '확인된 대표색의 색상 방향이 가까운 조합이에요.' }
   return { relation: 'soft-balance', reason: '고른 옷 모두와 대표색을 비교했으며, 특정 톤 조합으로 확정하지는 않았어요.' }
 }
@@ -214,11 +214,20 @@ export function describeOutfitColors(items: ColorRuleItem[], scheme: TodayOutfit
     return reasons[scheme]
   }
   const [first, ...rest] = items
+  const match = first ? getColorMatchEvidence(rest, first) : null
+  // 색 차이가 확인된 두 옷을 직접 언급해 설명이 코디에 있는 옷과 연결되게 한다.
+  let contrast: string | undefined
+  if (first && match?.relation === 'clean-contrast') {
+    const reference = rest.find((item) => item.category === 'bottom') ?? rest[0]!
+    const [lighter, darker] = toOklch(first.colorHex)!.lightness > toOklch(reference.colorHex)!.lightness
+      ? [first, reference] : [reference, first]
+    contrast = `${lighter.name}에 더 짙은 ${darker.name}까지 매치했어요.`
+  }
   const evidence = first && items.length === 1 && !isComplex(first) && toOklch(first.colorHex)
     ? getColorSchemeFitScore(items, 'achromatic')
       ? '이 아이템의 확인된 대표색은 무채색이에요.'
       : '한 아이템의 대표색을 사용했으며, 두 색 사이의 톤 관계는 확정하지 않았어요.'
-    : first ? getColorMatchEvidence(rest, first).reason : '확인할 대표색이 없어요.'
+    : contrast ?? match?.reason ?? '확인할 대표색이 없어요.'
   return scheme !== 'auto' && !getColorSchemeFitScore(items, scheme)
     ? `선택한 색감 조건을 충족하지 못해 기본 조합을 골랐어요. ${evidence}`
     : evidence

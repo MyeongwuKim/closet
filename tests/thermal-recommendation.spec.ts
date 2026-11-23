@@ -1,4 +1,55 @@
-import { expect, test } from './support/fixture'
+import { createWardrobeItem, expect, test } from './support/fixture'
+
+test('날씨 추천을 닫았다 다시 요청하면 같은 날짜의 앞선 조합을 제외한다', async ({ page, mockApi }) => {
+  await page.addInitScript(() => {
+    window.ClosetRuntimeConfig = { isNativeWebView: true }
+    window.ClosetNative = {
+      getAppInfo: async () => ({ permissions: { location: 'granted' }, capabilities: [] }),
+      getCurrentLocation: async () => ({ status: 'available', latitude: 37.57, longitude: 126.98, accuracy: 100 }),
+    } as unknown as NonNullable<Window['ClosetNative']>
+  })
+  const [firstTop, bottom] = mockApi.wardrobeItems
+  const secondTop = createWardrobeItem({ id: 'alternate-top', name: '다른 이너', category: 'top' })
+  const outer = createWardrobeItem({ id: 'same-outer', name: '같은 자켓', category: 'outer' })
+  mockApi.wardrobeItems.push(secondTop, outer)
+  const exclusions: unknown[] = []
+  await page.route('**/graphql', async (route) => {
+    const { query, variables } = route.request().postDataJSON()
+    if (query.includes('query WeatherForecast')) {
+      await route.fulfill({ json: { data: { weatherForecast: {
+        date: variables.input.date, temperatureC: 16, apparentTemperatureC: 15,
+        weatherCode: 0, precipitationProbability: 0, recommendedSeason: 'autumn', summary: '맑음',
+        source: 'open-meteo', attribution: 'Open-Meteo', attributionUrl: 'https://open-meteo.com/',
+        expiresAt: new Date(Date.now() + 600_000).toISOString(),
+      } } } })
+    } else if (query.includes('query TodayOutfitRecommendation')) {
+      const input = variables.input
+      exclusions.push(input.seenOutfitItemIds)
+      const attempt = exclusions.length
+      await route.fulfill({ json: { data: { todayOutfitRecommendation: {
+        date: input.date, season: input.season, ready: attempt <= 2, combinationCount: Math.max(3 - attempt, 0),
+        seenOutfitsOnly: attempt > 2, headline: attempt > 2 ? '새로운 코디를 더 찾지 못했어요' : `날씨 추천 ${attempt}`,
+        summary: '현재 날씨에 맞는 코디예요.', style: null, colorSchemeApplied: true,
+        items: attempt > 2 ? [] : [attempt === 1 ? firstTop : secondTop, bottom, outer],
+        reasons: [], profileSummary: [], source: 'fallback', model: 'fixture', weather: input.weather,
+      } } } })
+    } else await route.fallback()
+  })
+  await page.goto('/#/plan')
+  const sheet = page.getByRole('dialog', { name: '오늘의 AI 코디 추천' })
+  for (const attempt of [1, 2, 3]) {
+    await page.getByRole('button', { name: 'AI 코디 추천', exact: true }).click()
+    await sheet.getByRole('button', { name: '오늘 날씨로 바로 추천', exact: true }).click()
+    const title = attempt === 3 ? '새로운 코디를 더 찾지 못했어요' : `날씨 추천 ${attempt}`
+    await expect(sheet.getByRole('heading', { name: title, exact: true })).toBeVisible()
+    if (attempt < 3) await page.keyboard.press('Escape')
+  }
+  expect(exclusions).toEqual([undefined, [[firstTop.id, bottom.id, outer.id].sort()], [
+    [secondTop.id, bottom.id, outer.id].sort(), [firstTop.id, bottom.id, outer.id].sort(),
+  ]])
+  await sheet.getByRole('button', { name: '이전 추천 보기', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '추천 기록', exact: true })).toBeVisible()
+})
 
 test('오늘 날씨로 바로 추천하면 자동 색감과 개인 체감 근거를 적용한다', async ({ page, mockApi }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 })
