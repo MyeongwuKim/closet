@@ -3,23 +3,28 @@
  *
  * 용도:
  * 옷장·코디북과 같은 제목 규격으로 플래너 이름을 표시한다.
- * 제목 옆 날씨 배지는 오늘의 기온과 하루 보기의 착용 기록 입구를 제공한다. 내일 예보가 본문에 있는 동안에는 배지를 생략한다.
+ * 제목 옆 날씨 배지는 하루 보기의 미래 날짜에서는 선택일 예보를, 나머지 보기에서는 오늘 기온을 표시한다.
  *
  * 구조:
  * 주간 보기에서 편집 콜백을 받으면 주간 편집 버튼을 표시한다.
  */
 import { CalendarDays } from 'lucide-react'
 import { CollectionHeading } from '../../../components/CollectionHeading'
-import { PlanTodayWeather } from './PlanTodayWeather'
+import { PlanHeaderWeather } from './PlanHeaderWeather'
+import type { usePlannerLocationWeather } from '../hooks/usePlannerLocationWeather'
 
 interface PlanPageHeaderProps {
-  today?: string
+  weatherDate: string
+  forecast: ReturnType<typeof usePlannerLocationWeather>
+  forecastLabel?: string
   historyDate?: string
   onEditWeek?: () => void
 }
 
 export function PlanPageHeader({
-  today,
+  weatherDate,
+  forecast,
+  forecastLabel,
   historyDate,
   onEditWeek,
 }: PlanPageHeaderProps) {
@@ -27,7 +32,7 @@ export function PlanPageHeader({
     <div>
       <CollectionHeading
         title="플래너"
-        titleAccessory={today && <PlanTodayWeather date={today} historyDate={historyDate} />}
+        titleAccessory={<PlanHeaderWeather key={weatherDate} forecast={forecast} forecastLabel={forecastLabel} historyDate={historyDate} />}
         actions={onEditWeek && (
           <button
             type="button"

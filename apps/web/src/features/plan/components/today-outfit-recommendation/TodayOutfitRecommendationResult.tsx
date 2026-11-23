@@ -21,6 +21,7 @@ import { TodayOutfitRecommendationDialog } from '../TodayOutfitRecommendationDia
 import { TodayOutfitRecommendationLoading } from '../TodayOutfitRecommendationLoading'
 import { RecommendationExplanationDialog } from './RecommendationExplanationDialog'
 import { RecommendationHistoryDialog } from './RecommendationHistoryDialog'
+import { useRecommendationPlannerOffer } from '../../hooks/useRecommendationPlannerOffer'
 import { RecommendationLookbookSave } from './RecommendationLookbookSave'
 import { WeatherSnapshotSummary } from '../../../weather/components/WeatherSnapshotSummary'
 import { recommendationDayLabels, type RecommendationMode } from './recommendationFlow'
@@ -127,7 +128,7 @@ export function TodayOutfitRecommendationResult({
     refreshSourceItems,
     hasOtherCombination,
     errorMessage,
-    isSaving,
+    isSaving: isApplyingRecommendation,
     actions,
   } = useTodayOutfitRecommendationResult({
     viewerId,
@@ -138,8 +139,9 @@ export function TodayOutfitRecommendationResult({
     weather,
     hasScheduledOutfit,
     mode,
-    onApplied,
   })
+  const lookbookOffer = useRecommendationPlannerOffer(actions.applyRecommendation, () => onApplied?.())
+  const isSaving = isApplyingRecommendation || lookbookOffer.isApplying || Boolean(lookbookOffer.draft)
 
   if (recommendationQuery.isLoading) {
     return <TodayOutfitRecommendationLoading dayLabel={dayLabel} />
@@ -205,7 +207,7 @@ export function TodayOutfitRecommendationResult({
           <button type="button" onClick={onOpenCloset} className={actionClass}>옷 등록하러 가기 <ChevronRight size={16} /></button>
         )}
         {(activeOverlay === 'previous-history' || activeOverlay === 'current-history') && (
-          <RecommendationHistoryDialog date={activeOverlay === 'previous-history' ? previousDate : date} scope="all" onClose={() => setActiveOverlay(null)} onOpenLookbook={onOpenLookbook ?? (() => setActiveOverlay(null))} />
+          <RecommendationHistoryDialog date={activeOverlay === 'previous-history' ? previousDate : date} scope="all" onClose={() => setActiveOverlay(null)} />
         )}
       </section>
     )
@@ -224,7 +226,8 @@ export function TodayOutfitRecommendationResult({
       <section
         key={`${recommendation.headline}:${recommendation.items.map((item) => item.id).join(',')}`}
         className="flex h-full min-h-0 flex-col overflow-hidden bg-surface"
-        aria-busy={recommendationQuery.isFetching}
+        aria-busy={recommendationQuery.isFetching || lookbookOffer.isApplying}
+        inert={Boolean(lookbookOffer.draft)}
       >
         {recommendationQuery.isFetching ? (
           <RecommendationRefreshLoading
@@ -321,7 +324,7 @@ export function TodayOutfitRecommendationResult({
             label={hasOtherCombination ? '다른 추천' : '다른 조합 없음'}
             adLabel="광고 보고 다른 추천"
             onClick={actions.requestAnotherRecommendation}
-            disabled={recommendationQuery.isFetching || !hasOtherCombination}
+            disabled={recommendationQuery.isFetching || !hasOtherCombination || isSaving}
             className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3 py-3 text-xs font-bold disabled:opacity-50"
           >
             <RefreshCw
@@ -331,9 +334,9 @@ export function TodayOutfitRecommendationResult({
           </AiCreditActionButton>
           <button
             type="button"
-            onClick={() => void actions.applyRecommendation()}
+            onClick={() => void lookbookOffer.apply({ items: recommendation.items, name: formatRecommendationHeadline(recommendation.headline), season })}
             disabled={recommendationQuery.isFetching || isSaving}
-            className={`flex items-center justify-center gap-1.5 rounded-xl px-3 py-3 text-xs font-bold disabled:opacity-50 ${mode === 'tomorrow' ? 'bg-accent text-white' : 'border border-line bg-surface'}`}
+            className="flex items-center justify-center gap-1.5 rounded-xl bg-accent px-3 py-3 text-xs font-bold text-white disabled:opacity-50"
           >
             {isSaving ? (
               <LoaderCircle className="animate-spin" size={16} />
@@ -342,17 +345,10 @@ export function TodayOutfitRecommendationResult({
             )}
             {hasScheduledOutfit ? `${dayLabel} 코디 바꾸기` : `${dayLabel} 일정에 담기`}
           </button>
-          <RecommendationLookbookSave
-            date={date}
-            name={formatRecommendationHeadline(recommendation.headline)}
-            season={season}
-            items={recommendation.items}
-            disabled={recommendationQuery.isFetching || isSaving}
-            onOpenLookbook={onOpenLookbook}
-            secondary={mode === 'tomorrow'}
-          />
         </div>
       </section>
+
+      {lookbookOffer.draft && <RecommendationLookbookSave draft={lookbookOffer.draft} onFinish={lookbookOffer.finish} />}
 
       {isDetailOpen && (
         <TodayOutfitRecommendationDialog
@@ -376,9 +372,8 @@ export function TodayOutfitRecommendationResult({
               activeOverlay === 'detail-explanation' ? 'explanation' : null,
             )
           }
-          onApplied={() => setActiveOverlay(null)}
+          onApplied={onApplied ?? (() => setActiveOverlay(null))}
           onApply={actions.applyRecommendation}
-          onOpenLookbook={onOpenLookbook}
         />
       )}
 

@@ -46,7 +46,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     await expect(page.getByRole('button', { name: '오늘의 셔츠와 데님 코디 상세 보기', exact: true }).getByText('오늘 착용', { exact: true })).toBeVisible()
   })
 
-  test(`${viewport.width}px: 직접 바꾼 옷도 저장과 동시에 실제 착용 기록으로 남긴다`, async ({ page, mockApi }, testInfo) => {
+  test(`${viewport.width}px: 직접 바꾼 옷은 저장한 뒤 입었어요 버튼으로 착용을 확인한다`, async ({ page, mockApi }, testInfo) => {
     await prepare(page, mockApi)
     await page.setViewportSize(viewport)
     mockApi.plannerEntries = [planned(mockApi, today)]
@@ -58,12 +58,16 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     const picker = page.getByRole('dialog', { name: '상의 옷 선택', exact: true })
     await picker.getByRole('button', { name: /오늘 입은 셔츠/ }).click()
     await picker.getByRole('button', { name: '1개 선택 완료', exact: true }).click()
-    await page.getByRole('radio', { name: '입은 코디 기록', exact: true }).click()
-    await page.getByRole('button', { name: '입은 코디로 기록', exact: true }).click()
+    await expect(page.getByRole('radiogroup', { name: '코디 등록 방식' })).toHaveCount(0)
+    await page.getByRole('button', { name: '변경사항 저장', exact: true }).click()
+    await expect(page.getByRole('button', { name: '코디북에 추가', exact: true })).toBeEnabled()
+    expect(mockApi.plannerEntries[0].wornAt).toBeNull()
+    await page.getByRole('button', { name: '입었어요', exact: true }).click()
     await expect(page.getByRole('group', { name: '실제 착용 확인', exact: true }).getByText('착용 완료', { exact: true })).toBeVisible()
     expect(inputs).toHaveLength(1)
-    expect(inputs[0]).toMatchObject({ date: today, confirmWorn: true, itemIds: expect.arrayContaining(['worn-shirt']) })
-    expect(mockApi.operations).not.toContain('SetPlannerEntryWorn')
+    expect(inputs[0]).toMatchObject({ date: today, itemIds: expect.arrayContaining(['worn-shirt']) })
+    expect(inputs[0]).not.toHaveProperty('confirmWorn')
+    expect(mockApi.operations).toContain('SetPlannerEntryWorn')
     await page.screenshot({ path: testInfo.outputPath(`direct-worn-${viewport.width}.png`), animations: 'disabled' })
   })
 
@@ -96,7 +100,7 @@ test('미래에는 실제 착용 등록을 숨기고 날짜가 지나도 예정 
   const picker = page.getByRole('dialog', { name: '코디 고르기', exact: true })
   await expect(picker.getByRole('radiogroup', { name: '코디 등록 방식', exact: true })).toHaveCount(0)
   await picker.getByRole('button', { name: /오늘의 셔츠와 데님/ }).click()
-  await expect(page.getByRole('button', { name: '코디 바꾸기', exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: /오늘의 셔츠와 데님, 옷 설정하기/ })).toBeVisible()
   expect(mockApi.plannerEntries[0].wornAt).toBeNull()
   await page.clock.setFixedTime(new Date('2026-11-18T10:00:00+09:00'))
   await page.reload()

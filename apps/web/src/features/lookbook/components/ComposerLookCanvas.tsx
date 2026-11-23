@@ -1,14 +1,17 @@
+import type { ReactNode } from 'react'
 import type { WardrobeItem } from '@closet/types'
 import { Plus, X } from 'lucide-react'
 import { ClothingCategoryIcon } from '../../../components/ClothingCategoryIcon'
 import { ClosetItemVisual } from '../../closet/components/ClosetItemVisual'
 import type { OutfitSelectionCategory } from '../utils/outfitSelection'
+import type { OutfitWardrobeItem } from '../types'
 import { outfitSlots, type OutfitSlot } from './outfitSlots'
 import './ComposerLookCanvas.css'
 
 interface ComposerLookCanvasProps {
   /** 현재 편집 중인 코디에 담긴 옷. 배열 순서를 선택 아이템 목록에도 그대로 사용한다. */
-  selectedItems: WardrobeItem[]
+  selectedItems: OutfitWardrobeItem[]
+  baseLayerControl?: ReactNode
   /** 저장된 번호가 아닌 편집 화면의 표지 문구. 기본값은 NEW LOOK이다. */
   lookLabel?: string
   /** 표지에 표시할 임시 코디 이름. 비어 있으면 기본 제목을 표시한다. */
@@ -91,6 +94,7 @@ function ComposerLookSlot({
  */
 export function ComposerLookCanvas({
   selectedItems,
+  baseLayerControl,
   lookLabel = 'NEW LOOK',
   lookName,
   selectableCategories,
@@ -126,13 +130,13 @@ export function ComposerLookCanvas({
         >
           {outfitSlots.map((slot) => {
             if (hasDress && slot.id === 'bottom') return null
-            const slotItems = selectedItems.filter(slot.matches).slice(0, slot.limit ?? 1)
+            const slotItems = selectedItems.filter((item) => !item.isBaseLayer && slot.matches(item)).slice(0, slot.limit ?? 1)
             const slotCategory = slot.id === 'top' && slotItems[0]?.category === 'dress'
               ? 'dress'
               : slot.id
             const canSelect = slotItems.length > 0 || !selectableCategories || selectableCategories.includes(slotCategory)
 
-            return (
+            const renderedSlot = (
               <ComposerLookSlot
                 key={slot.id}
                 slot={slot}
@@ -141,6 +145,13 @@ export function ComposerLookCanvas({
                 canSelectDress={slot.id === 'top' && Boolean(selectableCategories?.includes('dress'))}
                 onSelect={onSlotSelect}
               />
+            )
+            if (slot.id !== 'top' || !baseLayerControl) return renderedSlot
+            return (
+              <div key={slot.id} className={`composer-look-canvas__top-stack${hasDress ? ' composer-look-canvas__top-stack--dress' : ''}`}>
+                {renderedSlot}
+                {baseLayerControl}
+              </div>
             )
           })}
           <span className="composer-look-canvas__stage-note" aria-hidden="true">

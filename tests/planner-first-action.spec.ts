@@ -55,8 +55,8 @@ test('옷만 있으면 선택한 날짜의 코디를 직접 구성할 수 있다
   await expect(page.getByRole('button', { name: '코디북에서 고르기' })).toHaveCount(0)
   await page.screenshot({ path: testInfo.outputPath('planner-compose-first.png'), animations: 'disabled' })
   await compose.click()
-  await expect(page).toHaveURL(`/plan/${date}?from=${encodeURIComponent(route)}`)
-  await page.getByRole('button', { name: '플래너로 돌아가기' }).click()
+  await expect(page).toHaveURL(new RegExp(`/lookbook/new\\?planDate=${date}`))
+  await page.getByRole('button', { name: '코디 만들기 닫기' }).click()
   await expect(page).toHaveURL(route)
 })
 

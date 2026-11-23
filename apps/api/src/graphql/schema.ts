@@ -471,6 +471,7 @@ export const typeDefs = `#graphql
     wardrobeItemId: ID!
     slot: ClothingCategory!
     layerOrder: Int!
+    isBaseLayer: Boolean
     wardrobeItem: WardrobeItem!
   }
 
@@ -629,6 +630,8 @@ export const typeDefs = `#graphql
   input CreateOutfitItemInput {
     wardrobeItemId: ID!
     layerOrder: Int!
+    isBaseLayer: Boolean
+    slot: ClothingCategory
   }
 
   input OutfitPreviewImageInput {
@@ -838,6 +841,8 @@ export const typeDefs = `#graphql
     weekStartsOn: String!
     date: String!
     itemIds: [ID!]!
+    items: [CreateOutfitItemInput!]
+    seasons: [Season!]
     confirmWorn: Boolean
     name: String
     style: String

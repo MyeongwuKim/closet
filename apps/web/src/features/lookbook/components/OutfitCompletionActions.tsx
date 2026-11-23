@@ -21,6 +21,8 @@ interface OutfitCompletionActionsProps {
   onOpenLookbook: () => void
   /** 조합 확인과 이름·스타일·계절 입력 단계로 이동하도록 부모에 요청한다. */
   onComplete: () => void
+  completeLabel?: string
+  isCompleting?: boolean
 }
 
 /** 코디 편집 하단에서 일반 저장과 AI 이미지 생성을 나누고, 중복 조합은 기존 코디를 열 수 있게 한다. */
@@ -35,6 +37,8 @@ export function OutfitCompletionActions({
   canResumePreview = false,
   onOpenLookbook,
   onComplete,
+  completeLabel = '코디 저장하기',
+  isCompleting = false,
 }: OutfitCompletionActionsProps) {
   return (
     <div className="grid gap-2.5">
@@ -54,7 +58,7 @@ export function OutfitCompletionActions({
           label={isPreviewPending ? '진행 상태 보기' : hasAvailableLookbook ? 'AI 룩북 보기' : isRestoringPreview ? '확인 중…' : 'AI 룩북 만들기'}
           adLabel="광고 보고 AI 룩북 만들기"
           onClick={onOpenLookbook}
-          disabled={Boolean(completionMessage) || (!isPreviewPending && !hasAvailableLookbook && isRestoringPreview)}
+          disabled={isCompleting || Boolean(completionMessage) || (!isPreviewPending && !hasAvailableLookbook && isRestoringPreview)}
           className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-2 text-xs font-semibold text-ink transition-colors hover:border-accent/40 hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-65"
         >
           <Sparkles size={16} strokeWidth={1.7} aria-hidden="true" />
@@ -72,10 +76,10 @@ export function OutfitCompletionActions({
           <button
             type="button"
             onClick={onComplete}
-            disabled={Boolean(completionMessage)}
+            disabled={isCompleting || Boolean(completionMessage)}
             className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-accent px-3 text-sm font-semibold text-white transition-colors hover:bg-ink disabled:cursor-not-allowed disabled:bg-line disabled:text-muted"
           >
-            코디 저장하기
+            {completeLabel}
             <ArrowRight size={16} strokeWidth={1.8} aria-hidden="true" />
           </button>
         )}

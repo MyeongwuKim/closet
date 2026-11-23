@@ -15,7 +15,7 @@ function forecast(date: string): WeatherSnapshot {
   return {
     date,
     expiresAt: new Date(now.getTime() + 600_000).toISOString(),
-    temperatureC: isTomorrow ? 13 : 24,
+    temperatureC: isTomorrow ? 13 : date === today ? 24 : 20,
     meanTemperatureC: isTomorrow ? 13 : 20,
     minTemperatureC: isTomorrow ? 9 : 16,
     maxTemperatureC: isTomorrow ? 17 : 26,
@@ -99,6 +99,7 @@ test('한국 기준 내일의 예보로 다음 주 일정에 코디를 담고 �
   await expect(tomorrowForecast.getByText('비', { exact: true })).toBeVisible()
   await expect(tomorrowForecast.getByText('최저 9° · 최고 17°', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: /오늘 24도, 맑음/ })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /내일 예보 13도, 비/ })).toBeVisible()
   expect(requests.weatherDates).toEqual([today, tomorrow])
   expect(requests.recommendationInputs).toEqual([])
   await page.screenshot({ path: testInfo.outputPath('tomorrow-forecast-mobile.png'), animations: 'disabled' })
@@ -130,6 +131,8 @@ test('한국 기준 내일의 예보로 다음 주 일정에 코디를 담고 �
   const tomorrowCard = page.getByRole('link', { name: /11월 9일 월요일, 비 오는 날의 코디, 옷 설정하기/ })
   try {
     await addToTomorrow.click()
+    const offer = page.getByRole('alertdialog', { name: '코디북에도 추가할까요?' })
+    await offer.getByRole('button', { name: '나중에' }).click()
     await expect(sheet).toHaveCount(0)
     await expect(tomorrowCard).toBeVisible()
   } finally {
@@ -158,6 +161,7 @@ test('데스크톱 월간 플래너의 내일 상세에서도 예보를 보고 �
   await page.setViewportSize({ width: 1440, height: 900 })
   const requests = await mockTomorrowWeather(page, mockApi)
   const previousOutfit = createOutfit({ name: '미리 담은 월요일 코디' })
+  mockApi.outfits.push(createOutfit({ id: 'existing-rain-outfit', items: mockApi.wardrobeItems.map((item, layerOrder) => ({ wardrobeItemId: item.id, layerOrder })) }))
   mockApi.plannerEntries = [{
     date: tomorrow, title: previousOutfit.name, occasion: null, temperatureC: null, weatherSummary: null,
     outfit: { ...previousOutfit, plannerOnly: true }, wornAt: null,
@@ -175,6 +179,8 @@ test('데스크톱 월간 플래너의 내일 상세에서도 예보를 보고 �
   await sheet.getByRole('button', { name: '추천 코디 구성 변경하기' }).click()
   const recommendationDetail = page.getByRole('dialog', { name: '내일의 추천 코디 상세', exact: true })
   await recommendationDetail.getByRole('button', { name: '내일 코디 바꾸기', exact: true }).click()
+  await expect(sheet).toHaveCount(0)
+  await expect(page.getByRole('alertdialog', { name: '코디북에도 추가할까요?' })).toHaveCount(0)
   await expect.poll(() => mockApi.plannerEntries.find((entry) => entry.date === tomorrow)?.title).toBe(recommendedName)
   expect(requests.plannerInputs).toEqual([expect.objectContaining({ date: tomorrow, weekStartsOn: tomorrow })])
 
@@ -198,4 +204,50 @@ test('내일 예보를 위한 위치 권한이 없으면 날씨 없는 추천을
   expect(requests.weatherDates).toEqual([])
   expect(requests.recommendationInputs).toEqual([])
   expect(requests.plannerInputs).toEqual([])
+})
+
+test('미래 날짜의 말풍선은 코디 카드 크기를 유지하고 선택한 날짜의 기온으로 연결한다', async ({ page, mockApi }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const requests = await mockTomorrowWeather(page, mockApi)
+  await page.goto(`/#/plan?view=today&date=${tomorrow}`)
+
+  const card = page.locator('.plan-today-card')
+  const bubble = page.getByRole('region', { name: '내일 예보', exact: true })
+  const historyLinkName = /비슷한 기온에 입었던 코디를 확인해볼까요/
+  await expect(bubble.getByRole('link', { name: historyLinkName })).toBeVisible()
+  await expect(bubble).toHaveCSS('animation-name', 'none')
+  const cardBounds = await card.boundingBox()
+  expect(cardBounds).not.toBeNull()
+  await bubble.getByRole('button', { name: '예보 말풍선 접기' }).click()
+  const reopen = page.getByRole('button', { name: '내일 예보 · 코디 보기' })
+  await expect(reopen).toBeFocused()
+  expect(await card.boundingBox()).toEqual(cardBounds)
+  const weatherBadge = page.getByRole('button', { name: /내일 예보 13도, 비/ })
+  await weatherBadge.click()
+  const forecastPopup = page.getByRole('dialog', { name: '내일 예보', exact: true })
+  await expect(forecastPopup.getByText('최저 9° · 최고 17°')).toBeVisible()
+  await expect(forecastPopup.getByRole('link', { name: /비슷한 기온에 입었던 코디/ })).toContainText('예보 평균 13℃ 기준')
+  await page.keyboard.press('Escape')
+  await expect(weatherBadge).toBeFocused()
+  await reopen.click()
+  await expect(bubble.getByRole('button', { name: '예보 말풍선 접기' })).toBeFocused()
+  expect(await card.boundingBox()).toEqual(cardBounds)
+
+  await page.getByRole('button', { name: '다음 날짜', exact: true }).click()
+  const laterForecast = page.getByRole('region', { name: '이날 예보', exact: true })
+  const historyLink = laterForecast.getByRole('link', { name: historyLinkName })
+  await expect(historyLink).toContainText('예보 평균 20℃ 기준')
+  await expect(page.getByRole('button', { name: /이날 예보 20도, 맑음/ })).toBeVisible()
+  expect(requests.weatherDates).toEqual([tomorrow, '2026-11-10'])
+  expect(await card.boundingBox()).toEqual(cardBounds)
+  await page.screenshot({ path: testInfo.outputPath('future-forecast-mobile.png'), animations: 'disabled' })
+  await historyLink.click()
+  await expect(page.getByRole('radio', { name: '비슷한 기온', exact: true })).toHaveAttribute('aria-checked', 'true')
+  const historyParams = new URLSearchParams(new URL(page.url()).hash.split('?')[1])
+  expect(historyParams.get('date')).toBe('2026-11-10')
+  expect(historyParams.get('temperature')).toBe('20')
+  await page.getByRole('button', { name: '착용 기록에서 돌아가기' }).click()
+  await expect(laterForecast).toBeVisible()
+  expect(requests.recommendationInputs).toEqual([])
 })

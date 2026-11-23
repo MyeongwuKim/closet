@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { SlidersHorizontal } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import type {
   Season,
@@ -21,6 +22,9 @@ import { useUiStore } from '../../../stores/useUiStore'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { useClosetStore } from '../../closet/stores/useClosetStore'
 import { formatDateOnly } from '../../plan/data/weeklyPlan'
+import { PlannerSaveIntent } from '../../plan/components/PlannerSaveIntent'
+import { usePlannerComposerSave } from '../../plan/hooks/usePlannerComposerSave'
+import { readWearHistoryDate } from '../../wear-history/utils/temperatureHistory'
 import { useRecentWearReminder } from '../../plan/hooks/useRecentWearReminder'
 import { useMeQuery } from '../../settings/api/profileQueries'
 import { OutfitComposerHeader } from '../components/OutfitComposerHeader'
@@ -51,6 +55,7 @@ import {
 import {
   createLookbookOutfitPath,
   getOutfitComposerBackPath,
+  setOutfitComposerLayers,
   shouldExitOutfitComposer,
 } from '../utils/outfitComposerNavigation'
 import {
@@ -61,11 +66,14 @@ import {
 import {
   getOutfitSelectionCategory,
   getOutfitSelectionCapacity,
+  applyOutfitLayerSlot,
+  getOutfitLayerSlot,
   getOutfitSlotId,
   getRecommendedTargetCategory,
   outfitSelectionOrder,
   type OutfitSelectionCategory,
 } from '../utils/outfitSelection'
+import type { OutfitWardrobeItem } from '../types'
 import './OutfitComposerPage.css'
 
 function getDefaultOutfitName(
@@ -111,6 +119,7 @@ export function OutfitComposerPage() {
   const [initialItemIds] = useState(
     () => (searchParams.get('items') ?? '').split(',').filter(Boolean),
   )
+  const [initialLayerParams] = useState(() => new URLSearchParams(searchParams))
   const routeItemIdsValue = searchParams.get('items') ?? ''
   const routeItemIds = useMemo(
     () => routeItemIdsValue.split(',').filter(Boolean),
@@ -124,7 +133,10 @@ export function OutfitComposerPage() {
       }),
     [items, initialItemIds],
   )
-  const backPath = getOutfitComposerBackPath(searchParams.get('from'))
+  const planDate = readWearHistoryDate(searchParams.get('planDate'), '') || null
+  const backPath = getOutfitComposerBackPath(searchParams.get('from') ?? (planDate ? `/plan?view=today&date=${planDate}` : null))
+  const finishPlannerSave = useCallback(() => navigate(backPath, { replace: true }), [backPath, navigate])
+  const plannerSave = usePlannerComposerSave(planDate, finishPlannerSave)
   const initializedFromQueryRef = useRef(
     initialItemIds.length === 0 || initialItems.length > 0,
   )
@@ -134,7 +146,7 @@ export function OutfitComposerPage() {
   const [composerState, dispatch] = useReducer(
     outfitComposerReducer,
     {
-      layers: createOutfitLayers(initialItems),
+      layers: createOutfitLayers(initialItems, initialLayerParams),
       originItemIds: initialItemIds,
     },
     ({ layers, originItemIds }) =>
@@ -173,10 +185,13 @@ export function OutfitComposerPage() {
     return [...outfitStyleOptions, ...customStyles]
   }, [outfits])
   const selectedIds = layers.map((layer) => layer.wardrobeItemId)
-  const selectedItems = selectedIds.flatMap((itemId) => {
-    const item = items.find((candidate) => candidate.id === itemId)
-    return item ? [item] : []
+  const selectedItems: OutfitWardrobeItem[] = layers.flatMap(({ wardrobeItemId, slot, isBaseLayer }) => {
+    const item = items.find((candidate) => candidate.id === wardrobeItemId)
+    if (!item) return []
+    const positionedItem = applyOutfitLayerSlot(item, slot)
+    return [isBaseLayer ? { ...positionedItem, isBaseLayer: true } : positionedItem]
   })
+  const mainItems = selectedItems.filter((item) => !item.isBaseLayer)
   const outfitCompletionMessage = getOutfitCompletionMessage(selectedItems)
   const previewMutation = useGenerateOutfitPreviewMutation(outfitCompletionMessage ? undefined : { selectedItemIds: selectedIds, style })
   const currentPreviewCompositionKey = getOutfitPreviewCompositionKey(
@@ -247,11 +262,11 @@ export function OutfitComposerPage() {
     previewRequestVersionRef.current += 1
     dispatch({
       type: 'HYDRATE',
-      layers: createOutfitLayers(resolvedItems),
+      layers: createOutfitLayers(resolvedItems, initialLayerParams),
       originItemIds: resolvedItems.map((item) => item.id),
     })
     initializedFromQueryRef.current = true
-  }, [items, initialItemIds])
+  }, [items, initialItemIds, initialLayerParams])
 
   useEffect(() => {
     if (
@@ -260,7 +275,7 @@ export function OutfitComposerPage() {
       items.length === 0
     ) return
 
-    const routeKey = `${previewRouteState}:${previewAssetId ?? ''}:${routeItemIdsValue}`
+    const routeKey = `${previewRouteState}:${previewAssetId ?? ''}:${routeItemIdsValue}:${searchParams.get('baseLayers')}:${searchParams.get('outerItems')}:${searchParams.get('midlayerItems')}`
     if (hydratedNotificationRouteRef.current === routeKey) return
 
     const resolvedItems = routeItemIds.flatMap((itemId) => {
@@ -272,7 +287,7 @@ export function OutfitComposerPage() {
     previewRequestVersionRef.current += 1
     dispatch({
       type: 'HYDRATE',
-      layers: createOutfitLayers(resolvedItems),
+      layers: createOutfitLayers(resolvedItems, searchParams),
       originItemIds: routeItemIds,
     })
     const routeStyle = searchParams.get('style')
@@ -366,6 +381,11 @@ export function OutfitComposerPage() {
         event.key === 'Escape' &&
         !useUiStore.getState().recentWearConfirmation
       ) {
+        if (plannerSave.showCopyPrompt) {
+          if (!plannerSave.isCopying) finishPlannerSave()
+          return
+        }
+        if (plannerSave.isSaving) return
         if (isExitConfirmOpen) {
           setIsExitConfirmOpen(false)
           return
@@ -380,7 +400,7 @@ export function OutfitComposerPage() {
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [goBackStep, isExitConfirmOpen])
+  }, [goBackStep, isExitConfirmOpen, plannerSave.showCopyPrompt, plannerSave.isCopying, plannerSave.isSaving, finishPlannerSave])
 
   const duplicateOutfit = findDuplicateOutfit(outfits, selectedIds)
   const duplicateMessage = duplicateOutfit
@@ -390,7 +410,7 @@ export function OutfitComposerPage() {
   const canUseSavedLookbookPreview = Boolean(
     savedLookbookImageUrl && composerState.compositionRevision === 0,
   )
-  const selectedSlotCounts = selectedItems.reduce<Record<string, number>>(
+  const selectedSlotCounts = mainItems.reduce<Record<string, number>>(
     (counts, item) => {
       const slotId = getOutfitSlotId(item)
       if (slotId) counts[slotId] = (counts[slotId] ?? 0) + 1
@@ -424,11 +444,7 @@ export function OutfitComposerPage() {
       selectedIds.join(',') !== routeItemIdsValue
     ) return
     const nextSearchParams = new URLSearchParams(searchParams)
-    if (selectedIds.length > 0) {
-      nextSearchParams.set('items', selectedIds.join(','))
-    } else {
-      nextSearchParams.delete('items')
-    }
+    setOutfitComposerLayers(nextSearchParams, layers)
     if (nextSearchParams.toString() !== searchParams.toString()) {
       setSearchParams(nextSearchParams, { replace: true })
     }
@@ -437,6 +453,7 @@ export function OutfitComposerPage() {
     routeItemIdsValue,
     searchParams,
     selectedIds,
+    layers,
     setSearchParams,
   ])
 
@@ -458,7 +475,10 @@ export function OutfitComposerPage() {
     changeWardrobeExpanded(false)
   }
 
-  const toggleItem = (item: (typeof items)[number]) => {
+  const toggleItem = (wardrobeItem: (typeof items)[number]) => {
+    const layerSlot = getOutfitLayerSlot(wardrobeItem, activeTargetCategory)
+    const slot = layerSlot !== wardrobeItem.category ? layerSlot : undefined
+    const item = applyOutfitLayerSlot(wardrobeItem, slot)
     const replacingItem = replacementItemId
       ? selectedItems.find((selectedItem) => selectedItem.id === replacementItemId)
       : null
@@ -474,7 +494,7 @@ export function OutfitComposerPage() {
         return
       }
 
-      const otherSelectedItems = selectedItems.filter((selectedItem) => selectedItem.id !== replacingItem.id)
+      const otherSelectedItems = mainItems.filter((selectedItem) => selectedItem.id !== replacingItem.id)
       const hasOtherDress = otherSelectedItems.some((selectedItem) => selectedItem.category === 'dress')
       const hasOtherTopOrBottom = otherSelectedItems.some((selectedItem) =>
         selectedItem.category === 'top' || selectedItem.category === 'bottom',
@@ -492,6 +512,7 @@ export function OutfitComposerPage() {
         type: 'REPLACE_ITEM',
         oldItemId: replacingItem.id,
         newItemId: item.id,
+        slot,
       })
       changeWardrobeExpanded(false)
       return
@@ -509,7 +530,7 @@ export function OutfitComposerPage() {
     const hasSelectedDress = selectedItems.some(
       (selectedItem) => selectedItem.category === 'dress',
     )
-    const hasSelectedTopOrBottom = selectedItems.some(
+    const hasSelectedTopOrBottom = mainItems.some(
       (selectedItem) =>
         selectedItem.category === 'top' || selectedItem.category === 'bottom',
     )
@@ -522,14 +543,9 @@ export function OutfitComposerPage() {
       return
     }
 
-    const sameSlotItems = layers
-      .map((layer) =>
-        items.find((candidate) => candidate.id === layer.wardrobeItemId),
-      )
-      .filter(
-        (selectedItem) =>
-          selectedItem && getOutfitSlotId(selectedItem) === getOutfitSlotId(item),
-      )
+    const sameSlotItems = mainItems.filter(
+      (selectedItem) => getOutfitSlotId(selectedItem) === getOutfitSlotId(item),
+    )
     const selectionCategory = getOutfitSelectionCategory(item)
     const slotLimit = selectionCategory
       ? getOutfitSelectionCapacity(selectionCategory, selectedItems)
@@ -554,7 +570,7 @@ export function OutfitComposerPage() {
     invalidateStoredPreview()
     dispatch({
       type: 'ADD_ITEM',
-      layer: createOutfitLayer(item, layers),
+      layer: { ...createOutfitLayer(item, layers), slot },
     })
     changeWardrobeExpanded(false)
   }
@@ -579,12 +595,27 @@ export function OutfitComposerPage() {
     dispatch({ type: 'SELECT_CATEGORY', category })
   }
 
+  const plannerAddLabel = plannerSave.confirmWorn ? '입은 코디로 기록' : '플래너에 추가하기'
+  const addToPlanner = () => {
+    if (outfitCompletionMessage) return
+    const preview = composerState.preview
+    void plannerSave.save({
+      items: layers.map(({ wardrobeItemId, order, slot, isBaseLayer }) => ({ wardrobeItemId, layerOrder: order, slot, isBaseLayer })),
+      name: isSaveStepOpen ? outfitName.trim() || undefined : undefined,
+      style: style || undefined,
+      seasons: outfitSeasons.length ? outfitSeasons : undefined,
+      previewImage: hasGeneratedPreview && preview.mimeType && preview.model ? {
+        assetId: preview.assetId ?? undefined, imageBase64: preview.imageBase64, mimeType: preview.mimeType, model: preview.model,
+      } : undefined,
+    })
+  }
+
   const openSaveStep = () => {
     if (outfitCompletionMessage) {
       pushToast(outfitCompletionMessage, 'error')
       return
     }
-    if (duplicateOutfit) {
+    if (!planDate && duplicateOutfit) {
       pushToast(duplicateMessage!, 'error')
       return
     }
@@ -596,6 +627,10 @@ export function OutfitComposerPage() {
   }
 
   const addPreviewToLookbook = () => {
+    if (planDate) {
+      addToPlanner()
+      return
+    }
     if (duplicateOutfit) {
       pushToast(duplicateMessage!, 'error')
       return
@@ -652,6 +687,8 @@ export function OutfitComposerPage() {
         items: layers.map((layer) => ({
           wardrobeItemId: layer.wardrobeItemId,
           layerOrder: layer.order,
+          slot: layer.slot,
+          isBaseLayer: layer.isBaseLayer,
         })),
         previewImageAssetId: hasGeneratedPreview
           ? composerState.preview.assetId ?? undefined
@@ -867,6 +904,13 @@ export function OutfitComposerPage() {
     isSaveOpen: isSaveStepOpen,
     preview: composerState.preview,
     toggleItem,
+    setBaseLayers: (baseLayers: OutfitWardrobeItem[]) => {
+      const itemIds = baseLayers.map((item) => item.id)
+      const existing = layers.filter((layer) => layer.isBaseLayer).map((layer) => layer.wardrobeItemId)
+      if (existing.length === itemIds.length && existing.every((id, index) => id === itemIds[index])) return
+      invalidateStoredPreview()
+      dispatch({ type: 'SET_BASE_LAYERS', itemIds })
+    },
     removeItem,
     selectTargetCategory,
     selectReplacementItem,
@@ -881,36 +925,52 @@ export function OutfitComposerPage() {
     outfitSeasons,
     styleOptions: availableStyleOptions,
     includesPreview: hasGeneratedPreview,
-    isSaving: isCheckingRecentWear || createOutfit.isPending,
-    isPersisting: createOutfit.isPending,
+    isSaving: isCheckingRecentWear || createOutfit.isPending || plannerSave.isSaving,
+    isPersisting: createOutfit.isPending || plannerSave.isSaving,
     setOutfitName,
     setOutfitStyle: updateOutfitStyle,
     setOutfitSeasons,
-    saveOutfit: () => void saveOutfit(),
+    saveOutfit: planDate ? addToPlanner : () => void saveOutfit(),
     closeSave: () => dispatch({ type: 'GO_BACK' }),
   }
 
   return createPortal(
     <OutfitComposerContext.Provider value={composerSession}>
       <section ref={composerRootRef} className="classification-page-enter fixed inset-0 z-[80] flex h-dvh flex-col overflow-hidden bg-canvas" role="dialog" aria-modal="true" aria-label="코디 맞춰보기">
-        <OutfitComposerHeader />
+        <div inert={plannerSave.isSaving || plannerSave.showCopyPrompt}>
+          <OutfitComposerHeader />
+        </div>
 
-        <div className="min-h-0 flex-1 bg-canvas">
+        <div className="min-h-0 flex-1 bg-canvas" inert={plannerSave.isSaving || plannerSave.showCopyPrompt}>
           <OutfitMatchPanel isWardrobeExpanded={isWardrobeExpanded} onWardrobeExpandedChange={changeWardrobeExpanded} />
         </div>
 
         {!isSaveStepOpen && (
           <footer ref={composerFooterRef} className={`outfit-composer__footer shrink-0 border-t border-line bg-surface px-5 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(27,27,24,0.06)]${isWardrobeExpanded ? ' outfit-composer__footer--covered' : ''}`}>
             <div className="mx-auto max-w-2xl">
-              <div className="mb-2"><PreviewCreditSummary /></div>
+              {planDate && planDate <= plannerSave.today && !outfitCompletionMessage && <div className="mb-2">
+                <PlannerSaveIntent date={planDate} today={plannerSave.today} confirmWorn={plannerSave.confirmWorn}
+                  onChange={plannerSave.setConfirmWorn} disabled={plannerSave.isSaving || plannerSave.showCopyPrompt} />
+              </div>}
+              <div className="mb-2 flex flex-wrap items-center justify-center gap-x-3">
+                <PreviewCreditSummary />
+                {planDate && !outfitCompletionMessage && (
+                  <button type="button" onClick={openSaveStep} disabled={plannerSave.isSaving || plannerSave.showCopyPrompt}
+                    className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-accent hover:bg-sage/40 disabled:opacity-50">
+                    <SlidersHorizontal size={14} aria-hidden="true" /> 스타일 · 계절 설정
+                  </button>
+                )}
+              </div>
               <OutfitCompletionActions
                 isPreviewPending={composerState.preview.status === 'loading'}
                 isRestoringPreview={previewMutation.isPending || previewMutation.isRestoringCompleted}
                 canResumePreview={previewMutation.willResume || previewMutation.hasCompletedPreview || previewMutation.isCompletedLookupError}
                 completionMessage={outfitCompletionMessage}
                 isEmpty={selectedItems.length === 0}
-                duplicateMessage={duplicateMessage}
-                existingOutfitPath={duplicateOutfit ? createLookbookOutfitPath(duplicateOutfit.id) : undefined}
+                duplicateMessage={planDate ? null : duplicateMessage}
+                completeLabel={planDate ? (plannerSave.isSaving ? '저장 중…' : plannerAddLabel) : undefined}
+                isCompleting={plannerSave.isSaving || plannerSave.showCopyPrompt}
+                existingOutfitPath={!planDate && duplicateOutfit ? createLookbookOutfitPath(duplicateOutfit.id) : undefined}
                 hasAvailableLookbook={Boolean(
                   canUseSavedLookbookPreview ||
                     previewMutation.hasCompletedPreview ||
@@ -919,20 +979,22 @@ export function OutfitComposerPage() {
                     Boolean(cachedCurrentPreview),
                 )}
                 onOpenLookbook={openAiLookbook}
-                onComplete={openSaveStep}
+                onComplete={planDate ? addToPlanner : openSaveStep}
               />
             </div>
           </footer>
         )}
-        <OutfitPreviewDialog
-          isReadOnly={Boolean(duplicateOutfit)}
+        {!plannerSave.showCopyPrompt && <OutfitPreviewDialog
+          isReadOnly={!planDate && Boolean(duplicateOutfit)}
+          primaryLabel={planDate ? plannerAddLabel : undefined}
+          isPrimaryPending={plannerSave.isSaving}
           creditSummary={<PreviewCreditSummary />}
           onRetryLoad={shouldRestorePreview && previewAssetId ? () => {
             dispatch({ type: 'OPEN_PREVIEW' })
             void restoredPreview.refetch()
           } : undefined}
-        />
-        <OutfitSaveDialog />
+        />}
+        {!plannerSave.showCopyPrompt && <OutfitSaveDialog plannerLabel={planDate ? plannerAddLabel : undefined} />}
         {isSavedLookbookOpen &&
           canUseSavedLookbookPreview &&
           savedLookbookImageUrl &&
@@ -943,6 +1005,19 @@ export function OutfitComposerPage() {
             onClose={() => setIsSavedLookbookOpen(false)}
           />
           )}
+        {plannerSave.showCopyPrompt && (
+          <ConfirmDialog
+            title="코디북에도 추가할까요?"
+            description="플래너에 저장했어요. 코디북에 추가하면 다른 날에도 바로 꺼내 쓸 수 있어요."
+            confirmLabel="코디북에 추가"
+            cancelLabel="나중에"
+            tone="accent"
+            pendingLabel="추가하는 중…"
+            isPending={plannerSave.isCopying}
+            onCancel={finishPlannerSave}
+            onConfirm={() => void plannerSave.saveCopy()}
+          />
+        )}
         {isExitConfirmOpen && (
           <ConfirmDialog
             title="코디 만들기를 닫을까요?"

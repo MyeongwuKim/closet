@@ -57,7 +57,7 @@ export function TodayOutfitRecommendationPopover({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented) return
       if (useUiStore.getState().recentWearConfirmation) return
-      const dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]')
+      const dialogs = document.querySelectorAll(':is([role="dialog"], [role="alertdialog"])[aria-modal="true"]')
       if (dialogs.item(dialogs.length - 1) !== popoverRef.current) return
       onClose()
     }
@@ -143,7 +143,7 @@ export function TodayOutfitRecommendationPopover({
         onOpenCloset={openCloset}
         onOpenLookbook={onClose}
         onBack={isWeatherShortcut ? actions.showIntro : actions.showColorSchemes}
-        onApplied={onApplied}
+        onApplied={onApplied ?? onClose}
       />
     )
   }
@@ -217,7 +217,6 @@ export function TodayOutfitRecommendationPopover({
           baseItemId={baseItem?.id}
           scope={baseItem ? 'current' : 'all'}
           onClose={() => setIsHistoryOpen(false)}
-          onOpenLookbook={onClose}
         />
       )}
     </div>,

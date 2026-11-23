@@ -10,7 +10,7 @@ import {
   Thermometer,
   Trash2,
 } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { formatSeasonLabels, seasonLabels } from '../../../constants/seasons'
 import { getOutfitStyleLabel } from '../../../constants/styleOptions'
 import { useUiStore } from '../../../stores/useUiStore'
@@ -24,6 +24,7 @@ import { OutfitFilterControls } from '../../lookbook/components/OutfitFilterCont
 import { OutfitWearStatus } from '../../lookbook/components/OutfitWearStatus'
 import { useOutfitWearSummaries } from '../../lookbook/hooks/useOutfitWearSummaries'
 import { findDuplicateOutfit } from '../../lookbook/utils/outfitComposition'
+import { createPlannerComposerPath } from '../../lookbook/utils/outfitComposerNavigation'
 import { useLookbookStore } from '../../lookbook/stores/useLookbookStore'
 import {
   filterSavedOutfits,
@@ -54,6 +55,7 @@ interface PlannerOutfitPickerProps {
 /** 코디북 검색과 날짜별 배정을 제공한다. 착용 완료 날짜는 안내만 표시하고, 주간 편집에서는 다른 요일을 이어서 고를 수 있다. */
 export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScroll = true, initialConfirmWorn = false }: PlannerOutfitPickerProps) {
   const navigate = useNavigate()
+  const location = useLocation()
   const items = useClosetStore((state) => state.items)
   const outfits = useLookbookStore((state) => state.outfits)
   const entries = usePlanStore((state) => state.entries)
@@ -297,7 +299,9 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
               </p>
               <button
                 type="button"
-                onClick={() => navigate('/lookbook/new')}
+                onClick={() => navigate(activeEntry
+                  ? createPlannerComposerPath(activeEntry.date, `${location.pathname}${location.search}`)
+                  : '/lookbook/new')}
                 className="mt-5 rounded-full bg-accent px-5 py-2.5 text-sm font-bold text-white"
               >
                 코디 만들기

@@ -7,9 +7,9 @@ import { OutfitStyleSelector } from './OutfitStyleSelector'
 import { OutfitSavingState } from './OutfitSavingState'
 
 /** 코디 맞춰보기에서 저장 단계가 열렸을 때 편집 세션을 공통 저장 화면에 연결한다. */
-export function OutfitSaveDialog() {
+export function OutfitSaveDialog({ plannerLabel }: { plannerLabel?: string }) {
   const session = useOutfitComposer()
-  return session.isSaveOpen ? <OutfitSaveDialogView {...session} /> : null
+  return session.isSaveOpen ? <OutfitSaveDialogView {...session} plannerLabel={plannerLabel} /> : null
 }
 
 type OutfitSaveDialogViewProps = Pick<OutfitComposerSession,
@@ -30,6 +30,7 @@ type OutfitSaveDialogViewProps = Pick<OutfitComposerSession,
   dialogRef?: Ref<HTMLDivElement>
   errorMessage?: string | null
   seasonDescription?: string
+  plannerLabel?: string
 }
 
 /** 코디북에 저장할 조합과 이름·스타일·계절을 확인한다. 저장 실행과 실패 상태는 호출 화면에서 관리한다. */
@@ -50,6 +51,7 @@ export function OutfitSaveDialogView({
   dialogRef,
   errorMessage,
   seasonDescription = '선택한 옷의 공통 계절을 먼저 표시해요.',
+  plannerLabel,
 }: OutfitSaveDialogViewProps) {
   const titleId = useId()
 
@@ -78,10 +80,10 @@ export function OutfitSaveDialogView({
           </span>
           <div className="min-w-0 flex-1">
             <h2 id={titleId} className="mt-0.5 text-lg font-semibold leading-tight">
-              이 코디를 저장할까요?
+              {plannerLabel ? '플래너에 넣을 코디' : '이 코디를 저장할까요?'}
             </h2>
             <p className="mt-1 text-[11px] text-muted">
-              이름, 스타일, 계절을 확인하고 저장해주세요.
+              {plannerLabel ? '이름, 스타일, 계절을 정할 수 있어요.' : '이름, 스타일, 계절을 확인하고 저장해주세요.'}
             </p>
           </div>
           <button
@@ -130,7 +132,7 @@ export function OutfitSaveDialogView({
                     placeholder="예: 주말의 편안한 코디"
                     maxLength={40}
                     className="h-12 rounded-xl border border-line bg-canvas px-3 text-sm font-bold outline-none transition focus:border-accent"
-                    required
+                    required={!plannerLabel}
                   />
                 </label>
 
@@ -184,16 +186,13 @@ export function OutfitSaveDialogView({
           <button
             type="submit"
             disabled={
-              !outfitName.trim() ||
-              !outfitStyle ||
-              outfitSeasons.length === 0 ||
-              isSaving
+              isSaving || (!plannerLabel && (!outfitName.trim() || !outfitStyle || outfitSeasons.length === 0))
             }
             className="rounded-xl bg-accent px-3 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
             {isSaving
               ? '저장 중…'
-              : !outfitName.trim()
+              : plannerLabel ?? (!outfitName.trim()
                 ? '이름을 입력해주세요'
                 : !outfitStyle
                   ? '스타일을 골라주세요'
@@ -201,7 +200,7 @@ export function OutfitSaveDialogView({
                     ? '계절을 골라주세요'
                     : includesPreview
                       ? 'AI 룩북과 함께 저장'
-                      : '코디북에 저장'}
+                      : '코디북에 저장')}
           </button>
         </footer>
       </form>

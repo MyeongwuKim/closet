@@ -15,7 +15,7 @@ export function outfitSnapshotData(outfit: SnapshotOutfit): CreateOutfitData {
   return {
     userId: outfit.userId, name: outfit.name, style: outfit.style, seasons: [...outfit.seasons],
     source: outfit.source, note: outfit.note,
-    items: outfit.items.map(({ wardrobeItemId, slot, layerOrder }) => ({ wardrobeItemId, slot, layerOrder })),
+    items: outfit.items.map(({ wardrobeItemId, slot, layerOrder, isBaseLayer }) => ({ wardrobeItemId, slot, layerOrder, isBaseLayer: isBaseLayer || undefined })),
     ...(preview?.imageAssetId ? { generation: { userId: outfit.userId, imageAssetId: preview.imageAssetId, model: preview.model } } : {}),
   }
 }

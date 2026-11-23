@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
+  ClothingCategory,
   Season,
   StoredOutfitPreview,
 } from '@closet/types'
@@ -27,6 +28,8 @@ export interface OutfitPayload {
   items: Array<{
     wardrobeItemId: string
     layerOrder: number
+    slot?: ClothingCategory
+    isBaseLayer?: boolean | null
     wardrobeItem?: WardrobeItemPayload
   }>
   generations: Array<{
@@ -42,6 +45,8 @@ export interface CreateOutfitVariables {
   items: Array<{
     wardrobeItemId: string
     layerOrder: number
+    slot?: ClothingCategory
+    isBaseLayer?: boolean | null
   }>
   previewImage?: OutfitPreviewImageInput
   previewImageAssetId?: string
@@ -68,6 +73,8 @@ export function toSavedOutfit(outfit: OutfitPayload): SavedOutfit {
     layers: outfit.items.map((item) => ({
       wardrobeItemId: item.wardrobeItemId,
       order: item.layerOrder,
+      slot: item.slot,
+      isBaseLayer: item.isBaseLayer || undefined,
     })),
     outfitItems: outfit.items.flatMap((item) => item.wardrobeItem ? [toWardrobeItem(item.wardrobeItem)] : []),
     previewImageUrl: previewImageUrl ?? undefined,
@@ -84,7 +91,7 @@ export function useOutfitsQuery(enabled = true, filter?: { style?: string; wardr
           query Outfits($style: String, $wardrobeItemIds: [ID!]) {
             outfits(style: $style, wardrobeItemIds: $wardrobeItemIds) {
               id name style seasons createdAt
-              items { wardrobeItemId layerOrder wardrobeItem { ${wardrobeItemFields} } }
+              items { wardrobeItemId layerOrder slot isBaseLayer wardrobeItem { ${wardrobeItemFields} } }
               generations { status imageAsset { deliveryUrl } }
             }
           }
@@ -108,7 +115,7 @@ export function useSavedOutfitQuery(outfitId: string) {
           query Outfit($id: ID!) {
             outfit(id: $id) {
               id name style seasons createdAt plannerOnly
-              items { wardrobeItemId layerOrder wardrobeItem { ${wardrobeItemFields} } }
+              items { wardrobeItemId layerOrder slot isBaseLayer wardrobeItem { ${wardrobeItemFields} } }
               generations { status imageAsset { deliveryUrl } }
             }
           }
@@ -135,7 +142,7 @@ export function useCreateOutfitMutation() {
           mutation CreateOutfit($input: CreateOutfitInput!) {
             createOutfit(input: $input) {
               id name style seasons createdAt
-              items { wardrobeItemId layerOrder wardrobeItem { ${wardrobeItemFields} } }
+              items { wardrobeItemId layerOrder slot isBaseLayer wardrobeItem { ${wardrobeItemFields} } }
               generations { status imageAsset { deliveryUrl } }
             }
           }
@@ -176,7 +183,7 @@ export function useUpdateOutfitMutation() {
           mutation UpdateOutfit($id: ID!, $input: UpdateOutfitInput!) {
             updateOutfit(id: $id, input: $input) {
               id name style seasons createdAt
-              items { wardrobeItemId layerOrder wardrobeItem { ${wardrobeItemFields} } }
+              items { wardrobeItemId layerOrder slot isBaseLayer wardrobeItem { ${wardrobeItemFields} } }
               generations { status imageAsset { deliveryUrl } }
             }
           }

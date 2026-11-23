@@ -8,7 +8,7 @@
  * 최근 착용 검사는 설정된 기간 안의 기록만 조회해 우선순위가 가장 높은 결과를 반환한다.
  */
 
-import type { OutfitStyle, WearFeeling } from '@prisma/client'
+import type { OutfitStyle, Season, WearFeeling } from '@prisma/client'
 import { ServiceError } from '../../graphql/errors.js'
 import { parseDateOnly, toDateOnly } from '../../lib/date.js'
 import { outfitRepository } from '../outfit/outfit.repository.js'
@@ -56,6 +56,8 @@ export interface SetDirectPlannerEntryInput {
   weekStartsOn: string
   date: string
   itemIds: string[]
+  items?: CreateOutfitInput['items'] | null
+  seasons?: Season[] | null
   /** 코디 저장과 실제 착용 확인을 같은 트랜잭션에서 처리한다. 미래 날짜는 허용하지 않는다. */
   confirmWorn?: boolean | null
   /** 직접 구성하거나 착용 기록에서 바꿔 담은 코디의 이름·스타일. 추천 메타데이터와 구분한다. */
@@ -336,6 +338,8 @@ export const plannerService = {
     )?.outfit
     const outfit = await outfitService.preparePlannerOutfit(userId, {
       itemIds: input.itemIds,
+      items: input.items,
+      seasons: input.seasons,
       previewImage: input.previewImage,
       name: input.name ?? input.recommendationName ?? previousOutfit?.name,
       style: input.style ?? input.recommendationStyle ?? previousOutfit?.style,

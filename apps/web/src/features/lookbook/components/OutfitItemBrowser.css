@@ -40,10 +40,6 @@
 
 .outfit-item-browser__chip:active { transform: scale(.95); }
 
-.outfit-item-browser__active-color {
-  animation: outfit-item-browser-enter 240ms cubic-bezier(.22,.75,.3,1) both;
-}
-
 .outfit-item-browser__results > .outfit-wardrobe-grid > .collection-clipped-card:not([aria-hidden='true']),
 .outfit-item-browser__results > .outfit-item-browser__empty {
   animation: outfit-item-browser-enter 280ms cubic-bezier(.22,.75,.3,1) both;
@@ -64,7 +60,6 @@
   .outfit-item-browser__filter-panel,
   .outfit-item-browser__chip { transition: none; transform: none; }
 
-  .outfit-item-browser__active-color,
   .outfit-item-browser__results > .outfit-wardrobe-grid > .collection-clipped-card:not([aria-hidden='true']),
   .outfit-item-browser__results > .outfit-item-browser__empty { animation: none; }
 }

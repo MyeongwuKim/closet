@@ -1,7 +1,156 @@
-import { createOutfit, expect, test } from './support/fixture'
+import { createOutfit, createWardrobeItem, expect, test } from './support/fixture'
 import { mkdirSync, readFileSync } from 'node:fs'
 
 test.describe('코디북', () => {
+  test('저장 코디를 불러와 아우터를 추가하고 독립된 코디로 저장한다', async ({ page, mockApi }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    mockApi.wardrobeItems.push(
+      createWardrobeItem({ id: 'inner-tee', name: '받쳐 입는 반팔' }),
+      createWardrobeItem({ id: 'zip-hoodie', name: '중간 집업', category: 'top', additionalCategories: ['midlayer'] }),
+      createWardrobeItem({ id: 'outer-coat', name: '겨울 코트', category: 'outer', subcategory: '코트' }),
+    )
+    const original = createOutfit({
+      name: '기존 겨울 코디', style: 'minimal', seasons: ['winter'],
+      items: [
+        { wardrobeItemId: 'inner-tee', layerOrder: 0, slot: 'top', isBaseLayer: true },
+        { wardrobeItemId: 'item-1', layerOrder: 1, slot: 'top' },
+        { wardrobeItemId: 'item-2', layerOrder: 2, slot: 'bottom' },
+        { wardrobeItemId: 'zip-hoodie', layerOrder: 3, slot: 'midlayer' },
+      ],
+    })
+    mockApi.outfits = [original]
+    await page.goto('/lookbook')
+    await page.getByRole('button', { name: '기존 겨울 코디 코디 상세 보기' }).click()
+    const details = page.getByRole('dialog', { name: '기존 겨울 코디 코디 상세' })
+    await expect(details.getByRole('button', { name: '이 코디로 새 코디 만들기' })).toHaveCount(0)
+    await details.getByRole('button', { name: '코디 수정', exact: true }).click()
+    await details.getByRole('button', { name: '아우터 고르기', exact: true }).click()
+    const outerPicker = page.getByRole('dialog', { name: '아우터 옷 선택' })
+    await outerPicker.getByRole('button', { name: /겨울 코트/ }).click()
+    await outerPicker.getByRole('button', { name: '1개 선택 완료' }).click()
+    await details.getByRole('button', { name: '변경사항 저장', exact: true }).click()
+    const saveChoice = page.getByRole('alertdialog', { name: '어떻게 저장할까요?' })
+    await expect(saveChoice).toBeVisible()
+    expect(mockApi.outfits).toEqual([original])
+    await page.screenshot({ path: testInfo.outputPath('variation-save-choice.png'), animations: 'disabled' })
+    await saveChoice.getByRole('button', { name: '새 코디로 저장', exact: true }).click()
+    await expect(page.getByRole('dialog', { name: '기존 겨울 코디 (새 코디) 코디 상세', exact: true })).toBeVisible()
+    expect(mockApi.operations).not.toContain('UpdateOutfit')
+    expect(mockApi.outfits[0]).toMatchObject({ style: 'minimal', seasons: ['winter'] })
+    expect(mockApi.outfits).toHaveLength(2)
+    expect(mockApi.outfits.find((outfit) => outfit.id === original.id)).toEqual(original)
+    expect(mockApi.outfits[0].items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ wardrobeItemId: 'inner-tee', isBaseLayer: true }),
+      expect.objectContaining({ wardrobeItemId: 'zip-hoodie', slot: 'midlayer' }),
+      expect.objectContaining({ wardrobeItemId: 'outer-coat' }),
+    ]))
+  })
+
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
+    test(`${viewport.width}px: 상의와 별도로 이너를 골라 몸에 가까운 순서대로 저장한다`, async ({ page, mockApi }, testInfo) => {
+      await page.setViewportSize(viewport)
+      mockApi.wardrobeItems.push(
+        createWardrobeItem({ id: 'white-tee', name: '흰 이너티' }),
+        createWardrobeItem({ id: 'black-tee', name: '검은 이너티' }),
+      )
+      await page.goto('/lookbook')
+      await page.getByRole('button', { name: '새 코디 만들기' }).click()
+      const composer = page.getByRole('dialog', { name: '코디 맞춰보기' })
+      await composer.getByRole('button', { name: '받쳐 입는 옷 추가' }).click()
+      const picker = page.getByRole('dialog', { name: '받쳐 입는 옷 선택', exact: true })
+      await picker.getByRole('button', { name: /흰 이너티/ }).click()
+      await picker.getByRole('button', { name: /검은 이너티/ }).click()
+      await picker.getByRole('button', { name: '검은 이너티 안쪽으로 이동' }).click()
+      await expect(picker.getByRole('region', { name: '받쳐 입는 순서' }).getByRole('listitem').first()).toContainText('검은 이너티')
+      await page.screenshot({ path: testInfo.outputPath('base-layer-picker.png'), animations: 'disabled' })
+      await picker.getByRole('button', { name: '2개 선택 완료' }).click()
+      await expect(composer.getByRole('button', { name: '받쳐 입는 옷 2개' })).toBeVisible()
+      await page.reload()
+      await expect(composer.getByRole('button', { name: '받쳐 입는 옷 2개' })).toBeVisible()
+      await composer.getByRole('button', { name: '상의·원피스 아이템 고르기' }).click()
+      await expect(composer.getByRole('button', { name: '흰 이너티 코디에 추가' })).toHaveCount(0)
+      await composer.getByRole('button', { name: '테스트 셔츠 코디에 추가' }).click()
+      await composer.getByRole('button', { name: '하의 아이템 고르기' }).click()
+      await composer.getByRole('button', { name: '테스트 바지 코디에 추가' }).click()
+      await page.screenshot({ path: testInfo.outputPath('base-layer-board.png'), animations: 'disabled' })
+      await composer.getByRole('button', { name: '코디 저장하기' }).click()
+      const save = page.getByRole('dialog', { name: '이 코디를 저장할까요?' })
+      await save.getByRole('textbox', { name: '코디 이름' }).fill('이너 조합')
+      await save.getByRole('button', { name: '캐주얼' }).click()
+      await save.getByRole('button', { name: '코디북에 저장' }).click()
+      await expect(page.getByRole('button', { name: '이너 조합 코디 상세 보기' })).toBeVisible()
+      expect(mockApi.outfits[0].items.filter(item => item.isBaseLayer).map(item => item.wardrobeItemId)).toEqual(['black-tee', 'white-tee'])
+      await page.getByRole('button', { name: '이너 조합 코디 상세 보기' }).click()
+      const details = page.getByRole('dialog', { name: '이너 조합 코디 상세', exact: true })
+      await expect(details.getByRole('region', { name: '이 코디에 담은 옷' }).getByText('받쳐 입는 옷', { exact: true })).toHaveCount(2)
+    })
+  }
+
+  test('후드집업의 대표 카테고리를 바꾸지 않고 두 겉옷 위치에서 고르고 저장한다', async ({ page, mockApi }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    mockApi.wardrobeItems.push(createWardrobeItem({
+      id: 'layered-hoodie', name: '겹쳐 입는 후드집업', category: 'outer', additionalCategories: ['midlayer'],
+    }))
+    await page.goto('/lookbook')
+    await page.getByRole('button', { name: '새 코디 만들기' }).click()
+    const composer = page.getByRole('dialog', { name: '코디 맞춰보기' })
+    await composer.getByRole('button', { name: '아우터 아이템 고르기', exact: true }).click()
+    await expect(composer.getByRole('button', { name: '겹쳐 입는 후드집업 코디에 추가' })).toBeVisible()
+    await composer.getByRole('button', { name: '겹쳐 입는 후드집업 코디에 추가' }).click()
+    await composer.getByRole('button', { name: '중간 아우터 아이템 고르기', exact: true }).click()
+    await expect(composer.getByRole('button', { name: '겹쳐 입는 후드집업 코디에 추가' })).toHaveCount(0)
+    await composer.getByRole('button', { name: '옷장 닫기', exact: true }).click()
+    await composer.getByRole('button', { name: /겹쳐 입는 후드집업.*빼기/ }).click()
+    await composer.getByRole('button', { name: '중간 아우터 아이템 고르기', exact: true }).click()
+    await composer.getByRole('button', { name: '겹쳐 입는 후드집업 코디에 추가' }).click()
+    await expect(composer.getByRole('button', { name: '겹쳐 입는 후드집업, 중간 아우터 아이템 바꾸기' })).toBeVisible()
+    await composer.getByRole('button', { name: '하의 아이템 고르기' }).click()
+    await composer.getByRole('button', { name: '테스트 바지 코디에 추가' }).click()
+    await composer.getByRole('button', { name: '코디 저장하기' }).click()
+    const save = page.getByRole('dialog', { name: '이 코디를 저장할까요?' })
+    await save.getByRole('textbox', { name: '코디 이름' }).fill('후드집업 레이어드')
+    await save.getByRole('button', { name: '캐주얼' }).click()
+    await save.getByRole('button', { name: '코디북에 저장' }).click()
+    await expect(page.getByRole('button', { name: '후드집업 레이어드 코디 상세 보기' })).toBeVisible()
+    expect(mockApi.outfits[0].items[0]).toMatchObject({ wardrobeItemId: 'layered-hoodie', slot: 'midlayer' })
+    expect(mockApi.wardrobeItems.at(-1)?.category).toBe('outer')
+    await page.reload()
+    await page.getByRole('button', { name: '후드집업 레이어드 코디 상세 보기' }).click()
+    const details = page.getByRole('dialog', { name: '후드집업 레이어드 코디 상세', exact: true })
+    await details.getByRole('button', { name: '코디 수정', exact: true }).click()
+    await expect(details.getByRole('button', { name: '중간 아우터 교체하기' })).toBeVisible()
+  })
+
+  test('옷장에서 대표 카테고리를 중간 아우터로 바꾸면 코디북의 해당 칸에서 고를 수 있다', async ({ page, mockApi }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    mockApi.wardrobeItems.push(createWardrobeItem({
+      id: 'zip-hoodie', name: '후드집업', category: 'top', additionalCategories: ['midlayer'], subcategory: '후드',
+    }))
+    await page.goto('/closet/zip-hoodie')
+    await page.getByRole('button', { name: '옷 정보 수정' }).click()
+    const edit = page.getByRole('dialog', { name: '옷 정보 수정' })
+    await edit.getByRole('button', { name: '카테고리', exact: true }).click()
+    const categories = page.getByRole('dialog', { name: '카테고리 선택' })
+    await expect(categories.getByRole('button', { name: '상의 대표 카테고리', exact: true })).toBeVisible()
+    await page.screenshot({ path: testInfo.outputPath('hoodie-category-choice.png'), animations: 'disabled' })
+    await categories.getByRole('button', { name: '중간 아우터 대표로 지정' }).click()
+    await categories.getByRole('button', { name: '2개 카테고리 적용' }).click()
+    await expect(edit.getByRole('button', { name: '카테고리', exact: true })).toContainText('중간 아우터 · 대표')
+    await edit.getByRole('button', { name: '변경사항 저장' }).click()
+    await expect(edit).toHaveCount(0)
+    expect(mockApi.wardrobeItems.find((item) => item.id === 'zip-hoodie')).toMatchObject({
+      category: 'midlayer', additionalCategories: ['top'],
+    })
+
+    await page.getByRole('button', { name: '내 옷장으로 돌아가기' }).click()
+    await page.getByRole('navigation', { name: '주요 메뉴' }).getByRole('link', { name: '코디북' }).click()
+    await page.getByRole('button', { name: '새 코디 만들기' }).click()
+    const composer = page.getByRole('dialog', { name: '코디 맞춰보기' })
+    await composer.getByRole('button', { name: '중간 아우터 아이템 고르기' }).click()
+    await composer.getByRole('button', { name: '후드집업 코디에 추가' }).click()
+    await expect(composer.getByRole('button', { name: '후드집업, 중간 아우터 아이템 바꾸기' })).toBeVisible()
+  })
+
   for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
     test(`${viewport.width}px: 코디를 보기로 열고 편집 취소는 초안을 버리며 저장 후 보기로 돌아간다`, async ({ page, mockApi }) => {
       await page.setViewportSize(viewport)

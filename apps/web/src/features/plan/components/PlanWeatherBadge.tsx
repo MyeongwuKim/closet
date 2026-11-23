@@ -7,12 +7,14 @@ import { WearHistoryLink } from '../../wear-history/components/WearHistoryLink'
 
 interface PlanWeatherBadgeProps {
   weather: WeatherSnapshot
+  forecastLabel?: string
   historyDate?: string
 }
 
 /** 제목 옆 기온을 누르면 날씨 상세와 착용 기록 입구를 펼친다. 같은 날짜의 예보 평균만 기록 필터로 사용하며 팝업은 본문 높이를 바꾸지 않는다. */
-export function PlanWeatherBadge({ weather, historyDate }: PlanWeatherBadgeProps) {
+export function PlanWeatherBadge({ weather, forecastLabel, historyDate }: PlanWeatherBadgeProps) {
   const popupId = useId()
+  const title = forecastLabel ?? '오늘의 날씨'
   const triggerRef = useRef<HTMLButtonElement>(null)
   const popupRef = useRef<HTMLElement>(null)
   const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(null)
@@ -63,16 +65,16 @@ export function PlanWeatherBadge({ weather, historyDate }: PlanWeatherBadgeProps
     <>
       <button ref={triggerRef} type="button" onClick={toggleDetails}
         className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 text-[11px] font-medium text-muted"
-        aria-label={`오늘 ${weather.temperatureC}도, ${weather.summary}, 날씨 자세히 보기`}
+        aria-label={`${forecastLabel ?? '오늘'} ${weather.temperatureC}도, ${weather.summary}, 날씨 자세히 보기`}
         aria-haspopup="dialog" aria-expanded={isOpen} aria-controls={isOpen ? popupId : undefined}>
         <CloudSun size={14} aria-hidden="true" />{weather.temperatureC}°
       </button>
       {position && createPortal(
-        <section ref={popupRef} id={popupId} role="dialog" aria-label="오늘의 날씨"
+        <section ref={popupRef} id={popupId} role="dialog" aria-label={title}
           className="fixed z-[100] overflow-y-auto overscroll-contain rounded-2xl border border-line bg-surface p-4 shadow-[0_8px_28px_rgba(67,57,47,0.12)]"
           style={{ ...position, maxHeight: `calc(100dvh - ${position.top + 16}px)` }}>
           <div className="flex items-center justify-between gap-3">
-            <h2 className="min-w-0 text-sm font-semibold break-keep">오늘의 날씨</h2>
+            <h2 className="min-w-0 text-sm font-semibold break-keep">{title}</h2>
             <button type="button" aria-label="날씨 자세히 보기 닫기" autoFocus
               className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-canvas"
               onClick={() => { setPosition(null); triggerRef.current?.focus({ preventScroll: true }) }}><X size={16} /></button>

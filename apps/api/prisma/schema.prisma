@@ -505,6 +505,7 @@ model OutfitItem {
   wardrobeItemId String           @db.ObjectId
   slot           ClothingCategory
   layerOrder     Int              @default(0)
+  isBaseLayer    Boolean?
   outfit         Outfit           @relation(fields: [outfitId], references: [id])
   wardrobeItem   WardrobeItem     @relation(fields: [wardrobeItemId], references: [id])
 

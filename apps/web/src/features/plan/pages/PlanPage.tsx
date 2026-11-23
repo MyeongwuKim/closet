@@ -26,7 +26,7 @@ import { PlanPeriodHeader } from '../components/PlanPeriodHeader'
 import { PlanPeriodSkeleton } from '../components/PlanPeriodSkeleton'
 import { PlanTodayCard } from '../components/PlanTodayCard'
 import { PlannerWearReview } from '../components/PlannerWearReview'
-import { PlanTomorrowForecast } from '../components/PlanTomorrowForecast'
+import { PlanFutureForecast } from '../components/PlanFutureForecast'
 import { PlanViewToggle } from '../components/PlanViewToggle'
 import type { PlanViewMode } from '../components/PlanViewToggle'
 import { PlannerOutfitPicker } from '../components/PlannerOutfitPicker'
@@ -48,6 +48,7 @@ import {
   type PlanEntry,
 } from '../data/weeklyPlan'
 import { usePlanStore } from '../stores/usePlanStore'
+import { usePlannerLocationWeather } from '../hooks/usePlannerLocationWeather'
 import { useKoreaPlannerToday } from '../hooks/useKoreaPlannerToday'
 import { getKoreaPlannerTomorrow } from '../utils/plannerWear'
 
@@ -114,7 +115,10 @@ export function PlanPage() {
   const selectedDate = /^\d{4}-\d{2}-\d{2}$/.test(requestedDay ?? '')
     ? (requestedDay as string)
     : today
-  const isTomorrowView = viewMode === 'today' && selectedDate === getKoreaPlannerTomorrow(today)
+  const isFutureDayView = viewMode === 'today' && selectedDate > today
+  const isTomorrow = selectedDate === getKoreaPlannerTomorrow(today)
+  const weatherDate = isFutureDayView ? selectedDate : today
+  const forecast = usePlannerLocationWeather(weatherDate)
   const weekStartsOn = entries[0]?.date ?? ''
   const requestedMonth = searchParams.get('month')
   const monthKey = /^\d{4}-\d{2}$/.test(requestedMonth ?? '')
@@ -363,7 +367,9 @@ export function PlanPage() {
   return (
     <section className={`plan-page mx-auto w-full max-w-3xl ${viewMode === 'today' ? 'plan-today-page' : viewMode === 'month' ? 'plan-month-page pb-8' : 'plan-week-page sm:pb-8'}`}>
       <PlanPageHeader
-        today={isTomorrowView ? undefined : today}
+        weatherDate={weatherDate}
+        forecast={forecast}
+        forecastLabel={isFutureDayView ? (isTomorrow ? '내일 예보' : '이날 예보') : undefined}
         historyDate={viewMode === 'today' ? selectedDate : undefined}
         onEditWeek={viewMode === 'week' ? () => setOutfitPickerView('week') : undefined}
       />
@@ -396,10 +402,10 @@ export function PlanPage() {
         key={periodTransitionKey}
         className={`${periodTransitionClass} ${
           viewMode !== 'month' ? 'flex min-h-0 flex-1 flex-col' : 'plan-month-content'
-        }`}
+        } ${isFutureDayView ? 'relative' : ''}`}
       >
         {viewMode === 'today' && selectedDate === today && <PlannerWearReview today={today} />}
-        {isTomorrowView && <PlanTomorrowForecast key={selectedDate} date={selectedDate} />}
+        {isFutureDayView && <PlanFutureForecast date={selectedDate} forecast={forecast} isTomorrow={isTomorrow} overlay />}
         {viewMode === 'today' && plannerDayQuery.isError ? (
           <div className="mt-4 rounded-3xl border border-dashed border-line px-6 py-12 text-center">
             <h2 className="text-sm font-semibold">

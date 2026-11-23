@@ -42,6 +42,7 @@ export interface CreateOutfitData {
     wardrobeItemId: string
     slot: Prisma.OutfitItemCreateWithoutOutfitInput['slot']
     layerOrder: number
+    isBaseLayer?: boolean
   }>
   generation?: {
     userId: string

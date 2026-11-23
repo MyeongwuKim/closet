@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { OutfitPreview, WardrobeItem } from '@closet/types'
 import { GraphqlRequestError } from '../../../lib/graphql'
+import { getAccessToken } from '../../../lib/auth'
 import { useUiStore } from '../../../stores/useUiStore'
 import { useWardrobeItemsQuery } from '../../closet/api/wardrobeQueries'
 import { useMeQuery } from '../../settings/api/profileQueries'
@@ -88,13 +89,14 @@ export function useRecommendationHistory({
       return false
     }
 
+    const token = getAccessToken()
     const confirmed = await confirmRecentWear({
       itemIds: selectedItems.map((item) => item.id),
       targetDate: date,
       confirmLabel: hasTodayOutfit ? '그래도 변경' : '그래도 추가',
       cancelLabel: '추천 기록으로 돌아가기',
     })
-    if (!confirmed) return false
+    if (!confirmed || token !== getAccessToken()) return false
 
     try {
       const nextEntries = await setDirectPlannerEntry.mutateAsync({
@@ -107,15 +109,18 @@ export function useRecommendationHistory({
         weatherSummary: selectedEntry.recommendation.weather?.summary,
         temperatureC: selectedEntry.recommendation.weather?.temperatureC,
       })
+      if (token !== getAccessToken()) return false
+      const savedEntry = nextEntries.find((entry) => entry.date === date)
+      if (!savedEntry?.outfitId) throw new Error('저장한 날짜의 코디를 찾지 못했어요.')
       hydrateEntries(nextEntries)
-      pushToast(
-        hasTodayOutfit
+      return {
+        previewImageAssetId: savedEntry.previewImageAssetId,
+        successMessage: hasTodayOutfit
           ? '오늘의 코디를 추천 조합으로 바꿨어요.'
           : '추천 코디를 오늘 일정에 담았어요.',
-        'success',
-      )
-      return true
+      }
     } catch (error) {
+      if (token !== getAccessToken()) return false
       pushToast(
         error instanceof Error ? error.message : '추천 코디를 담지 못했어요.',
         'error',

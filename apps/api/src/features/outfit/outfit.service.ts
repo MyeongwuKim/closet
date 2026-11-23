@@ -1,4 +1,4 @@
-import type { OutfitSource, Season } from '@prisma/client'
+import type { ClothingCategory, OutfitSource, Season } from '@prisma/client'
 import { hasMinimumOutfitItems } from '@closet/types/outfit-items'
 import { ServiceError } from '../../graphql/errors.js'
 import { imageService } from '../image/image.service.js'
@@ -16,6 +16,8 @@ export interface CreateOutfitInput {
   items: Array<{
     wardrobeItemId: string
     layerOrder: number
+    slot?: ClothingCategory | null
+    isBaseLayer?: boolean | null
   }>
   previewImage?: OutfitPreviewImageInput | null
   previewImageAssetId?: string | null
@@ -28,6 +30,8 @@ export type UpdateOutfitInput = Pick<
 
 export interface PlannerOnlyOutfitInput {
   itemIds: string[]
+  items?: CreateOutfitInput['items'] | null
+  seasons?: Season[] | null
   previewImage?: CreateOutfitInput['previewImage']
   name?: string | null
   style?: string | null
@@ -76,6 +80,35 @@ async function requireOutfitWardrobeItems(userId: string, itemIds: string[]) {
     throw new ServiceError('상의나 아우터와 하의를 함께 선택해주세요. 원피스는 한 벌만 골라도 돼요.', 'INCOMPLETE_OUTFIT_ITEMS')
   }
   return wardrobeItems
+}
+
+/** 아우터와 중간 아우터는 옷의 등록 분류 안에서 코디별 위치를 정한다. */
+function resolveSavedOutfitItems(
+  inputItems: CreateOutfitInput['items'],
+  wardrobeItems: Awaited<ReturnType<typeof requireOutfitWardrobeItems>>,
+  previousItems: Array<{ wardrobeItemId: string; slot: ClothingCategory }> = [],
+) {
+  const itemById = new Map(wardrobeItems.map((item) => [item.id, item]))
+  const previousSlots = new Map(previousItems.map((item) => [item.wardrobeItemId, item.slot]))
+
+  return inputItems.map((item, index) => {
+    const wardrobeItem = itemById.get(item.wardrobeItemId)!
+    const slot = item.slot ?? wardrobeItem.category!
+    if (slot !== wardrobeItem.category &&
+      (!(slot === 'outer' || slot === 'midlayer') ||
+        (!wardrobeItem.additionalCategories.includes(slot) && previousSlots.get(item.wardrobeItemId) !== slot))) {
+      throw new ServiceError('옷에 등록된 카테고리의 위치를 선택해주세요.', 'INVALID_OUTFIT_SLOT')
+    }
+    if (item.isBaseLayer && (slot !== 'top' || wardrobeItem.category !== 'top')) {
+      throw new ServiceError('받쳐 입는 옷은 옷장의 상의에서 골라주세요.', 'INVALID_OUTFIT_SLOT')
+    }
+    return {
+      wardrobeItemId: item.wardrobeItemId,
+      slot,
+      isBaseLayer: item.isBaseLayer || undefined,
+      layerOrder: Number.isInteger(item.layerOrder) ? item.layerOrder : index,
+    }
+  })
 }
 
 async function requireOutfit(userId: string, outfitId: string) {
@@ -190,7 +223,7 @@ export const outfitService = {
       )
     }
 
-    const itemById = new Map(wardrobeItems.map((item) => [item.id, item]))
+    const outfitItems = resolveSavedOutfitItems(input.items, wardrobeItems)
     if (input.previewImage && input.previewImageAssetId) {
       throw new ServiceError(
         'AI 룩북은 한 가지 방식으로만 저장할 수 있어요.',
@@ -243,13 +276,7 @@ export const outfitService = {
       seasons,
       source: imageAssetId ? 'ai' : (input.source ?? 'manual'),
       note: input.note?.trim() || null,
-      items: input.items.map((item, index) => ({
-        wardrobeItemId: item.wardrobeItemId,
-        slot: itemById.get(item.wardrobeItemId)!.category!,
-        layerOrder: Number.isInteger(item.layerOrder)
-          ? item.layerOrder
-          : index,
-      })),
+      items: outfitItems,
       generation: imageAssetId && generationModel
         ? {
             userId,
@@ -264,6 +291,11 @@ export const outfitService = {
   /** 날짜 저장을 위한 입력을 검증한다. 실제 코디 생성과 날짜 연결은 플래너 트랜잭션에서 함께 처리한다. */
   async preparePlannerOutfit(userId: string, input: PlannerOnlyOutfitInput) {
     const wardrobeItems = await requireOutfitWardrobeItems(userId, input.itemIds)
+    const positions = input.items ?? input.itemIds.map((wardrobeItemId, layerOrder) => ({ wardrobeItemId, layerOrder }))
+    if (positions.length !== input.itemIds.length || positions.some((item, index) => item.wardrobeItemId !== input.itemIds[index])) {
+      throw new ServiceError('코디의 옷과 배치 정보를 확인해주세요.', 'INVALID_OUTFIT_ITEMS')
+    }
+    const outfitItems = resolveSavedOutfitItems(positions, wardrobeItems)
 
     const model = input.previewImage?.model.trim()
     if (input.previewImage && !model) {
@@ -275,7 +307,6 @@ export const outfitService = {
     const imageAsset = input.previewImage
       ? await resolveOutfitPreviewImage(userId, input.previewImage, input.itemIds, input.style?.trim() || '직접 구성')
       : null
-    const itemById = new Map(wardrobeItems.map((item) => [item.id, item]))
     const name = input.name?.trim() || '직접 고른 코디'
     const style = input.style?.trim() || '직접 구성'
 
@@ -296,14 +327,10 @@ export const outfitService = {
       userId,
       name,
       style,
-      seasons: getCommonSeasons(wardrobeItems),
+      seasons: input.seasons ? normalizeSeasons(input.seasons) : getCommonSeasons(wardrobeItems),
       source: input.source ?? (imageAsset ? 'ai' : 'manual'),
       plannerOnly: true,
-      items: input.itemIds.map((wardrobeItemId, layerOrder) => ({
-        wardrobeItemId,
-        slot: itemById.get(wardrobeItemId)!.category!,
-        layerOrder,
-      })),
+      items: outfitItems,
       generation: imageAsset
         ? {
             userId,
@@ -382,12 +409,14 @@ export const outfitService = {
       )
     }
 
-    const currentItemIds = currentOutfit.items.map(
-      (item) => item.wardrobeItemId,
-    )
+    const outfitItems = resolveSavedOutfitItems(input.items, wardrobeItems, currentOutfit.items)
     const itemsChanged =
-      currentItemIds.length !== itemIds.length ||
-      currentItemIds.some((itemId, index) => itemId !== itemIds[index])
+      currentOutfit.items.length !== outfitItems.length ||
+      currentOutfit.items.some((item, index) =>
+        item.wardrobeItemId !== outfitItems[index].wardrobeItemId ||
+        item.slot !== outfitItems[index].slot ||
+        Boolean(item.isBaseLayer) !== Boolean(outfitItems[index].isBaseLayer),
+      )
     const model = input.previewImage?.model.trim()
     if (input.previewImage && !model) {
       throw new ServiceError(
@@ -400,19 +429,12 @@ export const outfitService = {
       ? await resolveOutfitPreviewImage(userId, input.previewImage, itemIds, style)
       : null
     const resetGenerations = itemsChanged && !imageAsset
-    const itemById = new Map(wardrobeItems.map((item) => [item.id, item]))
     const result = await outfitRepository.update(outfitId, {
       name,
       style,
       seasons,
       resetGenerations,
-      items: input.items.map((item, index) => ({
-        wardrobeItemId: item.wardrobeItemId,
-        slot: itemById.get(item.wardrobeItemId)!.category!,
-        layerOrder: Number.isInteger(item.layerOrder)
-          ? item.layerOrder
-          : index,
-      })),
+      items: outfitItems,
       generation: imageAsset
         ? {
             userId,

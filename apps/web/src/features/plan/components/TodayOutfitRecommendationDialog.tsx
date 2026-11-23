@@ -17,6 +17,7 @@ import { useGenerateOutfitPreviewMutation } from '../../lookbook/api/lookbookQue
 import type { OutfitPreviewState } from '../../lookbook/contexts/OutfitComposerContext'
 import { getOutfitCompletionMessage } from '../../lookbook/utils/outfitComposition'
 import { useUiStore } from '../../../stores/useUiStore'
+import { useRecommendationPlannerOffer, type ApplyRecommendedOutfit } from '../hooks/useRecommendationPlannerOffer'
 import { RecommendationLookbookSave } from './today-outfit-recommendation/RecommendationLookbookSave'
 import {
   cacheRecommendationPreview,
@@ -39,11 +40,7 @@ interface TodayOutfitRecommendationDialogProps {
   isSaving: boolean
   onClose: () => void
   onApplied?: () => void
-  onOpenLookbook?: () => void
-  onApply: (
-    items: WardrobeItem[],
-    previewImage?: OutfitPreview,
-  ) => Promise<boolean>
+  onApply: ApplyRecommendedOutfit
 }
 
 function createPreviewState(
@@ -88,11 +85,10 @@ export function TodayOutfitRecommendationDialog({
   season,
   hasScheduledOutfit,
   mode = 'today',
-  isSaving,
+  isSaving: isApplyingRecommendation,
   onClose,
   onApplied,
   onApply,
-  onOpenLookbook,
 }: TodayOutfitRecommendationDialogProps) {
   const dayLabel = recommendationDayLabels[mode]
   const dialogTitle = title ?? `${dayLabel}의 추천 코디`
@@ -141,7 +137,9 @@ export function TodayOutfitRecommendationDialog({
           model: preview.model,
         }
       : undefined)
-  const handleApplied = onApplied ?? onClose
+  const lookbookOffer = useRecommendationPlannerOffer(onApply, onApplied ?? onClose)
+  const isSaving = isApplyingRecommendation || lookbookOffer.isApplying || Boolean(lookbookOffer.draft)
+  const applyToPlanner = () => lookbookOffer.apply({ name: dialogTitle, season, style, items: selectedItems, preview: generatedPreview })
 
   useEffect(() => {
     previewKeyRef.current = previewKey
@@ -243,10 +241,11 @@ export function TodayOutfitRecommendationDialog({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (
         event.key === 'Escape' &&
+        !isSaving &&
         !event.defaultPrevented &&
         !useUiStore.getState().recentWearConfirmation
       ) {
-        const dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]')
+        const dialogs = document.querySelectorAll(':is([role="dialog"], [role="alertdialog"])[aria-modal="true"]')
         // 포털로 열린 저장 화면과 옷 선택창은 자체적으로 Escape를 처리한다.
         if (detailDialogRef.current?.contains(dialogs.item(dialogs.length - 1))) onClose()
       }
@@ -257,18 +256,19 @@ export function TodayOutfitRecommendationDialog({
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [onClose])
+  }, [onClose, isSaving])
 
   return createPortal(
     <div
       className={`fixed inset-0 bg-canvas ${mode === 'tomorrow' ? 'z-[90]' : 'z-[80]'}`}
       onMouseDown={(event) => {
         event.stopPropagation()
-        if (event.target === event.currentTarget) onClose()
+        if (!isSaving && event.target === event.currentTarget) onClose()
       }}
     >
       <section
         ref={detailDialogRef}
+        inert={Boolean(lookbookOffer.draft)}
         className="classification-page-enter flex h-dvh w-full flex-col overflow-hidden bg-canvas"
         role="dialog"
         aria-modal="true"
@@ -280,6 +280,7 @@ export function TodayOutfitRecommendationDialog({
             <button
               type="button"
               onClick={onClose}
+              disabled={isSaving}
               className="flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-surface"
               aria-label={backLabel}
               autoFocus
@@ -349,13 +350,9 @@ export function TodayOutfitRecommendationDialog({
               </AiCreditActionButton>
               <button
                 type="button"
-                onClick={async () => {
-                  if (completionMessage) return
-                  const didApply = await onApply(selectedItems, generatedPreview)
-                  if (didApply) handleApplied()
-                }}
+                onClick={() => { if (!completionMessage) void applyToPlanner() }}
                 disabled={Boolean(completionMessage) || isSaving}
-                className="flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-line bg-canvas px-3 py-3.5 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
+                className="flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl bg-accent px-3 py-3.5 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
               >
                 {isSaving ? (
                   <LoaderCircle className="shrink-0 animate-spin" size={18} />
@@ -366,16 +363,6 @@ export function TodayOutfitRecommendationDialog({
                   ? '일정에 담는 중…'
                   : applyLabel}</span>
               </button>
-              <RecommendationLookbookSave
-                date={date}
-                name={dialogTitle}
-                season={season}
-                style={style}
-                items={selectedItems}
-                preview={generatedPreview}
-                disabled={isSaving}
-                onOpenLookbook={onOpenLookbook}
-              />
             </div>
           </div>
         </footer>
@@ -389,16 +376,16 @@ export function TodayOutfitRecommendationDialog({
             setPreview((current) => ({ ...current, isOpen: false }))
           }
           onPrimary={() => {
-            void onApply(selectedItems, generatedPreview).then((didApply) => {
+            void applyToPlanner().then((didApply) => {
               if (!didApply) return
               setPreview((current) => ({ ...current, isOpen: false }))
-              handleApplied()
             })
           }}
           primaryLabel={applyLabel}
           isPrimaryPending={isSaving}
         />
       </section>
+      {lookbookOffer.draft && <RecommendationLookbookSave draft={lookbookOffer.draft} onFinish={lookbookOffer.finish} />}
     </div>,
     document.body,
   )

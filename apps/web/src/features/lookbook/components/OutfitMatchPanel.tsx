@@ -15,10 +15,13 @@ import { OutfitStylingLayout } from './OutfitStylingLayout'
 import {
   getOutfitSelectionCategory,
   getOutfitSlotId,
+  getOutfitLayerSlot,
   matchesOutfitSelectionCategory,
   outfitSelectionLabels,
   type OutfitSelectionCategory,
 } from '../utils/outfitSelection'
+
+import { OutfitBaseLayerControl } from './OutfitBaseLayerControl'
 
 const FILTER_EXIT_DURATION = 170
 const FILTER_ENTER_DURATION = 280
@@ -45,6 +48,7 @@ export function OutfitMatchPanel({ isWardrobeExpanded, onWardrobeExpandedChange 
     recommendedCategory,
     step,
     toggleItem,
+    setBaseLayers,
     removeItem,
     selectTargetCategory,
     selectReplacementItem,
@@ -96,13 +100,13 @@ export function OutfitMatchPanel({ isWardrobeExpanded, onWardrobeExpandedChange 
   const targetClosetItems = targetCategory
     ? classifiedItems.filter(
         (item) =>
-          (matchesOutfitSelectionCategory(item, targetCategory) ||
+          (matchesOutfitSelectionCategory(item, targetCategory) || getOutfitLayerSlot(item, targetCategory) ||
             (canChooseDressFromTop && matchesOutfitSelectionCategory(item, 'dress'))) &&
           !selectedIds.includes(item.id),
       )
     : []
   const currentTargetSlotItems = targetCategory
-    ? selectedItems.filter((item) => getOutfitSlotId(item) === getOutfitSlotId(targetCategory))
+    ? selectedItems.filter((item) => !item.isBaseLayer && getOutfitSlotId(item) === getOutfitSlotId(targetCategory))
     : []
   const hasTargetClosetCandidates = targetCategory !== null && targetClosetItems.some(
     (item) => matchesOutfitSelectionCategory(item, targetCategory),
@@ -208,7 +212,7 @@ export function OutfitMatchPanel({ isWardrobeExpanded, onWardrobeExpandedChange 
       ? document.activeElement
       : null
     const slotCategory = category === 'dress' ? 'top' : category
-    const currentSlotItems = selectedItems.filter((item) => getOutfitSlotId(item) === getOutfitSlotId(slotCategory))
+    const currentSlotItems = selectedItems.filter((item) => !item.isBaseLayer && getOutfitSlotId(item) === getOutfitSlotId(slotCategory))
     const canAdd = targetOptions.includes(category)
     if (!canAdd && currentSlotItems.length === 0) {
       pushToast('이 종류의 옷을 바꾸려면 먼저 선택한 아이템을 빼주세요.')
@@ -302,6 +306,7 @@ export function OutfitMatchPanel({ isWardrobeExpanded, onWardrobeExpandedChange 
       <OutfitStylingLayout
         selectedItems={selectedItems}
         selectableCategories={targetOptions}
+        baseLayerControl={<OutfitBaseLayerControl items={items} selectedItems={selectedItems} onChange={setBaseLayers} />}
         isWardrobeExpanded={isWardrobeExpanded}
         onWardrobeExpandedChange={changeWardrobeExpanded}
         onSlotSelect={selectCanvasSlot}
@@ -320,7 +325,7 @@ export function OutfitMatchPanel({ isWardrobeExpanded, onWardrobeExpandedChange 
       {replacementSlotCategory ? (
         <OutfitReplacementPicker
           category={replacementSlotCategory}
-          items={selectedItems.filter((item) => getOutfitSlotId(item) === getOutfitSlotId(replacementSlotCategory))}
+          items={selectedItems.filter((item) => !item.isBaseLayer && getOutfitSlotId(item) === getOutfitSlotId(replacementSlotCategory))}
           onChoose={(item) => {
             selectReplacementItem(item.id, replacementSlotCategory)
             setReplacementSlotCategory(null)
@@ -350,7 +355,7 @@ export function OutfitMatchPanel({ isWardrobeExpanded, onWardrobeExpandedChange 
                   {targetOptions.map((category) => {
                     const availableCount = classifiedItems.filter(
                       (item) =>
-                        matchesOutfitSelectionCategory(item, category) &&
+                        (matchesOutfitSelectionCategory(item, category) || getOutfitLayerSlot(item, category)) &&
                         !selectedIds.includes(item.id),
                     ).length
                     const isRecommended = category === recommendedCategory

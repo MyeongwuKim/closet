@@ -1,15 +1,16 @@
-import type { WardrobeItem } from '@closet/types'
+import type { OutfitWardrobeItem } from '../types'
 import { ArchivedWardrobeItemBadge } from '../../closet/components/ArchivedWardrobeItemBadge'
 import { ClosetItemVisual } from '../../closet/components/ClosetItemVisual'
 import { outfitSlots } from './outfitSlots'
 
-function categoryLabel(item: WardrobeItem) {
+function categoryLabel(item: OutfitWardrobeItem) {
+  if (item.isBaseLayer) return '받쳐 입는 옷'
   if (item.category === 'dress') return '원피스'
   return outfitSlots.find((slot) => slot.matches(item))?.label ?? '기타'
 }
 
 /** 저장된 구성만 사진과 이름으로 보여준다. 빈 슬롯을 만들지 않고 삭제된 옷도 기록에 남은 정보로 표시한다. */
-export function OutfitReadView({ items }: { items: WardrobeItem[] }) {
+export function OutfitReadView({ items }: { items: OutfitWardrobeItem[] }) {
   if (!items.length) return <p className="py-12 text-center text-sm text-muted">담긴 옷이 없어요.</p>
   return (
     <div className="mx-auto w-full max-w-xl">

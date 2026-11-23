@@ -6,13 +6,16 @@ interface WearHistoryLinkProps {
   from: string
   date?: string
   temperature?: number | null
-  variant?: 'list' | 'weather' | 'inline'
+  variant?: 'list' | 'weather' | 'inline' | 'bubble'
 }
 
 /** 코디북·날씨 영역에서 공통 기록 화면을 연다. 예보 평균이 있으면 비슷한 기온으로, 없으면 전체 기록으로 연결한다. */
 export function WearHistoryLink({ from, date, temperature, variant = 'list' }: WearHistoryLinkProps) {
   const inline = variant === 'inline'
-  const appearance = variant === 'list'
+  const bubble = variant === 'bubble'
+  const appearance = bubble
+    ? 'flex min-h-11 min-w-0 flex-1 basis-[65%] items-center gap-2 text-accent hover:text-ink'
+    : variant === 'list'
     ? 'catalog-entry-action mb-4'
     : `flex shrink-0 items-center text-accent transition-colors ${inline
       ? 'min-h-11 gap-1.5 text-xs hover:text-ink'
@@ -25,9 +28,11 @@ export function WearHistoryLink({ from, date, temperature, variant = 'list' }: W
       <Thermometer size={iconSize} className="shrink-0" strokeWidth={1.6} aria-hidden="true" />
       <span className="min-w-0 flex-1">
         <span className={`block text-xs break-keep ${variant === 'list' ? 'font-bold' : 'font-semibold'}`}>
-          {inline ? '온도별 기록' : temperature != null ? '비슷한 기온에 입었던 코디 보기' : '온도별 착용 기록'}
+          {inline ? '온도별 기록' : temperature == null ? '온도별 착용 기록' : bubble
+            ? '비슷한 기온에 입었던 코디를 확인해볼까요?'
+            : '비슷한 기온에 입었던 코디 보기'}
         </span>
-        {variant === 'weather' && temperature != null && <span className="mt-0.5 block text-[.6875rem] text-muted break-keep">예보 {formatWearTemperature(temperature)} 기준</span>}
+        {(variant === 'weather' || bubble) && temperature != null && <span className="mt-0.5 block text-[.6875rem] text-muted break-keep">예보 {formatWearTemperature(temperature)} 기준</span>}
       </span>
       {!inline && <ChevronRight size={variant === 'list' ? 15 : 18} className="shrink-0" strokeWidth={1.6} aria-hidden="true" />}
     </Link>

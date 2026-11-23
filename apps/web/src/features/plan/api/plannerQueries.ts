@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import type { WearFeeling } from '@closet/types'
+import type { Season, WearFeeling } from '@closet/types'
 import { GraphqlRequestError, graphqlRequest } from '../../../lib/graphql'
 import { queryKeys } from '../../../lib/queryKeys'
 import { getAccessToken } from '../../../lib/auth'
 import { usePlanStore } from '../stores/usePlanStore'
+import type { CreateOutfitVariables } from '../../lookbook/api/lookbookQueries'
 import { toOutfitPreviewImageInput, type OutfitPreviewImageInput } from '../../lookbook/utils/outfitPreviewInput'
 import { invalidateCompletedOutfitPreviews } from '../../lookbook/utils/completedPreviewCache'
 import { toWardrobeItem, wardrobeItemFields, type WardrobeItemPayload } from '../../closet/api/wardrobeQueries'
@@ -101,6 +102,8 @@ export interface SetDirectPlannerEntryVariables {
   weekStartsOn: string
   date: string
   itemIds: string[]
+  items?: CreateOutfitVariables['items']
+  seasons?: Season[]
   confirmWorn?: boolean
   name?: string
   style?: string

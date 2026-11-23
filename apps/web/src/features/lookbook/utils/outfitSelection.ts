@@ -1,9 +1,10 @@
 import { isBagItem, MAX_OUTFIT_ITEMS, type ClothingCategory, type WardrobeItem } from '@closet/types'
+import type { OutfitWardrobeItem } from '../types'
 import { closetCategoryLabels } from '../../closet/constants'
 
 /** 가방은 저장된 옷 분류를 바꾸지 않고 코디 선택 화면에서만 별도로 구분한다. */
 export type OutfitSelectionCategory = ClothingCategory | 'bag'
-type OutfitSelectionItem = Pick<WardrobeItem, 'name' | 'category' | 'subcategory'>
+type OutfitSelectionItem = Pick<OutfitWardrobeItem, 'name' | 'category' | 'subcategory' | 'isBaseLayer'>
 
 export const outfitSelectionLabels: Record<OutfitSelectionCategory, string> = {
   ...closetCategoryLabels,
@@ -47,13 +48,29 @@ export function getOutfitSelectionLimit(category: OutfitSelectionCategory | null
 /** 다른 칸의 구성을 유지하면서 서버의 전체 개수 제한 안에서 해당 칸에 넣을 수 있는 수를 반환한다. */
 export function getOutfitSelectionCapacity(category: OutfitSelectionCategory, selectedItems: OutfitSelectionItem[]) {
   const slotId = getOutfitSlotId(category)
-  const otherItems = selectedItems.filter(item => getOutfitSlotId(item) !== slotId).length
+  const otherItems = selectedItems.filter(item => item.isBaseLayer || getOutfitSlotId(item) !== slotId).length
   return Math.max(0, Math.min(getOutfitSelectionLimit(category), MAX_OUTFIT_ITEMS - otherItems))
 }
 
 /** 선택 화면의 종류에 해당하는 아이템만 판정하며 가방은 액세서리 목록에서 제외한다. */
 export function matchesOutfitSelectionCategory(item: OutfitSelectionItem, category: OutfitSelectionCategory) {
   return getOutfitSelectionCategory(item) === category
+}
+
+/** 아우터와 중간 아우터의 추가 분류도 직접 코디에 담을 때 선택할 수 있다. */
+export function getOutfitLayerSlot(item: WardrobeItem, category: OutfitSelectionCategory | null | undefined) {
+  if ((category === 'outer' || category === 'midlayer') &&
+    (item.category === category || item.additionalCategories.includes(category))) {
+    return category
+  }
+  return undefined
+}
+
+/** 코디 보드에만 저장된 위치를 적용한다. 옷장 아이템의 대표 분류는 그대로 둔다. */
+export function applyOutfitLayerSlot(item: WardrobeItem, slot?: ClothingCategory | null): WardrobeItem {
+  return (slot === 'outer' || slot === 'midlayer') && slot !== item.category
+    ? { ...item, category: slot }
+    : item
 }
 
 /** 기본 상·하의가 있으면 신발을 먼저 제안하고, 이후 시작 아이템에 맞는 남은 종류를 찾는다. */

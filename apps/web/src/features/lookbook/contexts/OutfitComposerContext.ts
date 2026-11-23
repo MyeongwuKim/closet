@@ -4,7 +4,7 @@ import type {
   Season,
   WardrobeItem,
 } from '@closet/types'
-import type { OutfitLayer } from '../types'
+import type { OutfitLayer, OutfitWardrobeItem } from '../types'
 import type { OutfitSelectionCategory } from '../utils/outfitSelection'
 
 export type OutfitComposerStep =
@@ -40,12 +40,14 @@ export interface OutfitComposerState {
 export type OutfitComposerAction =
   | { type: 'HYDRATE'; layers: OutfitLayer[]; originItemIds: string[] }
   | { type: 'ADD_ITEM'; layer: OutfitLayer }
+  | { type: 'SET_BASE_LAYERS'; itemIds: string[] }
   | { type: 'REMOVE_ITEM'; itemId: string }
   /** oldItemId의 기존 칸을 newItemId로 교체하고 다음 종류 선택 단계로 돌아간다. 미리보기는 초기화한다. */
   | {
       type: 'REPLACE_ITEM'
       oldItemId: string
       newItemId: string
+      slot?: OutfitLayer['slot']
     }
   | { type: 'SELECT_CATEGORY'; category: OutfitSelectionCategory }
   | { type: 'OPEN_CATEGORY_PICKER' }
@@ -124,6 +126,21 @@ export function outfitComposerReducer(
         step: 'category',
         preview: createPreviewState(),
       }
+    case 'SET_BASE_LAYERS': {
+      const previousIds = state.layers.filter((layer) => layer.isBaseLayer).map((layer) => layer.wardrobeItemId)
+      if (previousIds.length === action.itemIds.length && previousIds.every((id, index) => id === action.itemIds[index])) return state
+      const baseLayers = action.itemIds.map((wardrobeItemId) => ({ wardrobeItemId, isBaseLayer: true }))
+      const layers = [...baseLayers, ...state.layers.filter((layer) => !layer.isBaseLayer)]
+        .map((layer, order) => ({ ...layer, order }))
+      return {
+        ...state,
+        layers,
+        compositionRevision: state.compositionRevision + 1,
+        targetCategory: null,
+        step: layers.length > 0 ? 'category' : 'start',
+        preview: createPreviewState(),
+      }
+    }
     case 'REMOVE_ITEM': {
       const layers = state.layers.filter(
         (layer) => layer.wardrobeItemId !== action.itemId,
@@ -151,7 +168,7 @@ export function outfitComposerReducer(
       // 기존 layer의 위치와 order를 보존해 교체 전후의 조합 순서를 유지한다.
       const layers = state.layers.map((layer) =>
         layer.wardrobeItemId === action.oldItemId
-          ? { ...layer, wardrobeItemId: action.newItemId }
+          ? { ...layer, wardrobeItemId: action.newItemId, slot: action.slot }
           : layer,
       )
 
@@ -289,7 +306,8 @@ export function outfitComposerReducer(
 export interface OutfitComposerSession {
   items: WardrobeItem[]
   selectedIds: string[]
-  selectedItems: WardrobeItem[]
+  selectedItems: OutfitWardrobeItem[]
+  setBaseLayers: (items: OutfitWardrobeItem[]) => void
   targetCategory: OutfitSelectionCategory | null
   targetOptions: OutfitSelectionCategory[]
   /** 채운 칸의 아이템을 바꾸는 중이면 기존 아이템 ID, 새 칸에 추가할 때는 null. */

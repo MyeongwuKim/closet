@@ -17,10 +17,13 @@ import {
 import { formatSeasonLabels } from '../../../constants/seasons'
 import { SeasonMultiSelect } from '../../../components/SeasonMultiSelect'
 import { useUiStore } from '../../../stores/useUiStore'
+import { getAccessToken } from '../../../lib/auth'
 import {
+  useCreateOutfitMutation,
   useDeleteOutfitMutation,
   useGenerateOutfitPreviewMutation,
   useUpdateOutfitMutation,
+  type CreateOutfitVariables,
 } from '../api/lookbookQueries'
 import type { OutfitPreviewState } from '../contexts/OutfitComposerContext'
 import { useLookbookStore } from '../stores/useLookbookStore'
@@ -48,6 +51,7 @@ interface OutfitDetailModalProps {
   outfit: SavedOutfit
   items: WardrobeItem[]
   onClose: () => void
+  onCreatedVariation?: (outfit: SavedOutfit) => void
   backLabel?: string
   wearSummary?: OutfitWearSummary
 }
@@ -71,6 +75,7 @@ export function OutfitDetailModal({
   outfit,
   items,
   onClose,
+  onCreatedVariation,
   backLabel = '코디북으로 돌아가기',
   wearSummary,
 }: OutfitDetailModalProps) {
@@ -83,6 +88,8 @@ export function OutfitDetailModal({
   const removeOutfit = useLookbookStore((state) => state.removeOutfit)
   const pushToast = useUiStore((state) => state.pushToast)
   const updateOutfit = useUpdateOutfitMutation()
+  const createOutfit = useCreateOutfitMutation()
+  const savingRef = useRef(false)
   const { confirmRecentWear, isCheckingRecentWear } =
     useRecentWearReminder()
   const deleteOutfit = useDeleteOutfitMutation()
@@ -95,6 +102,7 @@ export function OutfitDetailModal({
   const [isInfoOpen, setIsInfoOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
+  const [saveChoice, setSaveChoice] = useState<{ previewImage?: OutfitPreview } | null>(null)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [draftPreview, setDraftPreview] = useState(createPreviewState)
   const outfitCompletionMessage = getOutfitCompletionMessage(draftItems)
@@ -116,6 +124,7 @@ export function OutfitDetailModal({
     .sort((left, right) => left.order - right.order)
     .map((layer) => layer.wardrobeItemId)
   const draftItemIds = draftItems.map((item) => item.id)
+  const originalItems = getSavedOutfitItems(outfit, items)
   const generateOutfitPreview = useGenerateOutfitPreviewMutation(outfitCompletionMessage ? undefined : { selectedItemIds: draftItemIds, style: draftStyle })
   const currentPreviewKey = getOutfitPreviewCompositionKey(draftItemIds, draftStyle)
   const previewKeyRef = useRef<string | null>(currentPreviewKey)
@@ -132,7 +141,9 @@ export function OutfitDetailModal({
   )
   const itemsChanged =
     originalItemIds.length !== draftItemIds.length ||
-    originalItemIds.some((itemId, index) => itemId !== draftItemIds[index])
+    originalItemIds.some((itemId, index) => itemId !== draftItemIds[index] ||
+      originalItems[index]?.category !== draftItems[index]?.category ||
+      Boolean(originalItems[index]?.isBaseLayer) !== Boolean(draftItems[index]?.isBaseLayer))
   const isPreviewInProgress = draftPreview.status === 'loading' && draftPreview.compositionKey === currentPreviewKey
   const hasViewablePreview = hasRestorablePreview || hasCurrentDraftPreview || Boolean(outfit.previewImageUrl && !itemsChanged)
   const requiresPreviewCredit = !isPreviewInProgress && !hasViewablePreview && !generateOutfitPreview.willResume
@@ -146,7 +157,7 @@ export function OutfitDetailModal({
     draftSeasons.length !== outfit.seasons.length ||
     draftSeasons.some((season) => !outfit.seasons.includes(season))
   const isDirty = itemsChanged || infoChanged
-  const isSaving = isCheckingRecentWear || updateOutfit.isPending
+  const isSaving = isCheckingRecentWear || updateOutfit.isPending || createOutfit.isPending
 
   /** 서버에 저장하지 않은 구성·정보·미리보기를 버리고 보기로 돌아간다. */
   const cancelEdit = () => {
@@ -160,7 +171,8 @@ export function OutfitDetailModal({
     setIsEditing(false)
   }
 
-  const saveChanges = async (previewImage?: OutfitPreview) => {
+  const saveChanges = async (destination: 'existing' | 'new', previewImage?: OutfitPreview) => {
+    if (savingRef.current) return false
     if (archivedItemMessage) {
       pushToast(archivedItemMessage, 'error')
       return
@@ -177,29 +189,48 @@ export function OutfitDetailModal({
       return
     }
 
-    if (itemSetChanged) {
-      const confirmed = await confirmRecentWear({
-        itemIds: draftItems.map((item) => item.id),
-        targetDate: formatDateOnly(new Date()),
-        includeTargetDate: true,
-        confirmLabel: '그래도 저장',
-        cancelLabel: '계속 편집',
-      })
-      if (!confirmed) return
-    }
-
+    const token = getAccessToken()
+    savingRef.current = true
     try {
-      const updated = await updateOutfit.mutateAsync({
-        id: outfit.id,
+      if (itemSetChanged) {
+        const confirmed = await confirmRecentWear({
+          itemIds: draftItems.map((item) => item.id),
+          targetDate: formatDateOnly(new Date()),
+          includeTargetDate: true,
+          confirmLabel: '그래도 저장',
+          cancelLabel: '계속 편집',
+        })
+        if (!confirmed) return false
+      }
+      if (getAccessToken() !== token) return false
+
+      const saveInput: CreateOutfitVariables = {
         name: draftName,
         style: draftStyle,
         seasons: draftSeasons,
         items: draftItems.map((item, order) => ({
           wardrobeItemId: item.id,
           layerOrder: order,
+          isBaseLayer: item.isBaseLayer,
+          slot: item.category === 'outer' || item.category === 'midlayer' ? item.category : undefined,
         })),
         previewImage,
-      })
+      }
+
+      if (destination === 'new') {
+        const suffix = ' (새 코디)'
+        const name = draftName.trim() === outfit.name ? `${outfit.name.slice(0, 40 - suffix.length)}${suffix}` : draftName
+        const created = await createOutfit.mutateAsync({ ...saveInput, name })
+        if (getAccessToken() !== token) return false
+        addOutfit(created)
+        pushToast('새 코디로 저장했어요.', 'success')
+        if (onCreatedVariation) onCreatedVariation(created)
+        else onClose()
+        return true
+      }
+
+      const updated = await updateOutfit.mutateAsync({ id: outfit.id, ...saveInput })
+      if (getAccessToken() !== token) return false
       addOutfit(updated)
       setDraftItems(getSavedOutfitItems(updated, items))
       setDraftName(updated.name)
@@ -210,17 +241,33 @@ export function OutfitDetailModal({
           ? '코디 수정 내용과 새 AI 룩북을 저장했어요.'
           : itemsChanged && outfit.previewImageUrl
           ? '코디를 수정하고 기존 AI 룩북 연결을 해제했어요.'
-          : '코디 정보를 수정했어요.',
+          : itemsChanged ? '코디를 수정했어요.' : '코디 정보를 수정했어요.',
         'success',
       )
-      return updated
+      return true
     } catch (error) {
+      if (getAccessToken() !== token) return false
       pushToast(
-        error instanceof Error ? error.message : '코디를 수정하지 못했어요.',
+        error instanceof Error ? error.message : '코디를 저장하지 못했어요.',
         'error',
       )
-      return null
+      return false
+    } finally {
+      savingRef.current = false
     }
+  }
+
+  const finishSave = async (destination: 'new' | 'existing', previewImage?: OutfitPreview) => {
+    if (await saveChanges(destination, previewImage)) {
+      setSaveChoice(null)
+      setDraftPreview(createPreviewState())
+      setIsEditing(false)
+    }
+  }
+
+  const requestSave = (previewImage?: OutfitPreview) => {
+    if (itemSetChanged) setSaveChoice({ previewImage })
+    else void finishSave('existing', previewImage)
   }
 
   const createDraftPreview = (forceNew = false) => {
@@ -297,7 +344,7 @@ export function OutfitDetailModal({
       })
   }
 
-  const saveDraftPreview = async () => {
+  const saveDraftPreview = () => {
     if (
       (!draftPreview.assetId && !draftPreview.imageBase64) ||
       !draftPreview.mimeType ||
@@ -305,16 +352,13 @@ export function OutfitDetailModal({
     ) {
       return
     }
-    const updated = await saveChanges({
+    requestSave({
       imageBase64: draftPreview.imageBase64 ?? '',
       ...(draftPreview.assetId ? { assetId: draftPreview.assetId } : {}),
       ...(draftPreview.imageUrl ? { imageUrl: draftPreview.imageUrl } : {}),
       mimeType: draftPreview.mimeType,
       model: draftPreview.model,
     })
-    if (updated) {
-      setDraftPreview(createPreviewState())
-    }
   }
 
   return createPortal(
@@ -336,6 +380,8 @@ export function OutfitDetailModal({
             items={activeItems}
             selectedItems={draftItems}
             showArchivedStatus
+            allowAdditionalLayers
+            allowBaseLayers
             onChange={setDraftItems}
             className="h-full w-full"
           /> : <OutfitReadView items={draftItems} />}
@@ -389,12 +435,11 @@ export function OutfitDetailModal({
           </AiCreditActionButton> : <button type="button" onClick={cancelEdit} disabled={isSaving} className="min-h-12 rounded-xl border border-line bg-canvas px-3 py-3 text-sm font-semibold disabled:opacity-40">취소</button>}
           {isEditing ? <button
             type="button"
-            onClick={async () => { if (await saveChanges()) setIsEditing(false) }}
+            onClick={() => requestSave()}
             disabled={
               !isDirty ||
               hasArchivedItems ||
-              isCheckingRecentWear ||
-              updateOutfit.isPending ||
+              isSaving ||
               Boolean(outfitCompletionMessage) ||
               Boolean(duplicateOutfit)
             }
@@ -406,7 +451,7 @@ export function OutfitDetailModal({
             className="flex items-center justify-center gap-1.5 rounded-xl bg-accent px-3 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Save size={16} />
-            {isCheckingRecentWear || updateOutfit.isPending
+            {isSaving
               ? '저장 중…'
               : '변경사항 저장'}
           </button> : <button type="button" onClick={() => setIsEditing(true)} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-accent px-3 py-3 text-sm font-semibold text-surface"><Pencil size={16} />코디 수정</button>}
@@ -516,8 +561,21 @@ export function OutfitDetailModal({
         primaryLabel={
           itemsChanged ? '수정한 코디에 저장' : '새 AI 룩북으로 저장'
         }
-        isPrimaryPending={isCheckingRecentWear || updateOutfit.isPending}
+        isPrimaryPending={isSaving}
       />
+      {saveChoice && (
+        <ConfirmDialog
+          title="어떻게 저장할까요?"
+          description="새 코디로 저장하면 원본도 남아요."
+          confirmLabel="새 코디로 저장"
+          alternativeAction={{ label: '기존 코디에 반영', onSelect: () => void finishSave('existing', saveChoice.previewImage) }}
+          tone="accent"
+          pendingLabel="저장 중…"
+          isPending={isSaving}
+          onCancel={() => setSaveChoice(null)}
+          onConfirm={() => void finishSave('new', saveChoice.previewImage)}
+        />
+      )}
       {isDeleteConfirmOpen && (
         <ConfirmDialog
           title="코디북에서 삭제할까요?"

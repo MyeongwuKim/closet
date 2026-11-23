@@ -299,6 +299,12 @@ export function LookbookPage() {
           wearSummary={wearSummaries.get(selectedOutfit.id)}
           items={items}
           onClose={closeOutfit}
+          onCreatedVariation={(created) => {
+            setSelectedOutfitId(null)
+            const nextParams = new URLSearchParams(searchParams)
+            nextParams.set('outfit', created.id)
+            setSearchParams(nextParams, { replace: true })
+          }}
         />
       )}
     </section>

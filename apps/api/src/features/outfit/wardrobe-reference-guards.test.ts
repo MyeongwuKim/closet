@@ -3,7 +3,8 @@ import test, { type TestContext } from 'node:test'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '../../lib/prisma.js'
 import { outfitRepository, type CreateOutfitData } from './outfit.repository.js'
-import { createOutfitSnapshot } from './planner-outfit-snapshot.js'
+import { outfitService } from './outfit.service.js'
+import { createOutfitSnapshot, outfitSnapshotData, type SnapshotOutfit } from './planner-outfit-snapshot.js'
 import { previewJobRepository } from './preview-job.repository.js'
 import { plannerRepository } from '../planner/planner.repository.js'
 import { wardrobeRepository, type CreateWardrobeItemData } from '../wardrobe/wardrobe.repository.js'
@@ -12,6 +13,71 @@ const outfitData: CreateOutfitData = {
   userId: 'viewer', name: '저장 코디', style: 'casual', seasons: ['autumn'], source: 'manual',
   items: [{ wardrobeItemId: 'top', slot: 'top', layerOrder: 0 }],
 }
+
+test('코디 저장은 옷에 등록된 중간 아우터 위치를 저장하고 미등록 위치를 거절한다', async (t) => {
+  const wardrobeItems = [
+    { id: 'hoodie', category: 'outer', additionalCategories: ['midlayer'] },
+    { id: 'pants', category: 'bottom', additionalCategories: [] },
+  ] as Awaited<ReturnType<typeof wardrobeRepository.findManyOwnedByIds>>
+  t.mock.method(wardrobeRepository, 'findManyOwnedByIds', async () => wardrobeItems)
+  t.mock.method(outfitRepository, 'findSavedCandidatesByItems', async () => [])
+  const save = t.mock.method(outfitRepository, 'create', async (data: CreateOutfitData) => data)
+  const input = {
+    name: '후드집업 코디', style: 'casual', seasons: ['autumn'] as const,
+    items: [{ wardrobeItemId: 'hoodie', layerOrder: 0, slot: 'midlayer' as const }, { wardrobeItemId: 'pants', layerOrder: 1 }],
+  }
+  const saved = await outfitService.create('viewer', { ...input, seasons: [...input.seasons] })
+  assert.equal(saved.items[0].slot, 'midlayer')
+  assert.equal(wardrobeItems[0].category, 'outer')
+  await assert.rejects(outfitService.create('viewer', {
+    ...input,
+    seasons: [...input.seasons],
+    items: [{ ...input.items[0], slot: 'outer' }, { ...input.items[1], slot: 'midlayer' }],
+  }), { code: 'INVALID_OUTFIT_SLOT' })
+  assert.equal(save.mock.callCount(), 1)
+})
+
+test('받쳐 입는 상의의 순서를 저장하고 날짜 복사본에도 보존한다', async (t) => {
+  const wardrobeItems = [
+    { id: 'tee-one', category: 'top', additionalCategories: [], seasons: [] },
+    { id: 'tee-two', category: 'top', additionalCategories: [], seasons: [] },
+    { id: 'pants', category: 'bottom', additionalCategories: [], seasons: [] },
+  ] as unknown as Awaited<ReturnType<typeof wardrobeRepository.findManyOwnedByIds>>
+  t.mock.method(wardrobeRepository, 'findManyOwnedByIds', async () => wardrobeItems)
+  t.mock.method(outfitRepository, 'findSavedCandidatesByItems', async () => [])
+  const save = t.mock.method(outfitRepository, 'create', async (data: CreateOutfitData) => ({
+    ...data, generations: [],
+  }))
+  const input: Parameters<typeof outfitService.create>[1] = {
+    name: '이너 조합', style: 'casual', seasons: ['autumn'],
+    items: [
+      { wardrobeItemId: 'tee-two', layerOrder: 0, isBaseLayer: true },
+      { wardrobeItemId: 'tee-one', layerOrder: 1, isBaseLayer: true },
+      { wardrobeItemId: 'pants', layerOrder: 2 },
+    ],
+  }
+  const saved = await outfitService.create('viewer', input)
+  const copy = outfitSnapshotData(saved as SnapshotOutfit)
+  assert.deepEqual(copy.items.filter((item) => item.isBaseLayer).map(({ wardrobeItemId, layerOrder }) => [wardrobeItemId, layerOrder]), [
+    ['tee-two', 0], ['tee-one', 1],
+  ])
+  await assert.rejects(outfitService.create('viewer', {
+    ...input,
+    items: input.items.map((item) => ({ ...item, isBaseLayer: true })),
+  }), { code: 'INVALID_OUTFIT_SLOT' })
+  assert.equal(save.mock.callCount(), 1)
+  const itemIds = input.items.map((item) => item.wardrobeItemId)
+  const plannerOutfit = await outfitService.preparePlannerOutfit('viewer', {
+    itemIds, items: input.items, style: 'minimal', seasons: ['winter', 'winter'],
+  })
+  assert.deepEqual(plannerOutfit.items, copy.items)
+  assert.equal(plannerOutfit.style, 'minimal')
+  assert.deepEqual(plannerOutfit.seasons, ['winter'])
+  await assert.rejects(outfitService.preparePlannerOutfit('viewer', {
+    itemIds,
+    items: input.items.slice(1),
+  }), { code: 'INVALID_OUTFIT_ITEMS' })
+})
 
 /** 호출부가 실제 보호 함수를 같은 트랜잭션에서 거치도록 옷·사진 상태와 쓰기 순서를 기록한다. 외부 저장·삭제는 하지 않는다. */
 function installFixture(t: TestContext, options: { archived?: boolean; live?: boolean; deleting?: boolean; missing?: boolean; mutexFailure?: boolean } = {}) {

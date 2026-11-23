@@ -28,7 +28,7 @@ export function useTemperatureWearHistory(input: Omit<TemperatureWearHistoryInpu
               id matchingDate records { date temperatureC feeling }
               outfit {
                 id name style seasons createdAt
-                items { wardrobeItemId layerOrder wardrobeItem { ${wardrobeItemFields} } }
+                items { wardrobeItemId layerOrder slot isBaseLayer wardrobeItem { ${wardrobeItemFields} } }
                 generations { status imageAsset { deliveryUrl } }
               }
             }

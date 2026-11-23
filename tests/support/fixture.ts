@@ -51,7 +51,7 @@ type Outfit = {
   style: string
   seasons: string[]
   createdAt: string
-  items: Array<{ wardrobeItemId: string; layerOrder: number; wardrobeItem?: WardrobeItem }>
+  items: Array<{ wardrobeItemId: string; layerOrder: number; slot?: WardrobeItem['category']; isBaseLayer?: boolean; wardrobeItem?: WardrobeItem }>
   generations: Array<{ status: string; imageAsset: { id?: string; deliveryUrl: string | null } | null }>
 }
 
@@ -69,7 +69,8 @@ type PlannerEntry = {
     name: string
     style: string
     plannerOnly: boolean
-    items: Array<{ wardrobeItemId: string; wardrobeItem?: WardrobeItem }>
+    seasons?: string[]
+    items: Array<Omit<Outfit['items'][number], 'layerOrder'>>
     generations: Outfit['generations']
   } | null
 }
@@ -206,11 +207,11 @@ function filterOutfits(api: MockApi, input: Record<string, any> = {}) {
 }
 
 /** 날짜별 코디는 코디북 객체와 배열을 공유하지 않는 별도 저장값으로 만든다. */
-function plannerSnapshot(api: MockApi, outfit: Pick<Outfit, 'name' | 'style' | 'items' | 'generations'>): NonNullable<PlannerEntry['outfit']> {
+function plannerSnapshot(api: MockApi, outfit: Pick<Outfit, 'name' | 'style' | 'items' | 'generations'> & Pick<Partial<Outfit>, 'seasons'>): NonNullable<PlannerEntry['outfit']> {
   return structuredClone({
     id: `900000000000000000${String(api.snapshotSequence++).padStart(6, '0')}`,
-    name: outfit.name, style: outfit.style, plannerOnly: true,
-    items: outfit.items.map((item) => ({ wardrobeItemId: item.wardrobeItemId })),
+    name: outfit.name, style: outfit.style, seasons: outfit.seasons, plannerOnly: true,
+    items: outfit.items.map(({ wardrobeItemId, slot, isBaseLayer }) => ({ wardrobeItemId, slot, isBaseLayer })),
     generations: outfit.generations,
   })
 }
@@ -355,7 +356,7 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
     }
     case 'SetDirectPlannerEntry': {
       const previous = api.plannerEntries.find((entry) => entry.date === input.date)
-      const items = input.itemIds.map((wardrobeItemId: string, layerOrder: number) => ({ wardrobeItemId, layerOrder }))
+      const items = input.items ?? input.itemIds.map((wardrobeItemId: string, layerOrder: number) => ({ wardrobeItemId, layerOrder }))
       const sameItems = Boolean(previous?.outfit && sameOutfitItems(previous.outfit.items, items))
       if (!sameItems) assertPlannerWearEditable(previous)
       let generations = sameItems ? previous?.outfit?.generations ?? [] : []
@@ -368,6 +369,7 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
       const outfit = plannerSnapshot(api, {
         name: input.name ?? input.recommendationName ?? previous?.outfit?.name ?? '직접 고른 코디',
         style: input.style ?? input.recommendationStyle ?? previous?.outfit?.style ?? '직접 구성',
+        seasons: input.seasons,
         items, generations,
       })
       api.plannerEntries = api.plannerEntries.filter((entry) => entry.date !== input.date)
@@ -383,6 +385,7 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
       const existing = api.outfits.find((outfit) => sameOutfitItems(outfit.items, source.items))
       if (existing) return { savePlannerOutfitToLookbook: { id: existing.id } }
       const copy = createOutfit({ id: `800000000000000000${String(api.snapshotSequence++).padStart(6, '0')}`, name: source.name, style: source.style,
+        seasons: source.seasons ?? ['spring'],
         items: source.items.map((item, layerOrder) => ({ ...item, layerOrder })), generations: structuredClone(source.generations) })
       api.outfits.push(copy)
       return { savePlannerOutfitToLookbook: { id: copy.id } }

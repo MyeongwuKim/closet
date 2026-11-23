@@ -1,12 +1,14 @@
 import type { ReactNode } from 'react'
 import type { WardrobeItem } from '@closet/types'
 import type { OutfitSelectionCategory } from '../utils/outfitSelection'
+import type { OutfitWardrobeItem } from '../types'
 import { ComposerLookCanvas } from './ComposerLookCanvas'
 import { OutfitWardrobeSheet } from './OutfitWardrobeSheet'
 import './OutfitStylingLayout.css'
 
 interface OutfitStylingLayoutProps {
-  selectedItems: WardrobeItem[]
+  selectedItems: OutfitWardrobeItem[]
+  baseLayerControl?: ReactNode
   selectableCategories: OutfitSelectionCategory[]
   /** 모바일에서 슬롯에 맞는 옷장 시트를 열었는지 나타낸다. Look 보드는 열린 동안에도 위에 남는다. */
   isWardrobeExpanded: boolean
@@ -27,6 +29,7 @@ interface OutfitStylingLayoutProps {
  */
 export function OutfitStylingLayout({
   selectedItems,
+  baseLayerControl,
   selectableCategories,
   isWardrobeExpanded,
   onWardrobeExpandedChange,
@@ -41,6 +44,7 @@ export function OutfitStylingLayout({
         <div className="outfit-styling-layout__stage-inner">
           <ComposerLookCanvas
             selectedItems={selectedItems}
+            baseLayerControl={baseLayerControl}
             selectableCategories={selectableCategories}
             isSelectedListInert={isWardrobeExpanded}
             onSlotSelect={onSlotSelect}

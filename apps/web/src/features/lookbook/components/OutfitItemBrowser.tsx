@@ -4,6 +4,7 @@ import { Search, SlidersHorizontal, X } from 'lucide-react'
 import { CatalogSearchField } from '../../../components/CatalogSearchField'
 import { ClothingCategoryIcon } from '../../../components/ClothingCategoryIcon'
 import { ClosetItemVisual } from '../../closet/components/ClosetItemVisual'
+import { OutfitSubcategoryChips } from './OutfitSubcategoryChips'
 import { OutfitWardrobeCard } from './OutfitWardrobeCard'
 import { OutfitWardrobeFilters } from './OutfitWardrobeFilters'
 import { OutfitWardrobeSkeleton } from './OutfitWardrobeSkeleton'
@@ -53,12 +54,14 @@ export function OutfitItemBrowser({
   onOpenCloset,
 }: OutfitItemBrowserProps) {
   const [query, setQuery] = useState('')
+  const [subcategory, setSubcategory] = useState('all')
   const [season, setSeason] = useState<Season | null>(null)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const { recentWearDays, today, hideRecentlyWorn, setHideRecentlyWorn } =
     useOutfitRecentWearFilter()
   const filterOptions = useMemo(() => getOutfitItemFilterOptions(items), [items])
+  const subcategories = [...new Set(items.flatMap((item) => item.subcategory?.trim() || []))]
   const visibleItems = useMemo(
     () => filterOutfitItems(items, {
       query,
@@ -66,14 +69,14 @@ export function OutfitItemBrowser({
       color: colorFilter?.name ?? null,
       includeColorAliases: colorFilter?.source === 'recommendation',
       recentWear: hideRecentlyWorn ? { intervalDays: recentWearDays, today } : undefined,
-    }),
-    [colorFilter?.name, colorFilter?.source, hideRecentlyWorn, items, query, recentWearDays, season, today],
+    }).filter((item) => subcategory === 'all' || item.subcategory?.trim() === subcategory),
+    [subcategory, colorFilter?.name, colorFilter?.source, hideRecentlyWorn, items, query, recentWearDays, season, today],
   )
   const activeFilterCount = Number(Boolean(season)) + Number(Boolean(colorFilter)) + Number(hideRecentlyWorn)
-  const hasActiveConditions = Boolean(query.trim() || activeFilterCount)
+  const hasActiveConditions = Boolean(query.trim() || activeFilterCount || subcategory !== 'all')
   const categoryLabel = categoryLabelOverride ?? outfitSelectionLabels[category]
   const filterKey = JSON.stringify([
-    query, season, colorFilter?.name ?? null,
+    query, season, subcategory, colorFilter?.name ?? null,
     hideRecentlyWorn ? [recentWearDays, today] : null,
   ])
   const isResultsPending = useOutfitWardrobeResultTransition(
@@ -84,6 +87,7 @@ export function OutfitItemBrowser({
 
   const clearConditions = () => {
     setQuery('')
+    setSubcategory('all')
     setSeason(null)
     setHideRecentlyWorn(false)
     onColorFilterChange(null)
@@ -144,24 +148,13 @@ export function OutfitItemBrowser({
         </div>
       </div>
 
-      {colorFilter && (
-        <div className="outfit-item-browser__active-color mt-3 flex items-center gap-2 rounded-xl border border-accent/25 bg-sage/40 px-3 py-2 text-xs font-bold text-ink">
-          <span
-            className="size-4 shrink-0 rounded-full border border-black/10"
-            style={{ backgroundColor: colorFilter.hex }}
-            aria-hidden="true"
-          />
-          <span className="min-w-0 flex-1">{colorFilter.name} 색상만 보기</span>
-          <button
-            type="button"
-            onClick={() => onColorFilterChange(null)}
-            className="flex size-8 shrink-0 items-center justify-center rounded-full hover:bg-surface"
-            aria-label={`${colorFilter.name} 색상 필터 해제`}
-          >
-            <X size={15} aria-hidden="true" />
-          </button>
-        </div>
-      )}
+      <OutfitSubcategoryChips
+        label={categoryLabel}
+        options={subcategories}
+        value={subcategory}
+        onChange={setSubcategory}
+        className="mt-3 border-y border-line py-2"
+      />
 
       {currentItems.length > 0 && (
         <div className="mt-3 rounded-xl border border-line bg-surface p-2">

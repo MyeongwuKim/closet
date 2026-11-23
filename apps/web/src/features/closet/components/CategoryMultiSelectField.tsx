@@ -103,6 +103,7 @@ export function CategoryMultiSelectField({
         </button>
         <span className="text-xs font-normal leading-5 text-muted">
           대표 카테고리는 기본 코디 위치와 사이즈 항목을 정해요.
+          코디북에서는 추가로 등록한 아우터와 중간 아우터 위치에도 담을 수 있어요.
         </span>
       </div>
 
@@ -128,8 +129,7 @@ export function CategoryMultiSelectField({
                   카테고리 선택
                 </h2>
                 <p className="mt-1.5 text-xs leading-5 text-muted">
-                  처음 고른 항목이 대표예요. 대표를 해제하면 다음 항목이
-                  대표가 돼요.
+                  선택한 항목의 ‘대표로 지정’을 누르면 기본 코디 위치를 바꿀 수 있어요.
                 </p>
               </div>
               <button
@@ -152,35 +152,52 @@ export function CategoryMultiSelectField({
                     !isSelected && draftValue.length >= MAX_CATEGORY_COUNT
 
                   return (
-                    <button
-                      type="button"
-                      onClick={() => toggleCategory(option.value)}
-                      disabled={isAtLimit}
-                      className={`flex min-h-20 flex-col items-start justify-between gap-2 rounded-2xl border px-4 py-3 text-left text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-35 ${
-                        selectedIndex === 0
-                          ? 'border-ink bg-ink text-white'
-                          : isSelected
-                            ? 'border-accent bg-[#fff0eb] text-ink'
-                            : 'border-line bg-canvas text-ink hover:border-accent'
-                      }`}
-                      aria-pressed={isSelected}
-                      key={option.value}
-                    >
-                      <span className="flex w-full items-center justify-between gap-2">
-                        {option.label}
-                        {isSelected && <Check size={17} className="shrink-0" />}
-                      </span>
-                      {selectedIndex === 0 && (
-                        <span className="text-[11px] font-bold text-white/70">
-                          대표 카테고리
+                    <div className="flex min-w-0 flex-col" key={option.value}>
+                      <button
+                        type="button"
+                        onClick={() => toggleCategory(option.value)}
+                        disabled={isAtLimit}
+                        className={`flex min-h-20 flex-1 flex-col items-start justify-between gap-2 rounded-2xl border px-4 py-3 text-left text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-35 ${
+                          selectedIndex === 0
+                            ? 'border-ink bg-ink text-white'
+                            : isSelected
+                              ? 'border-accent bg-[#fff0eb] text-ink'
+                              : 'border-line bg-canvas text-ink hover:border-accent'
+                        }`}
+                        aria-pressed={isSelected}
+                      >
+                        <span className="flex w-full items-center justify-between gap-2">
+                          {option.label}
+                          {isSelected && <Check size={17} className="shrink-0" />}
                         </span>
-                      )}
+                        {selectedIndex === 0 && (
+                          <span className="text-[11px] font-bold text-white/70">
+                            대표 카테고리
+                          </span>
+                        )}
+                        {selectedIndex > 0 && (
+                          <span className="text-[11px] font-bold text-accent">
+                            추가 카테고리
+                          </span>
+                        )}
+                      </button>
                       {selectedIndex > 0 && (
-                        <span className="text-[11px] font-bold text-accent">
-                          추가 카테고리
-                        </span>
+                        <button
+                          type="button"
+                          aria-label={`${option.label} 대표로 지정`}
+                          className="min-h-11 rounded-xl px-2 text-xs font-semibold text-accent underline underline-offset-4 hover:bg-canvas"
+                          onClick={(event) => {
+                            // 기존 분류를 유지하면서 대표 항목만 맨 앞으로 옮긴다.
+                            setDraftValue((currentValue) => [option.value, ...currentValue.filter((category) => category !== option.value)])
+                            if (event.currentTarget.previousElementSibling instanceof HTMLButtonElement) {
+                              event.currentTarget.previousElementSibling.focus()
+                            }
+                          }}
+                        >
+                          대표로 지정
+                        </button>
                       )}
-                    </button>
+                    </div>
                   )
                 })}
               </div>

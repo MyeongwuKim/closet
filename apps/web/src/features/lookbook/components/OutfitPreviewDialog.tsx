@@ -218,12 +218,16 @@ export function OutfitPreviewDialogView({
 
 interface OutfitPreviewDialogProps {
   isReadOnly?: boolean
+  primaryLabel?: string
+  isPrimaryPending?: boolean
   creditSummary?: ReactNode
   onRetryLoad?: () => void
 }
 
 export function OutfitPreviewDialog({
   isReadOnly = false,
+  primaryLabel,
+  isPrimaryPending,
   creditSummary,
   onRetryLoad,
 }: OutfitPreviewDialogProps) {
@@ -244,7 +248,8 @@ export function OutfitPreviewDialog({
       generatePreview={generatePreview}
       closePreview={closePreview}
       onPrimary={isReadOnly ? closePreview : addPreviewToLookbook}
-      primaryLabel={isReadOnly ? '닫기' : undefined}
+      primaryLabel={isReadOnly ? '닫기' : primaryLabel}
+      isPrimaryPending={isPrimaryPending}
       primaryAction={isReadOnly ? 'close' : 'save'}
     />
   )

@@ -1,4 +1,84 @@
-import { createOutfit, expect, test } from './support/fixture'
+import { createOutfit, createWardrobeItem, expect, test } from './support/fixture'
+
+for (const choice of ['copy', 'later', 'existing'] as const) {
+  test(`플래너에서 공통 코디 화면으로 날짜에 먼저 저장한다 (${choice})`, async ({ page, mockApi }, testInfo) => {
+    await page.setViewportSize(choice === 'later' ? { width: 1440, height: 900 } : { width: 390, height: 844 })
+    await page.clock.setFixedTime(new Date('2026-11-23T12:00:00+09:00'))
+    const date = '2026-11-25'
+    const backPath = `/plan?view=today&date=${date}`
+    mockApi.outfits = choice === 'existing' ? [createOutfit()] : []
+    mockApi.wardrobeItems.push(
+      createWardrobeItem({ id: 'long-tee', name: '흰 긴팔', subcategory: '긴팔', colorName: '흰색' }),
+      createWardrobeItem({ id: 'knit', name: '검은 니트', subcategory: '니트', colorName: '검정' }),
+    )
+    await page.goto(backPath)
+    await page.getByRole('link', { name: /옷 직접 고르기|내 옷으로 코디 만들기/ }).click()
+    const composer = page.getByRole('dialog', { name: '코디 맞춰보기' })
+    await composer.getByRole('button', { name: '상의·원피스 아이템 고르기' }).click()
+    const kinds = composer.getByRole('navigation', { name: /상의.*세부 카테고리/ })
+    await kinds.getByRole('button', { name: '니트', exact: true }).click()
+    await expect(composer.getByRole('button', { name: '검은 니트 코디에 추가' })).toBeVisible()
+    await expect(composer.getByRole('button', { name: '흰 긴팔 코디에 추가' })).toHaveCount(0)
+    await expect(kinds.getByRole('button', { name: '검정', exact: true })).toHaveCount(0)
+    const filters = composer.getByRole('button', { name: /상의.*필터/ })
+    await expect(filters).toHaveAttribute('aria-expanded', 'false')
+    if (choice === 'copy') {
+      await page.screenshot({ path: testInfo.outputPath('composer-subcategories.png'), animations: 'disabled' })
+      await filters.click()
+      await expect(composer.getByRole('button', { name: '검정', exact: true })).toBeVisible()
+      await filters.click()
+    }
+    await kinds.getByRole('button', { name: '전체', exact: true }).click()
+    await composer.getByRole('button', { name: '테스트 셔츠 코디에 추가' }).click()
+    if (choice === 'copy') {
+      await composer.getByRole('button', { name: '받쳐 입는 옷 추가' }).click()
+      const innerPicker = page.getByRole('dialog', { name: '받쳐 입는 옷 선택' })
+      await innerPicker.getByRole('button', { name: /흰 긴팔/ }).click()
+      await innerPicker.getByRole('button', { name: '1개 선택 완료' }).click()
+    }
+    await composer.getByRole('button', { name: '하의 아이템 고르기' }).click()
+    await composer.getByRole('button', { name: '테스트 바지 코디에 추가' }).click()
+    if (choice === 'copy') {
+      await composer.getByRole('button', { name: '스타일 · 계절 설정', exact: true }).click()
+      const info = page.getByRole('dialog', { name: '플래너에 넣을 코디' })
+      await info.getByRole('textbox', { name: '코디 이름' }).fill('겨울 미니멀 코디')
+      await info.getByRole('button', { name: '미니멀', exact: true }).click()
+      const seasons = info.getByRole('group', { name: '입을 계절' })
+      await seasons.getByRole('button', { name: '봄', exact: true }).click()
+      await seasons.getByRole('button', { name: '겨울', exact: true }).click()
+      await page.screenshot({ path: testInfo.outputPath('planner-style-season.png'), animations: 'disabled' })
+      await info.getByRole('button', { name: '플래너에 추가하기', exact: true }).click()
+    } else {
+      await composer.getByRole('button', { name: '플래너에 추가하기', exact: true }).click()
+    }
+
+    const prompt = page.getByRole('alertdialog', { name: '코디북에도 추가할까요?' })
+    if (choice === 'existing') {
+      await expect(page).toHaveURL(backPath)
+      await expect(prompt).toHaveCount(0)
+    } else {
+      await expect(prompt).toBeVisible()
+      expect(mockApi.plannerEntries[0]).toMatchObject({ date, outfit: { plannerOnly: true } })
+      expect(mockApi.outfits).toHaveLength(0)
+      if (choice === 'copy') {
+        await page.screenshot({ path: testInfo.outputPath('copy-to-lookbook.png'), animations: 'disabled' })
+        await prompt.getByRole('button', { name: '코디북에 추가', exact: true }).click()
+      } else {
+        await prompt.getByRole('button', { name: '나중에', exact: true }).click()
+      }
+      await expect(page).toHaveURL(backPath)
+    }
+    await expect(page.getByRole('link', { name: choice === 'copy' ? /겨울 미니멀 코디, 옷 설정하기/ : /직접 고른 코디, 옷 설정하기/ })).toBeVisible()
+    expect(mockApi.outfits).toHaveLength(choice === 'later' ? 0 : 1)
+    expect(mockApi.operations.filter((operation) => operation === 'SetDirectPlannerEntry')).toHaveLength(1)
+    expect(mockApi.operations.filter((operation) => operation === 'SavePlannerOutfitToLookbook')).toHaveLength(choice === 'copy' ? 1 : 0)
+    if (choice === 'copy') {
+      expect(mockApi.outfits[0].items[0]).toMatchObject({ wardrobeItemId: 'long-tee', isBaseLayer: true })
+      expect(mockApi.outfits[0]).toMatchObject({ name: '겨울 미니멀 코디', style: 'minimal', seasons: ['winter'] })
+      expect(mockApi.outfits[0].id).not.toBe(mockApi.plannerEntries[0].outfit?.id)
+    }
+  })
+}
 
 for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
   test(`${viewport.width}px: 하루 보기에서 날짜에 맞는 코디북 코디를 검색해 배정하고 교체한다`, async ({ page, mockApi }, testInfo) => {
@@ -33,7 +113,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
       await expect(choose).toBeVisible()
       await expect(page.getByRole('button', { name: '일주일 코디 설정' })).toHaveCount(0)
       await page.getByRole('link', { name: '옷 직접 고르기', exact: true }).click()
-      await page.getByRole('button', { name: '플래너로 돌아가기' }).click()
+      await page.getByRole('button', { name: '코디 만들기 닫기' }).click()
       await expect(page).toHaveURL(route)
       await expect(choose).toBeInViewport({ ratio: 1 })
       await page.screenshot({ path: testInfo.outputPath('day-planner.png'), animations: 'disabled' })
@@ -54,11 +134,18 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
       expect(mockApi.plannerEntries[0].outfit?.plannerOnly).toBe(true)
       release()
 
-      await page.getByRole('button', { name: '코디 바꾸기', exact: true }).click()
+      const assignedCard = page.getByRole('link', { name: /출근 코디, 옷 설정하기/ })
+      await expect(assignedCard).toBeVisible()
+      await expect(page.getByRole('button', { name: '코디 바꾸기', exact: true })).toHaveCount(0)
+      await page.screenshot({ path: testInfo.outputPath('assigned-day-card.png'), animations: 'disabled' })
+      await assignedCard.getByText('상의', { exact: true }).click()
+      await page.getByRole('button', { name: '코디북에서 고르기', exact: true }).click()
       await picker.getByRole('button', { name: /주말 코디/ }).click()
       await expect(picker).toHaveCount(0)
       await expect(page.getByText('주말 코디', { exact: true })).toBeVisible()
       expect(mockApi.plannerEntries.map((entry) => entry.date)).toEqual([date])
+      await page.getByRole('button', { name: '플래너로 돌아가기', exact: true }).click()
+      await expect(page).toHaveURL(route)
 
       await page.getByRole('radio', { name: '월간', exact: true }).click()
       await expect(page.getByRole('link', { name: `${date}, 주말 코디` })).toBeVisible()
@@ -82,7 +169,7 @@ test('오늘 코디 고르기에서 카드 사진을 맞추고 기온과 코디�
   })
   mockApi.outfits = [worn, unworn]
   mockApi.plannerEntries = [{
-    date: '2026-11-19', title: worn.name, outfit: worn, occasion: null,
+    date: '2026-11-19', title: worn.name, outfit: { ...worn, plannerOnly: true }, occasion: null,
     weatherSummary: null, temperatureC: null, wornAt: '2026-11-19T12:00:00+09:00', wearTemperatureC: 12,
   }]
   await page.addInitScript(() => {

@@ -1,5 +1,5 @@
 import type { Season, WardrobeItem } from '@closet/types'
-import { CalendarDays, Check, ChevronLeft, Search, SlidersHorizontal, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, CalendarDays, Check, ChevronLeft, Search, SlidersHorizontal, X } from 'lucide-react'
 import { CatalogSearchField } from '../../../components/CatalogSearchField'
 import { ClothingCategoryIcon } from '../../../components/ClothingCategoryIcon'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
@@ -10,15 +10,21 @@ import { closetCategoryLabels } from '../../closet/constants'
 import { wardrobeItemMatchesSearch } from '../../closet/utils/wardrobeTags'
 import { useOutfitRecentWearFilter } from '../hooks/useOutfitRecentWearFilter'
 import { filterOutfitItems, getOutfitItemFilterOptions } from '../utils/outfitItemFilters'
+import { getOutfitLayerSlot } from '../utils/outfitSelection'
 import { getCenteredScrollTop } from '../utils/outfitPickerScroll'
+import type { OutfitWardrobeItem } from '../types'
 import type { OutfitSlot } from './outfitSlots'
 import { getOutfitSelectionCapacity } from '../utils/outfitSelection'
+import { OutfitSubcategoryChips } from './OutfitSubcategoryChips'
 import { OutfitWardrobeFilters } from './OutfitWardrobeFilters'
 
 interface OutfitWardrobePickerProps {
   slot: OutfitSlot
   items: WardrobeItem[]
-  selectedItems: WardrobeItem[]
+  selectedItems: OutfitWardrobeItem[]
+  allowAdditionalLayers?: boolean
+  maxSelections?: number
+  orderSelections?: boolean
   onClose: () => void
   onConfirm: (itemIds: string[]) => void
 }
@@ -28,11 +34,16 @@ export function OutfitWardrobePicker({
   slot,
   items,
   selectedItems,
+  allowAdditionalLayers = false,
+  maxSelections,
+  orderSelections = false,
   onClose,
   onConfirm,
 }: OutfitWardrobePickerProps) {
   const selectableItems = items.filter(
-    (item) => item.classificationStatus === 'classified' && slot.matches(item),
+    (item) => item.classificationStatus === 'classified' &&
+      (slot.matches(item) || (allowAdditionalLayers && getOutfitLayerSlot(item, slot.id))) &&
+      !selectedItems.some((selected) => selected.id === item.id && (!slot.matches(selected) || (!orderSelections && selected.isBaseLayer))),
   )
   const subcategories = [
     ...new Set(
@@ -41,14 +52,14 @@ export function OutfitWardrobePicker({
         .filter((subcategory): subcategory is string => Boolean(subcategory)),
     ),
   ]
-  const selectionLimit = getOutfitSelectionCapacity(slot.id, selectedItems)
+  const selectionLimit = maxSelections ?? getOutfitSelectionCapacity(slot.id, selectedItems)
   const filterPanelId = useId()
   const searchButtonRef = useRef<HTMLButtonElement>(null)
   const filterButtonRef = useRef<HTMLButtonElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const itemButtonRefs = useRef(new Map<string, HTMLButtonElement>())
   const initialSelectedItemIdRef = useRef(
-    selectedItems.find((item) => slot.matches(item))?.id ?? null,
+    selectedItems.find((item) => (orderSelections || !item.isBaseLayer) && slot.matches(item))?.id ?? null,
   )
   const [activeSubcategory, setActiveSubcategory] = useState('all')
   const [isSearchOpen, setIsSearchOpen] = useState(false)
@@ -60,7 +71,7 @@ export function OutfitWardrobePicker({
     useOutfitRecentWearFilter()
   const [selectedIds, setSelectedIds] = useState(() =>
     selectedItems
-      .filter((item) => slot.matches(item))
+      .filter((item) => (orderSelections || !item.isBaseLayer) && slot.matches(item))
       .slice(0, selectionLimit)
       .map((item) => item.id),
   )
@@ -135,12 +146,22 @@ export function OutfitWardrobePicker({
     })
   }
 
+  /** 위쪽에 있는 옷을 몸에 더 가까운 레이어로 저장한다. */
+  const moveSelectedItem = (index: number, offset: number) => {
+    const nextIndex = index + offset
+    if (nextIndex < 0 || nextIndex >= selectedIds.length) return
+    const next = [...selectedIds]
+    const [itemId] = next.splice(index, 1)
+    next.splice(nextIndex, 0, itemId)
+    setSelectedIds(next)
+  }
+
   return createPortal(
     <section
       className="classification-page-enter fixed inset-0 z-[110] flex h-dvh flex-col overflow-hidden bg-canvas text-ink"
       role="dialog"
       aria-modal="true"
-      aria-label={`${slot.label} 옷 선택`}
+      aria-label={orderSelections ? '받쳐 입는 옷 선택' : `${slot.label} 옷 선택`}
     >
       <header className="shrink-0 border-b border-line bg-canvas/95 backdrop-blur">
         <div className="mx-auto flex min-h-16 max-w-3xl items-center gap-2 px-3 py-2 sm:min-h-18 sm:px-5">
@@ -253,36 +274,13 @@ export function OutfitWardrobePicker({
         </div>
       </header>
 
-      {subcategories.length > 0 && (
-        <nav
-          className="shrink-0 border-b border-line bg-canvas px-4 py-3 sm:px-6"
-          aria-label={`${slot.label} 세부 카테고리`}
-        >
-          <div className="scrollbar-hidden mx-auto flex max-w-3xl gap-2 overflow-x-auto">
-            {[
-              { value: 'all', label: '전체' },
-              ...subcategories.map((subcategory) => ({
-                value: subcategory,
-                label: subcategory,
-              })),
-            ].map((filter) => (
-              <button
-                type="button"
-                onClick={() => setActiveSubcategory(filter.value)}
-                className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-bold transition ${
-                  activeSubcategory === filter.value
-                    ? 'bg-ink text-white'
-                    : 'border border-line bg-surface text-muted hover:border-ink hover:text-ink'
-                }`}
-                aria-pressed={activeSubcategory === filter.value}
-                key={filter.value}
-              >
-                {filter.label}
-              </button>
-            ))}
-          </div>
-        </nav>
-      )}
+      <OutfitSubcategoryChips
+        label={slot.label}
+        options={subcategories}
+        value={activeSubcategory}
+        onChange={setActiveSubcategory}
+        className="shrink-0 border-b border-line bg-canvas px-4 py-3 sm:px-6"
+      />
 
       <div
         ref={scrollContainerRef}
@@ -373,6 +371,30 @@ export function OutfitWardrobePicker({
       </div>
 
       <footer className="shrink-0 border-t border-line bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(27,27,24,0.06)]">
+        {orderSelections && selectedIds.length > 0 && (
+          <section aria-label="받쳐 입는 순서" className="mx-auto mb-2 max-w-3xl">
+            <p className="text-xs font-semibold">몸에 가까운 순서</p>
+            <ol className="max-h-36 overflow-y-auto">
+              {selectedIds.map((id, index) => {
+                const name = items.find((item) => item.id === id)?.name ?? selectedItems.find((item) => item.id === id)?.name
+                return (
+                  <li key={id} className="flex items-center border-b border-line text-xs">
+                    <span className="min-w-0 flex-1 truncate">{name}</span>
+                    <button type="button" aria-label={`${name} 안쪽으로 이동`} disabled={index === 0} onClick={() => moveSelectedItem(index, -1)} className="grid size-11 shrink-0 place-items-center text-accent disabled:opacity-30">
+                      <ArrowUp size={15} aria-hidden="true" />
+                    </button>
+                    <button type="button" aria-label={`${name} 바깥쪽으로 이동`} disabled={index === selectedIds.length - 1} onClick={() => moveSelectedItem(index, 1)} className="grid size-11 shrink-0 place-items-center text-accent disabled:opacity-30">
+                      <ArrowDown size={15} aria-hidden="true" />
+                    </button>
+                    <button type="button" aria-label={`${name} 선택 해제`} onClick={() => toggleItem(id)} className="grid size-11 shrink-0 place-items-center text-muted">
+                      <X size={15} aria-hidden="true" />
+                    </button>
+                  </li>
+                )
+              })}
+            </ol>
+          </section>
+        )}
         <button
           type="button"
           onClick={() => onConfirm(selectedIds)}

@@ -50,7 +50,7 @@ export function useInfiniteOutfitsQuery(filter: OutfitFilters) {
         query OutfitPage($input: OutfitPageInput) {
           outfitPage(input: $input) { ${pageFields} items {
             id name style seasons createdAt
-            items { wardrobeItemId layerOrder wardrobeItem { ${wardrobeItemFields} } }
+            items { wardrobeItemId layerOrder slot isBaseLayer wardrobeItem { ${wardrobeItemFields} } }
             generations { status imageAsset { deliveryUrl } }
           } }
         }`, { input: { ...filter, limit: 20, cursor: pageParam } }, signal)
@@ -128,7 +128,7 @@ export function useOutfitQuery(id?: string) {
         query Outfit($id: ID!) {
           outfit(id: $id) {
             id name style seasons createdAt
-            items { wardrobeItemId layerOrder wardrobeItem { ${wardrobeItemFields} } }
+            items { wardrobeItemId layerOrder slot isBaseLayer wardrobeItem { ${wardrobeItemFields} } }
             generations { status imageAsset { deliveryUrl } }
           }
         }`, { id }, signal)

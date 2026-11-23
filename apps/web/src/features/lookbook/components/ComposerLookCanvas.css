@@ -106,6 +106,16 @@
 }
 
 .composer-look-canvas__slot--top { grid-area: 1 / 2; }
+.composer-look-canvas__top-stack {
+  grid-area: 1 / 2;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+.composer-look-canvas__top-stack--dress { grid-area: 1 / 2 / 3 / 3; }
+.composer-look-canvas__top-stack > .composer-look-canvas__slot { flex: 1; }
+.composer-look-canvas__top-stack > button { flex-shrink: 0; }
 .composer-look-canvas__slot--bottom { grid-area: 2 / 2; }
 .composer-look-canvas__slot--shoes { grid-area: 3 / 2; }
 .composer-look-canvas__slot--outer { grid-area: 1 / 1; }

@@ -87,6 +87,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     await expect(detail.getByText('삭제된 옷', { exact: true })).toHaveCount(0)
     await expect(detail.getByRole('button', { name: '변경사항 저장', exact: true })).toBeEnabled()
     await detail.getByRole('button', { name: '변경사항 저장', exact: true }).click()
+    await page.getByRole('alertdialog', { name: '어떻게 저장할까요?' }).getByRole('button', { name: '기존 코디에 반영', exact: true }).click()
     await expect.poll(() => mockApi.outfits[0].items.map((item) => item.wardrobeItemId).sort()).toEqual(['a', 'c', 'd'])
     expect(mockApi.outfits[0].generations).toEqual([])
     await detail.getByRole('button', { name: '코디북으로 돌아가기', exact: true }).click()
