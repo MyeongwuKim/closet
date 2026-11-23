@@ -9,7 +9,8 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
       createWardrobeItem({ id: 'black-jacket', name: '트러커 재킷', category: 'outer', subcategory: '재킷', brandName: '노스', colorName: '블랙', colorHex: '#242424', seasons: ['spring'] }),
     ]
     await page.goto('/plan/2026-11-04')
-    await page.getByRole('button', { name: '아우터 고르기', exact: true }).click()
+    await page.getByRole('button', { name: '옷 직접 고르기', exact: true }).click()
+    await page.getByRole('button', { name: '아우터 아이템 고르기', exact: true }).click()
     const picker = page.getByRole('dialog', { name: '아우터 옷 선택' })
     await picker.getByRole('button', { name: /베이지 코트/ }).click()
     await picker.getByRole('button', { name: '아우터 검색', exact: true }).click()
@@ -61,6 +62,6 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     await woolCoat.click()
     await picker.getByRole('button', { name: '1개 선택 완료' }).click()
     await expect(picker).toHaveCount(0)
-    await expect(page.getByTitle('울 코트', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: '울 코트, 아우터 아이템 바꾸기', exact: true })).toBeVisible()
   })
 }

@@ -376,6 +376,7 @@ export function PlanPage() {
       <PlanViewToggle value={viewMode} onChange={changeViewMode} />
       <PlanPeriodHeader
         viewMode={viewMode}
+        isToday={viewMode === 'today' && selectedDate === today}
         anchorDate={
           viewMode === 'today'
             ? selectedDate
@@ -405,7 +406,7 @@ export function PlanPage() {
         } ${isFutureDayView ? 'relative' : ''}`}
       >
         {viewMode === 'today' && selectedDate === today && <PlannerWearReview today={today} />}
-        {isFutureDayView && <PlanFutureForecast date={selectedDate} forecast={forecast} isTomorrow={isTomorrow} overlay />}
+        {isFutureDayView && <PlanFutureForecast key={selectedDate} date={selectedDate} forecast={forecast} isTomorrow={isTomorrow} />}
         {viewMode === 'today' && plannerDayQuery.isError ? (
           <div className="mt-4 rounded-3xl border border-dashed border-line px-6 py-12 text-center">
             <h2 className="text-sm font-semibold">

@@ -31,7 +31,8 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     await editor.getByRole('button', { name: '주간 옷 설정 닫기' }).click()
     await page.goto(`/plan/${monday}`)
     await page.getByRole('button', { name: '입었어요', exact: true }).click()
-    await page.getByRole('radio', { name: '추웠어요', exact: true }).click()
+    await page.getByRole('dialog', { name: '입었을 때 어땠나요?' }).getByRole('button', { name: '추웠어요', exact: true }).click()
+    await page.getByRole('dialog', { name: '몇 도에 입었나요?' }).getByRole('button', { name: '저장', exact: true }).click()
     await expect.poll(() => mockApi.plannerEntries[0]?.wearFeeling).toBe('cold')
     mockApi.plannerEntries[0].wearTemperatureC = 17
     const originalRecord = structuredClone(mockApi.plannerEntries[0])
@@ -79,7 +80,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     await card.click()
     await expect(detail.getByRole('img', { name: 'B 코트', exact: true })).toHaveAttribute('src', coatImage)
     await detail.getByRole('button', { name: '코디 수정', exact: true }).click()
-    await detail.getByRole('button', { name: '아우터 교체하기', exact: true }).click()
+    await detail.getByRole('button', { name: /아우터 아이템 바꾸기/ }).click()
     const picker = page.getByRole('dialog', { name: '아우터 옷 선택' })
     await expect(picker.getByRole('button', { name: /B 코트/ })).toHaveCount(0)
     await picker.getByRole('button', { name: /D 재킷/ }).click()

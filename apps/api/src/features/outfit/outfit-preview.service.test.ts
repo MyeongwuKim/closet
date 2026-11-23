@@ -352,6 +352,22 @@ test('가방의 사진을 AI 룩북 요청에 포함하고 손으로 드는 자�
   assert.doesNotMatch(prompt, /both hands completely outside every pocket and away from the garments/)
 })
 
+test('룩북에 벨트 참조 두 개를 전달하되 허리에는 하나만 표현하도록 지시한다', async (t) => {
+  const firstBelt = { ...createPreviewItem('first-belt', 'accessory'), name: '검정 벨트', subcategory: '벨트' }
+  const secondBelt = { ...createPreviewItem('second-belt', 'accessory'), name: '갈색 벨트', subcategory: '벨트' }
+  const form = await requestMockPreview(t, undefined, [firstBelt, secondBelt])
+  const prompt = String(form.get('prompt'))
+  const images = form.getAll('image[]') as Blob[]
+
+  assert.deepEqual(await Promise.all(images.slice(2).map((image) => image.text())), [
+    'mock-reference-first-belt', 'mock-reference-second-belt',
+  ])
+  assert.match(prompt, /subject to the worn-accessory rules below/)
+  assert.match(prompt, /at most one belt at the waist, one scarf around the neck, and one matching pair of gloves/)
+  assert.match(prompt, /use the first compatible reference in the listed order and omit the conflicting alternatives/)
+  assert.match(prompt, /rings on different fingers/)
+})
+
 test('이미지 API의 빈 성공 응답은 중복 과금을 피하도록 자동 재생성하지 않는다', async (t) => {
   const items = [createPreviewItem('top', 'top'), createPreviewItem('bottom', 'bottom')]
   t.mock.method(userRepository, 'findViewerById', async () => null)

@@ -29,7 +29,7 @@ export function WearHistoryFilters({ ranges, range, temperature, feeling, onRang
       <div className="wear-history-filter-row">
         <p className="wear-history-filter-note">
           <Thermometer size={15} strokeWidth={1.5} aria-hidden="true" />
-          {range === 'near' ? `예보 ${formatWearTemperature(temperature)} 기준` : '착용일 평균 기온'}
+          {range === 'near' ? `예보 ${formatWearTemperature(temperature)} 기준` : '착용 기온'}
         </p>
         <div className="wear-history-feeling">
           <OptionPickerField compact label="착용 체감" value={feeling ?? 'all'} options={feelingOptions}

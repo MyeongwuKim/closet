@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import type { WardrobeItem } from '@closet/types'
 import { Plus, X } from 'lucide-react'
 import { ClothingCategoryIcon } from '../../../components/ClothingCategoryIcon'
+import { ArchivedWardrobeItemBadge } from '../../closet/components/ArchivedWardrobeItemBadge'
 import { ClosetItemVisual } from '../../closet/components/ClosetItemVisual'
 import type { OutfitSelectionCategory } from '../utils/outfitSelection'
 import type { OutfitWardrobeItem } from '../types'
@@ -60,6 +61,9 @@ function ComposerLookSlot({
             </span>
           ))}
         </span>
+      )}
+      {items.some((item) => item.archivedAt) && (
+        <ArchivedWardrobeItemBadge compact className="absolute start-1 top-1" />
       )}
       <span className="composer-look-canvas__slot-caption" aria-hidden="true">
         {isEmpty && <Plus size={12} strokeWidth={1.6} />}
@@ -177,7 +181,10 @@ export function ComposerLookCanvas({
                   style={{ backgroundColor: item.colorHex }}
                   aria-hidden="true"
                 />
-                <span className="composer-look-canvas__selected-name" title={item.name}>{item.name}</span>
+                <span className="composer-look-canvas__selected-name" title={item.name}>
+                  {item.name}
+                  {item.archivedAt && <span className="sr-only">, 삭제된 옷</span>}
+                </span>
                 {onItemRemove && (
                   <button
                     type="button"

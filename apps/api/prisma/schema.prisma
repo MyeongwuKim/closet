@@ -337,6 +337,8 @@ model AiPreviewJob {
   fingerprint      String
   selectedItemIds  String[]
   style            String?
+  // 코디북에서 시작한 작업의 완료 알림이 돌아갈 저장 코디.
+  sourceOutfitId   String?      @db.ObjectId
   status           AiTaskStatus @default(queued)
   leaseToken       String?
   leaseUntil       DateTime?
@@ -543,6 +545,7 @@ model PlannerEntry {
   weatherLatitude       Float?
   weatherLongitude      Float?
   wearTemperatureC      Float?
+  manualWearTemperatureC Float?
   wearWeatherRecordedAt DateTime?
   wearWeatherRetryAt    DateTime?
   createdAt      DateTime    @default(now())

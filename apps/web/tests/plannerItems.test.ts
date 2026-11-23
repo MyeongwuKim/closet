@@ -37,24 +37,28 @@ test('삭제 전 옷장 캐시보다 날짜 관계의 삭제 상태를 우선하
 test('날짜 이동은 삭제된 옷의 표시 정보도 옮기고 원래 날짜에서는 비운다', () => {
   const entries = createEmptyWeeklyPlan('2026-11-02')
   const archived = item('B', '2026-11-05T00:00:00.000Z')
-  entries[0] = { ...entries[0]!, itemIds: ['B'], outfitItems: [archived], outfitId: 'snapshot' }
+  entries[0] = {
+    ...entries[0]!, itemIds: ['B'], outfitItems: [archived], outfitId: 'snapshot',
+    outfitLayers: [{ wardrobeItemId: 'B', order: 0, isBaseLayer: true }],
+  }
   const moved = moveWeeklyPlanOutfits(entries, '2026-11-02', '2026-11-03')
-  assert.deepEqual(getPlanEntryItems(moved[1]!, []), [archived])
+  assert.deepEqual(getPlanEntryItems(moved[1]!, []), [{ ...archived, isBaseLayer: true }])
   assert.deepEqual(getPlanEntryItems(moved[0]!, []), [])
   assert.equal(moved[0]?.outfitItems, undefined)
+  assert.equal(moved[0]?.outfitLayers, undefined)
 })
 
-test('초안에서 남겨둔 삭제 옷은 표시하고 제거한 옷은 숨기며 일정 해제 시 관계 정보도 비운다', () => {
+test('일정 해제 시 옷의 표시 정보와 이너 역할도 비운다', () => {
   const original = usePlanStore.getState().entries
   try {
     const archived = item('B', '2026-11-05T00:00:00.000Z')
-    usePlanStore.setState({ entries: [{ ...createEmptyPlanEntry('2026-11-02'), itemIds: ['A', 'B', 'C'], outfitItems: [item('A'), archived, item('C')], outfitId: 'snapshot' }] })
-    usePlanStore.getState().setEntryItems('2026-11-02', ['B', 'D'])
-    assert.deepEqual(getPlanEntryItems(usePlanStore.getState().entries[0]!, [item('D')]).map((value) => value.id), ['B', 'D'])
-    usePlanStore.getState().setEntryItems('2026-11-02', ['D'])
-    assert.deepEqual(getPlanEntryItems(usePlanStore.getState().entries[0]!, [item('D')]).map((value) => value.id), ['D'])
+    usePlanStore.setState({ entries: [{
+      ...createEmptyPlanEntry('2026-11-02'), itemIds: ['B'], outfitItems: [archived], outfitId: 'snapshot',
+      outfitLayers: [{ wardrobeItemId: 'B', order: 0, isBaseLayer: true }],
+    }] })
     usePlanStore.getState().clearOutfit('2026-11-02')
     assert.equal(usePlanStore.getState().entries[0]?.outfitItems, undefined)
+    assert.equal(usePlanStore.getState().entries[0]?.outfitLayers, undefined)
   } finally {
     usePlanStore.setState({ entries: original })
   }

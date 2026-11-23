@@ -1,11 +1,11 @@
-import type { WardrobeItem } from '@closet/types'
+import type { OutfitWardrobeItem } from '../../lookbook/types'
 import { ClosetItemVisual } from '../../closet/components/ClosetItemVisual'
 import { closetCategoryLabels } from '../../closet/constants'
 import { sortPlanOutfitItems } from '../utils/planOutfitItems'
 import { ArchivedWardrobeItemBadge } from '../../closet/components/ArchivedWardrobeItemBadge'
 
 interface PlanOutfitStageProps {
-  items: WardrobeItem[]
+  items: OutfitWardrobeItem[]
 }
 
 /** 날짜 코디의 옷 사진과 분류를 두 열에 표시한다. 삭제된 옷도 배지와 함께 유지하고, 한 개 또는 홀수 개의 마지막 옷은 전체 너비를 사용한다. */
@@ -21,7 +21,7 @@ export function PlanOutfitStage({ items }: PlanOutfitStageProps) {
             </span>
             {item.archivedAt && <ArchivedWardrobeItemBadge className="absolute top-1.5 left-1.5" />}
             <span className="dressing-board-tile-label">
-              {item.category ? closetCategoryLabels[item.category] : '미분류'}
+              {item.isBaseLayer ? '받쳐 입는 옷' : item.category ? closetCategoryLabels[item.category] : '미분류'}
             </span>
           </span>
         ))}

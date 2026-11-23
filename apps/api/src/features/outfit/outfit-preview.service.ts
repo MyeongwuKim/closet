@@ -340,7 +340,7 @@ function buildPrompt(
     ? `Supplementary image ${alternateShot.previousReferenceIndex} is the previous lookbook shot, provided only for visual comparison. Use it only to vary the pose, angle or fastening. Do not copy extra layers, garment details, or fit from the previous image. The selected garment references, current body guide, and measured lengths take priority.`
     : ''
 
-  return `Create a photorealistic fashion lookbook image using every garment from the first ${items.length} reference images exactly once.
+  return `Create a photorealistic fashion lookbook image using every garment from the first ${items.length} reference images exactly once, subject to the worn-accessory rules below.
 
 Model gender constraint: ${getLookbookGenderConstraint(profile?.styleProfile?.gender)}
 
@@ -372,6 +372,8 @@ Selected layers and neckline: Show only the selected garments. If no separate in
 Garment length and natural hem rule: ${lookbookGarmentLengthGuide}
 
 Bag and worn accessories rule: ${bagGuide ?? 'No bag was selected. Do not invent or add a bag, backpack, handbag or carrying strap. Keep any referenced wearable accessories in their normal positions.'}
+
+Worn accessory conflicts: Show at most one belt at the waist, one scarf around the neck, and one matching pair of gloves. When selected accessories compete for the same wearing position, use the first compatible reference in the listed order and omit the conflicting alternatives. Do not stack conflicting accessories, mix details from competing references, or move an extra accessory to another position. Keep compatible accessories together, such as a belt and a scarf or rings on different fingers.
 
 Footwear rule: ${footwearGuide}
 

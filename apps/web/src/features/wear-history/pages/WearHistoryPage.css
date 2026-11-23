@@ -31,11 +31,8 @@
 .wear-history-filter-note svg { flex-shrink: 0; }
 .wear-history-feeling { min-width: 0; max-width: 100%; flex-shrink: 0; }
 .wear-history-page .catalog-scroll-region { margin-top: 4px; padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
-.wear-history-card { width: 100%; align-self: start; }
-.wear-history-card-temperature { position: absolute; bottom: 12px; left: 12px; max-width: calc(100% - 24px); padding: 6px 8px; border-radius: 8px; background: var(--color-surface); color: var(--color-ink); font-size: .75rem; font-weight: 600; line-height: 1.4; word-break: keep-all; }
 
 @media (min-width: 640px) { .wear-history-shell { padding: 24px 32px 0; } }
 @media (hover: hover) {
   .wear-history-back:hover { background: var(--color-surface); }
-  .wear-history-card:hover > div:first-child { border-color: var(--color-accent); }
 }

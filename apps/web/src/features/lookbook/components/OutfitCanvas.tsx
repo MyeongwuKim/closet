@@ -2,12 +2,13 @@ import type { WardrobeItem } from '@closet/types'
 import { ClothingCategoryIcon } from '../../../components/ClothingCategoryIcon'
 import { ClosetItemVisual } from '../../closet/components/ClosetItemVisual'
 import { ArchivedWardrobeItemBadge } from '../../closet/components/ArchivedWardrobeItemBadge'
-import type { OutfitLayer } from '../types'
+import type { OutfitLayer, OutfitWardrobeItem } from '../types'
 import { outfitSlots, type OutfitSlot } from './outfitSlots'
 
 interface OutfitCanvasProps {
   items: WardrobeItem[]
   layers: OutfitLayer[]
+  baseLayers?: OutfitWardrobeItem[]
   className?: string
   onItemClick?: (item: WardrobeItem) => void
   onSlotClick?: (slot: OutfitSlot) => void
@@ -41,9 +42,12 @@ function OutfitItemTile({
   const isEmpty = slotItem.length === 0
   const visibleItems =
     slot.id === 'accessory' && hasMultipleItems ? slotItem.slice(0, 1) : slotItem
+  const label = slotItem[0]?.item.category === 'dress' ? '원피스' : slot.label
 
   return (
     <div
+      role="group"
+      aria-label={label}
       className={`group relative row-span-2 aspect-[4/5] min-w-0 overflow-hidden rounded-2xl border transition-[border-color,box-shadow] ${
         isEmpty
           ? 'border-dashed border-[#cdc7ba] bg-white/35'
@@ -125,7 +129,7 @@ function OutfitItemTile({
       <span className={`pointer-events-none absolute inset-x-0 bottom-0 z-20 flex h-8 items-center justify-center border-t px-1 text-center text-xs font-bold ${
         isEmpty ? 'border-line/60 text-muted' : 'border-line/40 bg-white/75 text-ink'
       }`}>
-        {slotItem[0]?.item.category === 'dress' ? '원피스' : slot.label}
+        {label}
         {hasMultipleItems ? ` · ${slotItem.length}` : ''}
       </span>
     </div>
@@ -135,6 +139,7 @@ function OutfitItemTile({
 export function OutfitCanvas({
   items,
   layers,
+  baseLayers = [],
   className = '',
   onItemClick,
   onSlotClick,
@@ -152,12 +157,14 @@ export function OutfitCanvas({
       className={`flex flex-col items-center overflow-y-auto [container-type:size] ${className}`}
       aria-label="코디 미리보기"
     >
-      {/* 3열·7행이 높이 안에 들어오도록 폭도 줄이되, 짧은 화면에서는 스크롤한다. */}
-      <div className="my-auto w-[min(100cqw,calc((100cqh-2rem)*0.68))] min-w-[min(100%,16rem)] max-w-xl shrink-0 rounded-[1.5rem] bg-[#efede6] p-3 shadow-[inset_0_0_0_1px_#dedad1]">
+      {/* 이너 목록이 있으면 옷 칸의 폭을 줄여 목록 공간을 확보하고, 짧은 화면에서는 스크롤한다. */}
+      <div className={`my-auto min-w-[min(100%,16rem)] max-w-xl shrink-0 rounded-[1.5rem] bg-[#efede6] p-3 shadow-[inset_0_0_0_1px_#dedad1] ${
+        baseLayers.length > 0 ? 'w-[min(100cqw,calc((100cqh-8rem)*0.68))]' : 'w-[min(100cqw,calc((100cqh-2rem)*0.68))]'
+      }`}>
         <div className="pointer-events-none mb-5 flex h-7 items-center justify-between gap-2 px-1">
           <span className="text-xs font-bold tracking-tight text-ink/75">코디 구성</span>
           <span className="rounded-full border border-line/70 bg-white/60 px-2.5 py-1 text-xs font-medium tabular-nums text-muted">
-            {selectedItems.length}개 아이템
+            {selectedItems.length + baseLayers.length}개 아이템
           </span>
         </div>
 
@@ -173,6 +180,24 @@ export function OutfitCanvas({
             />
           ))}
         </div>
+
+        {baseLayers.length > 0 && (
+          <div role="group" aria-label="받쳐 입는 옷" className="mt-3 border-t border-line pt-3">
+            <p className="px-1 text-xs font-bold text-ink">받쳐 입는 옷</p>
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {baseLayers.map((item) => (
+                <li key={item.id} className="flex max-w-full min-w-0 items-center gap-1.5 rounded-lg border border-line bg-surface py-0.5 pr-2 text-xs">
+                  <span className="grid size-8 shrink-0 place-items-center [&_img]:p-0.5 [&_svg]:size-5" aria-hidden="true">
+                    <ClosetItemVisual item={item} compact />
+                  </span>
+                  <span className="min-w-0 break-words">{item.name}</span>
+                  {showArchivedStatus && item.archivedAt && <ArchivedWardrobeItemBadge compact />}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
       </div>
     </div>
   )

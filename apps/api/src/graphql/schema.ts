@@ -586,6 +586,7 @@ export const typeDefs = `#graphql
   input StartOutfitPreviewInput {
     selectedItemIds: [ID!]!
     style: String
+    sourceOutfitId: ID
     requestId: String!
   }
 
@@ -736,6 +737,8 @@ export const typeDefs = `#graphql
     temperatureC: Float
     wornAt: String
     wearFeeling: WearFeeling
+    wearTemperatureC: Float
+    manualWearTemperatureC: Float
     outfit: Outfit
     createdAt: String!
     updatedAt: String!
@@ -758,6 +761,10 @@ export const typeDefs = `#graphql
     date: String!
     temperatureC: Float
     feeling: WearFeeling
+    outfitId: ID!
+    wornAt: String!
+    automaticTemperatureC: Float
+    manualTemperatureC: Float
   }
 
   type TemperatureWearGroup {
@@ -772,6 +779,8 @@ export const typeDefs = `#graphql
     maxTemperatureC: Float
     feeling: WearFeeling
     unrecordedOnly: Boolean
+    compositionItemIds: [ID!]
+    outfitFilter: OutfitPageInput
     limit: Int
     cursor: String
   }
@@ -835,6 +844,7 @@ export const typeDefs = `#graphql
     outfitId: ID!
     wornAt: String!
     feeling: WearFeeling
+    manualTemperatureC: Float
   }
 
   input SetDirectPlannerEntryInput {

@@ -1,10 +1,10 @@
 import { AiCreditActionButton } from './AiCreditActionButton'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { OutfitPreview, Season, WardrobeItem } from '@closet/types'
 import {
+  CalendarPlus,
   ImagePlus,
-  Pencil,
   Save,
   Sparkles,
   X,
@@ -22,6 +22,7 @@ import {
   useCreateOutfitMutation,
   useDeleteOutfitMutation,
   useGenerateOutfitPreviewMutation,
+  useOutfitPreviewAssetQuery,
   useUpdateOutfitMutation,
   type CreateOutfitVariables,
 } from '../api/lookbookQueries'
@@ -43,17 +44,25 @@ import { useWardrobeItemsQuery } from '../../closet/api/wardrobeQueries'
 import { useClosetStore } from '../../closet/stores/useClosetStore'
 import { formatDateOnly } from '../../plan/data/weeklyPlan'
 import { useRecentWearReminder } from '../../plan/hooks/useRecentWearReminder'
+import { PlannerOutfitAssignmentDialog } from '../../plan/components/PlannerOutfitAssignmentDialog'
 import type { OutfitWearSummary } from '../utils/outfitWearSummary'
 import { getOutfitPreviewCompositionKey } from '../utils/outfitPreviewCache'
 import { getSavedOutfitItems } from '../utils/savedOutfitItems'
 
 interface OutfitDetailModalProps {
   outfit: SavedOutfit
+  /** 완료 알림이 지정한 자산과 생성 당시 조합. 미리보기를 닫으면 이 링크 정보만 지운다. */
+  completedPreview?: { assetId: string; compositionKey: string; onClose: () => void }
   items: WardrobeItem[]
   onClose: () => void
   onCreatedVariation?: (outfit: SavedOutfit) => void
   backLabel?: string
   wearSummary?: OutfitWearSummary
+  readOnly?: boolean
+  isReadOnlyBusy?: boolean
+  readDetails?: ReactNode
+  readComposition?: ReactNode
+  readActions?: ReactNode
 }
 
 function createPreviewState(): OutfitPreviewState {
@@ -73,11 +82,17 @@ function createPreviewState(): OutfitPreviewState {
 /** 저장된 코디는 보기로 열고, 수정 모드의 초안만 저장한다. 취소하면 저장된 구성·정보를 복원하며 삭제된 옷의 기록과 AI 생성 제한은 유지한다. */
 export function OutfitDetailModal({
   outfit,
+  completedPreview,
   items,
   onClose,
   onCreatedVariation,
   backLabel = '코디북으로 돌아가기',
   wearSummary,
+  readOnly = false,
+  isReadOnlyBusy = false,
+  readDetails,
+  readComposition,
+  readActions,
 }: OutfitDetailModalProps) {
   const catalog = useWardrobeItemsQuery()
   useEffect(() => {
@@ -104,10 +119,14 @@ export function OutfitDetailModal({
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [saveChoice, setSaveChoice] = useState<{ previewImage?: OutfitPreview } | null>(null)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [isPlannerAssignmentOpen, setIsPlannerAssignmentOpen] = useState(false)
+  const plannerAssignmentButton = useRef<HTMLButtonElement>(null)
   const [draftPreview, setDraftPreview] = useState(createPreviewState)
+  const completedAsset = useOutfitPreviewAssetQuery(completedPreview?.assetId)
   const outfitCompletionMessage = getOutfitCompletionMessage(draftItems)
   const activeItems = items.filter((item) => !item.archivedAt)
   const hasArchivedItems = draftItems.some((item) => item.archivedAt)
+  const canAssignToPlanner = draftItems.length > 0 && draftItems.length === outfit.layers.length && !hasArchivedItems
   const archivedItemMessage = hasArchivedItems ? '새로 저장하거나 생성하려면 삭제된 옷을 교체해주세요.' : undefined
 
   const styleOptions = useMemo(() => {
@@ -125,7 +144,7 @@ export function OutfitDetailModal({
     .map((layer) => layer.wardrobeItemId)
   const draftItemIds = draftItems.map((item) => item.id)
   const originalItems = getSavedOutfitItems(outfit, items)
-  const generateOutfitPreview = useGenerateOutfitPreviewMutation(outfitCompletionMessage ? undefined : { selectedItemIds: draftItemIds, style: draftStyle })
+  const generateOutfitPreview = useGenerateOutfitPreviewMutation(readOnly || outfitCompletionMessage ? undefined : { selectedItemIds: draftItemIds, style: draftStyle })
   const currentPreviewKey = getOutfitPreviewCompositionKey(draftItemIds, draftStyle)
   const previewKeyRef = useRef<string | null>(currentPreviewKey)
   useEffect(() => {
@@ -158,6 +177,26 @@ export function OutfitDetailModal({
     draftSeasons.some((season) => !outfit.seasons.includes(season))
   const isDirty = itemsChanged || infoChanged
   const isSaving = isCheckingRecentWear || updateOutfit.isPending || createOutfit.isPending
+  // 알림에서 열 때는 이전에 저장된 이미지나 최신 조합 조회 결과 대신 알림의 자산을 사용한다.
+  const activePreview: OutfitPreviewState = completedPreview ? {
+    ...createPreviewState(),
+    isOpen: true,
+    status: completedAsset.data ? 'success' : completedAsset.isError ? 'error' : 'loading',
+    imageUrl: completedAsset.data?.imageUrl ?? null,
+    assetId: completedAsset.data?.assetId ?? null,
+    mimeType: completedAsset.data?.mimeType ?? null,
+    model: completedAsset.data?.model ?? null,
+    compositionKey: completedPreview.compositionKey,
+    errorMessage: completedAsset.error?.message ?? null,
+  } : draftPreview
+  const canSaveCompletedPreview = !completedPreview ||
+    (currentPreviewKey === completedPreview.compositionKey && !itemsChanged && draftStyle === outfit.style && !hasArchivedItems)
+
+  const closeDraftPreview = () => {
+    completedPreview?.onClose()
+    setIsPreviewOpen(false)
+    setDraftPreview((current) => ({ ...current, isOpen: false }))
+  }
 
   /** 서버에 저장하지 않은 구성·정보·미리보기를 버리고 보기로 돌아간다. */
   const cancelEdit = () => {
@@ -259,6 +298,7 @@ export function OutfitDetailModal({
 
   const finishSave = async (destination: 'new' | 'existing', previewImage?: OutfitPreview) => {
     if (await saveChanges(destination, previewImage)) {
+      completedPreview?.onClose()
       setSaveChoice(null)
       setDraftPreview(createPreviewState())
       setIsEditing(false)
@@ -290,6 +330,7 @@ export function OutfitDetailModal({
       )
       return
     }
+    completedPreview?.onClose()
     setDraftPreview({
       isOpen: true,
       status: 'loading',
@@ -309,7 +350,11 @@ export function OutfitDetailModal({
         ? generateOutfitPreview.completedPreview
           ? Promise.resolve(generateOutfitPreview.completedPreview)
           : generateOutfitPreview.restoreCompletedAsync()
-        : generateOutfitPreview.mutateAsync({ selectedItemIds: draftItemIds, style: draftStyle })
+        : generateOutfitPreview.mutateAsync({
+          selectedItemIds: draftItemIds,
+          style: draftStyle,
+          sourceOutfitId: !itemsChanged && draftStyle === outfit.style ? outfit.id : undefined,
+        })
     void resultRequest
       .then((result) => {
         if (previewKeyRef.current !== requestedPreviewKey) return
@@ -346,18 +391,19 @@ export function OutfitDetailModal({
 
   const saveDraftPreview = () => {
     if (
-      (!draftPreview.assetId && !draftPreview.imageBase64) ||
-      !draftPreview.mimeType ||
-      !draftPreview.model
+      !canSaveCompletedPreview ||
+      (!activePreview.assetId && !activePreview.imageBase64) ||
+      !activePreview.mimeType ||
+      !activePreview.model
     ) {
       return
     }
     requestSave({
-      imageBase64: draftPreview.imageBase64 ?? '',
-      ...(draftPreview.assetId ? { assetId: draftPreview.assetId } : {}),
-      ...(draftPreview.imageUrl ? { imageUrl: draftPreview.imageUrl } : {}),
-      mimeType: draftPreview.mimeType,
-      model: draftPreview.model,
+      imageBase64: activePreview.imageBase64 ?? '',
+      ...(activePreview.assetId ? { assetId: activePreview.assetId } : {}),
+      ...(activePreview.imageUrl ? { imageUrl: activePreview.imageUrl } : {}),
+      mimeType: activePreview.mimeType,
+      model: activePreview.model,
     })
   }
 
@@ -367,10 +413,11 @@ export function OutfitDetailModal({
       role="dialog"
       aria-modal="true"
       aria-label={`${outfit.name} 코디 상세`}
+      inert={isPlannerAssignmentOpen}
     >
       <OutfitDetailHeader name={draftName} description={`${draftSeasons.length ? `${formatSeasonLabels(draftSeasons)} · ` : ''}${getOutfitStyleLabel(draftStyle)} · 옷 ${draftItems.length}개`}
-        isEditing={isEditing} isSaving={isSaving} backLabel={backLabel} wearSummary={wearSummary}
-        onBack={onClose} onEditInfo={() => setIsInfoOpen(true)} onDelete={() => setIsDeleteConfirmOpen(true)} />
+        isEditing={isEditing} isSaving={isSaving || isReadOnlyBusy} backLabel={backLabel} wearSummary={wearSummary}
+        onBack={onClose} onEdit={readOnly ? undefined : () => setIsEditing(true)} onEditInfo={() => setIsInfoOpen(true)} onDelete={readOnly ? undefined : () => setIsDeleteConfirmOpen(true)} />
 
       {hasArchivedItems && <p className="mx-auto w-full max-w-3xl shrink-0 px-4 py-2 text-center text-[11px] text-muted">삭제한 옷도 이 코디의 기록에는 남아 있어요.</p>}
 
@@ -380,11 +427,14 @@ export function OutfitDetailModal({
             items={activeItems}
             selectedItems={draftItems}
             showArchivedStatus
-            allowAdditionalLayers
-            allowBaseLayers
+            variant="lookbook"
+            lookName={draftName}
             onChange={setDraftItems}
             className="h-full w-full"
-          /> : <OutfitReadView items={draftItems} />}
+          /> : <>
+            {readComposition ?? <OutfitReadView items={draftItems} />}
+            {readDetails}
+          </>}
           {isEditing && itemsChanged && outfit.previewImageUrl && (
             <p className="absolute top-3 right-3 left-3 z-20 rounded-xl bg-ink/88 px-3 py-2 text-center text-[11px] font-bold text-white backdrop-blur">
               구성이 바뀌어 저장하면 기존 AI 룩북이 해제돼요.
@@ -393,8 +443,12 @@ export function OutfitDetailModal({
         </div>
       </div>
 
-      <footer className="shrink-0 border-t border-line bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(27,27,24,0.06)]">
+      {(!readOnly || outfit.previewImageUrl || readActions) && <footer className="shrink-0 border-t border-line bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(27,27,24,0.06)]">
         <div className="mx-auto grid max-w-3xl grid-cols-[0.85fr_1.15fr] gap-2">
+          {readOnly ? outfit.previewImageUrl && <button type="button" onClick={() => setIsPreviewOpen(true)} disabled={isReadOnlyBusy}
+            className="col-span-2 flex min-h-12 items-center justify-center gap-1.5 rounded-xl border border-line bg-canvas px-3 py-3 text-xs font-bold disabled:opacity-40">
+            <Sparkles size={15} aria-hidden="true" /> AI 룩북 보기
+          </button> : <>
           {!isEditing && requiresPreviewCredit && <div className="col-span-2"><PreviewCreditSummary /></div>}
           {!isEditing ? <AiCreditActionButton
             requiresCredit={requiresPreviewCredit}
@@ -425,7 +479,7 @@ export function OutfitDetailModal({
                 ? `'${duplicateOutfit.name}' 코디와 같은 옷 조합이에요.`
                 : outfitCompletionMessage ?? undefined)
             }
-            className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-canvas px-3 py-3 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border border-line bg-canvas px-3 py-3 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40"
           >
             {outfit.previewImageUrl && !itemsChanged ? (
               <Sparkles size={15} />
@@ -433,7 +487,12 @@ export function OutfitDetailModal({
               <ImagePlus size={15} />
             )}
           </AiCreditActionButton> : <button type="button" onClick={cancelEdit} disabled={isSaving} className="min-h-12 rounded-xl border border-line bg-canvas px-3 py-3 text-sm font-semibold disabled:opacity-40">취소</button>}
-          {isEditing ? <button
+          {!isEditing && <button ref={plannerAssignmentButton} type="button" disabled={!canAssignToPlanner}
+            onClick={() => setIsPlannerAssignmentOpen(true)}
+            className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl bg-accent px-3 py-3 text-sm font-bold text-white disabled:opacity-40">
+            <CalendarPlus size={16} aria-hidden="true" /> 플래너에 담기
+          </button>}
+          {isEditing && <button
             type="button"
             onClick={() => requestSave()}
             disabled={
@@ -454,10 +513,19 @@ export function OutfitDetailModal({
             {isSaving
               ? '저장 중…'
               : '변경사항 저장'}
-          </button> : <button type="button" onClick={() => setIsEditing(true)} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-accent px-3 py-3 text-sm font-semibold text-surface"><Pencil size={16} />코디 수정</button>}
+          </button>}
           {hasArchivedItems && <p className="col-span-2 text-center text-[10px] text-muted">새로 저장하거나 생성하려면 삭제된 옷을 교체해주세요.</p>}
+          </>}
+          {readActions && <div className="col-span-2">{readActions}</div>}
         </div>
-      </footer>
+      </footer>}
+
+      {isPlannerAssignmentOpen && createPortal(
+        <PlannerOutfitAssignmentDialog outfit={outfit} items={draftItems} onClose={() => {
+          setIsPlannerAssignmentOpen(false)
+          window.requestAnimationFrame(() => plannerAssignmentButton.current?.focus({ preventScroll: true }))
+        }} />, document.body,
+      )}
 
       {isInfoOpen && (
         <div
@@ -538,12 +606,12 @@ export function OutfitDetailModal({
         </div>
       )}
 
-      {isPreviewOpen && outfit.previewImageUrl && (
+      {isPreviewOpen && !completedPreview && outfit.previewImageUrl && (
         <SavedOutfitPreviewDialog
           imageUrl={outfit.previewImageUrl}
           outfitName={outfit.name}
           onClose={() => setIsPreviewOpen(false)}
-          onRegenerate={hasArchivedItems ? undefined : () => {
+          onRegenerate={readOnly || hasArchivedItems ? undefined : () => {
             setIsPreviewOpen(false)
             createDraftPreview(true)
           }}
@@ -552,14 +620,14 @@ export function OutfitDetailModal({
       <OutfitPreviewDialogView
         creditSummary={<PreviewCreditSummary />}
         selectedItems={draftItems}
-        preview={draftPreview}
+        preview={activePreview}
         generatePreview={createDraftPreview}
-        closePreview={() =>
-          setDraftPreview((current) => ({ ...current, isOpen: false }))
-        }
-        onPrimary={() => void saveDraftPreview()}
+        closePreview={closeDraftPreview}
+        onRetryLoad={completedPreview ? () => void completedAsset.refetch() : undefined}
+        onPrimary={canSaveCompletedPreview ? saveDraftPreview : closeDraftPreview}
+        primaryAction={canSaveCompletedPreview ? 'save' : 'close'}
         primaryLabel={
-          itemsChanged ? '수정한 코디에 저장' : '새 AI 룩북으로 저장'
+          !canSaveCompletedPreview ? '닫기' : itemsChanged ? '수정한 코디에 저장' : '새 AI 룩북으로 저장'
         }
         isPrimaryPending={isSaving}
       />

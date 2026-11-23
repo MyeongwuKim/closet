@@ -175,8 +175,15 @@ test('서버에만 있는 완료 결과를 복원한 뒤 다른 조합에는 붙
   state.started = true
   state.status = 'completed'
   await page.goto(`/plan/${date}`)
+  const lookbookLink = page.getByRole('link', { name: '코디북에서 보기', exact: true })
+  await expect(lookbookLink).toBeVisible()
   await page.getByRole('button', { name: 'AI 룩북 보기', exact: true }).click()
-  await expect(page.getByRole('dialog', { name: 'AI 룩북 미리보기', exact: true })).toBeVisible()
+  const result = page.getByRole('dialog', { name: 'AI 룩북 미리보기', exact: true })
+  await expect(result.getByRole('button', { name: '이 날짜에 저장', exact: true })).toBeVisible()
+  await result.getByRole('button', { name: 'AI 룩북 미리보기 닫기', exact: true }).click()
+  await expect(lookbookLink).toBeVisible()
+  await expect(page.getByRole('button', { name: '변경사항 저장', exact: true })).toHaveCount(0)
+  expect(mockApi.operations).not.toContain('SetDirectPlannerEntry')
   state.acknowledged = true
   await page.goto('/plan/2026-11-03')
   await expect(page.getByRole('button', { name: 'AI 룩북 만들기', exact: true })).toBeEnabled()
@@ -464,9 +471,10 @@ test('생성 실패는 오류 팝업으로 안내하고 사용자가 다시 만�
   const state = await installPreviewJobs(page, mockApi)
   state.credits = 4
   await page.goto(`/plan/${date}`)
+  await expect(page.getByText('AI 사용권 4/5', { exact: true }).first()).toBeVisible()
   await page.getByRole('button', { name: 'AI 룩북 만들기', exact: true }).click()
   const failure = page.getByRole('dialog', { name: '미리보기를 만들지 못했어요', exact: true })
-  await expect(page.getByText('AI 사용권 4/5', { exact: true }).first()).toBeVisible()
+  await expect.poll(() => state.startCalls).toBe(1)
   state.credits = 5
   state.status = 'failed'
   await expect(failure.getByText('테스트 이미지 생성 실패')).toBeVisible()

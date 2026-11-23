@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import type { Season, WearFeeling } from '@closet/types'
+import type { ClothingCategory, Season, WearFeeling } from '@closet/types'
 import { GraphqlRequestError, graphqlRequest } from '../../../lib/graphql'
 import { queryKeys } from '../../../lib/queryKeys'
 import { getAccessToken } from '../../../lib/auth'
@@ -21,6 +21,8 @@ interface PlannerWeekPayload {
     date: string
     wornAt?: string | null
     wearFeeling?: WearFeeling | null
+    wearTemperatureC?: number | null
+    manualWearTemperatureC?: number | null
     title: string | null
     occasion: string | null
     weatherSummary: string | null
@@ -30,7 +32,13 @@ interface PlannerWeekPayload {
       name: string
       style: string
       plannerOnly: boolean
-      items: Array<{ wardrobeItemId: string; wardrobeItem?: WardrobeItemPayload }>
+      items: Array<{
+        wardrobeItemId: string
+        layerOrder: number
+        slot?: ClothingCategory
+        isBaseLayer?: boolean | null
+        wardrobeItem?: WardrobeItemPayload
+      }>
       generations: Array<{
         status: 'queued' | 'processing' | 'completed' | 'failed'
         imageAsset: { id?: string; deliveryUrl: string | null } | null
@@ -135,6 +143,7 @@ export interface SetPlannerEntryWearFeelingVariables {
   outfitId: string
   wornAt: string
   feeling: WearFeeling | null
+  manualTemperatureC?: number | null
 }
 
 export interface OutfitWearRecord {
@@ -144,7 +153,7 @@ export interface OutfitWearRecord {
   wornAt?: string | null
 }
 
-/** 날짜 코디의 옷 관계를 함께 보관해 활성 옷장 목록에 없는 옷도 플래너에서 표시한다. */
+/** 날짜 코디의 착용 위치와 옷 관계를 함께 보관해 이너와 삭제된 옷을 제자리에 표시한다. */
 function toPlanEntry(
   entry: PlannerWeekPayload['entries'][number],
 ): PlanEntry {
@@ -166,10 +175,18 @@ function toPlanEntry(
     occasion: entry.occasion ?? '',
     weather,
     itemIds: entry.outfit?.items.map((item) => item.wardrobeItemId) ?? [],
+    outfitLayers: entry.outfit?.items.map((item) => ({
+      wardrobeItemId: item.wardrobeItemId,
+      order: item.layerOrder,
+      slot: item.slot,
+      isBaseLayer: item.isBaseLayer || undefined,
+    })),
     outfitItems: entry.outfit?.items.flatMap((item) => item.wardrobeItem ? [toWardrobeItem(item.wardrobeItem)] : []) ?? [],
     outfitId: entry.outfit?.id,
     wornAt: entry.wornAt ?? null,
     wearFeeling: entry.wornAt ? entry.wearFeeling ?? null : null,
+    wearTemperatureC: entry.wornAt ? entry.wearTemperatureC ?? null : null,
+    manualWearTemperatureC: entry.wornAt ? entry.manualWearTemperatureC ?? null : null,
     outfitStyle: entry.outfit?.style,
     plannerOnly: entry.outfit?.plannerOnly,
     previewImageAssetId: entry.outfit?.generations.find(
@@ -197,10 +214,10 @@ export function usePlannerWeekQuery(weekStartsOn: string, enabled = true) {
             plannerWeek(weekStartsOn: $weekStartsOn) {
               id weekStartsOn
               entries {
-                date title occasion weatherSummary temperatureC wornAt wearFeeling
+                date title occasion weatherSummary temperatureC wornAt wearFeeling wearTemperatureC manualWearTemperatureC
                 outfit {
                   id name style plannerOnly
-                  items { wardrobeItemId wardrobeItem { ${wardrobeItemFields} } }
+                  items { wardrobeItemId layerOrder slot isBaseLayer wardrobeItem { ${wardrobeItemFields} } }
                   generations { status imageAsset { id deliveryUrl } }
                 }
               }
@@ -234,10 +251,10 @@ export function usePlannerEntriesQuery(
         `
           query PlannerEntries($from: String!, $to: String!) {
             plannerEntries(from: $from, to: $to) {
-              date title occasion weatherSummary temperatureC wornAt wearFeeling
+              date title occasion weatherSummary temperatureC wornAt wearFeeling wearTemperatureC manualWearTemperatureC
               outfit {
                   id name style plannerOnly
-                items { wardrobeItemId wardrobeItem { ${wardrobeItemFields} } }
+                items { wardrobeItemId layerOrder slot isBaseLayer wardrobeItem { ${wardrobeItemFields} } }
                 generations { status imageAsset { id deliveryUrl } }
               }
             }
@@ -298,10 +315,10 @@ export function useSetDirectPlannerEntryMutation() {
             setDirectPlannerEntry(input: $input) {
               id weekStartsOn
               entries {
-                date title occasion weatherSummary temperatureC wornAt wearFeeling
+                date title occasion weatherSummary temperatureC wornAt wearFeeling wearTemperatureC manualWearTemperatureC
                 outfit {
                   id name style plannerOnly
-                  items { wardrobeItemId wardrobeItem { ${wardrobeItemFields} } }
+                  items { wardrobeItemId layerOrder slot isBaseLayer wardrobeItem { ${wardrobeItemFields} } }
                   generations { status imageAsset { id deliveryUrl } }
                 }
               }
@@ -335,10 +352,10 @@ export function useSetPlannerEntryWornMutation() {
           setPlannerEntryWorn(input: $input) {
             id weekStartsOn
             entries {
-              date title occasion weatherSummary temperatureC wornAt wearFeeling
+              date title occasion weatherSummary temperatureC wornAt wearFeeling wearTemperatureC manualWearTemperatureC
               outfit {
                 id name style plannerOnly
-                items { wardrobeItemId wardrobeItem { ${wardrobeItemFields} } }
+                items { wardrobeItemId layerOrder slot isBaseLayer wardrobeItem { ${wardrobeItemFields} } }
                 generations { status imageAsset { id deliveryUrl } }
               }
             }
@@ -362,6 +379,7 @@ export function useSetPlannerEntryWearFeelingMutation() {
   const queryClient = useQueryClient()
 
   return useMutation({
+    onMutate: () => getAccessToken(),
     mutationFn: async (input: SetPlannerEntryWearFeelingVariables) => {
       const data = await graphqlRequest<
         { setPlannerEntryWearFeeling: PlannerWeekPayload },
@@ -371,10 +389,10 @@ export function useSetPlannerEntryWearFeelingMutation() {
           setPlannerEntryWearFeeling(input: $input) {
             id weekStartsOn
             entries {
-              date title occasion weatherSummary temperatureC wornAt wearFeeling
+              date title occasion weatherSummary temperatureC wornAt wearFeeling wearTemperatureC manualWearTemperatureC
               outfit {
                 id name style plannerOnly
-                items { wardrobeItemId wardrobeItem { ${wardrobeItemFields} } }
+                items { wardrobeItemId layerOrder slot isBaseLayer wardrobeItem { ${wardrobeItemFields} } }
                 generations { status imageAsset { id deliveryUrl } }
               }
             }
@@ -386,7 +404,10 @@ export function useSetPlannerEntryWearFeelingMutation() {
         data.setPlannerEntryWearFeeling.entries.map(toPlanEntry),
       )
     },
-    onSuccess: (entries, input) => applyPlannerWearResult(queryClient, input.weekStartsOn, entries),
+    onSuccess: (entries, input, sessionToken) => {
+      if (sessionToken !== getAccessToken()) return
+      return applyPlannerWearResult(queryClient, input.weekStartsOn, entries)
+    },
   })
 }
 
@@ -404,10 +425,10 @@ export function useMovePlannerEntryMutation() {
             movePlannerEntry(input: $input) {
               id weekStartsOn
               entries {
-                date title occasion weatherSummary temperatureC wornAt wearFeeling
+                date title occasion weatherSummary temperatureC wornAt wearFeeling wearTemperatureC manualWearTemperatureC
                 outfit {
                   id name style plannerOnly
-                  items { wardrobeItemId wardrobeItem { ${wardrobeItemFields} } }
+                  items { wardrobeItemId layerOrder slot isBaseLayer wardrobeItem { ${wardrobeItemFields} } }
                   generations { status imageAsset { id deliveryUrl } }
                 }
               }
@@ -508,10 +529,10 @@ export function useSetPlannerEntryMutation() {
           setPlannerEntry(input: $input) {
             id weekStartsOn
             entries {
-              date title occasion weatherSummary temperatureC wornAt wearFeeling
+              date title occasion weatherSummary temperatureC wornAt wearFeeling wearTemperatureC manualWearTemperatureC
               outfit {
                 id name style plannerOnly
-                items { wardrobeItemId wardrobeItem { ${wardrobeItemFields} } }
+                items { wardrobeItemId layerOrder slot isBaseLayer wardrobeItem { ${wardrobeItemFields} } }
                 generations { status imageAsset { id deliveryUrl } }
               }
             }

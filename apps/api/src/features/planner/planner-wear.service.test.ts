@@ -129,7 +129,7 @@ test('최초 확인만 시각을 저장하고 중복 확인은 원래 시각을 
 test('착용 취소는 기온 결과·재시도도 초기화하고 중복 취소는 다시 쓰지 않는다', async (t) => {
   const fixture = repositoryFixture(t)
   await plannerRepository.setEntryWorn(plannerWeekId, date, outfitId, false, new Date())
-  assert.deepEqual(fixture.writes[0].args.data, { wornAt: null, wearFeeling: null, wearTemperatureC: null, wearWeatherRecordedAt: null, wearWeatherRetryAt: null })
+  assert.deepEqual(fixture.writes[0].args.data, { wornAt: null, wearFeeling: null, wearTemperatureC: null, manualWearTemperatureC: null, wearWeatherRecordedAt: null, wearWeatherRetryAt: null })
   fixture.entries[0].wornAt = null
   await plannerRepository.setEntryWorn(plannerWeekId, date, outfitId, false, new Date())
   assert.equal(fixture.writes.length, 1)

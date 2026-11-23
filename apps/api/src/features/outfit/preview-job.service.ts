@@ -7,12 +7,23 @@ import { imageService } from '../image/image.service.js'
 import { imageRepository } from '../image/image.repository.js'
 import { userRepository } from '../user/user.repository.js'
 import { getOutfitPreviewItems } from './outfit-preview-selection.js'
+import { outfitRepository } from './outfit.repository.js'
 import { previewJobRepository } from './preview-job.repository.js'
 
-export interface StartPreviewInput { selectedItemIds: string[]; style?: string | null; requestId: string }
+export interface StartPreviewInput { selectedItemIds: string[]; style?: string | null; sourceOutfitId?: string | null; requestId: string }
 
-/** 상태에 맞는 코디 편집 경로를 만든다. 작업 중 경로도 앱 재실행 후 같은 작업 조회에 사용한다. */
-export function getPreviewJobPath(job: Pick<AiPreviewJob, 'id' | 'selectedItemIds' | 'style' | 'status' | 'imageAssetId'>) {
+/** 저장 코디의 완료 작업은 코디 상세에서 해당 이미지를 열고, 나머지 작업은 편집 화면에서 복원한다. */
+export function getPreviewJobPath(job: Pick<AiPreviewJob, 'id' | 'selectedItemIds' | 'style' | 'status' | 'imageAssetId' | 'sourceOutfitId'>) {
+  if (job.sourceOutfitId && job.status === 'completed' && job.imageAssetId) {
+    const params = new URLSearchParams({
+      outfit: job.sourceOutfitId,
+      preview: 'open',
+      previewAssetId: job.imageAssetId,
+      previewItems: job.selectedItemIds.join(','),
+      previewStyle: job.style ?? '',
+    })
+    return `/lookbook?${params}`
+  }
   const params = new URLSearchParams({ items: job.selectedItemIds.join(','), from: '/lookbook' })
   if (job.style) params.set('style', job.style)
   if (job.status === 'completed' && job.imageAssetId) {
@@ -39,9 +50,18 @@ export const previewJobService = {
     const profile = await userRepository.findViewerById(userId)
     const selectedItemIds = items.map((item) => item.id)
     const style = input.style?.trim() || null
+    // 수정 중인 초안이나 더 이상 일치하지 않는 코디에는 저장 코디 복원 경로를 연결하지 않는다.
+    const sourceOutfit = input.sourceOutfitId && /^[a-f\d]{24}$/i.test(input.sourceOutfitId)
+      ? await outfitRepository.findById(userId, input.sourceOutfitId)
+      : null
+    const sourceOutfitId = sourceOutfit && !sourceOutfit.plannerOnly && sourceOutfit.style === style &&
+      sourceOutfit.items.length === selectedItemIds.length &&
+      sourceOutfit.items.every((item) => selectedItemIds.includes(item.wardrobeItemId))
+      ? sourceOutfit.id
+      : undefined
     const inputKey = aiInputKey([[...selectedItemIds].sort(), style])
     const requestKey = aiInputKey([userId, input.requestId])
-    const job = await previewJobRepository.enqueue({ id: requestKey, userId, requestKey, inputKey, selectedItemIds, style,
+    const job = await previewJobRepository.enqueue({ id: requestKey, userId, requestKey, inputKey, selectedItemIds, style, sourceOutfitId,
       fingerprint: aiInputKey([inputKey, items, profile?.styleProfile, profile?.preferredStyles, process.env.OPENAI_IMAGE_MODEL ?? 'gpt-image-2']) })
     return toPreviewJob(job)
   },

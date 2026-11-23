@@ -43,13 +43,14 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
 
     await page.goto(`/plan/${monday}`)
     await page.getByRole('button', { name: '입었어요', exact: true }).click()
-    await page.getByRole('radio', { name: '추웠어요', exact: true }).click()
+    await page.getByRole('dialog', { name: '입었을 때 어땠나요?' }).getByRole('button', { name: '추웠어요', exact: true }).click()
+    await page.getByRole('dialog', { name: '몇 도에 입었나요?' }).getByRole('button', { name: '저장', exact: true }).click()
     const wornAt = mockApi.plannerEntries.find((entry) => entry.date === monday)!.wornAt
 
     await page.goto('/lookbook')
     await page.getByRole('button', { name: 'ABC 코디 코디 상세 보기' }).click()
     await page.getByRole('button', { name: '코디 수정', exact: true }).click()
-    await page.getByRole('button', { name: '아우터 교체하기' }).click()
+    await page.getByRole('button', { name: /아우터 아이템 바꾸기/ }).click()
     const picker = page.getByRole('dialog', { name: '아우터 옷 선택' })
     await picker.getByRole('button', { name: /D 재킷/ }).click()
     await picker.getByRole('button', { name: '1개 선택 완료' }).click()
@@ -75,9 +76,10 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     expect(mondayRecord.outfit?.items.map((item) => item.wardrobeItemId).sort()).toEqual(['a', 'b', 'c'])
     expect(mondayRecord.wornAt).toBe(wornAt)
 
-    await expect(page.getByRole('button', { name: '아우터 교체하기' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '코디 수정', exact: true })).toBeDisabled()
     await page.getByRole('button', { name: '착용 취소', exact: true }).click()
-    await page.getByRole('button', { name: '아우터 교체하기' }).click()
+    await page.getByRole('button', { name: '코디 수정', exact: true }).click()
+    await page.getByRole('button', { name: /아우터 아이템 바꾸기/ }).click()
     await picker.getByRole('button', { name: /D 재킷/ }).click()
     await picker.getByRole('button', { name: '1개 선택 완료' }).click()
     await page.getByRole('button', { name: '변경사항 저장', exact: true }).click()

@@ -50,6 +50,7 @@ export interface SetPlannerEntryWearFeelingInput {
   outfitId: string
   wornAt: string
   feeling: WearFeeling | null
+  manualTemperatureC?: number | null
 }
 
 export interface SetDirectPlannerEntryInput {
@@ -161,7 +162,7 @@ function parseWeekAndDate(weekStartsOnValue: string, dateValue: string) {
 }
 
 export const plannerService = {
-  /** 확인된 내 코디에만 추위·적정·더위 체감을 저장하거나 비운다. 미래·미확인·교체·재확인한 기록은 거절한다. */
+  /** 확인된 내 코디의 체감과 직접 입력한 기온을 저장한다. 직접 입력을 생략하면 기존 값을 유지한다. */
   async setEntryWearFeeling(userId: string, input: SetPlannerEntryWearFeelingInput) {
     const { weekStartsOn, date } = parseWeekAndDate(input.weekStartsOn, input.date)
     if (!objectIdPattern.test(input.outfitId)) {
@@ -175,6 +176,10 @@ export const plannerService = {
     if (input.feeling !== null && !['cold', 'comfortable', 'hot'].includes(input.feeling)) {
       throw new ServiceError('체감은 추웠어요·적당했어요·더웠어요 중에서 선택해주세요.', 'INVALID_WEAR_FEELING')
     }
+    const manualTemperature = input.manualTemperatureC
+    if (manualTemperature != null && (!Number.isFinite(manualTemperature) || manualTemperature < -100 || manualTemperature > 100)) {
+      throw new ServiceError('기온은 -100℃부터 100℃까지 입력해주세요.', 'INVALID_WEAR_TEMPERATURE')
+    }
     if (date > getKoreaTodayUtc()) {
       throw new ServiceError('미래 코디에는 체감을 기록할 수 없어요.', 'FUTURE_PLANNER_WEAR')
     }
@@ -184,7 +189,7 @@ export const plannerService = {
       || !entry.wornAt || entry.wornAt.getTime() !== wornAt.getTime()) {
       throw new ServiceError('착용 완료한 현재 코디를 다시 확인해주세요.', 'PLANNER_WEAR_CHANGED')
     }
-    const updatedWeek = await plannerRepository.setEntryWearFeeling(week.id, date, input.outfitId, wornAt, input.feeling)
+    const updatedWeek = await plannerRepository.setEntryWearFeeling(week.id, date, input.outfitId, wornAt, input.feeling, manualTemperature)
     if (!updatedWeek) {
       throw new ServiceError('착용 기록이 바뀌었어요. 다시 확인해주세요.', 'PLANNER_WEAR_CHANGED')
     }

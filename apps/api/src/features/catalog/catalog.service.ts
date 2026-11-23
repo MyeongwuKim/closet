@@ -103,7 +103,7 @@ export function wardrobePageWhere(userId: string, input: WardrobePageInput, tags
   }
 }
 
-export function outfitPageWhere(userId: string, input: OutfitPageInput): Prisma.OutfitWhereInput {
+export function outfitPageWhere(userId: string, input: OutfitPageInput, includePlannerOnly = false): Prisma.OutfitWhereInput {
   const itemIds = [...new Set(input.wardrobeItemIds ?? [])]
   if (itemIds.some((id) => !/^[a-f\d]{24}$/i.test(id))) {
     throw new ServiceError('옷 아이템 ID가 올바르지 않아요.', 'INVALID_OUTFIT_FILTER')
@@ -111,7 +111,7 @@ export function outfitPageWhere(userId: string, input: OutfitPageInput): Prisma.
   return {
     userId,
     AND: [
-      savedOutfitWhere,
+      ...(includePlannerOnly ? [] : [savedOutfitWhere]),
       ...(input.style && input.style !== 'all' ? [{ style: input.style }] : []),
       ...(input.season ? [{ seasons: { has: input.season } }] : []),
       ...(input.color ? [{ items: { some: { wardrobeItem: { is: { colorName: input.color } } } } }] : []),

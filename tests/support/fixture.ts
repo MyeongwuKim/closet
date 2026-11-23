@@ -64,6 +64,7 @@ type PlannerEntry = {
   weatherSummary: string | null
   temperatureC: number | null
   wearTemperatureC?: number | null
+  manualWearTemperatureC?: number | null
   outfit: {
     id: string
     name: string
@@ -395,7 +396,10 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
       if (!entry) throw new Error('착용을 확인할 코디가 없습니다.')
       if (!input.worn || !entry.wornAt) entry.wearFeeling = null
       entry.wornAt = input.worn ? entry.wornAt ?? new Date().toISOString() : null
-      if (!input.worn) entry.wearTemperatureC = null
+      if (!input.worn) {
+        entry.wearTemperatureC = null
+        if (entry.manualWearTemperatureC !== undefined) entry.manualWearTemperatureC = null
+      }
       for (const item of api.wardrobeItems) {
         const dates = api.plannerEntries.filter((record) => record.wornAt && record.outfit?.items.some((candidate) => candidate.wardrobeItemId === item.id)).map((record) => record.date)
         item.wearCount = new Set(dates).size
@@ -407,6 +411,7 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
       const entry = api.plannerEntries.find((entry) => entry.date === input.date && entry.outfit?.id === input.outfitId)
       if (!entry?.wornAt || entry.wornAt !== input.wornAt) throw new Error('현재 착용 완료 상태를 다시 확인해주세요.')
       entry.wearFeeling = input.feeling ?? null
+      if (input.manualTemperatureC !== undefined) entry.manualWearTemperatureC = input.manualTemperatureC
       return { setPlannerEntryWearFeeling: plannerWeekPayload(api, input.weekStartsOn) }
     }
     case 'ClearPlannerEntry': {

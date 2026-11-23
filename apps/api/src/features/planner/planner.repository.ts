@@ -62,6 +62,7 @@ const clearedWearData = {
   wornAt: null,
   wearFeeling: null,
   wearTemperatureC: null,
+  manualWearTemperatureC: null,
   wearWeatherRecordedAt: null,
   wearWeatherRetryAt: null,
 } as const
@@ -273,17 +274,18 @@ export const plannerRepository = {
   },
 
   /** 코디와 착용 확인 시각이 모두 그대로인 기록의 체감만 저장한다. 같은 체감은 다시 쓰지 않고 null은 선택을 비운다. */
-  async setEntryWearFeeling(plannerWeekId: string, date: Date, outfitId: string, wornAt: Date, feeling: WearFeeling | null) {
+  async setEntryWearFeeling(plannerWeekId: string, date: Date, outfitId: string, wornAt: Date, feeling: WearFeeling | null, manualTemperatureC?: number | null) {
     return prisma.$transaction(async (transaction) => {
       const entry = await transaction.plannerEntry.findUnique({
         where: { plannerWeekId_date: { plannerWeekId, date } },
-        select: { id: true, outfitId: true, wornAt: true, wearFeeling: true },
+        select: { id: true, outfitId: true, wornAt: true, wearFeeling: true, manualWearTemperatureC: true },
       })
       if (!entry || entry.outfitId !== outfitId || !entry.wornAt || entry.wornAt.getTime() !== wornAt.getTime()) return null
-      if ((entry.wearFeeling ?? null) !== feeling) {
+      const temperatureChanged = manualTemperatureC !== undefined && (entry.manualWearTemperatureC ?? null) !== manualTemperatureC
+      if ((entry.wearFeeling ?? null) !== feeling || temperatureChanged) {
         const updated = await transaction.plannerEntry.updateMany({
           where: { id: entry.id, outfitId, wornAt },
-          data: { wearFeeling: feeling },
+          data: { wearFeeling: feeling, ...(temperatureChanged && { manualWearTemperatureC: manualTemperatureC }) },
         })
         if (updated.count !== 1) return null
       }

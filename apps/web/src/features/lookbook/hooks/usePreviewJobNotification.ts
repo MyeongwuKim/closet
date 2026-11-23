@@ -34,7 +34,8 @@ export function usePreviewJobNotification() {
   const jobKey = job ? `${ownerId}:${job.id}` : null
   const wasViewed = Boolean(job?.imageAssetId && viewedAssets.has(`${ownerId}:${job.imageAssetId}`))
   const params = new URLSearchParams(location.search)
-  const openingResult = Boolean(job?.imageAssetId && location.pathname === '/lookbook/new' &&
+  const openingResult = Boolean(job?.imageAssetId && (location.pathname === '/lookbook/new' ||
+    (location.pathname === '/lookbook' && params.has('outfit'))) &&
     params.get('previewAssetId') === job.imageAssetId && params.get('preview') === 'open')
 
   // 작업 목록에서 처음 확인한 실패·중단도 공용 지갑 잔액에 반영한다.

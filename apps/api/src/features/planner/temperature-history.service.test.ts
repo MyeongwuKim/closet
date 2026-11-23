@@ -12,7 +12,7 @@ import { outfitService } from '../outfit/outfit.service.js'
 const owner = '000000000000000000000001'
 const foreign = '000000000000000000000002'
 const id = (value: number) => value.toString(16).padStart(24, '0')
-type Row = { date: Date; wornAt: Date | null; wearTemperatureC: number | null; wearFeeling: 'cold' | 'comfortable' | 'hot' | null; owner: string; outfit: { id: string; items: { wardrobeItemId: string }[] } | null }
+type Row = { date: Date; wornAt: Date | null; wearTemperatureC: number | null; manualWearTemperatureC?: number | null; wearFeeling: 'cold' | 'comfortable' | 'hot' | null; owner: string; outfit: { id: string; items: { wardrobeItemId: string }[] } | null }
 function record(day: string, outfit: number, itemIds: string[], temperature: number | null, feeling: Row['wearFeeling'] = null): Row {
   return { date: new Date(day), wornAt: new Date(`${day}T10:00:00Z`), owner, wearTemperatureC: temperature, wearFeeling: feeling, outfit: { id: id(outfit), items: itemIds.map(wardrobeItemId => ({ wardrobeItemId })) } }
 }
@@ -50,13 +50,29 @@ test('순서가 다른 같은 조합을 묶고 실제 평균·체감만 남기�
   assert.equal(page.totalCount, 1)
   assert.equal(page.items[0].id, id(10))
   assert.deepEqual(page.items[0].records, [
-    { date: '2026-11-10', temperatureC: 16.2, feeling: 'comfortable' },
-    { date: '2026-11-09', temperatureC: 12, feeling: 'cold' },
+    { date: '2026-11-10', outfitId: id(10), wornAt: '2026-11-10T10:00:00.000Z', temperatureC: 16.2, automaticTemperatureC: 16.2, manualTemperatureC: null, feeling: 'comfortable' },
+    { date: '2026-11-09', outfitId: id(11), wornAt: '2026-11-09T10:00:00.000Z', temperatureC: 12, automaticTemperatureC: 12, manualTemperatureC: null, feeling: 'cold' },
   ])
   assert.deepEqual(calls.records[0].where.wornAt, { isSet: true, not: null })
   assert.equal(calls.records[0].where.outfit.is.userId, owner)
   assert.equal(calls.records[0].where.date.lte.toISOString(), '2026-11-13T00:00:00.000Z')
   assert.deepEqual(calls.outfits[0].where, { userId: owner, id: { in: [id(10)] } })
+})
+
+test('온도별 기록의 범위에는 직접 입력한 기온을 우선하고 실제 평균도 반환한다', async t => {
+  fixture(t, [{ ...record('2026-11-10', 10, ['top'], 16.2), manualWearTemperatureC: -2.5 }])
+  const page = await getTemperatureWearHistory(owner, { maxTemperatureC: 0 })
+  assert.equal(page.items[0]?.records[0]?.temperatureC, -2.5)
+  assert.equal(page.items[0]?.records[0]?.automaticTemperatureC, 16.2)
+  assert.equal((await getTemperatureWearHistory(owner, { minTemperatureC: 0 })).totalCount, 0)
+})
+
+test('저장 코디 상세는 같은 옷을 포함한 다른 조합을 제외하고 날짜 목록을 읽는다', async t => {
+  const itemIds = [id(1), id(2)]
+  const calls = fixture(t, [record('2026-11-12', 10, [...itemIds, id(3)], 13), record('2026-11-10', 11, [...itemIds].reverse(), 16)])
+  const page = await getTemperatureWearHistory(owner, { compositionItemIds: itemIds })
+  assert.deepEqual(page.items.map(group => group.id), [id(11)])
+  assert.deepEqual(calls.records[0].where.outfit.is.AND, itemIds.map(wardrobeItemId => ({ items: { some: { wardrobeItemId } } })))
 })
 
 test('기온·체감을 같은 날짜에서 비교하고 필터 밖의 과거 기록도 상세에 보존한다', async t => {
@@ -124,5 +140,5 @@ test('과거 코디를 바꿔 담은 이름·스타일은 AI 추천으로 분류
   t.mock.method(plannerRepository, 'setEntry', async () => week as unknown as Awaited<ReturnType<typeof plannerRepository.setEntry>>)
   const prepare = t.mock.method(outfitService, 'preparePlannerOutfit', async () => ({ userId: owner, name: '셔츠와 데님', style: 'casual', source: 'manual', seasons: [], items: [] }))
   await plannerService.setDirectEntry(owner, { weekStartsOn: '2026-11-09', date: '2026-11-11', itemIds: [id(1), id(2)], name: '셔츠와 데님', style: 'casual' })
-  assert.deepEqual(prepare.mock.calls[0].arguments, [owner, { itemIds: [id(1), id(2)], previewImage: undefined, name: '셔츠와 데님', style: 'casual', source: 'manual' }])
+  assert.deepEqual(prepare.mock.calls[0].arguments, [owner, { itemIds: [id(1), id(2)], items: undefined, seasons: undefined, previewImage: undefined, name: '셔츠와 데님', style: 'casual', source: 'manual' }])
 })

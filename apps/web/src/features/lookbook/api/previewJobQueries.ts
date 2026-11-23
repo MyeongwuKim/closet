@@ -94,7 +94,7 @@ export function useGenerateOutfitPreviewJobMutation(inputScope?: PreviewInput) {
 
   const mutation = useMutation({
     mutationKey: ['outfit-preview-generation', ownerId],
-    mutationFn: async (input: PreviewInput) => {
+    mutationFn: async (input: PreviewInput & { sourceOutfitId?: string }) => {
       if (!me.data) throw new Error('계정 정보를 확인한 뒤 다시 시도해주세요.')
       const viewerId = me.data.id
       const key = previewRequestKey(viewerId, input.selectedItemIds, input.style)

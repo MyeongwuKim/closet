@@ -27,7 +27,8 @@ test('옷 선택에서 설정한 최근 착용 기간을 적용하고 필터를 
   })
 
   await page.goto('/plan/2026-10-28')
-  await page.getByRole('button', { name: '아우터 고르기', exact: true }).click()
+  await page.getByRole('button', { name: '옷 직접 고르기', exact: true }).click()
+  await page.getByRole('button', { name: '아우터 아이템 고르기', exact: true }).click()
   const picker = page.getByRole('dialog', { name: '아우터 옷 선택' })
   const todaysCoat = picker.getByRole('button', { name: /오늘 입은 코트/ })
   const boundaryCoat = picker.getByRole('button', { name: /3일 전 코트/ })

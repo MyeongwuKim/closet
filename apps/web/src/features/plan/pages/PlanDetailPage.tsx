@@ -8,6 +8,7 @@ import {
   ImagePlus,
   Images,
   LoaderCircle,
+  Pencil,
   Sparkles,
   Trash2,
 } from 'lucide-react'
@@ -17,12 +18,15 @@ import { useUiStore } from '../../../stores/useUiStore'
 import { useClosetStore } from '../../closet/stores/useClosetStore'
 import { useGenerateOutfitPreviewMutation, useOutfitsQuery } from '../../lookbook/api/lookbookQueries'
 import { OutfitSlotEditor } from '../../lookbook/components/OutfitSlotEditor'
+import { OutfitReadView } from '../../lookbook/components/OutfitReadView'
+import type { OutfitLayer, OutfitWardrobeItem } from '../../lookbook/types'
 import { OutfitPreviewDialogView } from '../../lookbook/components/OutfitPreviewDialog'
 import { PreviewCreditSummary } from '../../lookbook/components/PreviewCreditSummary'
 import { SavedOutfitPreviewDialog } from '../../lookbook/components/SavedOutfitPreviewDialog'
 import type { OutfitPreviewState } from '../../lookbook/contexts/OutfitComposerContext'
 import { createLookbookOutfitPath } from '../../lookbook/utils/outfitComposerNavigation'
 import { findDuplicateOutfit, getOutfitCompletionMessage } from '../../lookbook/utils/outfitComposition'
+import { getOutfitLayerSlot } from '../../lookbook/utils/outfitSelection'
 import { getOutfitPreviewCompositionKey } from '../../lookbook/utils/outfitPreviewCache'
 import {
   usePlannerWeekQuery,
@@ -38,10 +42,7 @@ import { useRecentWearReminder } from '../hooks/useRecentWearReminder'
 import { usePlanStore } from '../stores/usePlanStore'
 import { PlannerOutfitPicker } from '../components/PlannerOutfitPicker'
 import { PlannerWearAction } from '../components/PlannerWearAction'
-import { PlanTomorrowForecast } from '../components/PlanFutureForecast'
-import { useKoreaPlannerToday } from '../hooks/useKoreaPlannerToday'
 import { getPlanEntryItems } from '../utils/plannerItems'
-import { getKoreaPlannerTomorrow } from '../utils/plannerWear'
 import { getAccessToken } from '../../../lib/auth'
 
 /** 아직 생성하지 않았거나 구성이 바뀐 플래너 미리보기의 닫힌 초기 상태를 만든다. */
@@ -58,24 +59,23 @@ function completedPreviewDialog(preview: OutfitPreview, compositionKey: string, 
   }
 }
 
-/** 플래너 → 날짜별 코디 설정. 직접 편집, 코디북 배정, 내일 예보 추천을 제공하고 실제 착용 기록과 저장한 이미지를 관리한다. */
+/** 플래너 → 날짜별 코디 설정. 직접 편집과 코디북 배정을 제공하고 착용 기록과 저장한 이미지를 관리한다. */
 export function PlanDetailPage() {
   const navigate = useNavigate()
   const { date } = useParams()
   const [searchParams] = useSearchParams()
-  const today = useKoreaPlannerToday()
   const items = useClosetStore((state) => state.items)
   const entries = usePlanStore((state) => state.entries)
   const setWeek = usePlanStore((state) => state.setWeek)
   const hydrateEntries = usePlanStore((state) => state.hydrateEntries)
-  const setEntryItems = usePlanStore((state) => state.setEntryItems)
   const clearOutfit = usePlanStore((state) => state.clearOutfit)
   const pushToast = useUiStore((state) => state.pushToast)
   const [isOutfitPickerOpen, setIsOutfitPickerOpen] = useState(false)
-  const [isTomorrowRecommendationOpen, setIsTomorrowRecommendationOpen] = useState(false)
   const detailDialogRef = useRef<HTMLElement>(null)
   const [isLookbookOpen, setIsLookbookOpen] = useState(false)
   const [isRemoveConfirmOpen, setIsRemoveConfirmOpen] = useState(false)
+  /** 편집을 시작한 날짜·코디와 초안. 저장하기 전까지 날짜의 코디는 유지한다. */
+  const [editSession, setEditSession] = useState<{ date: string; outfitId?: string; layers?: OutfitLayer[] } | null>(null)
   const [generatedPreview, setGeneratedPreview] = useState<OutfitPreview | null>(
     null,
   )
@@ -101,10 +101,24 @@ export function PlanDetailPage() {
   const fallbackEntry = weekStartsOn
     ? createEmptyWeeklyPlan(weekStartsOn).find((plan) => plan.date === date)
     : undefined
-  const entry =
+  const savedEntry =
     entries.find((plan) => plan.date === date) ??
     plannerWeekQuery.data?.find((plan) => plan.date === date) ??
     fallbackEntry
+  const isWearProtected = Boolean(savedEntry?.wornAt)
+  const isStaleEdit = editSession && (editSession.date !== date || isWearProtected ||
+    (savedEntry && savedEntry.outfitId !== editSession.outfitId))
+  if (isStaleEdit) setEditSession(null)
+  const isEditing = Boolean(editSession && !isStaleEdit)
+  const draftLayers = isEditing ? editSession?.layers : undefined
+  const entry = savedEntry && draftLayers ? {
+    ...savedEntry,
+    itemIds: draftLayers.map((layer) => layer.wardrobeItemId),
+    outfitLayers: draftLayers,
+    outfitId: undefined,
+    previewImageAssetId: undefined,
+    previewImageUrl: undefined,
+  } : savedEntry
   const activeItems = items.filter((item) => !item.archivedAt)
   const outfitItems = entry ? getPlanEntryItems(entry, activeItems) : []
   const lookbook = useOutfitsQuery(Boolean(entry?.outfitId))
@@ -119,6 +133,13 @@ export function PlanDetailPage() {
     requestedBackPath?.startsWith('/') && !requestedBackPath.startsWith('//')
       ? requestedBackPath
       : '/plan'
+
+  const cancelEdit = () => {
+    previewRequestVersionRef.current += 1
+    setGeneratedPreview(null)
+    setPreviewDialog(createPreviewDialogState())
+    setEditSession(null)
+  }
 
   useEffect(() => {
     if (!plannerWeekQuery.data || !weekStartsOn) return
@@ -149,6 +170,10 @@ export function PlanDetailPage() {
         setIsLookbookOpen(false)
         return
       }
+      if (isEditing) {
+        if (!setDirectPlannerEntry.isPending && !isCheckingRecentWear) cancelEdit()
+        return
+      }
       navigate(backPath)
     }
 
@@ -158,9 +183,9 @@ export function PlanDetailPage() {
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [backPath, isLookbookOpen, isRemoveConfirmOpen, navigate, previewDialog.isOpen])
+  }, [backPath, isCheckingRecentWear, isEditing, isLookbookOpen, isRemoveConfirmOpen, navigate, previewDialog.isOpen, setDirectPlannerEntry.isPending])
 
-  if (!entry) return null
+  if (!entry || !savedEntry) return null
 
   const hasArchivedItems = outfitItems.some((item) => item.archivedAt)
   const isEmpty = outfitItems.length === 0
@@ -179,23 +204,40 @@ export function PlanDetailPage() {
   const hasLocalPreview = Boolean(readyPreview || entry.previewImageUrl)
   const isPreviewActionLoading = hasCurrentPendingPreview || (!hasLocalPreview && (generatePreview.isPending || generatePreview.isRestoringCompleted))
   const isPreviewActionDisabled = isEmpty || (hasArchivedItems && !hasCompletedImage && !hasCurrentPendingPreview) || (!hasLocalPreview && generatePreview.isRestoringCompleted) || (generatePreview.isPending && !hasCurrentPendingPreview && !hasCompletedImage)
-  const hasUnsavedPreview = Boolean(readyPreview && (
-    readyPreview.assetId ? readyPreview.assetId !== entry.previewImageAssetId : generatedPreviewUrl !== entry.previewImageUrl
-  ))
-  const isDateSaved = Boolean(entry.outfitId) && !hasUnsavedPreview
+  // AI 미리보기는 팝업에서 저장할 수 있으며, 열어보기만 해서는 날짜 코디의 저장 상태를 바꾸지 않는다.
+  const isDateSaved = Boolean(entry.outfitId)
   const recordKey = `${entry.date}:${entry.outfitId ?? ''}:${currentPreviewKey}:${entry.previewImageAssetId ?? entry.previewImageUrl ?? ''}`
   const existingLookbookId = copiedRecord?.key === recordKey
     ? copiedRecord.outfitId
     : findDuplicateOutfit(lookbook.data ?? [], entry.itemIds)?.id
   const hasPlannerOutfit = Boolean(entry.outfitId || entry.itemIds.length > 0)
-  const isWearProtected = Boolean(entry.wornAt)
-  const isTomorrow = entry.date === getKoreaPlannerTomorrow(today)
   const entryDate = new Date(`${entry.date}T00:00:00`)
   const formattedDate = new Intl.DateTimeFormat('ko-KR', {
     month: 'long',
     day: 'numeric',
   }).format(entryDate)
   const entryTitle = entry.title || '코디를 설정해주세요'
+  const isSavingEdit = isCheckingRecentWear || setDirectPlannerEntry.isPending
+  const canEdit = !isWearProtected && !plannerWeekQuery.isPending && !plannerWeekQuery.isError &&
+    !isSavingEdit && !saveToLookbook.isPending && !clearPlannerEntry.isPending
+
+  const startEdit = () => setEditSession({ date: savedEntry.date, outfitId: savedEntry.outfitId })
+
+  const updateDraft = (nextItems: OutfitWardrobeItem[]) => {
+    const currentBaseIds = outfitItems.filter((item) => item.isBaseLayer).map((item) => item.id)
+    const nextBaseIds = nextItems.filter((item) => item.isBaseLayer).map((item) => item.id)
+    if (nextItems.length === outfitItems.length &&
+      nextItems.every((item) => outfitItems.some((current) => current.id === item.id && current.category === item.category && current.isBaseLayer === item.isBaseLayer)) &&
+      currentBaseIds.every((id, index) => id === nextBaseIds[index])) return
+
+    resetPreviewAfterAssignment()
+    setEditSession({ date: savedEntry.date, outfitId: savedEntry.outfitId, layers: nextItems.map((item, order) => ({
+      wardrobeItemId: item.id,
+      order,
+      slot: getOutfitLayerSlot(item, item.category),
+      isBaseLayer: item.isBaseLayer,
+    })) })
+  }
 
   /** 코디북 배정이 성공하면 이전 초안의 AI 결과가 새 날짜 코디에 붙지 않도록 초기화한다. */
   const resetPreviewAfterAssignment = () => {
@@ -278,8 +320,9 @@ export function PlanDetailPage() {
       return false
     }
 
+    const itemIds = outfitItems.map((item) => item.id)
     const confirmed = await confirmRecentWear({
-      itemIds: outfitItems.map((item) => item.id),
+      itemIds,
       targetDate: entry.date,
       confirmLabel: '그래도 저장',
       cancelLabel: '코디 다시 고르기',
@@ -290,18 +333,24 @@ export function PlanDetailPage() {
       const nextEntries = await setDirectPlannerEntry.mutateAsync({
         weekStartsOn,
         date: entry.date,
-        itemIds: outfitItems.map((item) => item.id),
+        itemIds,
+        items: entry.outfitLayers
+          ?.filter((layer) => itemIds.includes(layer.wardrobeItemId))
+          .map(({ wardrobeItemId, order, slot, isBaseLayer }) => ({
+            wardrobeItemId, layerOrder: order, slot, isBaseLayer,
+          })),
         previewImage: readyPreview ?? undefined,
         recommendationStyle: entry.outfitStyle,
       })
       if (sessionToken !== getAccessToken()) return false
       hydrateEntries(nextEntries)
-      const savedEntry = nextEntries.find(
+      const updatedEntry = nextEntries.find(
         (nextEntry) => nextEntry.date === entry.date,
       )
-      if (!savedEntry?.outfitId) {
+      if (!updatedEntry?.outfitId) {
         throw new Error('저장된 코디 정보를 찾을 수 없어요.')
       }
+      setEditSession(null)
       pushToast('변경한 코디를 이 날짜에 저장했어요.', 'success')
       return true
     } catch (error) {
@@ -368,11 +417,11 @@ export function PlanDetailPage() {
       role="dialog"
       aria-modal="true"
       aria-label={`${entryTitle} 상세`}
-      inert={isOutfitPickerOpen || (isTomorrow && isTomorrowRecommendationOpen)}
+      inert={isOutfitPickerOpen}
     >
       <header className="shrink-0 border-b border-line bg-canvas/95 backdrop-blur">
         <div className="mx-auto flex min-h-16 max-w-3xl items-center gap-2 px-3 py-2 sm:min-h-18 sm:px-5">
-          <button
+          {!isEditing && <button
             type="button"
             onClick={() => navigate(backPath)}
             className="flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-surface"
@@ -380,26 +429,37 @@ export function PlanDetailPage() {
             autoFocus
           >
             <ChevronLeft size={25} strokeWidth={2.2} />
-          </button>
+          </button>}
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-lg font-semibold tracking-[-0.03em]">
-              {entryTitle}
+              {isEditing ? '코디 편집' : entryTitle}
             </h1>
             <p className="mt-0.5 truncate text-xs text-muted">
-              {formattedDate} · {entry.dayLabel}요일
+              {isEditing ? `${entryTitle} · ` : ''}{formattedDate} · {entry.dayLabel}요일
               {entry.occasion ? ` · ${entry.occasion}` : ''}
             </p>
           </div>
           <button
             type="button"
             onClick={() => setIsOutfitPickerOpen(true)}
-            disabled={isWearProtected || plannerWeekQuery.isPending || plannerWeekQuery.isError || isCheckingRecentWear || setDirectPlannerEntry.isPending || saveToLookbook.isPending || clearPlannerEntry.isPending}
-            className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-xs font-bold text-accent hover:border-accent disabled:opacity-50"
+            disabled={!canEdit}
+            aria-label="코디북에서 고르기"
+            title="코디북에서 고르기"
+            className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full text-xs font-bold transition hover:bg-surface disabled:opacity-40 ${
+              isEditing || !hasPlannerOutfit ? 'border border-line bg-surface px-3 text-accent' : 'size-11 text-muted'
+            }`}
           >
-            <Images size={15} aria-hidden="true" />
-            코디북에서 고르기
+            <Images size={18} aria-hidden="true" />
+            {(isEditing || !hasPlannerOutfit) && '코디북에서 고르기'}
           </button>
-          {hasPlannerOutfit && (
+          {!isEditing && hasPlannerOutfit && (
+            <button type="button" onClick={startEdit} disabled={!canEdit}
+              className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-surface hover:text-ink disabled:opacity-40"
+              aria-label="코디 수정" title="코디 수정">
+              <Pencil size={18} aria-hidden="true" />
+            </button>
+          )}
+          {!isEditing && hasPlannerOutfit && (
             <button
               type="button"
               onClick={() => setIsRemoveConfirmOpen(true)}
@@ -417,56 +477,43 @@ export function PlanDetailPage() {
         </div>
       </header>
 
-      <div className="mx-auto w-full max-w-3xl shrink-0">
-        {isTomorrow && (
-          <div className="px-3 pt-2 sm:px-5">
-            <PlanTomorrowForecast
-              key={entry.date}
-              date={entry.date}
-              onOpenChange={setIsTomorrowRecommendationOpen}
-              onApplied={resetPreviewAfterAssignment}
-            />
-          </div>
-        )}
-        <PlannerWearAction entry={entry} />
+      {!isEditing && <div className="mx-auto w-full max-w-3xl shrink-0">
+        <PlannerWearAction entry={entry} showFeelingEditor />
         {isWearProtected && <p className="px-4 py-2 text-xs leading-4 text-muted">코디를 수정하거나 빼려면 먼저 ‘착용 취소’를 눌러주세요.</p>}
         {hasArchivedItems && <p className="px-4 py-2 text-center text-[11px] text-muted">삭제한 옷도 이 날짜의 기록에는 남아 있어요.</p>}
-      </div>
+      </div>}
 
-      <div className="min-h-0 flex-1 px-3 py-3 sm:px-6 sm:py-6">
+      <div className={`min-h-0 flex-1 px-3 py-3 sm:px-6 sm:py-6 ${isEditing ? '' : 'overflow-y-auto'}`}>
         <div className="mx-auto h-full max-w-3xl">
-          <OutfitSlotEditor
-            key={`${entry.date}:${isWearProtected}`}
+          {isEditing ? <OutfitSlotEditor
+            key={entry.date}
             items={activeItems}
             selectedItems={outfitItems}
             showArchivedStatus
-            readOnly={isWearProtected}
-            onChange={(nextItems) => {
-              const nextItemIds = nextItems.map((item) => item.id)
-              if (
-                nextItemIds.length === entry.itemIds.length &&
-                nextItemIds.every((itemId) => entry.itemIds.includes(itemId))
-              ) {
-                return
-              }
-              const hadSavedPreview = Boolean(entry.previewImageUrl)
-              previewRequestVersionRef.current += 1
-              setGeneratedPreview(null)
-              setPreviewDialog((current) => ({ ...current, isOpen: false }))
-              setEntryItems(entry.date, nextItemIds)
-              if (hadSavedPreview) {
-                pushToast(
-                  '코디 구성이 바뀌어 기존 AI 룩북 연결을 해제했어요.',
-                )
-              }
-            }}
+            variant="lookbook"
+            lookName={entryTitle}
+            onChange={updateDraft}
             className="h-full w-full"
-          />
+          /> : <>
+            <OutfitReadView items={outfitItems} />
+            {isEmpty && <button type="button" onClick={startEdit} disabled={!canEdit}
+              className="mx-auto flex min-h-11 items-center rounded-xl border border-line bg-surface px-4 text-sm font-semibold text-accent disabled:opacity-40">
+              옷 직접 고르기
+            </button>}
+          </>}
         </div>
       </div>
 
-      <footer className="shrink-0 border-t border-line bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(27,27,24,0.06)]">
-        <div className="mx-auto grid max-w-3xl grid-cols-[0.95fr_1.05fr] gap-2">
+      {(isEditing || !isEmpty) && <footer className="shrink-0 border-t border-line bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(27,27,24,0.06)]">
+        {isEditing ? <div className="mx-auto grid max-w-3xl grid-cols-[0.85fr_1.15fr] gap-2">
+          <button type="button" onClick={cancelEdit} disabled={isSavingEdit}
+            className="rounded-xl border border-line bg-canvas px-3 py-3 text-sm font-bold disabled:opacity-40">취소</button>
+          <button type="button" onClick={() => void saveDirectOutfit()}
+            disabled={!draftLayers || isEmpty || hasArchivedItems || Boolean(outfitCompletionMessage) || isSavingEdit}
+            className="rounded-xl bg-accent px-3 py-3 text-sm font-bold text-white disabled:opacity-40">
+            {isSavingEdit ? '저장 중…' : '변경사항 저장'}
+          </button>
+        </div> : <div className="mx-auto grid max-w-3xl grid-cols-[0.95fr_1.05fr] gap-2">
           {requiresPreviewCredit && <div className="col-span-2"><PreviewCreditSummary /></div>}
           <AiCreditActionButton
             requiresCredit={requiresPreviewCredit}
@@ -506,8 +553,8 @@ export function PlanDetailPage() {
                 : isDateSaved ? '코디북에 추가' : '변경사항 저장'}
             </button>
           )}
-        </div>
-      </footer>
+        </div>}
+      </footer>}
 
       {isOutfitPickerOpen && (
         <PlannerOutfitPicker

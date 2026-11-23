@@ -10,7 +10,6 @@ interface PlanState {
   entries: PlanEntry[]
   setWeek: (weekStartsOn: string) => void
   hydrateEntries: (entries: PlanEntry[]) => void
-  setEntryItems: (date: string, itemIds: string[]) => void
   assignOutfit: (date: string, outfit: SavedOutfit) => void
   clearOutfit: (date: string) => void
 }
@@ -33,24 +32,6 @@ export const usePlanStore = create<PlanState>((set) => ({
         ),
       }
     }),
-  setEntryItems: (date, itemIds) =>
-    set((state) => ({
-      entries: state.entries.map((entry) =>
-        entry.date === date
-          ? {
-              ...entry,
-              title: itemIds.length > 0 ? '직접 고른 코디' : '',
-              itemIds: [...new Set(itemIds)],
-              outfitId: undefined,
-              wornAt: null,
-              wearFeeling: null,
-              plannerOnly: undefined,
-              previewImageAssetId: undefined,
-              previewImageUrl: undefined,
-            }
-          : entry,
-      ),
-    })),
   assignOutfit: (date, outfit) =>
     set((state) => ({
       entries: state.entries.map((entry) =>
@@ -59,6 +40,7 @@ export const usePlanStore = create<PlanState>((set) => ({
               ...entry,
               title: outfit.name,
               itemIds: outfit.layers.map((layer) => layer.wardrobeItemId),
+              outfitLayers: outfit.layers,
               outfitItems: outfit.outfitItems,
               outfitId: outfit.id,
               wornAt: entry.outfitId === outfit.id ? entry.wornAt : null,
@@ -77,10 +59,13 @@ export const usePlanStore = create<PlanState>((set) => ({
               ...entry,
               title: '',
               itemIds: [],
+              outfitLayers: undefined,
               outfitItems: undefined,
               outfitId: undefined,
               wornAt: null,
               wearFeeling: null,
+              wearTemperatureC: null,
+              manualWearTemperatureC: null,
               plannerOnly: undefined,
               previewImageAssetId: undefined,
               previewImageUrl: undefined,

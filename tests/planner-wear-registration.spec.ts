@@ -54,7 +54,8 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     const inputs: Array<Record<string, unknown>> = []
     page.on('request', request => { if (request.postData()?.includes('mutation SetDirectPlannerEntry(')) inputs.push(request.postDataJSON().variables.input) })
     await page.goto(`/plan/${today}`)
-    await page.getByRole('button', { name: '상의 교체하기', exact: true }).click()
+    await page.getByRole('button', { name: '코디 수정', exact: true }).click()
+    await page.getByRole('button', { name: /상의 아이템 바꾸기/ }).click()
     const picker = page.getByRole('dialog', { name: '상의 옷 선택', exact: true })
     await picker.getByRole('button', { name: /오늘 입은 셔츠/ }).click()
     await picker.getByRole('button', { name: '1개 선택 완료', exact: true }).click()
@@ -63,6 +64,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     await expect(page.getByRole('button', { name: '코디북에 추가', exact: true })).toBeEnabled()
     expect(mockApi.plannerEntries[0].wornAt).toBeNull()
     await page.getByRole('button', { name: '입었어요', exact: true }).click()
+    await page.getByRole('dialog', { name: '입었을 때 어땠나요?' }).getByRole('button', { name: '건너뛰기' }).click()
     await expect(page.getByRole('group', { name: '실제 착용 확인', exact: true }).getByText('착용 완료', { exact: true })).toBeVisible()
     expect(inputs).toHaveLength(1)
     expect(inputs[0]).toMatchObject({ date: today, itemIds: expect.arrayContaining(['worn-shirt']) })

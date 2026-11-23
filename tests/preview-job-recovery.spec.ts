@@ -3,6 +3,7 @@ import { createOutfit, test, expect } from './support/fixture'
 import { readFileSync } from 'node:fs'
 
 const imageUrl = `data:image/png;base64,${readFileSync('tests/support/mock-shirt.png').toString('base64')}`
+const savedPreviewPath = '/lookbook?outfit=outfit-1&preview=open&previewAssetId=preview-asset-one&previewItems=item-1%2Citem-2&previewStyle=casual'
 function makeJob(status: OutfitPreviewJob['status']): OutfitPreviewJob {
   return { id: 'preview-job-one', status, selectedItemIds: ['item-1', 'item-2'], style: null,
     imageAssetId: status === 'completed' ? 'preview-asset-one' : null, model: status === 'completed' ? 'fixture-model' : null,
@@ -221,12 +222,80 @@ test('저장된 룩북 재생성 화면에서 진행 중 작업을 이어받고 
   await expect(page.getByRole('dialog', { name: 'AI가 룩북을 만들고 있어요' })).toBeVisible()
   await expect.poll(() => reads).toBeGreaterThan(0)
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('closet:native-app-state', { detail: { isActive: false } })))
-  state = { ...makeJob('completed'), style: 'casual' }
+  state = { ...makeJob('completed'), style: 'casual', path: savedPreviewPath }
   await page.evaluate((path) => {
     window.location.hash = path
     window.dispatchEvent(new Event('closet:native-app-active'))
-  }, state.path + '&style=casual')
+  }, state.path)
   await expect(page.getByRole('dialog', { name: 'AI 룩북 미리보기', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '새 AI 룩북으로 저장' })).toBeVisible()
   await expect(page.getByRole('dialog', { name: 'AI가 룩북을 만들고 있어요' })).toHaveCount(0)
   expect(starts).toBe(0)
 })
+
+for (const regenerate of [false, true]) {
+  test(`저장된 코디의 AI 룩북 ${regenerate ? '재생성' : '생성'} 완료 팝업에서 원래 코디를 연다`, async ({ page, mockApi }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    mockApi.outfits = [createOutfit({
+      generations: regenerate ? [{ status: 'completed', imageAsset: { deliveryUrl: imageUrl } }] : [],
+    })]
+    mockApi.previewImages['preview-asset-one'] = imageUrl
+    let state: OutfitPreviewJob | undefined
+    let sourceOutfitId: string | undefined
+    let acknowledged = false
+    let starts = 0
+    await page.route('**/graphql', async (route) => {
+      const { query, variables } = route.request().postDataJSON()
+      let data: unknown
+      if (query.includes('mutation StartOutfitPreview')) {
+        starts += 1
+        sourceOutfitId = variables.input.sourceOutfitId
+        state = { ...makeJob('processing'), style: 'casual' }
+        data = { startOutfitPreview: state }
+      } else if (query.includes('query OutfitPreviewJobs')) {
+        data = { outfitPreviewJobs: state && !acknowledged ? [state] : [] }
+      } else if (query.includes('query OutfitPreviewJob(')) {
+        data = { outfitPreviewJob: state }
+      } else if (query.includes('query OutfitPreviewAsset')) {
+        data = { outfitPreviewAsset: { assetId: 'preview-asset-one', imageUrl, mimeType: 'image/png', model: 'fixture-model' } }
+      } else if (query.includes('mutation AcknowledgeOutfitPreviewJob')) {
+        acknowledged = true
+        data = { acknowledgeOutfitPreviewJob: true }
+      } else {
+        await route.fallback()
+        return
+      }
+      await route.fulfill({ json: { data } })
+    })
+
+    await page.goto('/lookbook?outfit=outfit-1')
+    if (regenerate) {
+      await page.getByRole('button', { name: 'AI 룩북 보기', exact: true }).click()
+      await page.getByRole('button', { name: 'AI 룩북 다시 만들기' }).click()
+    } else {
+      await page.getByRole('button', { name: 'AI 룩북 만들기', exact: true }).click()
+    }
+    await expect.poll(() => starts).toBe(1)
+    await page.goto('/plan')
+    const completed = { ...makeJob('completed'), style: 'casual' }
+    state = sourceOutfitId ? { ...completed, path: savedPreviewPath } : completed
+    const notice = page.getByRole('dialog', { name: 'AI 룩북이 완성됐어요', exact: true })
+    await notice.getByRole('button', { name: '보러 가기', exact: true }).click()
+    await expect(page).toHaveURL(/\/lookbook\?outfit=outfit-1/)
+    const preview = page.getByRole('dialog', { name: 'AI 룩북 미리보기', exact: true })
+    await expect(preview.getByRole('button', { name: '새 AI 룩북으로 저장' })).toBeVisible()
+    await expect.poll(() => acknowledged).toBe(true)
+    if (regenerate) {
+      await preview.getByRole('button', { name: '새 AI 룩북으로 저장' }).click()
+      await expect.poll(() => mockApi.outfits.map((outfit) => [outfit.id, outfit.generations[0]?.imageAsset?.id]))
+        .toEqual([['outfit-1', 'preview-asset-one']])
+      expect(mockApi.operations).not.toContain('CreateOutfit')
+    } else {
+      await preview.getByRole('button', { name: 'AI 룩북 미리보기 닫기', exact: true }).click()
+    }
+    await expect(page).toHaveURL(/\/lookbook\?outfit=outfit-1$/)
+    await expect(page.getByRole('dialog', { name: '기본 코디 코디 상세', exact: true })).toBeVisible()
+    expect(sourceOutfitId).toBe('outfit-1')
+    expect(starts).toBe(1)
+  })
+}

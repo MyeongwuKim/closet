@@ -18,6 +18,7 @@ for (const viewport of [{ name: 'mobile', width: 390, height: 844 }, { name: 'de
     await expect(action.getByRole('button', { name: '입었어요', exact: true })).toBeVisible()
     expect(mockApi.plannerEntries[0].wornAt).toBeUndefined()
     await action.getByRole('button', { name: '입었어요', exact: true }).click()
+    await page.getByRole('dialog', { name: '입었을 때 어땠나요?' }).getByRole('button', { name: '건너뛰기' }).click()
     await expect(action.getByText('착용 완료', { exact: true })).toBeVisible()
     expect(mockApi.plannerEntries[0].wornAt).toBeTruthy()
     expect(mockApi.operations).toContain('SetPlannerEntryWorn')
@@ -53,12 +54,12 @@ test('착용 완료 날짜에서는 구성을 보호하고 착용 취소 후에�
   await expect(detail.getByText('코디를 수정하거나 빼려면 먼저 ‘착용 취소’를 눌러주세요.')).toBeVisible()
   await expect(detail.getByRole('button', { name: '코디북에서 고르기' })).toBeDisabled()
   await expect(detail.getByRole('button', { name: '이 날짜에서 코디 빼기' })).toBeDisabled()
-  await expect(detail.getByRole('button', { name: '상의 교체하기' })).toHaveCount(0)
+  await expect(detail.getByRole('button', { name: '코디 수정', exact: true })).toBeDisabled()
   expect(mockApi.plannerEntries[0]).toMatchObject({ wornAt, wearFeeling: 'cold', wearTemperatureC: 12 })
   expect(mockApi.operations).not.toContain('ClearPlannerEntry')
 
   await detail.getByRole('button', { name: '착용 취소', exact: true }).click()
-  await expect(detail.getByRole('button', { name: '상의 교체하기' })).toBeVisible()
+  await expect(detail.getByRole('button', { name: '코디 수정', exact: true })).toBeEnabled()
   await detail.getByRole('button', { name: '이 날짜에서 코디 빼기' }).click()
   await page.getByRole('alertdialog', { name: '이 날짜에서 코디를 뺄까요?' }).getByRole('button', { name: '플래너에서 빼기' }).click()
   await expect(page).toHaveURL('/plan')
@@ -87,7 +88,8 @@ for (const [action, operation] of [
     let submit: Locator
     let dismiss: Locator | undefined
     if (operation === 'SetDirectPlannerEntry') {
-      await page.getByRole('button', { name: '상의 교체하기' }).click()
+      await page.getByRole('button', { name: '코디 수정', exact: true }).click()
+      await page.getByRole('button', { name: /상의 아이템 바꾸기/ }).click()
       const picker = page.getByRole('dialog', { name: '상의 옷 선택' })
       await picker.getByRole('button', { name: /교체용 상의/ }).click()
       await picker.getByRole('button', { name: '1개 선택 완료' }).click()
@@ -122,7 +124,7 @@ for (const [action, operation] of [
     await expect(detail.getByText('착용 완료', { exact: true })).toBeVisible()
     await expect(detail.getByRole('button', { name: '코디북에서 고르기' })).toBeDisabled()
     await expect(detail.getByRole('button', { name: '이 날짜에서 코디 빼기' })).toBeDisabled()
-    await expect(detail.getByRole('button', { name: '상의 교체하기' })).toHaveCount(0)
+    await expect(detail.getByRole('button', { name: '코디 수정', exact: true })).toBeDisabled()
     expect(mockApi.plannerEntries).toEqual([confirmed])
     await expect(page).toHaveURL(`/plan/${date}`)
     await page.reload()

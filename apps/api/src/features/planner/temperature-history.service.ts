@@ -36,17 +36,24 @@ function matches(record: TemperatureWearRecord, input: TemperatureWearHistoryInp
  */
 export async function getTemperatureWearHistory(userId: string, input: TemperatureWearHistoryInput = {}) {
   validateInput(input)
-  const page = readPageInput(input)
+  const page = readPageInput({ ...input, sort: input.outfitFilter?.sort })
   const today = getKoreaTodayUtc()
-  const entries = await temperatureHistoryRepository.findRecords(userId, today)
+  const entries = await temperatureHistoryRepository.findRecords(userId, today, input)
+  const composition = input.compositionItemIds?.length ? outfitCompositionKey(input.compositionItemIds) : null
   const groups = new Map<string, { id: string; createdAt: Date; matchingDate: string; records: TemperatureWearRecord[] }>()
   for (const entry of entries) {
     if (!entry.outfit || !entry.wornAt || entry.date > today) continue
     const key = outfitCompositionKey(entry.outfit.items.map(item => item.wardrobeItemId))
-    if (!key) continue
+    if (!key || (composition && key !== composition)) continue
+    const automaticTemperatureC = Number.isFinite(entry.wearTemperatureC) ? entry.wearTemperatureC : null
+    const manualTemperatureC = Number.isFinite(entry.manualWearTemperatureC) ? entry.manualWearTemperatureC : null
     const record: TemperatureWearRecord = {
       date: toDateOnly(entry.date),
-      temperatureC: typeof entry.wearTemperatureC === 'number' && Number.isFinite(entry.wearTemperatureC) ? entry.wearTemperatureC : null,
+      outfitId: entry.outfit.id,
+      wornAt: entry.wornAt.toISOString(),
+      temperatureC: manualTemperatureC ?? automaticTemperatureC,
+      automaticTemperatureC,
+      manualTemperatureC,
       feeling: entry.wearFeeling ?? null,
     }
     let group = groups.get(key)
@@ -61,9 +68,10 @@ export async function getTemperatureWearHistory(userId: string, input: Temperatu
       group.matchingDate = record.date
     }
   }
-  const sorted = [...groups.values()].filter(group => group.id).sort((a, b) =>
-    b.matchingDate.localeCompare(a.matchingDate) || b.id.localeCompare(a.id),
-  )
+  const sorted = [...groups.values()].filter(group => group.id).sort((a, b) => {
+    const recentFirst = b.matchingDate.localeCompare(a.matchingDate) || b.id.localeCompare(a.id)
+    return page.order === 'asc' ? -recentFirst : recentFirst
+  })
   let offset = 0
   if (input.cursor) {
     // readPageInput가 검증한 커서라도 기록이 취소·교체되었다면 첫 페이지에서 다시 시작한다.

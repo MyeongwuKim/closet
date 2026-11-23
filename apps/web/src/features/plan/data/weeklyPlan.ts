@@ -1,4 +1,5 @@
 import type { WardrobeItem, WearFeeling } from '@closet/types'
+import type { OutfitLayer } from '../../lookbook/types'
 
 export interface PlanEntry {
   date: string
@@ -8,6 +9,8 @@ export interface PlanEntry {
   occasion: string
   weather: string
   itemIds: string[]
+  /** 날짜 코디의 착용 위치와 이너 순서. */
+  outfitLayers?: OutfitLayer[]
   /** 날짜 코디에 연결된 옷의 표시 정보. 삭제된 옷도 현재 옷장 목록과 별개로 유지한다. */
   outfitItems?: WardrobeItem[]
   outfitId?: string
@@ -15,6 +18,8 @@ export interface PlanEntry {
   wornAt?: string | null
   /** 착용 완료한 코디에 남긴 온도 체감. 착용을 취소하면 함께 비운다. */
   wearFeeling?: WearFeeling | null
+  wearTemperatureC?: number | null
+  manualWearTemperatureC?: number | null
   outfitStyle?: string
   plannerOnly?: boolean
   /** 이 날짜에 저장한 이미지 번호. 같은 옷 조합의 공용 생성 결과와 독립적으로 유지한다. */
@@ -83,6 +88,7 @@ function getOutfitFields(entry: PlanEntry) {
   return {
     title: entry.title,
     itemIds: entry.itemIds,
+    outfitLayers: entry.outfitLayers,
     outfitItems: entry.outfitItems,
     outfitId: entry.outfitId,
     outfitStyle: entry.outfitStyle,
@@ -101,6 +107,8 @@ export function placePlanOutfitInDate(
     ...getOutfitFields(outfitEntry),
     wornAt: dateEntry.outfitId === outfitEntry.outfitId ? dateEntry.wornAt : null,
     wearFeeling: dateEntry.outfitId === outfitEntry.outfitId && dateEntry.wornAt ? dateEntry.wearFeeling : null,
+    wearTemperatureC: dateEntry.outfitId === outfitEntry.outfitId && dateEntry.wornAt ? dateEntry.wearTemperatureC : null,
+    manualWearTemperatureC: dateEntry.outfitId === outfitEntry.outfitId && dateEntry.wornAt ? dateEntry.manualWearTemperatureC : null,
   }
 }
 

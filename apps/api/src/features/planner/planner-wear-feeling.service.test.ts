@@ -28,7 +28,7 @@ function week() {
 
 /** 실제 DB 대신 조회한 착용 기록과 CAS 결과를 조절해 취소·재확인·동시 변경을 검사한다. */
 function repositoryFixture(t: TestContext) {
-  const entry = { id: 'entry', outfitId, wornAt: wornAt as Date | null, wearFeeling: null as WearFeeling | null }
+  const entry = { id: 'entry', outfitId, wornAt: wornAt as Date | null, wearFeeling: null as WearFeeling | null, manualWearTemperatureC: null as number | null }
   const writes: Array<Record<string, any>> = []
   let count = 1
   const transaction = {
@@ -86,6 +86,7 @@ test('서비스 경계에서 날짜·확인 시각·체감 값을 검증하고 �
     await assert.rejects(plannerService.setEntryWearFeeling(userId, { ...input, wornAt: value }), { code: 'INVALID_WEAR_CONFIRMATION' })
   }
   await assert.rejects(plannerService.setEntryWearFeeling(userId, { ...input, feeling: 'warm' as WearFeeling }), { code: 'INVALID_WEAR_FEELING' })
+  await assert.rejects(plannerService.setEntryWearFeeling(userId, { ...input, manualTemperatureC: 101 }), { code: 'INVALID_WEAR_TEMPERATURE' })
   await assert.rejects(plannerService.setEntryWearFeeling(userId, { ...input, date: '2026-11-05' }), { code: 'FUTURE_PLANNER_WEAR' })
   assert.equal(lookup.mock.callCount(), 0)
 })
@@ -118,6 +119,17 @@ test('저장소도 확인 취소·다른 코디·다른 확인 시각을 쓰기 
   fixture.entry.outfitId = replacementId
   assert.equal(await plannerRepository.setEntryWearFeeling(plannerWeekId, date, outfitId, wornAt, 'hot'), null)
   assert.equal(fixture.writes.length, 0)
+})
+
+test('직접 입력한 영하 기온을 별도 저장하고 비우면 자동 기온을 보존한다', async (t) => {
+  const fixture = repositoryFixture(t)
+  await plannerRepository.setEntryWearFeeling(plannerWeekId, date, outfitId, wornAt, null, -2.5)
+  assert.deepEqual(fixture.writes[0].data, { wearFeeling: null, manualWearTemperatureC: -2.5 })
+  fixture.entry.manualWearTemperatureC = -2.5
+  await plannerRepository.setEntryWearFeeling(plannerWeekId, date, outfitId, wornAt, 'cold')
+  assert.deepEqual(fixture.writes[1].data, { wearFeeling: 'cold' })
+  await plannerRepository.setEntryWearFeeling(plannerWeekId, date, outfitId, wornAt, 'cold', null)
+  assert.deepEqual(fixture.writes[2].data, { wearFeeling: 'cold', manualWearTemperatureC: null })
 })
 
 test('CAS 직전에 기록이 바뀌면 성공한 것으로 응답하지 않는다', async (t) => {

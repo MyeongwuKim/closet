@@ -242,6 +242,11 @@
     padding: 0;
   }
 
+  .outfit-styling-layout--board-only {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0;
+  }
+
   .outfit-styling-layout .composer-look-canvas__composition {
     height: clamp(340px, 46vh, 440px);
     aspect-ratio: auto;

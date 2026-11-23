@@ -5,14 +5,16 @@ import type { PlanViewMode } from './PlanViewToggle'
 interface PlanPeriodHeaderProps {
   viewMode: PlanViewMode
   anchorDate: string
+  isToday: boolean
   onPrevious: () => void
   onNext: () => void
 }
 
-/** 플래너의 하루·주·월 기간을 작은 연도 라벨과 큰 날짜 숫자로 표시하고, 기간별 이전·다음 이동을 부모에 요청한다. */
+/** 플래너의 기간과 이동 버튼을 표시한다. 하루 보기에서 오늘을 선택하면 날짜 숫자 대신 ‘오늘’을 표시한다. */
 export function PlanPeriodHeader({
   viewMode,
   anchorDate,
+  isToday,
   onPrevious,
   onNext,
 }: PlanPeriodHeaderProps) {
@@ -29,10 +31,10 @@ export function PlanPeriodHeader({
         </p>
         <div className="w-fit max-w-full">
           <h2
-            aria-label={period.accessibleLabel}
+            aria-label={isToday ? '오늘' : period.accessibleLabel}
             className={`plan-period-title mt-0.5 flex items-baseline whitespace-nowrap font-editorial text-[27px] leading-8 tracking-[-0.05em] sm:text-3xl sm:leading-9 ${period.endNumber ? 'gap-1.5' : 'gap-0'}`}
           >
-            <span>{period.startNumber}</span>
+            <span className={isToday ? 'font-sans font-semibold' : undefined}>{isToday ? '오늘' : period.startNumber}</span>
             {period.endNumber && (
               <>
                 <span aria-hidden="true" className="font-sans text-xl font-normal tracking-normal text-accent">—</span>

@@ -1,4 +1,53 @@
 import { createOutfit, createWardrobeItem, expect, test } from './support/fixture'
+
+for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
+  test(`${viewport.width}px: 코디북 상세의 달력에서 날짜를 골라 플래너에 담고 기존 코디는 교체를 확인한다`, async ({ page, mockApi }, testInfo) => {
+    await page.setViewportSize(viewport)
+    await page.clock.setFixedTime(new Date('2026-11-23T12:00:00+09:00'))
+    const source = createOutfit({ id: '000000000000000000000101', name: '플래너에 담을 코디' })
+    const previous = createOutfit({ id: '000000000000000000000102', name: '이미 담긴 코디' })
+    mockApi.outfits = [source]
+    const booked = { date: '2026-11-24', title: previous.name, occasion: null, temperatureC: null, weatherSummary: null,
+      outfit: { ...previous, plannerOnly: true } }
+    mockApi.plannerEntries = [booked, { ...booked, date: '2026-11-22', wornAt: '2026-11-22T12:00:00.000Z' }]
+    await page.goto('/lookbook')
+    await page.getByRole('button', { name: `${source.name} 코디 상세 보기` }).click()
+    const detail = page.getByRole('dialog', { name: `${source.name} 코디 상세`, exact: true })
+    const actions = detail.locator('footer')
+    await expect(actions.getByRole('button', { name: 'AI 룩북 만들기', exact: true })).toBeVisible()
+    const assign = actions.getByRole('button', { name: '플래너에 담기', exact: true })
+    await assign.click()
+    const assignment = page.getByRole('dialog', { name: '플래너에 담기', exact: true })
+    const calendar = assignment.getByRole('region', { name: '담을 날짜' })
+    const empty = calendar.getByRole('button', { name: '2026-11-23, 비어 있음' })
+    const occupied = calendar.getByRole('button', { name: '2026-11-24, 코디 있음' })
+    await expect(empty).toHaveAttribute('aria-pressed', 'true')
+    await expect(occupied).toBeEnabled()
+    await expect(calendar.getByRole('button', { name: '2026-11-22, 코디 있음' })).toBeDisabled()
+    await expect(calendar.getByText('착용 완료', { exact: true })).toHaveCount(0)
+    await assignment.getByRole('button', { name: '다음 달' }).click()
+    await expect(assignment.getByRole('heading', { name: '2026년 12월' })).toBeVisible()
+    await expect(assignment.getByRole('button', { name: '이 날짜에 담기', exact: true })).toBeDisabled()
+    await calendar.getByRole('button', { name: '2026-12-01, 비어 있음' }).click()
+    await expect(assignment.getByRole('status')).toContainText('12월 1일 · 비어 있음')
+    await assignment.getByRole('button', { name: '이전 달' }).click()
+    await occupied.click()
+    await expect(assignment.getByRole('button', { name: '이 날짜에 담기', exact: true })).toBeEnabled()
+    await expect(assignment).toHaveCSS('opacity', '1')
+    await expect(assignment.locator('..')).toHaveCSS('opacity', '1')
+    await page.screenshot({ path: testInfo.outputPath('lookbook-plan-assignment.png'), animations: 'disabled' })
+    await assignment.getByRole('button', { name: '이 날짜에 담기', exact: true }).click()
+    const replacement = page.getByRole('alertdialog', { name: '이날 코디를 바꿀까요?' })
+    await expect(replacement.getByText(`${previous.name} 대신 선택한 코디를 담아요.`)).toBeVisible()
+    expect(mockApi.operations).not.toContain('SetPlannerEntry')
+    await replacement.getByRole('button', { name: '코디 바꾸기', exact: true }).click()
+    await expect(page).toHaveURL(/\/plan\?view=today&date=2026-11-24$/)
+    const added = mockApi.plannerEntries.find((entry) => entry.date === '2026-11-24')?.outfit
+    expect(added).toMatchObject({ plannerOnly: true, name: source.name })
+    expect(added?.id).not.toBe(source.id)
+    expect(mockApi.outfits).toEqual([source])
+  })
+}
 import { mkdirSync, readFileSync } from 'node:fs'
 
 test.describe('코디북', () => {
@@ -24,7 +73,7 @@ test.describe('코디북', () => {
     const details = page.getByRole('dialog', { name: '기존 겨울 코디 코디 상세' })
     await expect(details.getByRole('button', { name: '이 코디로 새 코디 만들기' })).toHaveCount(0)
     await details.getByRole('button', { name: '코디 수정', exact: true }).click()
-    await details.getByRole('button', { name: '아우터 고르기', exact: true }).click()
+    await details.getByRole('button', { name: '아우터 아이템 고르기', exact: true }).click()
     const outerPicker = page.getByRole('dialog', { name: '아우터 옷 선택' })
     await outerPicker.getByRole('button', { name: /겨울 코트/ }).click()
     await outerPicker.getByRole('button', { name: '1개 선택 완료' }).click()
@@ -118,7 +167,7 @@ test.describe('코디북', () => {
     await page.getByRole('button', { name: '후드집업 레이어드 코디 상세 보기' }).click()
     const details = page.getByRole('dialog', { name: '후드집업 레이어드 코디 상세', exact: true })
     await details.getByRole('button', { name: '코디 수정', exact: true }).click()
-    await expect(details.getByRole('button', { name: '중간 아우터 교체하기' })).toBeVisible()
+    await expect(details.getByRole('button', { name: /중간 아우터 아이템 바꾸기/ })).toBeVisible()
   })
 
   test('옷장에서 대표 카테고리를 중간 아우터로 바꾸면 코디북의 해당 칸에서 고를 수 있다', async ({ page, mockApi }, testInfo) => {
@@ -152,17 +201,29 @@ test.describe('코디북', () => {
   })
 
   for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
-    test(`${viewport.width}px: 코디를 보기로 열고 편집 취소는 초안을 버리며 저장 후 보기로 돌아간다`, async ({ page, mockApi }) => {
+    test(`${viewport.width}px: 코디를 보기로 열고 편집 취소는 초안을 버리며 저장 후 보기로 돌아간다`, async ({ page, mockApi }, testInfo) => {
       await page.setViewportSize(viewport)
       await page.goto('/lookbook')
       await page.getByRole('button', { name: '기본 코디 코디 상세 보기' }).click()
       const detail = page.getByRole('dialog', { name: '기본 코디 코디 상세', exact: true })
       await expect(detail.getByRole('button', { name: /고르기|교체하기|변경사항 저장/ })).toHaveCount(0)
-      const edit = detail.getByRole('button', { name: '코디 수정', exact: true })
+      const edit = detail.locator('header').getByRole('button', { name: '코디 수정', exact: true })
+      await expect(detail.locator('footer').getByRole('button', { name: '코디 수정', exact: true })).toHaveCount(0)
+      await expect(detail).toHaveCSS('opacity', '1')
+      await page.screenshot({ path: testInfo.outputPath('lookbook-edit-header.png'), animations: 'disabled' })
       await edit.click()
-      await expect(detail.getByRole('button', { name: '상의 교체하기', exact: true })).toBeVisible()
+      const board = detail.getByRole('group', { name: /기본 코디 조합 보드/ })
+      const top = board.getByRole('button', { name: /상의 아이템 바꾸기/ })
+      const baseLayer = board.getByRole('button', { name: '받쳐 입는 옷 추가' })
+      await expect(top).toBeVisible()
+      await expect(baseLayer).toBeVisible()
+      const topBounds = (await top.boundingBox())!
+      const baseLayerBounds = (await baseLayer.boundingBox())!
+      expect(baseLayerBounds.y).toBeGreaterThanOrEqual(topBounds.y + topBounds.height)
+      await expect(detail.getByRole('button', { name: '코디 정보 수정', exact: true })).toBeVisible()
+      await page.screenshot({ path: testInfo.outputPath('lookbook-edit-info-button.png'), animations: 'disabled' })
       const changeName = async (name: string) => {
-        await detail.getByRole('button', { name: '코디 이름과 스타일 수정' }).click()
+        await detail.getByRole('button', { name: '코디 정보 수정' }).click()
         const info = page.getByRole('dialog', { name: '코디 정보 수정', exact: true })
         await info.getByRole('textbox', { name: '코디 이름' }).fill(name)
         await info.getByRole('button', { name: '적용', exact: true }).click()
@@ -443,7 +504,7 @@ test.describe('코디북', () => {
 
     const detail = page.getByRole('dialog', { name: '기본 코디 코디 상세' })
     await detail.getByRole('button', { name: '코디 수정', exact: true }).click()
-    await detail.getByRole('button', { name: '코디 이름과 스타일 수정' }).click()
+    await detail.getByRole('button', { name: '코디 정보 수정' }).click()
     const infoDialog = page.getByRole('dialog', { name: '코디 정보 수정' })
     await infoDialog.getByRole('textbox', { name: '코디 이름' }).fill('수정한 코디')
     await infoDialog.getByRole('button', { name: '적용' }).click()

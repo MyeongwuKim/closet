@@ -13,11 +13,11 @@ interface WearHistoryPagePayload {
 }
 
 /** 계정·기온·체감별 착용을 페이지로 읽는다. planner 키 아래 두어 착용 확인·취소·체감 변경 시 함께 갱신한다. */
-export function useTemperatureWearHistory(input: Omit<TemperatureWearHistoryInput, 'cursor'>) {
+export function useTemperatureWearHistory(input: Omit<TemperatureWearHistoryInput, 'cursor'>, enabled = true) {
   const me = useMeQuery()
   return useInfiniteQuery({
     queryKey: ['planner', 'temperature-wear-history', me.data?.id, input],
-    enabled: Boolean(me.data?.id),
+    enabled: enabled && Boolean(me.data?.id),
     initialPageParam: null as string | null,
     queryFn: async ({ pageParam, signal }) => {
       const data = await graphqlRequest<{ temperatureWearHistory: WearHistoryPagePayload }>(`
@@ -25,7 +25,7 @@ export function useTemperatureWearHistory(input: Omit<TemperatureWearHistoryInpu
           temperatureWearHistory(input: $input) {
             totalCount hasNextPage nextCursor
             items {
-              id matchingDate records { date temperatureC feeling }
+              id matchingDate records { date outfitId wornAt temperatureC feeling automaticTemperatureC manualTemperatureC }
               outfit {
                 id name style seasons createdAt
                 items { wardrobeItemId layerOrder slot isBaseLayer wardrobeItem { ${wardrobeItemFields} } }

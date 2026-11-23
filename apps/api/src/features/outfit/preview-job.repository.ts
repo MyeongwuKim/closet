@@ -11,7 +11,7 @@ export const PREVIEW_JOB_LEASE_MS = 90_000
 /** 생성 요청·진행 임대·결과 자산 ID를 MongoDB에 보관한다. 모든 상태 변경은 현재 작업 토큰을 확인한다. */
 export const previewJobRepository = {
   /** 재전송·진행 중 작업을 재사용한다. 새 작업은 옷 사진 정리와 같은 잠금을 잡은 뒤 사용권을 예약해 등록한다. */
-  enqueue(input: { id: string; userId: string; requestKey: string; inputKey: string; fingerprint: string; selectedItemIds: string[]; style: string | null }) {
+  enqueue(input: { id: string; userId: string; requestKey: string; inputKey: string; fingerprint: string; selectedItemIds: string[]; style: string | null; sourceOutfitId?: string }) {
     return aiTransaction(async (tx) => {
       const now = new Date()
       await touchAiMutex(tx, 'preview-queue', randomUUID(), now)
@@ -35,6 +35,7 @@ export const previewJobRepository = {
         ...credit,
         id: input.id, userId: input.userId, requestKeys: [input.requestKey], inputKey: input.inputKey,
         fingerprint: input.fingerprint, selectedItemIds: input.selectedItemIds, style: input.style,
+        sourceOutfitId: input.sourceOutfitId,
         status: 'queued', leaseToken: null, leaseUntil: null, requestStartedAt: null,
         acknowledgedAt: null, expiresAt: new Date(now.getTime() + 86_400_000),
       } })

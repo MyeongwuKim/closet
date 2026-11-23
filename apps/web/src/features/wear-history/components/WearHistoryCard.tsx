@@ -1,15 +1,16 @@
 import { OutfitCardVisual } from '../../lookbook/components/OutfitCardVisual'
-import { formatWearTemperature, wearFeelingLabels } from '../utils/temperatureHistory'
+import type { LookbookViewMode } from '../../lookbook/types'
+import { formatWearRecordTemperature, wearFeelingLabels } from '../utils/temperatureHistory'
 import type { WearHistoryGroup } from '../types'
 
 /** 사진·기온과 두 줄 요약으로 같은 조합을 표시한다. 날짜별 착용 내역은 선택한 카드의 상세에서 확인한다. */
-export function WearHistoryCard({ group, onOpen }: { group: WearHistoryGroup; onOpen: () => void }) {
+export function WearHistoryCard({ group, onOpen, viewMode }: { group: WearHistoryGroup; onOpen: () => void; viewMode?: LookbookViewMode }) {
   const record = group.records.find(candidate => candidate.date === group.matchingDate)!
   return (
-    <button type="button" data-catalog-item onClick={onOpen} className="wear-history-card group min-w-0 text-left" aria-label={`${group.outfit.name} 착용 기록 보기`}>
-      <div className="relative overflow-hidden rounded-xl border border-line bg-surface p-1.5">
-        <OutfitCardVisual outfit={group.outfit} items={[]} className="aspect-[4/5] rounded-lg" />
-        <span className="wear-history-card-temperature">{formatWearTemperature(record.temperatureC)}</span>
+    <button type="button" data-catalog-item onClick={onOpen} className="wear-history-card group w-full min-w-0 self-start text-left" aria-label={`${group.outfit.name} 착용 기록 보기`}>
+      <div className="relative overflow-hidden rounded-xl border border-line bg-surface p-1.5 transition-colors group-hover:border-accent">
+        <OutfitCardVisual outfit={group.outfit} items={[]} viewMode={viewMode} className="aspect-[4/5] rounded-lg" />
+        <span className="wear-history-card-temperature absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] rounded-lg bg-surface px-2 py-1.5 text-xs leading-tight font-semibold break-keep text-ink">{formatWearRecordTemperature(record.temperatureC)}</span>
       </div>
       <div className="px-0.5 pt-2.5">
         <h3 className="truncate text-sm leading-5 font-semibold" title={group.outfit.name}>{group.outfit.name}</h3>

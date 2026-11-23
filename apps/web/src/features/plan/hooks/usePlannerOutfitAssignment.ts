@@ -3,16 +3,16 @@ import type { WardrobeItem } from '@closet/types'
 import { useNavigate } from 'react-router-dom'
 import { getAccessToken } from '../../../lib/auth'
 import { useUiStore } from '../../../stores/useUiStore'
-import { usePlannerEntriesQuery, useSetDirectPlannerEntryMutation, useSetPlannerEntryMutation } from '../../plan/api/plannerQueries'
-import { getCurrentWeekStart, type PlanEntry } from '../../plan/data/weeklyPlan'
-import { useRecentWearReminder } from '../../plan/hooks/useRecentWearReminder'
-import type { WearHistoryGroup } from '../types'
+import { usePlannerEntriesQuery, useSetDirectPlannerEntryMutation, useSetPlannerEntryMutation } from '../api/plannerQueries'
+import { getCurrentWeekStart, type PlanEntry } from '../data/weeklyPlan'
+import { useRecentWearReminder } from './useRecentWearReminder'
+import type { SavedOutfit } from '../../lookbook/types'
 
 /**
  * 담을 날짜를 재조회해 착용 완료를 보호하고, 기존 코디 교체·최근 착용 확인 후 날짜 복사본을 저장한다.
  * 같은 구성은 과거 사진을 함께 복사하고 바꾼 구성은 새 직접 코디로 저장하며 과거 기록에는 쓰지 않는다.
  */
-export function useWearHistoryAssignment(group: WearHistoryGroup, date: string, selectedItems: WardrobeItem[], confirmWorn = false) {
+export function usePlannerOutfitAssignment(outfit: SavedOutfit, date: string, selectedItems: WardrobeItem[], confirmWorn = false) {
   const navigate = useNavigate()
   const pushToast = useUiStore(state => state.pushToast)
   const target = usePlannerEntriesQuery(date, date, Boolean(date))
@@ -53,12 +53,12 @@ export function useWearHistoryAssignment(group: WearHistoryGroup, date: string, 
       const itemIds = selectedItems.map(item => item.id)
       if (!await confirmRecentWear({ itemIds, targetDate: date, confirmLabel: '그래도 담기', cancelLabel: '다시 고르기' }) || !isCurrent()) return
       const weekStartsOn = getCurrentWeekStart(new Date(`${date}T00:00:00`))
-      const originalIds = group.outfit.layers.map(layer => layer.wardrobeItemId)
+      const originalIds = outfit.layers.map(layer => layer.wardrobeItemId)
       const unchanged = itemIds.length === originalIds.length && originalIds.every(id => itemIds.includes(id))
       if (unchanged) {
-        await setEntry.mutateAsync({ weekStartsOn, date, outfitId: group.outfit.id, title: group.outfit.name, activeItemsOnly: true, ...(confirmWorn ? { confirmWorn: true } : {}) })
+        await setEntry.mutateAsync({ weekStartsOn, date, outfitId: outfit.id, title: outfit.name, activeItemsOnly: true, ...(confirmWorn ? { confirmWorn: true } : {}) })
       } else {
-        await setDirect.mutateAsync({ weekStartsOn, date, itemIds, name: group.outfit.name, style: group.outfit.style, ...(confirmWorn ? { confirmWorn: true } : {}) })
+        await setDirect.mutateAsync({ weekStartsOn, date, itemIds, name: outfit.name, style: outfit.style, ...(confirmWorn ? { confirmWorn: true } : {}) })
       }
       if (!isCurrent()) return
       pushToast(confirmWorn ? '착용 기록을 남겼어요.' : '선택한 날짜에 코디를 담았어요.', 'success')

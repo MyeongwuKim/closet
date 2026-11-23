@@ -76,6 +76,48 @@ for (const choice of ['copy', 'later', 'existing'] as const) {
       expect(mockApi.outfits[0].items[0]).toMatchObject({ wardrobeItemId: 'long-tee', isBaseLayer: true })
       expect(mockApi.outfits[0]).toMatchObject({ name: '겨울 미니멀 코디', style: 'minimal', seasons: ['winter'] })
       expect(mockApi.outfits[0].id).not.toBe(mockApi.plannerEntries[0].outfit?.id)
+
+      await page.getByRole('link', { name: /겨울 미니멀 코디, 옷 설정하기/ }).click()
+      const savedItems = page.getByRole('region', { name: '이 코디에 담은 옷' })
+      const baseLayerName = savedItems.getByText('흰 긴팔', { exact: true })
+      const edit = page.getByRole('button', { name: '코디 수정', exact: true })
+      await expect(savedItems.getByText('테스트 셔츠', { exact: true })).toBeVisible()
+      await expect(baseLayerName).toBeVisible()
+      await expect(savedItems.getByText('받쳐 입는 옷', { exact: true })).toBeVisible()
+      await expect(savedItems.locator('dd').first()).toHaveText('테스트 셔츠')
+      const topSlot = page.getByRole('button', { name: /상의 아이템 바꾸기/ })
+      await expect(topSlot).toHaveCount(0)
+
+      await edit.click()
+      await expect(page.getByRole('heading', { name: '코디 편집', exact: true })).toBeVisible()
+      await page.screenshot({ path: testInfo.outputPath('planner-outfit-edit.png'), animations: 'disabled' })
+      await topSlot.click()
+      const topPicker = page.getByRole('dialog', { name: '상의 옷 선택' })
+      await expect(topPicker.getByRole('button', { name: /흰 긴팔/ })).toHaveCount(0)
+      await topPicker.getByRole('button', { name: /검은 니트/ }).click()
+      await topPicker.getByRole('button', { name: '1개 선택 완료' }).click()
+      await page.getByRole('button', { name: '취소', exact: true }).click()
+      await expect(savedItems.getByText('테스트 셔츠', { exact: true })).toBeVisible()
+      expect(mockApi.operations.filter((operation) => operation === 'SetDirectPlannerEntry')).toHaveLength(1)
+
+      await edit.click()
+      await topSlot.click()
+      await topPicker.getByRole('button', { name: /검은 니트/ }).click()
+      await topPicker.getByRole('button', { name: '1개 선택 완료' }).click()
+      await page.getByRole('button', { name: '변경사항 저장', exact: true }).click()
+      await expect.poll(() => mockApi.plannerEntries[0].outfit?.items).toEqual(expect.arrayContaining([
+        expect.objectContaining({ wardrobeItemId: 'long-tee', isBaseLayer: true }),
+        expect.objectContaining({ wardrobeItemId: 'knit' }),
+      ]))
+      await page.reload()
+      await expect(savedItems.getByText('검은 니트', { exact: true })).toBeVisible()
+      await page.screenshot({ path: testInfo.outputPath('planner-layered-outfit.png'), animations: 'disabled' })
+      await baseLayerName.scrollIntoViewIfNeeded()
+      await expect(baseLayerName).toBeInViewport()
+
+      await page.setViewportSize({ width: 1440, height: 900 })
+      await expect(baseLayerName).toBeInViewport()
+      await page.screenshot({ path: testInfo.outputPath('planner-layered-outfit-desktop.png'), animations: 'disabled' })
     }
   })
 }

@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import type { WardrobeItem } from '@closet/types'
+import { ComposerLookCanvas } from './ComposerLookCanvas'
 import { OutfitCanvas } from './OutfitCanvas'
-import type { OutfitSlot } from './outfitSlots'
+import { outfitSlots, type OutfitSlot } from './outfitSlots'
 import type { OutfitWardrobeItem } from '../types'
 import { OutfitBaseLayerControl } from './OutfitBaseLayerControl'
 import { OutfitWardrobePicker } from './OutfitWardrobePicker'
-import { applyOutfitLayerSlot, getOutfitLayerSlot } from '../utils/outfitSelection'
+import { applyOutfitLayerSlot, getOutfitLayerSlot, type OutfitSelectionCategory } from '../utils/outfitSelection'
+import './OutfitStylingLayout.css'
 
 interface OutfitSlotEditorProps {
   items: WardrobeItem[]
@@ -16,8 +18,9 @@ interface OutfitSlotEditorProps {
   readOnly?: boolean
   /** 저장된 코디에 남은 삭제된 옷을 사진과 배지로 표시한다. 선택 목록에는 다시 넣지 않는다. */
   showArchivedStatus?: boolean
-  allowAdditionalLayers?: boolean
-  allowBaseLayers?: boolean
+  /** 코디북에서는 새 코디 만들기와 같은 보드를 사용한다. */
+  variant?: 'planner' | 'lookbook'
+  lookName?: string
 }
 
 /** 코디북·플래너의 구성 편집에서 가방과 착용 액세서리를 각각 고른다. 선택 완료 시 해당 칸의 아이템만 교체하고 변경된 코디를 부모에 전달한다. */
@@ -28,10 +31,11 @@ export function OutfitSlotEditor({
   className = '',
   readOnly = false,
   showArchivedStatus = false,
-  allowAdditionalLayers = false,
-  allowBaseLayers = false,
+  variant = 'planner',
+  lookName,
 }: OutfitSlotEditorProps) {
   const [pickerSlot, setPickerSlot] = useState<OutfitSlot | null>(null)
+  const isLookbook = variant === 'lookbook'
   const mainItems = selectedItems.filter((item) => !item.isBaseLayer)
   const layers = mainItems.map((item, order) => ({
     wardrobeItemId: item.id,
@@ -45,7 +49,7 @@ export function OutfitSlotEditor({
     const nextSlotItems = selectedItemIds.flatMap((itemId) => {
       const item = items.find((candidate) => candidate.id === itemId)
       if (!item) return []
-      const slot = allowAdditionalLayers ? getOutfitLayerSlot(item, pickerSlot.id) : undefined
+      const slot = isLookbook ? getOutfitLayerSlot(item, pickerSlot.id) : undefined
       return [applyOutfitLayerSlot(item, slot)]
     })
     let nextItems = selectedItems.filter((item) => item.isBaseLayer || !pickerSlot.matches(item))
@@ -64,32 +68,50 @@ export function OutfitSlotEditor({
     setPickerSlot(null)
   }
 
-  const showsBaseLayerControl = !readOnly && allowBaseLayers
-  const canvas = (
-    <OutfitCanvas
-      items={mainItems}
-      layers={layers}
-      className={showsBaseLayerControl ? 'min-h-0 w-full flex-1' : className}
-      onSlotClick={readOnly ? undefined : setPickerSlot}
-      showArchivedStatus={showArchivedStatus}
-    />
-  )
+  const openComposerSlot = (category: OutfitSelectionCategory) => {
+    const slotId = category === 'dress' ? 'top' : category
+    setPickerSlot(outfitSlots.find((slot) => slot.id === slotId) ?? null)
+  }
+
   return (
     <>
-      {showsBaseLayerControl ? (
-        <div className={`flex min-h-0 flex-col ${className}`}>
-          <div className="mx-auto w-fit shrink-0">
-            <OutfitBaseLayerControl items={items} selectedItems={selectedItems} onChange={(baseLayers) => onChange([...baseLayers, ...mainItems])} />
+      {isLookbook && !readOnly ? (
+        <div className={`outfit-styling-layout outfit-styling-layout--board-only ${className}`} inert={pickerSlot !== null}>
+          <div className="outfit-styling-layout__stage scrollbar-hidden">
+            <div className="outfit-styling-layout__stage-inner">
+              <ComposerLookCanvas
+                selectedItems={selectedItems}
+                lookLabel="EDIT LOOK"
+                lookName={lookName}
+                onSlotSelect={openComposerSlot}
+                onItemRemove={(item) => onChange(selectedItems.filter((selected) => selected.id !== item.id))}
+                baseLayerControl={(
+                  <OutfitBaseLayerControl
+                    items={items}
+                    selectedItems={selectedItems}
+                    onChange={(baseLayers) => onChange([...baseLayers, ...mainItems])}
+                  />
+                )}
+              />
+            </div>
           </div>
-          {canvas}
         </div>
-      ) : canvas}
+      ) : (
+        <OutfitCanvas
+          items={mainItems}
+          layers={layers}
+          baseLayers={selectedItems.filter((item) => item.isBaseLayer)}
+          className={className}
+          onSlotClick={readOnly ? undefined : setPickerSlot}
+          showArchivedStatus={showArchivedStatus}
+        />
+      )}
       {!readOnly && pickerSlot && (
         <OutfitWardrobePicker
           slot={pickerSlot}
           items={items}
           selectedItems={selectedItems}
-          allowAdditionalLayers={allowAdditionalLayers}
+          allowAdditionalLayers={isLookbook}
           onClose={() => setPickerSlot(null)}
           onConfirm={confirmSlotItems}
         />

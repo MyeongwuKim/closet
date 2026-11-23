@@ -12,6 +12,8 @@ import { useKoreaPlannerToday } from '../../plan/hooks/useKoreaPlannerToday'
 import { useTemperatureWearHistory } from '../api/wearHistoryQueries'
 import { WearHistoryCard, WearHistoryCardSkeleton } from '../components/WearHistoryCard'
 import { WearHistoryDetail } from '../components/WearHistoryDetail'
+import { WearHistoryRecords } from '../components/WearHistoryRecords'
+import { OutfitDetailModal } from '../../lookbook/components/OutfitDetailModal'
 import { WearHistoryFilters } from '../components/WearHistoryFilters'
 import { readTemperatureFilter, readWearHistoryDate, temperatureRanges, wearFeelingLabels } from '../utils/temperatureHistory'
 import type { WearHistoryGroup } from '../types'
@@ -34,6 +36,7 @@ export function WearHistoryPage() {
   const feeling = rawFeeling && Object.hasOwn(wearFeelingLabels, rawFeeling) ? rawFeeling as WearFeeling : null
   const targetDate = readWearHistoryDate(params.get('date'), today)
   const backPath = getOutfitComposerBackPath(params.get('from'))
+  const isPlannerOrigin = /^\/plan(?:[/?#]|$)/.test(backPath)
   const history = useTemperatureWearHistory({ ...filter.input, feeling, limit: 12 })
   const groups = history.data?.pages.flatMap(page => page.items) ?? []
   const count = history.data?.pages[0]?.totalCount ?? 0
@@ -84,7 +87,10 @@ export function WearHistoryPage() {
           )}
         </CatalogScrollRegion>
       </div>
-      {selected && <WearHistoryDetail key={selected.id} group={selected} initialDate={targetDate} onClose={() => setSelected(null)} />}
+      {selected && (isPlannerOrigin
+        ? <WearHistoryDetail key={selected.id} group={selected} initialDate={targetDate} onClose={() => setSelected(null)} />
+        : <OutfitDetailModal key={selected.id} outfit={selected.outfit} items={[]} readOnly backLabel="착용 기록 상세 닫기"
+          onClose={() => setSelected(null)} readDetails={<WearHistoryRecords records={selected.records} />} />)}
     </section>, document.body,
   )
 }

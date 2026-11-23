@@ -1,4 +1,5 @@
-import type { ClothingCategory, WardrobeItem } from '@closet/types'
+import type { ClothingCategory } from '@closet/types'
+import type { OutfitWardrobeItem } from '../../lookbook/types'
 
 const categoryOrder: Record<ClothingCategory, number> = {
   outer: 0,
@@ -12,7 +13,7 @@ const categoryOrder: Record<ClothingCategory, number> = {
 }
 
 /** 플래너의 옷 사진을 아우터·상의·하의·신발 순서로 정렬한다. 중간 아우터는 상의 다음, 액세서리·기타·미분류는 뒤에 두며 원본 배열과 모든 아이템을 보존한다. */
-export function sortPlanOutfitItems(items: WardrobeItem[]): WardrobeItem[] {
+export function sortPlanOutfitItems(items: OutfitWardrobeItem[]) {
   return [...items].sort((left, right) =>
     (left.category ? categoryOrder[left.category] : 7) -
     (right.category ? categoryOrder[right.category] : 7),

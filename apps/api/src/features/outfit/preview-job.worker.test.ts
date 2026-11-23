@@ -13,12 +13,12 @@ import { processPreviewJob, recoverPreviewJobs } from './preview-job.worker.js'
 const job: AiPreviewJob & { leaseToken: string } = {
   creditDayId: null, creditSource: null, creditState: null,
   id: 'job-test', userId: 'viewer-test', requestKeys: ['request-test'], inputKey: 'input-test', fingerprint: 'fingerprint-test',
-  selectedItemIds: ['top', 'bottom'], style: null, status: 'processing', leaseToken: 'lease-test', leaseUntil: new Date(Date.now() + 90_000),
+  selectedItemIds: ['top', 'bottom'], style: null, sourceOutfitId: null, status: 'processing', leaseToken: 'lease-test', leaseUntil: new Date(Date.now() + 90_000),
   requestStartedAt: null, attempts: 1, imageAssetId: null, model: null, errorCode: null, errorMessage: null,
   acknowledgedAt: null, createdAt: new Date(), updatedAt: new Date(), expiresAt: new Date(Date.now() + 86_400_000),
 }
 
-test('이미지 저장이 끝난 작업만 완료 알림을 보내며 결과 경로에 자산 ID를 넣는다', async (t) => {
+test('이미지 저장이 끝난 작업만 완료 알림을 보내며 저장 코디와 자산을 결과 경로에 넣는다', async (t) => {
   t.mock.method(aiExecutor, 'run', createAiExecutor().run)
   t.mock.method(previewJobRepository, 'markRequestStarted', async () => ({ count: 1 }))
   t.mock.method(outfitPreviewService, 'generate', async (...[_user, _ids, _style, options]: Parameters<typeof outfitPreviewService.generate>) => {
@@ -37,10 +37,14 @@ test('이미지 저장이 끝난 작업만 완료 알림을 보내며 결과 경
     assert.equal(userId, job.userId)
     assert.equal(kind, 'outfit-preview')
     assert.equal(data?.previewAssetId, 'asset-test')
-    assert.match(data?.path ?? '', /previewAssetId=asset-test/)
+    const path = new URL(data?.path ?? '', 'https://example.test')
+    assert.equal(path.pathname, '/lookbook')
+    assert.equal(path.searchParams.get('outfit'), 'outfit-test')
+    assert.equal(path.searchParams.get('previewAssetId'), 'asset-test')
+    assert.equal(path.searchParams.get('previewItems'), 'top,bottom')
     return true
   })
-  await processPreviewJob(job)
+  await processPreviewJob({ ...job, sourceOutfitId: 'outfit-test' })
   assert.equal(completed.mock.callCount(), 1)
   assert.equal(completed.mock.calls[0].arguments.length, 3)
   assert.equal(stored.mock.callCount(), 1)
