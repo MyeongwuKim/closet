@@ -28,7 +28,7 @@ import { ClosetFilterSelection } from '../components/ClosetFilterSelection'
 import { ClosetItemCard } from '../components/ClosetItemCard'
 import { ClosetMultiSelectBar } from '../components/ClosetMultiSelectBar'
 import { ClosetPageHeader } from '../components/ClosetPageHeader'
-import { WardrobeRediscoverySection } from '../components/WardrobeRediscoverySection'
+import { WardrobeRediscoveryButton } from '../components/WardrobeRediscoveryButton'
 import { WardrobeImageDropDialog } from '../components/WardrobeImageDropDialog'
 import { WardrobePhotoAnalysisStatus } from '../components/WardrobePhotoAnalysisStatus'
 import {
@@ -298,8 +298,10 @@ export function ClosetPage() {
     navigate(`/lookbook?items=${selectedIds.join(',')}`)
   }
 
+  const showRediscovery = location.pathname === '/closet' && !isEmptyWardrobe && !hasActiveFilters && selectedIds.length === 0
+
   return (
-    <section className={`closet-page ${selectedIds.length > 0 ? 'has-selection' : ''}`}>
+    <section className={`closet-page ${selectedIds.length > 0 ? 'has-selection' : ''} ${showRediscovery ? 'has-rediscovery' : ''}`}>
       <input
         ref={albumInputRef}
         type="file"
@@ -375,9 +377,6 @@ export function ClosetPage() {
         <ClosetFilterSelection selection={filterSelection} colors={availableColors} onToggle={toggleDetailFilter} label="적용한 옷장 필터" />
 
         <CatalogScrollRegion label="옷장 목록" resetKey={searchParams.toString()}>
-          {!isEmptyWardrobe && <WardrobeRediscoverySection
-            visible={!hasActiveFilters && selectedIds.length === 0}
-          />}
           <WardrobeCabinet
             key={activeSeason ?? 'all'}
             label={activeSeason ? `${seasonLabels[activeSeason]}에 입는 옷` : '전체 옷장'}
@@ -500,6 +499,8 @@ export function ClosetPage() {
           )}
         </CatalogScrollRegion>
       </div>
+
+      {showRediscovery && <WardrobeRediscoveryButton />}
 
       {selectedIds.length > 0 && (
         <ClosetMultiSelectBar

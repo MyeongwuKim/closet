@@ -611,6 +611,10 @@
   padding-bottom: 144px;
 }
 
+.closet-page.has-rediscovery .catalog-scroll-region {
+  padding-bottom: 4.5rem;
+}
+
 .plan-today-card {
   position: relative;
   border: 1px solid var(--color-line);

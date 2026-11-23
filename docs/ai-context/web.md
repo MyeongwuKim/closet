@@ -80,7 +80,7 @@
 
 ## 잊고 있던 옷
 
-옷장 기본 목록의 스크롤 영역 맨 앞에 `WardrobeRediscoverySection`의 ‘잊고 있던 옷 확인하기’ 버튼을 표시한다. 버튼이나 재발견 푸시에서 `/closet/rediscovery`의 `WardrobeRediscoveryPage` 전체 화면 목록을 연다. 검색·필터·다중 선택·옷 상세에서는 입구 버튼을 숨긴다. `useWardrobeRediscovery`는 화면을 연 동안 계정 ID와 한국 날짜로 조회를 구분하고 재진입·날짜 전환·앱 복귀 시 현재 후보를 확인한다. 후보는 현재 페이지나 Store 목록이 아닌 서버의 전체 활성 옷장에서 선정한다.
+옷장 기본 목록에서 `WardrobeRediscoveryButton`을 하단 탭 위에 고정한다. 목록은 마지막 아이템이 버튼 아래 가려지지 않도록 하단 공간을 둔다. 버튼이나 재발견 푸시에서 `/closet/rediscovery`의 `WardrobeRediscoveryPage` 전체 화면 목록을 연다. 검색·필터·다중 선택·옷 상세에서는 입구 버튼을 숨긴다. `useWardrobeRediscovery`는 화면을 연 동안 계정 ID와 한국 날짜로 조회를 구분하고 재진입·날짜 전환·앱 복귀 시 현재 후보를 확인한다. 후보는 서버의 전체 활성 옷장에서 선정한다.
 
 `WardrobeRediscoveryCarousel`은 한 벌의 큰 사진과 다음 카드 일부를 보여주며 직접 스와이프·버튼·방향키로만 이동한다. 한 벌이면 넘김 조작을 숨긴다. 마지막 착용 기록의 경과일과 `lastWornTemperatureC`(그날 하루 평균)를 표시하고, 기록이 없으면 경과일·기온을 만들지 않는다. 옷 상세의 `from` 경로에 현재 카드 ID를 담아 돌아오면 해당 카드로 복원한다. 로딩·오류 재시도·후보 소멸의 빈 상태를 제공한다.
 
