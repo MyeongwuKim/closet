@@ -65,7 +65,7 @@ MongoDB 모델과 관계는 [schema.prisma](../../apps/api/prisma/schema.prisma)
 
 공용 도메인 타입은 [packages/types/src/index.ts](../../packages/types/src/index.ts)에 있다. [packages/types/package.json](../../packages/types/package.json)의 `outfit-items`·`outfit-colors` export는 런타임 `.js`와 `.d.ts` 선언을 각각 가리킨다. GraphQL 스키마·공용 타입·클라이언트의 요청과 변환 타입은 각각 관리된다.
 
-[index.ts](../../apps/api/src/index.ts)는 환경 로딩, 저장소·인덱스 준비, 공유 AI 실행기 설치, 미리보기·착용 날씨 워커 시작과 종료를 담당한다. 준비 실패 시 메모리 구현으로 우회하지 않고 시작을 중단한다. 테스트가 사용하는 `buildApp()`은 서버 시작과 워커 설치를 포함한 이 진입점과 별개다.
+[index.ts](../../apps/api/src/index.ts)는 환경 로딩, 저장소·인덱스 준비, 공유 AI 실행기 설치, 미리보기·착용 날씨 워커 시작과 종료를 담당한다. AI 저장소는 `db push`가 다른 이름으로 만든 동등한 조회 인덱스를 재사용하고, 만료 필드의 일반 인덱스는 TTL로 전환한다. 준비 실패 시 메모리 구현으로 우회하지 않고 시작을 중단한다. 테스트가 사용하는 `buildApp()`은 서버 시작과 워커 설치를 포함한 이 진입점과 별개다.
 
 `features/push/rediscovery-push.service.ts`의 worker도 서버 진입점에서 시작·종료한다. `UserSettings.rediscoveryPushEnabled`는 기본 false이며 인증된 본인만 별도 mutation으로 변경한다. 같은 값의 저장은 예약을 초기화하지 않는다. 켠 다음 한국 시간 오전 9시부터 매분 도래 계정을 최대 50개씩 확인하고 오후 8시부터 다음 오전 9시 전까지는 보내지 않는다. `rediscoveryPushNextAt`의 원자적 갱신으로 계정당 최소 7일 발송 간격과 여러 서버의 중복 방지를 유지한다. 현재 재발견 후보 또는 활성 세션 기기가 없으면 다음 아침에 재검사하고, 실제 전송 실패는 부분 수신 중복을 피하려고 주간 예약을 유지한다. 전송 직전 동의를 다시 확인하며 목록 조회만으로 노출 이력이나 AI 사용권을 사용하지 않는다. 새 필드·복합 인덱스는 Prisma 스키마에 정의하며 배포 시 기존 DB 스키마 반영 절차를 따른다. 검사는 `rediscovery-push.service.test.ts`·`rediscovery-push.repository.test.ts`다.
 

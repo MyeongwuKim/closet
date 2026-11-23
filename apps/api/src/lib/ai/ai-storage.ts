@@ -12,6 +12,15 @@ async function ensureTtlIndex(collection: string, field: string, name: string) {
   }
 }
 
+/** Prisma가 같은 인덱스를 다른 이름으로 생성했으면 재사용한다. 호환되지 않는 설정은 시작 오류로 남긴다. */
+async function ensureQueryIndex(collection: string, key: Record<string, 1 | -1>, name: string) {
+  try {
+    await prisma.$runCommandRaw({ createIndexes: collection, indexes: [{ key, name }] })
+  } catch (error) {
+    if (!/IndexOptionsConflict\): Index already exists with a different name:/i.test(String(error))) throw error
+  }
+}
+
 /** MongoDB 쓰기 충돌·동시 최초 생성만 재시도한다. 기본 제한은 10초이며 계정 일괄 삭제는 timeout을 늘린다. 외부 호출은 콜백에 넣지 않는다. */
 export async function aiTransaction<T>(operation: (tx: Prisma.TransactionClient) => Promise<T>, options: { timeout?: number } = {}): Promise<T> {
   for (let attempt = 0; ; attempt += 1) {
@@ -26,7 +35,7 @@ export async function aiTransaction<T>(operation: (tx: Prisma.TransactionClient)
 }
 
 /**
- * AI 전용 컬렉션에 만료 문서 정리용 TTL 인덱스만 추가한다. 기존 서비스 문서는 변경하지 않으며 ImageAsset에는 작업 결과 조회 인덱스만 추가한다.
+ * AI 전용 컬렉션의 TTL과 작업·이미지·보상 조회 인덱스를 준비한다. 기존 서비스 문서는 변경하지 않는다.
  * MongoDB의 기본 _id 유일 인덱스가 작업 키·사용량 키·실행 슬롯의 중복 생성을 막는다.
  */
 export async function ensureAiStorage() {
@@ -37,16 +46,11 @@ export async function ensureAiStorage() {
     await ensureTtlIndex(collection, 'expiresAt', 'ai_expires_ttl')
   }
   await ensureTtlIndex('AiLease', 'leaseUntil', 'ai_lease_ttl')
-  await prisma.$runCommandRaw({ createIndexes: 'ImageAsset', indexes: [{ key: { userId: 1, aiPreviewJobId: 1 }, name: 'ai_preview_result' }] })
-  await prisma.$runCommandRaw({ createIndexes: 'PreviewRewardSession', indexes: [{ key: { userId: 1, status: 1, validUntil: 1 }, name: 'preview_reward_pending' }] })
-  await prisma.$runCommandRaw({
-    createIndexes: 'AiPreviewJob',
-    indexes: [
-      { key: { userId: 1, status: 1, createdAt: -1 }, name: 'ai_user_jobs' },
-      { key: { status: 1, leaseUntil: 1 }, name: 'ai_pending_jobs' },
-      { key: { requestKeys: 1 }, name: 'ai_request_keys' },
-    ],
-  })
+  await ensureQueryIndex('ImageAsset', { userId: 1, aiPreviewJobId: 1 }, 'ai_preview_result')
+  await ensureQueryIndex('PreviewRewardSession', { userId: 1, status: 1, validUntil: 1 }, 'preview_reward_pending')
+  await ensureQueryIndex('AiPreviewJob', { userId: 1, status: 1, createdAt: -1 }, 'ai_user_jobs')
+  await ensureQueryIndex('AiPreviewJob', { status: 1, leaseUntil: 1 }, 'ai_pending_jobs')
+  await ensureQueryIndex('AiPreviewJob', { requestKeys: 1 }, 'ai_request_keys')
 }
 
 /** 한 트랜잭션에서 같은 키에 대한 결정을 직렬화한다. 외부 요청을 기다리는 동안 유지하는 잠금은 아니다. */
