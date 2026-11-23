@@ -5,7 +5,6 @@ import { imageRepository } from '../image/image.repository.js'
 import { userRepository } from '../user/user.repository.js'
 import { wardrobeRepository } from '../wardrobe/wardrobe.repository.js'
 import {
-  getLookbookBaseLayerGuide,
   getLookbookBagGuide,
   getLookbookGenderConstraint,
   getLookbookHairGuide,
@@ -48,9 +47,11 @@ test('저장된 총장을 키에 맞춰 유지하고 모든 상의를 자연스�
   assert.match(lookbookGarmentLengthGuide, /mandatory garment proportion/)
   assert.match(lookbookGarmentLengthGuide, /scale that length against the saved model heightCm/)
   assert.match(lookbookGarmentLengthGuide, /Keep every top fully untucked/)
-  assert.match(lookbookGarmentLengthGuide, /hang freely and naturally at its measured shoulder-to-hem depth/)
+  assert.match(lookbookGarmentLengthGuide, /measured shoulder-to-hem length as the garment’s unstretched proportion/)
   assert.match(lookbookGarmentLengthGuide, /A closed-front outer may naturally cover an inner hem/)
-  assert.match(lookbookGarmentLengthGuide, /with an open front, show that hem inside the opening/)
+  assert.match(lookbookGarmentLengthGuide, /with an open front, show the natural inner hem/)
+  assert.match(lookbookGarmentLengthGuide, /If a knit has a separate ribbed bottom band clearly visible/)
+  assert.match(lookbookGarmentLengthGuide, /a small, soft fold of knit fabric just above the band/)
   assert.match(lookbookGarmentLengthGuide, /Never use a full tuck, half tuck, French tuck/)
   assert.match(lookbookGarmentLengthGuide, /Do not invent a belt/)
 })
@@ -63,36 +64,6 @@ test('키 165cm에 총장 68cm인 니트는 실측 비율을 전달하며 특정
   assert.match(target!, /without imposing a universal waist or hip cutoff/)
 })
 
-test('브이넥 니트에는 흰색 이너 티셔츠 레이어를 안내한다', () => {
-  const guide = getLookbookBaseLayerGuide([
-    {
-      name: '그레이 브이넥 니트',
-      category: 'top',
-      subcategory: '니트',
-    },
-    {
-      name: '차콜 데님',
-      category: 'bottom',
-      subcategory: '데님',
-    },
-  ])
-
-  assert.ok(guide?.includes('white crew-neck T-shirt'))
-  assert.ok(guide?.includes('inside the V opening'))
-})
-
-test('일반 니트에는 옷장에 없는 이너를 추가하지 않는다', () => {
-  const guide = getLookbookBaseLayerGuide([
-    {
-      name: '그레이 롤넥 니트',
-      category: 'top',
-      subcategory: '니트',
-    },
-  ])
-
-  assert.equal(guide, null)
-})
-
 test('신발을 고르지 않은 룩북에는 임의의 운동화나 양말을 추가하지 않는다', async (t) => {
   const form = await requestMockPreview(t)
   assert.match(String(form.get('prompt')), /No footwear was selected/)
@@ -101,22 +72,13 @@ test('신발을 고르지 않은 룩북에는 임의의 운동화나 양말을 �
   assert.doesNotMatch(String(form.get('prompt')), /Critical garment-to-body fit|nominalWaistEaseCm=/)
 })
 
-test('브이넥 니트와 다른 상의를 함께 선택했으면 추가 이너를 만들지 않는다', () => {
-  const guide = getLookbookBaseLayerGuide([
-    {
-      name: '브이넥 스웨터',
-      category: 'top',
-      subcategory: '스웨터',
-      fashionAttributes: { material: 'knit' },
-    },
-    {
-      name: '화이트 셔츠',
-      category: 'top',
-      subcategory: '셔츠',
-    },
-  ])
-
-  assert.equal(guide, null)
+test('룩북은 선택하지 않은 이너를 추가하지 않고 원본 브이넥 깊이와 밑단을 유지하도록 요청한다', async (t) => {
+  const form = await requestMockPreview(t)
+  const prompt = String(form.get('prompt'))
+  assert.match(prompt, /do not add a T-shirt, collar, insert, or fabric edge at the neckline or below the hem/)
+  assert.match(prompt, /A shallow V-neck must stay shallow/)
+  assert.match(prompt, /If an inner top was selected, preserve that specific layer/)
+  assert.doesNotMatch(prompt, /Add one plain lightweight white crew-neck T-shirt/)
 })
 
 test('코듀로이는 세로 골과 입체 음영을 생성 지침으로 전달한다', () => {
@@ -360,8 +322,8 @@ test('앞이 열리는 코트에는 실측 보조 도식을 사진 뒤에 추가
   assert.match(prompt, /first 3 reference images exactly once/)
   assert.match(prompt, /Supplementary image 4 is a measured layer layout, not another garment reference/)
   assert.match(prompt, /Inner reference image 1 totalLengthCm=70; outer reference image 3 totalLengthCm=115/)
-  assert.match(prompt, /hanging in front of the trousers at its measured depth/)
-  assert.match(prompt, /No part of its front or sides may disappear into the trouser waistband/)
+  assert.match(prompt, /resting naturally in front of the trousers/)
+  assert.match(prompt, /No part of the inner hem may disappear into the trouser waistband/)
 })
 
 test('백팩은 등에 메고 벨트·목도리는 착용 액세서리로 구분한다', () => {

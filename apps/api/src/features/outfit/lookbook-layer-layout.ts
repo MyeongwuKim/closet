@@ -113,7 +113,7 @@ export function buildLookbookLayerLayout(items: LayerLayoutItem[]): LookbookLaye
   const guide = [
     'The last input image is an auxiliary measured layer layout, NOT a garment reference and NOT an extra item to wear.',
     `Its inner layer corresponds to reference image ${innerReferenceIndex} (${innerLengthCm} cm shoulder to hem), and its open outer layer to reference image ${outerReferenceIndex} (${outerLengthCm} cm shoulder to hem).`,
-    'Use its shared shoulder line and common vertical scale to preserve the relative hem depths, including the complete free-hanging inner hem visible through the existing open front.',
+    'Use its shared shoulder line and vertical scale as a comparison of flat garment lengths. Allow the inner hem to drape naturally through the existing open front, including any soft blousing supported by a visible ribbed knit band.',
     innerSleeveLengthCm == null ? null : `Reference image ${innerReferenceIndex} has saved sleeve length ${innerSleeveLengthCm} cm as well as body total length ${innerLengthCm} cm. The dashed inner sleeve outline is a comparative measurement cue through the coat, not visible stitching or an instruction to put the inner sleeve over the coat.`,
     outerSleeveLengthCm == null ? null : `Reference image ${outerReferenceIndex} has saved sleeve length ${outerSleeveLengthCm} cm as well as body total length ${outerLengthCm} cm. Its outer sleeve outline uses the same comparison scale.`,
     hasSleeves ? 'Sleeve and body lengths share a schematic comparison origin only: actual shoulder seam placement, dropped shoulders and garment construction may use different measurement anchors. Do not interpret their numeric difference as an exact visible cuff-to-hem gap.' : null,

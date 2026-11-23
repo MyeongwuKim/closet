@@ -111,8 +111,9 @@ const ribbedTrimPreservationGuide = [
 export const lookbookGarmentLengthGuide = [
   'Treat each saved totalLengthCm as a mandatory garment proportion, not a loose styling suggestion.',
   'Interpret it from the normal measurement anchor for that garment category to its hem, and scale that length against the saved model heightCm while also following the reference image.',
-  'Do not shorten, crop, raise, roll, fold, or tuck a measured hem, and do not pull the front hem higher than the back hem. A closed-front outer may naturally cover an inner hem; with an open front, show that hem inside the opening at its measured depth. Never change a garment length to reveal or hide a hem.',
-  'Keep every top fully untucked, including shirts, T-shirts, sweatshirts, and knits. Let the complete hem hang freely and naturally at its measured shoulder-to-hem depth, independent of the trouser waistband. Wherever it overlaps the trousers, the top hangs in front of them and may cover the waistband, fly and buttons. Preserve genuinely cropped references without lengthening them.',
+  'Do not shorten, crop, deliberately hike up, roll, or tuck a measured hem to reveal or hide it. A closed-front outer may naturally cover an inner hem; with an open front, show the natural inner hem where selected layers allow it.',
+  'Keep every top fully untucked. Use the measured shoulder-to-hem length as the garment’s unstretched proportion. Wherever the top overlaps the trousers, it stays in front and may cover the waistband, fly and buttons. Preserve genuinely cropped references without lengthening them.',
+  'If a knit has a separate ribbed bottom band clearly visible in its reference, let that band settle naturally against the body. Allow a small, soft fold of knit fabric just above the band and slight blousing outside the trousers instead of pulling the hem straight down or stretching it flat. Keep its original band visible. Do not roll it inward, fold it into a crop, or invent a band or gathers if the reference does not show one.',
   'Never use a full tuck, half tuck, French tuck, bloused tuck, or invisible waistband tuck.',
   'Do not invent a belt or use a belt-like cinch unless a belt is included in the reference garments.',
 ].join(' ')
@@ -251,7 +252,6 @@ interface LookbookLayerItem {
   name: string
   category: ClothingCategory | null
   subcategory: string | null
-  fashionAttributes?: unknown
 }
 
 /**
@@ -275,34 +275,6 @@ export function getLookbookBagGuide(items: LookbookLayerItem[]) {
     'Render each selected bag exactly once, preserving its reference size, shape, color, material, handles, straps and hardware. Keep it inside the full-body crop and recognizable without covering the main outfit.',
     'Bags are separate from worn accessories. Keep referenced scarves, gloves, belts and jewelry worn in their normal positions; never turn a bag strap into a belt or replace an accessory with a bag.',
   ].join(' ')
-}
-
-function hasKnitMaterial(item: LookbookLayerItem) {
-  if (!item.fashionAttributes || typeof item.fashionAttributes !== 'object') {
-    return false
-  }
-
-  return (item.fashionAttributes as { material?: unknown }).material === 'knit'
-}
-
-function isVNeckKnit(item: LookbookLayerItem) {
-  const text = `${item.name} ${item.subcategory ?? ''}`
-    .normalize('NFKC')
-    .toLocaleLowerCase()
-  const hasVNeck = /(?:브이\s*넥|v[\s-]*(?:neck|넥))/iu.test(text)
-  const isKnit = text.includes('니트') || hasKnitMaterial(item)
-
-  return item.category === 'top' && hasVNeck && isKnit
-}
-
-export function getLookbookBaseLayerGuide(items: LookbookLayerItem[]) {
-  const vNeckKnits = items.filter(isVNeckKnit)
-  const hasAnotherTop = items.some(
-    (item) => item.category === 'top' && !vNeckKnits.includes(item),
-  )
-  if (vNeckKnits.length === 0 || hasAnotherTop) return null
-
-  return 'Add one plain lightweight white crew-neck T-shirt as a supporting base layer under the referenced V-neck knit. Show a clean white crew neckline naturally inside the V opening. Keep its sleeves and hem hidden under the knit, with no logo, print, or visible extra styling. This T-shirt is a non-reference styling layer only; it must not replace, recolor, or obscure any referenced garment.'
 }
 
 const alternateShots = [
@@ -343,15 +315,11 @@ function buildPrompt(
   const measuredFitGuide = fitGuides
     ? `Critical garment-to-body fit based on paired measurements:\n${fitGuides}\nThese measured-region fit cues take priority over the preferred styling fit and a default regular-fit catalog appearance. Preserve the supplied body dimensions and the referenced garment cut; reflect their actual relationship instead of making every garment fit comfortably.\n`
     : ''
-  const baseLayerGuide = getLookbookBaseLayerGuide(items)
   const bagGuide = getLookbookBagGuide(items)
   const layerLengthGuide = getLookbookLayerLengthGuide(items)
   const armsGuide = bagGuide
     ? 'Keep the arms relaxed beside the torso and both hands outside every pocket. Allow one hand to hold a referenced bag handle naturally beside the thigh when its design requires hand carrying. Otherwise keep the hands relaxed and visible. Do not cover the garment front, put a hand on the waist or hip, hold a jacket, or use the bag to hide garment details.'
     : 'Both arms must hang straight and relaxed beside the torso, with both hands fully visible next to the thighs. Keep both hands completely outside every pocket and away from the garments. Do not cross or fold the arms, bend an arm across the torso, put a hand on the waist or hip, touch or hold a jacket, cover the waistline, lean, step forward, or create a dynamic pose. Arms and hands must not obscure the top, outerwear, waistband, pockets, or lower garment.'
-  const extraGarmentRule = baseLayerGuide
-    ? 'Do not add any other extra garments beyond the single white base T-shirt explicitly allowed above.'
-    : 'Do not add any extra garments.'
   const footwearGuide = items.some((item) => item.category === 'shoes')
     ? 'Use only the referenced footwear. Do not replace it with generic sneakers or add another pair.'
     : 'No footwear was selected. Show the model barefoot, with natural bare feet visible. Do not invent shoes, sneakers, sandals or socks to complete the outfit.'
@@ -369,7 +337,7 @@ function buildPrompt(
     ? 'Keep arms and hands relaxed, visible and outside pockets. Keep any selected bag visible without blocking garment details.'
     : armsGuide
   const previousShotGuide = alternateShot?.previousReferenceIndex
-    ? `Supplementary image ${alternateShot.previousReferenceIndex} is the previous lookbook shot, provided only for visual comparison. Create a visibly distinct shot. The garment references, current body guide, and measured lengths take priority.`
+    ? `Supplementary image ${alternateShot.previousReferenceIndex} is the previous lookbook shot, provided only for visual comparison. Use it only to vary the pose, angle or fastening. Do not copy extra layers, garment details, or fit from the previous image. The selected garment references, current body guide, and measured lengths take priority.`
     : ''
 
   return `Create a photorealistic fashion lookbook image using every garment from the first ${items.length} reference images exactly once.
@@ -399,7 +367,7 @@ Preferred styling fit: ${describePreferredFit(profile)}. The body profile, garme
 
 Selected outfit style: ${describeOutfitStyle(style)}
 
-Supporting base-layer rule: ${baseLayerGuide ?? 'Do not invent or add a supporting base layer that is not included in the reference images.'}
+Selected layers and neckline: Show only the selected garments. If no separate inner top was selected, do not add a T-shirt, collar, insert, or fabric edge at the neckline or below the hem. Preserve each top’s opening shape, depth, and trim from its own reference. A shallow V-neck must stay shallow. If an inner top was selected, preserve that specific layer and show it only where it would naturally be visible.
 
 Garment length and natural hem rule: ${lookbookGarmentLengthGuide}
 
@@ -412,11 +380,11 @@ Preserve each referenced garment's visible color, material, pattern, length, pro
 ${previousShotGuide}
 ${poseGuide} ${poseArmGuide}
 
-Frame the complete outfit from the neck to the feet, keeping the model's face entirely outside the image. Use a warm off-white studio background, soft natural light, realistic fabric folds, and a clean Korean fashion lookbook composition. ${extraGarmentRule} Do not add text, captions, logos, duplicate items, shopping UI, borders, or a collage. Do not infer or reproduce a real person's identity or face.
+Frame the complete outfit from the neck to the feet, keeping the model's face entirely outside the image. Use a warm off-white studio background, soft natural light, realistic fabric folds, and a clean Korean fashion lookbook composition. Do not add any unselected garments. Do not add text, captions, logos, duplicate items, shopping UI, borders, or a collage. Do not infer or reproduce a real person's identity or face.
 
 Final hem check: ${varyClosure
-  ? "Keep every inner hem at its measured length and untucked. The fastened outer layer may naturally hide the inner hem."
-  : "leave the immediately visible inner layer's complete hem free and untucked at its measured depth inside an open coat."} Respect natural coverage by other selected layers. No part of its front or sides may disappear into the trouser waistband. Do not lift the hem to reveal a trouser button or fly. Clothes may naturally cover the waistband; the restriction against obscuring the outfit applies to hands, hair and props, not to a correctly layered inner garment. Preserve the measured relative hem depths before rendering the final photo.`
+  ? "Keep every inner hem untucked. The fastened outer layer may naturally hide the inner hem."
+  : "show the untucked inner hem through the existing open front wherever it is naturally visible."} Respect natural coverage by other selected layers. No part of the inner hem may disappear into the trouser waistband. Do not lift it to reveal a trouser button or fly. Preserve the relative garment lengths while allowing the natural ribbed-knit drape described above.`
 }
 
 async function downloadReferenceImage(url: string, index: number) {

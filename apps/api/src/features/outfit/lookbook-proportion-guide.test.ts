@@ -69,7 +69,7 @@ test('긴 코트115는 이너70보다 길고 기존 여밈이 있을 때만 열�
   assert.match(guide!, /inner hem above the outer hem/)
   assert.doesNotMatch(guide!, /Natural overlap may hide the inner hem/)
   assert.match(guide!, /through the existing open front/)
-  assert.match(guide!, /hanging in front of the trousers at its measured depth/)
+  assert.match(guide!, /resting naturally in front of the trousers/)
   assert.match(guide!, /do not use the coat panels to disguise a shortened or tucked inner/)
   assert.match(guide!, /trouser waistband is not a hem target/)
   assert.match(guide!, /inner shoulder-to-hem span is approximately 60\.9% of the outer span/)
