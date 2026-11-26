@@ -53,7 +53,6 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     const sheet = page.getByRole('dialog', { name: '오늘의 AI 코디 추천' })
     await sheet.getByRole('button', { name: '조건 바꾸기', exact: true }).click()
     await sheet.getByRole('button', { name: '봄', exact: true }).click()
-    await sheet.getByRole('button', { name: /자동/ }).click()
     await expect(sheet.getByText('추천 코디 1', { exact: true })).toBeVisible()
     for (let index = 2; index <= 5; index++) {
       await sheet.getByRole('button', { name: /^(다른 추천|광고 보고 다른 추천)$/ }).click()
@@ -147,7 +146,6 @@ test('일반 브라우저의 추천권 안내에서는 광고를 실행하지 �
   await dialog.getByRole('button', { name: '확인', exact: true }).click()
   await sheet.getByRole('button', { name: '조건 바꾸기', exact: true }).click()
   await sheet.getByRole('button', { name: '봄', exact: true }).click()
-  await sheet.getByRole('button', { name: '자동', exact: true }).click()
   await expect(dialog).toBeVisible()
   expect(mockApi.operations).not.toContain('StartPreviewReward')
 })
@@ -249,7 +247,6 @@ test('추천 서버에 저장된 결과를 첫 응답 연결이 끊긴 뒤 다�
   const sheet = page.getByRole('dialog', { name: '오늘의 AI 코디 추천' })
   await sheet.getByRole('button', { name: '조건 바꾸기', exact: true }).click()
   await sheet.getByRole('button', { name: '봄', exact: true }).click()
-  await sheet.getByRole('button', { name: /자동/ }).click()
   await expect(sheet.getByText('복구한 추천 코디', { exact: true })).toBeVisible()
   expect(inputs).toHaveLength(2)
   expect(inputs[0]).toEqual(inputs[1])

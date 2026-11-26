@@ -524,6 +524,7 @@ export function ClosetPage() {
           isCapturing={pickerStep === 'capturing'}
           onCapture={startCameraCapture}
           onChooseAlbum={chooseAlbum}
+          onImagesSelected={acceptImages}
           onCancel={closePicker}
         />
       )}

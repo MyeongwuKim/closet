@@ -7,7 +7,6 @@
  * 선택한 아이템과 추천 당시 기온을 플래너에 함께 저장한다.
  */
 import { useState } from 'react'
-import { canReuseWardrobeRecommendation } from '@closet/types/wardrobe-preferences'
 import { useWardrobeItemsQuery } from '../../closet/api/wardrobeQueries'
 import { getWardrobePreferenceKey } from '../../closet/utils/wardrobePreferences'
 import type {
@@ -21,7 +20,6 @@ import { useUiStore } from '../../../stores/useUiStore'
 import { usePlannerWeekQuery, useSetDirectPlannerEntryMutation } from '../api/plannerQueries'
 import {
   readAllRecentTodayRecommendationHistory,
-  readTodayRecommendationHistory,
   useTodayOutfitRecommendationQuery,
 } from '../api/todayOutfitQueries'
 import { formatDateOnly, getCurrentWeekStart } from '../data/weeklyPlan'
@@ -30,10 +28,12 @@ import type { ColorScheme } from '../data/colorSchemes'
 import { useRecentWearReminder } from './useRecentWearReminder'
 import { useThermalRecommendationContextQuery } from '../api/thermalRecommendationQueries'
 import { recommendationDayLabels, type RecommendationMode } from '../components/today-outfit-recommendation/recommendationFlow'
-import { getThermalRecommendationMean, matchesThermalRecommendationContext, matchesTodayRecommendationWeather } from '../utils/thermalRecommendationContext'
+import { getThermalRecommendationMean } from '../utils/thermalRecommendationContext'
+import { MAX_SEEN_RECOMMENDATIONS } from '../utils/todayRecommendationHistory'
 import {
   formatRecommendationHeadline,
   getRecommendationCoreItemIds,
+  getRecentRecommendationShoeIds,
   uniqueRecommendationOutfits,
   getRefreshExcludedOuterItemIds,
 } from '../utils/todayOutfitRecommendation'
@@ -61,13 +61,12 @@ export function useTodayOutfitRecommendationResult({
 }: UseTodayOutfitRecommendationResultOptions) {
   const pushToast = useUiStore((state) => state.pushToast)
   const hydrateEntries = usePlanStore((state) => state.hydrateEntries)
-  const [initialHistory] = useState(() =>
-    readTodayRecommendationHistory(viewerId, date, season, null, baseItemId, colorScheme),
-  )
-  // 날씨 추천을 다시 열면 대상 날짜에 앞서 본 조합을 제외한다. 같은 요청의 재시도는 이 목록을 유지한다.
-  const [initialSeenOutfits] = useState(() => weather ? uniqueRecommendationOutfits(
-    readAllRecentTodayRecommendationHistory(viewerId, date).map((entry) => getRecommendationCoreItemIds(entry.recommendation.items)),
-  ) : [])
+  // 추천을 새로 시작할 때 날짜별 기록을 고정한다. 연결 재시도와 무료 조회 갱신은 입력을 바꾸지 않는다.
+  const [initialHistory] = useState(() => {
+    const outfits = readAllRecentTodayRecommendationHistory(viewerId, date, MAX_SEEN_RECOMMENDATIONS)
+      .map((entry) => entry.recommendation.items)
+    return { seenOutfits: outfits.map(getRecommendationCoreItemIds), recentShoeItemIds: getRecentRecommendationShoeIds(outfits) }
+  })
   const wardrobeQuery = useWardrobeItemsQuery(true, { refetchOnMount: 'always' })
   const preferenceKey = getWardrobePreferenceKey(wardrobeQuery.data ?? [])
   const wardrobeReady = wardrobeQuery.isSuccess && wardrobeQuery.isFetchedAfterMount && !wardrobeQuery.isFetching
@@ -95,7 +94,7 @@ export function useTodayOutfitRecommendationResult({
   // 새로 연 추천에서 전날 플래너와 이 기기의 기록을 한 번 확인한다. 이후 일정 갱신이 유료 추천을 다시 시작하지 않는다.
   if (!previousDayOutfits && previousWeekQuery.isSuccess && !previousWeekQuery.isFetching && hasWardrobeContext) {
     const planned = previousWeekQuery.data.find((entry) => entry.date === previousDate)
-    const recorded = readAllRecentTodayRecommendationHistory(viewerId, previousDate)
+    const recorded = readAllRecentTodayRecommendationHistory(viewerId, previousDate, MAX_SEEN_RECOMMENDATIONS - 1)
     const outfits = recorded.map((entry) => getRecommendationCoreItemIds(entry.recommendation.items))
     const hasPlan = Boolean(planned?.itemIds.length)
     if (planned && hasPlan) {
@@ -104,21 +103,16 @@ export function useTodayOutfitRecommendationResult({
     }
     setPreviousDaySnapshot({ scope: previousDayScope, outfits: uniqueRecommendationOutfits(outfits), hasPlan })
   }
-  const storedRecommendation = !weather && isThermalContextReady && hasWardrobeContext && !preferencesChanged && previousDayOutfits ? initialHistory.find((entry) =>
-    !previousDayOutfits.some((ids) => JSON.stringify(ids) === JSON.stringify(getRecommendationCoreItemIds(entry.recommendation.items))) &&
-    matchesTodayRecommendationWeather(entry.recommendation, weather) &&
-    matchesThermalRecommendationContext(entry.recommendation, thermalRevision) &&
-    canReuseWardrobeRecommendation(entry.recommendation.items, wardrobeQuery.data ?? [], date, baseItemId ? [baseItemId] : []),
-  ) ?? null : null
   const scope = JSON.stringify([date, season, colorScheme, baseItemId, weather, thermalRevision, preferenceKey])
   /** 재추천 조건은 체감 근거별로 구분하며 새 근거에는 이전 아우터 제외 조건을 이어 붙이지 않는다. */
   const [refresh, setRefresh] = useState<{
-    scope: string; variation: number; excludedOuterItemIds: string[]; sourceItems: WardrobeItem[]; seenOutfits: string[][]
+    scope: string; variation: number; excludedOuterItemIds: string[]; sourceItems: WardrobeItem[]; seenOutfits: string[][]; recentShoeItemIds: string[]
   } | null>(null)
-  const variation = refresh?.scope === scope ? refresh.variation : storedRecommendation?.variation ?? 0
+  const variation = refresh?.scope === scope ? refresh.variation : 0
   const excludedOuterItemIds = refresh?.scope === scope ? refresh.excludedOuterItemIds : []
   const refreshSourceItems = refresh?.scope === scope ? refresh.sourceItems : []
-  const seenOutfits = refresh?.scope === scope ? refresh.seenOutfits : initialSeenOutfits
+  const history = refresh?.scope === scope ? refresh : initialHistory
+  const { seenOutfits, recentShoeItemIds } = history
   const query = useTodayOutfitRecommendationQuery(
     viewerId,
     date,
@@ -132,14 +126,10 @@ export function useTodayOutfitRecommendationResult({
       thermalContext,
       enabled: isThermalContextReady && hasWardrobeContext && !preferencesChanged && previousDayOutfits !== null,
       previousDayOutfits: previousDayOutfits ?? undefined,
-      seenOutfits,
+      seenOutfits: uniqueRecommendationOutfits(seenOutfits),
+      recentShoeItemIds,
       wardrobe: wardrobeQuery.data,
       preferenceKey,
-      initialData:
-        storedRecommendation?.variation === variation &&
-        matchesTodayRecommendationWeather(storedRecommendation.recommendation, weather)
-          ? storedRecommendation.recommendation
-          : undefined,
     },
   )
   const hasContextError = (requiresThermalContext && thermalQuery.isError) || wardrobeQuery.isError || preferencesChanged || (previousDayOutfits === null && previousWeekQuery.isError)
@@ -197,15 +187,18 @@ export function useTodayOutfitRecommendationResult({
   // 제외 조건이 없는 전체 후보가 하나일 때만 재추천을 막는다.
   const hasOtherCombination = recommendation?.combinationCount !== 1 || excludedOuterItemIds.length > 0
 
-  /** 날씨 추천은 본 조합을, 수동 조건은 직전 아우터를 제외한다. 기준 아이템은 유지한다. */
+  /** 본 코디를 누적 제외하며 현재 신발을 가장 최근 이력으로 옮긴다. 기준 아이템은 유지한다. */
   const requestAnotherRecommendation = () => {
     if (recommendationQuery.isFetching || !hasOtherCombination) return
 
     const currentItems = recommendation?.items ?? []
+    const currentOutfit = getRecommendationCoreItemIds(currentItems)
+    const currentOutfitKey = JSON.stringify(currentOutfit)
     setRefresh({
       scope, variation: weather ? 0 : (variation + 1) % 21,
       excludedOuterItemIds: weather ? [] : getRefreshExcludedOuterItemIds(currentItems, baseItemId),
-      seenOutfits: weather ? uniqueRecommendationOutfits([...seenOutfits, getRecommendationCoreItemIds(currentItems)]) : [],
+      seenOutfits: [currentOutfit, ...seenOutfits.filter((ids) => JSON.stringify(ids) !== currentOutfitKey)].slice(0, MAX_SEEN_RECOMMENDATIONS),
+      recentShoeItemIds: [...new Set([...getRecentRecommendationShoeIds([currentItems]), ...recentShoeItemIds])].slice(0, MAX_SEEN_RECOMMENDATIONS),
       sourceItems: currentItems,
     })
   }

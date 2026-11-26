@@ -134,7 +134,7 @@ export function WardrobeItemQuickViewModal({
               <div className="mt-4 rounded-2xl border border-line bg-canvas p-4">
                 <div className="flex items-center gap-3">
                   <span
-                    className="size-11 shrink-0 rounded-xl border border-black/10"
+                    className={`size-11 shrink-0 rounded-xl border border-line ${colorRgb ? '' : 'border-dashed'}`}
                     style={{ backgroundColor: item.colorHex }}
                     aria-hidden="true"
                   />
@@ -151,13 +151,13 @@ export function WardrobeItemQuickViewModal({
                   <div>
                     <dt className="text-muted">HEX</dt>
                     <dd className="mt-0.5 font-mono font-bold">
-                      {item.colorHex.toUpperCase()}
+                      {colorRgb ? item.colorHex.toUpperCase() : '미등록'}
                     </dd>
                   </div>
                   <div>
                     <dt className="text-muted">RGB</dt>
                     <dd className="mt-0.5 font-mono font-bold">
-                      {colorRgb?.join(', ') ?? '확인 불가'}
+                      {colorRgb?.join(', ') ?? '미등록'}
                     </dd>
                   </div>
                   <div>

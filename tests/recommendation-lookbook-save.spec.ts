@@ -100,7 +100,6 @@ test('추천 상세에서 옷을 바꾼 조합을 저장한다', async ({ page, 
   const sheet = page.getByRole('dialog', { name: '오늘의 AI 코디 추천' })
   await sheet.getByRole('button', { name: '조건 바꾸기', exact: true }).click()
   await sheet.getByRole('button', { name: '봄', exact: true }).click()
-  await sheet.getByRole('button', { name: '자동', exact: true }).click()
   await sheet.getByRole('button', { name: '추천 코디 구성 변경하기' }).click()
 
   const detail = page.getByRole('dialog', { name: '오늘의 추천 코디 상세' })

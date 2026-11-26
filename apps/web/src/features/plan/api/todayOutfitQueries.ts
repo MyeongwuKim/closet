@@ -50,9 +50,9 @@ interface TodayOutfitRecommendationPayload
 interface TodayOutfitRecommendationQueryOptions {
   wardrobe?: WardrobeItem[]
   preferenceKey?: string
-  initialData?: TodayOutfitRecommendation
   previousDayOutfits?: string[][]
   seenOutfits?: string[][]
+  recentShoeItemIds?: string[]
   enabled?: boolean
   baseItemId?: string
   weather?: WeatherSnapshot | null
@@ -102,9 +102,9 @@ export function useTodayOutfitRecommendationQuery(
   {
     wardrobe,
     preferenceKey,
-    initialData,
     previousDayOutfits,
     seenOutfits,
+    recentShoeItemIds,
     enabled = true,
     baseItemId,
     weather,
@@ -116,7 +116,7 @@ export function useTodayOutfitRecommendationQuery(
   const thermalContextRevision = meanTemperatureC !== null ? thermalContext?.revision : undefined
   const weatherKey = getWeatherKey(weather)
   const matchesPreferences = (result: TodayOutfitRecommendation) => !wardrobe || canReuseWardrobeRecommendation(result.items, wardrobe, date, baseItemId ? [baseItemId] : [])
-  return useQuery({
+  return useQuery<TodayOutfitRecommendation>({
     queryKey: queryKeys.planner.todayRecommendation(
       viewerId,
       date,
@@ -130,15 +130,9 @@ export function useTodayOutfitRecommendationQuery(
       preferenceKey,
       previousDayOutfits,
       seenOutfits,
+      recentShoeItemIds,
     ),
     enabled: enabled && Boolean(viewerId) && Boolean(date) && (meanTemperatureC === null || Boolean(thermalContextRevision)),
-    initialData:
-      initialData && (!matchesRecommendationDate(initialData, date) ||
-      !matchesPreferences(initialData) ||
-      !matchesThermalRecommendationContext(initialData, thermalContextRevision) ||
-      (initialData.ready && !matchesTodayRecommendationBaseItem(initialData, baseItemId)))
-        ? undefined
-        : initialData,
     meta: { baseItemId, colorScheme, weatherKey, thermalContextRevision, preferenceKey },
     placeholderData: (previousData, previousQuery) =>
       previousQuery?.meta?.baseItemId === baseItemId &&
@@ -163,7 +157,6 @@ export function useTodayOutfitRecommendationQuery(
     staleTime: 5 * 60_000,
     retry: false,
     refetchOnWindowFocus: false,
-    initialDataUpdatedAt: 0,
     queryFn: async ({ signal, queryKey }): Promise<TodayOutfitRecommendation> => {
       if (meanTemperatureC !== null) {
         if (!thermalContextRevision) throw new Error('착용 체감 정보를 먼저 확인해주세요.')
@@ -186,6 +179,7 @@ export function useTodayOutfitRecommendationQuery(
                 excludedOuterItemIds: string[]
                 previousDayOutfitItemIds?: string[][]
                 seenOutfitItemIds?: string[][]
+                recentShoeItemIds?: string[]
                 baseItemId?: string
                 weather?: WeatherSnapshot
                 thermalContextRevision?: string
@@ -218,6 +212,7 @@ export function useTodayOutfitRecommendationQuery(
                 excludedOuterItemIds,
                 ...(previousDayOutfits?.length ? { previousDayOutfitItemIds: previousDayOutfits } : {}),
                 ...(seenOutfits?.length ? { seenOutfitItemIds: seenOutfits } : {}),
+                ...(recentShoeItemIds?.length ? { recentShoeItemIds } : {}),
                 ...(baseItemId !== undefined ? { baseItemId } : {}),
                 ...(weather ? { weather } : {}),
                 ...(thermalContextRevision ? { thermalContextRevision } : {}),

@@ -294,20 +294,20 @@ export function ClosetDetailPage() {
               </div>
             )}
 
-            {selectedItem.colorDetailName && colorRgb && (
+            {(selectedItem.colorName || selectedItem.colorDetailName || colorRgb) && (
               <div className="mt-5 rounded-2xl border border-line bg-surface p-4">
                 <div className="flex items-center gap-3">
                   <span
-                    className="size-12 shrink-0 rounded-xl border border-black/10"
+                    className={`size-12 shrink-0 rounded-xl border border-line ${colorRgb ? '' : 'border-dashed'}`}
                     style={{ backgroundColor: selectedItem.colorHex }}
                     aria-hidden="true"
                   />
                   <div className="min-w-0">
                     <p className="flex items-center gap-1.5 text-xs font-bold text-muted">
-                      <Palette size={14} /> AI 색상 분석
+                      <Palette size={14} /> 대표 색상
                     </p>
                     <p className="mt-1 truncate text-sm font-black">
-                      {selectedItem.colorDetailName}
+                      {selectedItem.colorDetailName ?? selectedItem.colorName}
                     </p>
                   </div>
                 </div>
@@ -315,13 +315,13 @@ export function ClosetDetailPage() {
                   <div>
                     <dt className="text-muted">색상값</dt>
                     <dd className="mt-0.5 font-mono font-bold">
-                      {selectedItem.colorHex.toUpperCase()}
+                      {colorRgb ? selectedItem.colorHex.toUpperCase() : '미등록'}
                     </dd>
                   </div>
                   <div>
                     <dt className="text-muted">RGB</dt>
                     <dd className="mt-0.5 font-mono font-bold">
-                      {colorRgb.join(', ')}
+                      {colorRgb?.join(', ') ?? '미등록'}
                     </dd>
                   </div>
                   <div>

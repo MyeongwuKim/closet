@@ -151,7 +151,6 @@ test('체감 근거가 중간에 바뀌면 최신 근거를 다시 읽고 이전
   const sheet = page.getByRole('dialog', { name: '오늘의 AI 코디 추천' })
   await sheet.getByRole('button', { name: '조건 바꾸기', exact: true }).click()
   await sheet.getByRole('button', { name: '현재 날씨로 받기', exact: true }).click()
-  await sheet.getByRole('button', { name: /자동/ }).click()
   await expect(sheet.getByText('최신 체감으로 고른 코디', { exact: true })).toBeVisible()
   expect(requestedRevisions).toEqual(['old-context', 'fresh-context'])
 })
@@ -164,6 +163,20 @@ test('위치 권한이 없으면 날씨 없는 추천을 보내지 않고 직접
       getCurrentLocation: async () => ({ status: 'permission-denied', canAskAgain: false }),
     } as unknown as NonNullable<Window['ClosetNative']>
   })
+  const chosenSeasons: string[] = []
+  await page.route('**/graphql', async (route) => {
+    const { query, variables } = route.request().postDataJSON()
+    if (!query.includes('query TodayOutfitRecommendation')) { await route.fallback(); return }
+    const { date, season, colorScheme, weather } = variables.input
+    expect(weather).toBeUndefined()
+    expect(colorScheme).toBe('auto')
+    chosenSeasons.push(season)
+    await route.fulfill({ json: { data: { todayOutfitRecommendation: {
+      date, season, ready: true, combinationCount: 2, headline: '봄 코디', summary: '옷장에 있는 봄옷으로 골랐어요.',
+      style: null, colorSchemeApplied: true, items: mockApi.wardrobeItems, reasons: [],
+      profileSummary: [], source: 'fallback', model: null, weather: null,
+    } } } })
+  })
   await page.goto('/#/plan')
   await page.getByRole('button', { name: 'AI 코디 추천', exact: true }).click()
   const sheet = page.getByRole('dialog', { name: '오늘의 AI 코디 추천' })
@@ -171,8 +184,10 @@ test('위치 권한이 없으면 날씨 없는 추천을 보내지 않고 직접
   await expect(sheet.getByRole('alert')).toHaveText('기기 설정에서 위치 권한을 허용해주세요.')
   await expect(sheet.getByRole('button', { name: '다시 시도', exact: true })).toBeVisible()
   await sheet.getByRole('button', { name: '조건 바꾸기', exact: true }).click()
-  await sheet.getByRole('button', { name: '봄', exact: true }).click()
-  await expect(sheet.getByRole('button', { name: '자동', exact: true })).toBeVisible()
   expect(mockApi.operations).not.toContain('WeatherForecast')
-  expect(mockApi.operations).not.toContain('TodayOutfitRecommendation')
+  expect(chosenSeasons).toEqual([])
+  await sheet.getByRole('button', { name: '봄', exact: true }).click()
+  await expect(sheet.getByRole('heading', { name: '봄 코디' })).toBeVisible()
+  expect(chosenSeasons).toEqual(['spring'])
+  await expect(sheet.getByRole('button', { name: '자동', exact: true })).toHaveCount(0)
 })

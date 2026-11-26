@@ -26,7 +26,7 @@ test('옷장에서 원피스만 골라도 코디북에 저장하고 다시 열 �
   await savedOutfit.click()
   const detail = page.getByRole('dialog', { name: '원피스 한 벌 코디 코디 상세', exact: true })
   await expect(detail.getByText(/옷 1개$/)).toBeVisible()
-  await expect(detail.getByText('원피스', { exact: true })).toBeVisible()
+  await expect(detail.getByLabel('완성한 코디 구성').getByText('원피스', { exact: true })).toBeVisible()
 })
 
 test('추천한 원피스 한 벌을 코디 상세에서 오늘 일정에 담을 수 있다', async ({ page, mockApi }) => {
@@ -53,10 +53,10 @@ test('추천한 원피스 한 벌을 코디 상세에서 오늘 일정에 담을
   const sheet = page.getByRole('dialog', { name: '오늘의 AI 코디 추천' })
   await sheet.getByRole('button', { name: '조건 바꾸기', exact: true }).click()
   await sheet.getByRole('button', { name: '봄', exact: true }).click()
-  await sheet.getByRole('button', { name: '자동', exact: true }).click()
   await sheet.getByRole('button', { name: '추천 코디 구성 변경하기' }).click()
   const detail = page.getByRole('dialog', { name: '오늘의 추천 코디 상세' })
   await detail.getByRole('button', { name: '오늘 일정에 추가', exact: true }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: '나중에', exact: true }).click()
 
   await expect(detail).toHaveCount(0)
   await expect(page.getByRole('link', { name: /추천 원피스 코디, 옷 설정하기/ })).toBeVisible()

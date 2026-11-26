@@ -309,6 +309,19 @@ test('잘못된 시보리 값은 unknown으로 덮어 저장하지 않고 거절
   }
 })
 
+test('스탠드칼라를 일반 칼라로 바꾸지 않고 옷장에 저장한다', async (t) => {
+  const create = mockWardrobeCreate(t)
+  await wardrobeService.create('viewer', {
+    ...createInput,
+    category: 'outer',
+    fashionAttributes: { ...legacyFashionAttributes, layerRole: 'outer', necklineStyle: 'standCollar' },
+  })
+
+  const attributes = create.mock.calls[0]?.arguments[0].fashionAttributes
+  assert.ok(attributes && typeof attributes === 'object' && 'necklineStyle' in attributes)
+  assert.equal(attributes.necklineStyle, 'standCollar')
+})
+
 test('하의의 형태 정보가 없으면 임의 추측 대신 unknown으로 저장한다', async (t) => {
   const create = mockWardrobeCreate(t)
   await wardrobeService.create('viewer', {

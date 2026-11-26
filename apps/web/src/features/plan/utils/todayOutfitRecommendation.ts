@@ -6,6 +6,13 @@ export function getRecommendationCoreItemIds(items: WardrobeItem[]) {
   return items.filter((item) => item.category !== 'shoes' && item.category !== 'accessory').map((item) => item.id).sort()
 }
 
+/** 새로 본 코디를 먼저 전달하면 같은 신발이 여러 번 나와도 가장 최근 위치만 유지한다. */
+export function getRecentRecommendationShoeIds(outfits: WardrobeItem[][]) {
+  return [...new Set(outfits.flatMap((items) =>
+    items.filter((item) => wardrobeItemHasCategory(item, 'shoes')).map(({ id }) => id),
+  ))]
+}
+
 /** 같은 핵심 구성의 기록을 합치고, 기록 순서가 달라도 같은 제외 조건을 만든다. */
 export function uniqueRecommendationOutfits(outfits: string[][]) {
   const entries = new Map(outfits.filter((ids) => ids.length > 0).map((ids) => [JSON.stringify(ids), ids]))

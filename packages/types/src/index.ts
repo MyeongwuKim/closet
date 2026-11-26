@@ -86,6 +86,7 @@ export type FashionNecklineStyle =
   | 'vNeck'
   | 'mock'
   | 'turtleneck'
+  | 'standCollar'
   | 'collar'
   | 'hood'
   | 'scoop'

@@ -1,6 +1,7 @@
 import type { OutfitPreviewJob } from '../packages/types/src/index'
 import { createOutfit, test, expect } from './support/fixture'
 import { readFileSync } from 'node:fs'
+import { createWebViewNavigationScript } from '../apps/native/src/navigation/webViewNavigation'
 
 const imageUrl = `data:image/png;base64,${readFileSync('tests/support/mock-shirt.png').toString('base64')}`
 const savedPreviewPath = '/lookbook?outfit=outfit-1&preview=open&previewAssetId=preview-asset-one&previewItems=item-1%2Citem-2&previewStyle=casual'
@@ -223,13 +224,28 @@ test('저장된 룩북 재생성 화면에서 진행 중 작업을 이어받고 
   await expect.poll(() => reads).toBeGreaterThan(0)
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('closet:native-app-state', { detail: { isActive: false } })))
   state = { ...makeJob('completed'), style: 'casual', path: savedPreviewPath }
-  await page.evaluate((path) => {
-    window.location.hash = path
+  const previousUrl = page.url()
+  const history = await page.evaluate((script) => {
+    const previousEntry = window.history.state
+    window.addEventListener('hashchange', () => document.documentElement.setAttribute('data-hash-change', ''), { once: true })
+    window.eval(script)
     window.dispatchEvent(new Event('closet:native-app-active'))
-  }, state.path)
+    return { previousEntry, pushedEntry: window.history.state }
+  }, createWebViewNavigationScript(state.path))
+  expect(history.pushedEntry.idx).toBe(history.previousEntry.idx + 1)
+  expect(history.pushedEntry.key).toEqual(expect.any(String))
+  expect(history.pushedEntry.key).not.toBe(history.previousEntry.key)
   await expect(page.getByRole('dialog', { name: 'AI 룩북 미리보기', exact: true })).toBeVisible()
+  await expect(page.locator('html')).not.toHaveAttribute('data-hash-change')
   await expect(page.getByRole('button', { name: '새 AI 룩북으로 저장' })).toBeVisible()
   await expect(page.getByRole('dialog', { name: 'AI가 룩북을 만들고 있어요' })).toHaveCount(0)
+  const resultUrl = page.url()
+  await page.goBack()
+  await expect(page).toHaveURL(previousUrl)
+  await expect(page.getByRole('dialog', { name: 'AI 룩북 미리보기', exact: true })).toHaveCount(0)
+  await page.goForward()
+  await expect(page).toHaveURL(resultUrl)
+  await expect(page.getByRole('dialog', { name: 'AI 룩북 미리보기', exact: true })).toBeVisible()
   expect(starts).toBe(0)
 })
 

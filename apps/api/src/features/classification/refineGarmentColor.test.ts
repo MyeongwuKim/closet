@@ -77,6 +77,13 @@ test('어두운 저채도 원단의 약한 푸른 반사를 유채색으로 과�
   assert.notEqual(teal.colorHex, '#474747')
 })
 
+test('원단 세 곳에 올리브 기운이 일치하면 어두운 색을 회색으로 지우지 않는다', async () => {
+  const green = { ...navy, colorName: '그린', colorDetailName: '짙은 그린', colorHex: '#565A44' }
+  const result = await refineGarmentColor(await photo('#575845'), 'image/png', green, regions)
+  assert.equal(result.colorName, '올리브')
+  assert.equal(result.colorHex, '#575845')
+})
+
 test('밝은 청색 표본과 모순되는 네이비 이름은 정리하고 실제 짙은 네이비는 유지한다', async () => {
   const lighter = { ...navy, colorHex: '#28445D' }
   const corrected = await refineGarmentColor(await photo('#2C455E'), 'image/png', lighter, regions)

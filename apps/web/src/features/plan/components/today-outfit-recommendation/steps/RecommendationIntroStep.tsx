@@ -8,7 +8,7 @@ interface RecommendationIntroStepProps {
   onChooseConditions: () => void
 }
 
-/** 대상 날짜의 날씨와 자동 색감으로 바로 추천하거나, 계절·색감을 직접 고르는 시작 단계다. */
+/** 대상 날짜의 날씨와 자동 색감으로 바로 추천하거나, 계절을 직접 고르는 시작 단계다. */
 export function RecommendationIntroStep({
   dayLabel,
   onRecommendWithWeather,
@@ -23,12 +23,8 @@ export function RecommendationIntroStep({
         {dayLabel} 입을 코디를 골라드릴까요?
       </h3>
       <p className="mx-auto mt-1.5 max-w-64 text-xs leading-5 text-muted">
-        등록한 옷의 색과 핏 균형을 비교해 계절과 날씨에 맞는 조합을 추천해요.
+        옷장에서 날씨에 맞는 조합을 골라요.
       </p>
-      <div className="mt-3 flex justify-center gap-1.5 text-[10px] font-bold text-muted">
-        <span className="rounded-full bg-canvas px-2.5 py-1">내 옷장</span>
-        <span className="rounded-full bg-canvas px-2.5 py-1">계절·날씨</span>
-      </div>
       <div className="mt-3"><PreviewCreditSummary kind="recommendation" /></div>
       <AiCreditActionButton
         kind="recommendation"

@@ -120,6 +120,7 @@ export const typeDefs = `#graphql
     vNeck
     mock
     turtleneck
+    standCollar
     collar
     hood
     scoop
@@ -677,6 +678,7 @@ export const typeDefs = `#graphql
     excludedOuterItemIds: [ID!]
     previousDayOutfitItemIds: [[ID!]!]
     seenOutfitItemIds: [[ID!]!]
+    recentShoeItemIds: [ID!]
     weather: WeatherSnapshotInput
     thermalContextRevision: String
   }

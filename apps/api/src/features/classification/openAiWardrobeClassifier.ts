@@ -101,7 +101,7 @@ const warmthLevels = ['light', 'medium', 'heavy', 'unknown'] as const
 const trimPresences = ['present', 'absent', 'unknown'] as const
 const bottomLegShapes = ['skinny', 'straight', 'wide', 'tapered', 'flared', 'unknown'] as const
 const pocketStyles = ['none', 'slant', 'welt', 'patch', 'cargo', 'kangaroo', 'zippered', 'mixed', 'unknown'] as const
-const necklineStyles = ['crew', 'vNeck', 'mock', 'turtleneck', 'collar', 'hood', 'scoop', 'boat', 'square', 'other', 'unknown'] as const
+const necklineStyles = ['crew', 'vNeck', 'mock', 'turtleneck', 'standCollar', 'collar', 'hood', 'scoop', 'boat', 'square', 'other', 'unknown'] as const
 const frontOpeningStyles = ['none', 'buttons', 'halfButtons', 'zipper', 'halfZip', 'wrap', 'other', 'unknown'] as const
 const bottomWaistStyles = ['structured', 'elastic', 'drawstring', 'mixed', 'unknown'] as const
 const personImageAnalysisGuide = [
@@ -116,7 +116,7 @@ const ribbedTrimAnalysisGuide = [
 ].join(' ')
 const bottomStructureAnalysisGuide = [
   '상의·아우터·중간 레이어·원피스는 necklineStyle, frontOpeningStyle, pocketStyle을 사진에서 관찰해 기록하세요. 하의는 pocketStyle, bottomLegShape, bottomWaistStyle, bottomFrontPleats를 기록하세요. 해당되지 않는 속성은 unknown으로 응답하세요.',
-  'necklineStyle은 크루넥 crew, 브이넥 vNeck, 모크넥 mock, 터틀넥 turtleneck, 셔츠나 폴로 형태의 칼라 collar, 후드 hood처럼 실제 목둘레 구조를 기록하세요.',
+  'necklineStyle은 크루넥 crew, 브이넥 vNeck, 모크넥 mock, 터틀넥 turtleneck, 셔츠나 폴로처럼 바깥으로 접히는 칼라 collar, 후드 hood처럼 실제 목둘레 구조를 기록하세요. 코트나 재킷의 목 둘레에서 라펠이나 접힌 칼라 없이 짧게 위로 서는 칼라는 standCollar로 기록하세요. 지퍼가 닫혔는지와 관계없이 실제 칼라 구조로 판단하고, 목 부분이 가려지면 unknown을 사용하세요.',
   'frontOpeningStyle은 앞면 전체 단추 buttons, 목 아래 일부 단추 halfButtons, 전체 지퍼 zipper, 일부 지퍼 halfZip, 랩 여밈 wrap으로 구분하고 앞여밈이 없으면 none을 사용하세요.',
   'pocketStyle은 가장 눈에 띄는 포켓 구조를 기록하세요. 허벅지 옆에 돌출된 덮개형 수납 포켓은 cargo, 겉면에 덧댄 포켓은 patch, 옆선으로 비스듬히 열린 포켓은 slant, 좁은 입술 형태는 welt, 후드 상의 앞면의 연결 포켓은 kangaroo, 지퍼가 핵심이면 zippered입니다. 여러 구조의 비중이 비슷하면 mixed를 사용하세요.',
   'bottomLegShape는 바짓단까지 이어지는 실제 통을 보고 skinny, straight, wide, tapered, flared 중에서 고르세요. 세부 종류 이름을 그대로 복사하지 말고 형태가 불분명하면 unknown을 사용하세요.',

@@ -54,6 +54,31 @@ test('촬영 편차가 있는 어두운 유채색끼리는 톤인톤으로 인�
   }
 })
 
+test('블루 계열 옷에 브라운 부츠를 더해도 톤인톤으로 판정하지 않는다', () => {
+  const hoodie = item('#315970', 'top', '블루')
+  const denim = item('#354654', 'bottom', '블루')
+  const coat = item('#2E2B2E', 'outer', '차콜')
+  const boots = item('#725C3C', 'shoes', '브라운')
+  assert.equal(getColorSchemeFitScore([coat, hoodie, denim, boots], 'tone-in-tone'), 0)
+  assert.notEqual(getColorMatchEvidence([coat, hoodie, denim], boots).relation, 'tone-in-tone')
+})
+
+test('회색에 가까운 잡색은 톤인톤의 두 번째 색으로 쓰지 않고 네이비·올리브는 인정한다', () => {
+  const coat = item('#322E31', 'outer', '차콜')
+  const navy = item('#202D45')
+  const smokyGray = item('#2B3531', 'bottom', '그레이')
+  const olive = item('#47482B', 'bottom', '올리브')
+  assert.equal(getColorSchemeFitScore([coat, navy, smokyGray], 'tone-in-tone'), 0)
+  assert.equal(getColorSchemeFitScore([coat, navy, olive], 'tone-in-tone'), 1)
+})
+
+test('같은 색 계열의 신발만으로는 톤온톤을 만들지 않는다', () => {
+  assert.equal(getColorSchemeFitScore(
+    [item('#242424', 'outer', '차콜'), item('#202D45'), item('#85AEDA', 'shoes')],
+    'tone-on-tone',
+  ), 0)
+})
+
 test('파스텔 하나·선명색 둘·채도 차이가 부족한 두 색은 단일 포인트로 과장하지 않는다', () => {
   const black = item('#242424', 'bottom', '블랙')
   for (const colors of [

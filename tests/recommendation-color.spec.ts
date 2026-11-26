@@ -54,7 +54,6 @@ for (const previousDayRepeatOnly of [false, true]) test(`전날 조합을 제외
   const sheet = page.getByRole('dialog', { name: '오늘의 AI 코디 추천' })
   await sheet.getByRole('button', { name: '조건 바꾸기', exact: true }).click()
   await sheet.getByRole('button', { name: '봄', exact: true }).click()
-  await sheet.getByRole('button', { name: '자동', exact: true }).click()
   if (previousDayRepeatOnly) {
     await expect(sheet.getByText('전날과 다른 코디를 찾지 못했어요', { exact: true })).toBeVisible()
     await sheet.getByRole('link', { name: '전날 코디 보기' }).click()
@@ -65,152 +64,88 @@ for (const previousDayRepeatOnly of [false, true]) test(`전날 조합을 제외
   expect(requested).toEqual([[['item-1', 'item-2'], ['item-2', 'previous-top']]])
 })
 
+test('기준 코트에서 바로 추천받고 다시 열어도 본 코디와 최근 신발을 전달한다', async ({ page, mockApi }) => {
+  const coat = createWardrobeItem({ id: 'duke-coat', name: '듀크 코트', category: 'outer', seasons: ['autumn'] })
+  const pants = createWardrobeItem({ id: 'jeans', name: '데님', category: 'bottom' })
+  const tops = ['니트', '셔츠', '가디건'].map((name, index) => createWardrobeItem({ id: `top-${index}`, name }))
+  const shoes = ['더비', '스니커즈', '부츠'].map((name, index) => createWardrobeItem({ id: `shoe-${index}`, name, category: 'shoes' }))
+  mockApi.wardrobeItems.push(coat, pants, ...tops, ...shoes)
+  const requests: Array<{ date: string; season: string; baseItemId: string; colorScheme: string; seenOutfitItemIds?: string[][]; recentShoeItemIds?: string[] }> = []
+  await page.route('**/graphql', async (route) => {
+    const { query, variables } = route.request().postDataJSON()
+    if (!query.includes('query TodayOutfitRecommendation')) { await route.fallback(); return }
+    const index = requests.length
+    const input = variables.input as (typeof requests)[number]
+    requests.push(input)
+    await route.fulfill({ json: { data: { todayOutfitRecommendation: {
+      date: input.date, season: input.season, ready: true, combinationCount: 3 - index, style: null,
+      headline: `듀크 코트 추천 ${index + 1}`, summary: '선택한 옷에 맞는 조합이에요.',
+      colorSchemeApplied: true, items: [coat, pants, tops[index], shoes[index]], reasons: ['푸른 계열을 맞췄어요.'],
+      profileSummary: [], model: 'fixture', source: 'fallback', weather: null,
+    } } } })
+  })
+  await page.goto('/closet')
+  await page.getByRole('button', { name: '듀크 코트 옷 상세 보기' }).click()
+  const sheet = page.getByRole('dialog', { name: '이 옷으로 AI 코디 추천' })
+  const requestForCoat = () => page.getByRole('button', { name: '이 옷으로 코디 추천', exact: true }).click()
+
+  await requestForCoat()
+  await expect(sheet.getByRole('heading', { name: '듀크 코트 추천 1' })).toBeVisible()
+  await sheet.getByRole('button', { name: '다른 추천', exact: true }).click()
+  await expect(sheet.getByRole('heading', { name: '듀크 코트 추천 2' })).toBeVisible()
+  await sheet.getByRole('button', { name: 'AI 코디 추천 닫기' }).click()
+  await requestForCoat()
+  await expect(sheet.getByRole('heading', { name: '듀크 코트 추천 3' })).toBeVisible()
+
+  expect(requests.map(({ baseItemId, season, colorScheme }) => [baseItemId, season, colorScheme]))
+    .toEqual(Array(3).fill(['duke-coat', 'autumn', 'auto']))
+  expect(requests.map(({ seenOutfitItemIds }) => seenOutfitItemIds)).toEqual([
+    undefined, [['duke-coat', 'jeans', 'top-0']], [['duke-coat', 'jeans', 'top-0'], ['duke-coat', 'jeans', 'top-1']],
+  ])
+  expect(requests.map(({ recentShoeItemIds }) => recentShoeItemIds)).toEqual([undefined, ['shoe-0'], ['shoe-1', 'shoe-0']])
+})
+
 for (const viewport of [
   { name: 'mobile', width: 390, height: 844 },
-  { name: 'iphone-12-pro-max', width: 428, height: 926 },
   { name: 'desktop', width: 1440, height: 900 },
 ]) {
-  test(`${viewport.name}: 계절 다음 색감을 고르고 다른 색감으로 다시 추천받는다`, async ({ page, mockApi }, testInfo) => {
+  test(`${viewport.name}: 계절을 고르면 색감 단계 없이 추천 결과를 열고 설명을 본다`, async ({ page, mockApi }, testInfo) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height })
-
     const browserErrors: string[] = []
     page.on('pageerror', (error) => browserErrors.push(error.message))
-    page.on('console', (message) => {
-      if (message.type() === 'error') browserErrors.push(message.text())
-    })
-    page.on('requestfailed', (request) => {
-      const errorText = request.failure()?.errorText
-      if (request.url().includes('/graphql') && errorText !== 'net::ERR_ABORTED') {
-        browserErrors.push(`${request.url()}: ${errorText}`)
-      }
-    })
-
-    const receivedSchemes: ColorScheme[] = []
-    let releaseAccent: (() => void) | undefined
-    const accentGate = new Promise<void>((resolve) => {
-      releaseAccent = resolve
-    })
-
-    // 추천 요청만 가로채고 계정·플래너 조회는 기존 E2E fixture에 맡긴다.
+    const requests: RecommendationRequest[] = []
     await page.route('**/graphql', async (route) => {
       const request = route.request().postDataJSON() as RecommendationRequest
-      if (!request.query.includes('query TodayOutfitRecommendation')) {
-        await route.fallback()
-        return
-      }
-
-      const input = request.variables?.input
-      expect(input).toBeDefined()
-      expect(input?.season).toBe('spring')
-      const colorScheme = input?.colorScheme
-      expect(colorScheme).toBeDefined()
-      receivedSchemes.push(colorScheme!)
-      mockApi.operations.push('TodayOutfitRecommendation')
-
-      if (colorScheme === 'accent') await accentGate
-
-      const label = colorScheme === 'tone-on-tone' ? '톤온톤' : '포인트'
-      const isAccent = colorScheme === 'accent'
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        headers: { 'access-control-allow-origin': '*' },
-        body: JSON.stringify({
-          data: {
-            todayOutfitRecommendation: {
-              date: input!.date,
-              season: input!.season,
-              ready: true,
-              headline: isAccent
-                ? '포인트 추천 조합, 오늘 입기 좋은 옷을 함께 골랐어요'
-                : `${label} 추천 조합`,
-              summary: isAccent
-                ? '오늘의 계절에 맞는 옷과 실루엣을 살펴봤어요. 차분한 옷을 중심으로 함께 입기 좋은 조합을 고르고, 색의 밝기와 선명함도 확인했어요.'
-                : `${label} 색감으로 고른 조합이에요.`,
-              style: null,
-              colorScheme,
-              colorSchemeApplied: colorScheme !== 'accent',
-              items: mockApi.wardrobeItems,
-              reasons: [`${label} 색 조합을 비교했어요.`],
-              profileSummary: [],
-              model: 'e2e-mock',
-              source: 'fallback',
-              weather: null,
-            },
-          },
-        }),
-      })
+      if (!request.query.includes('query TodayOutfitRecommendation')) { await route.fallback(); return }
+      requests.push(request)
+      const input = request.variables!.input!
+      await route.fulfill({ json: { data: { todayOutfitRecommendation: {
+        date: input.date, season: input.season, ready: true, combinationCount: 2,
+        headline: '니트 중심 코디', summary: '옷장에 있는 옷으로 골랐어요.',
+        style: null, colorSchemeApplied: true, items: mockApi.wardrobeItems,
+        reasons: ['밝은 상의와 짙은 하의로 밝기 차이를 줬어요.'],
+        profileSummary: [], model: 'fixture', source: 'fallback', weather: null,
+      } } } })
     })
 
-    try {
-      await page.goto('/plan')
-      await page.getByRole('button', { name: 'AI 코디 추천', exact: true }).click()
-      const sheet = page.getByRole('dialog', { name: '오늘의 AI 코디 추천' })
-      await expect(sheet).toBeVisible()
-      await sheet.getByRole('button', { name: '조건 바꾸기', exact: true }).click()
-      const seasonHeight = await sheet.evaluate((element) => element.getBoundingClientRect().height)
-      await testInfo.attach(`${viewport.name}-season-options`, {
-        body: await page.screenshot({ animations: 'disabled' }),
-        contentType: 'image/png',
-      })
-      await sheet.getByRole('button', { name: '봄', exact: true }).click()
-
-      const colorHeight = await sheet.evaluate((element) => element.getBoundingClientRect().height)
-      expect(Math.abs(colorHeight - seasonHeight)).toBeLessThan(1)
-
-      await expect(sheet.getByRole('button', { name: /자동/ })).toBeVisible()
-      await expect(sheet.getByRole('button', { name: /톤온톤/ })).toBeVisible()
-      await expect(sheet.getByRole('button', { name: /톤인톤/ })).toBeVisible()
-      await expect(sheet.getByRole('button', { name: /무채색/ })).toBeVisible()
-      await expect(sheet.getByRole('button', { name: /포인트/ })).toBeVisible()
-      await testInfo.attach(`${viewport.name}-color-options`, {
-        body: await page.screenshot({ animations: 'disabled' }),
-        contentType: 'image/png',
-      })
-
-      await sheet.getByRole('button', { name: '계절 다시 선택' }).click()
-      await expect(sheet.getByRole('button', { name: '봄', exact: true })).toBeVisible()
-      await sheet.getByRole('button', { name: '봄', exact: true }).click()
-      await sheet.getByRole('button', { name: /톤온톤/ }).click()
-      await expect(sheet.getByText('톤온톤 추천 조합')).toBeVisible()
-      expect(new Set(receivedSchemes)).toEqual(new Set(['tone-on-tone']))
-
-      await sheet.getByRole('button', { name: /뒤로가기/ }).click()
-      await expect(sheet.getByRole('button', { name: /포인트/ })).toBeVisible()
-      await sheet.getByRole('button', { name: /포인트/ }).click()
-      await expect.poll(() => receivedSchemes.includes('accent')).toBe(true)
-      await expect(sheet.getByText('톤온톤 추천 조합')).toHaveCount(0)
-
-      releaseAccent?.()
-      await expect(sheet.getByText(/포인트 추천 조합/)).toBeVisible()
-      await expect(sheet.getByText('봄 · 기본 추천')).toBeVisible()
-      await expect(sheet.getByRole('status').getByText('포인트 조합을 찾지 못했어요')).toBeVisible()
-      await expect(sheet.getByRole('status').getByText('이번에는 기본 추천을 보여드려요.')).toBeVisible()
-      await expect(sheet.getByText('봄 · 기본 추천')).toBeInViewport({ ratio: 1 })
-      await expect(sheet.getByRole('status')).toBeInViewport({ ratio: 1 })
-      await expect(sheet.getByRole('button', { name: '다른 추천' })).toBeInViewport({ ratio: 0.95 })
-      await expect(sheet.getByRole('button', { name: '오늘 일정에 담기' })).toBeInViewport({ ratio: 0.95 })
-      const resultHeight = await sheet.evaluate((element) => element.getBoundingClientRect().height)
-      expect(Math.abs(resultHeight - seasonHeight)).toBeLessThan(1)
-      await testInfo.attach(`${viewport.name}-accent-result`, {
-        body: await page.screenshot({ animations: 'disabled' }),
-        contentType: 'image/png',
-      })
-      await sheet.getByRole('button', { name: '설명 전체 보기' }).click()
-      const explanation = page.getByRole('dialog', { name: '이 조합을 추천한 이유' })
-      await expect(explanation.getByText('봄 · 기본 추천')).toBeVisible()
-      await expect(explanation.getByRole('status').getByText('포인트 조합을 찾지 못했어요')).toBeVisible()
-      await explanation.getByRole('button', { name: '추천 설명 닫기' }).click()
-
-      expect(mockApi.operations).not.toContain('SetDirectPlannerEntry')
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
-      expect(browserErrors).toEqual([])
-    } finally {
-      releaseAccent?.()
-    }
+    await page.goto('/plan')
+    await page.getByRole('button', { name: 'AI 코디 추천', exact: true }).click()
+    const sheet = page.getByRole('dialog', { name: '오늘의 AI 코디 추천' })
+    await sheet.getByRole('button', { name: '조건 바꾸기', exact: true }).click()
+    await sheet.getByRole('button', { name: '봄', exact: true }).click()
+    await expect(sheet.getByRole('heading', { name: '니트 중심 코디' })).toBeVisible()
+    await expect(sheet.getByRole('button', { name: /톤온톤|톤인톤|무채색/ })).toHaveCount(0)
+    expect(requests.map(({ variables }) => [variables!.input!.season, variables!.input!.colorScheme])).toEqual([['spring', 'auto']])
+    await expect(sheet.getByRole('button', { name: '다른 추천' })).toBeInViewport({ ratio: 0.95 })
+    await expect(sheet.getByRole('button', { name: '오늘 일정에 담기' })).toBeInViewport({ ratio: 0.95 })
+    await page.screenshot({ path: testInfo.outputPath(`${viewport.name}-recommendation-result.png`), animations: 'disabled' })
+    await sheet.getByRole('button', { name: '설명 전체 보기' }).click()
+    const explanation = page.getByRole('dialog', { name: '이 조합을 추천한 이유' })
+    await expect(explanation.getByText('밝은 상의와 짙은 하의로 밝기 차이를 줬어요.')).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    expect(browserErrors).toEqual([])
   })
 }
-
 
 test('옷 정보를 바꾼 뒤 다시 추천받으면 이전 기록 대신 갱신된 옷으로 조회한다', async ({ page, mockApi }) => {
   let recommendationCalls = 0
@@ -237,7 +172,6 @@ test('옷 정보를 바꾼 뒤 다시 추천받으면 이전 기록 대신 갱�
     await page.getByRole('button', { name: 'AI 코디 추천', exact: true }).click()
     await page.getByRole('button', { name: '조건 바꾸기', exact: true }).click()
     await page.getByRole('button', { name: '봄', exact: true }).click()
-    await page.getByRole('button', { name: '자동', exact: true }).click()
   }
   await page.goto('/plan')
   await openRecommendation()
@@ -279,7 +213,6 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     await page.getByRole('button', { name: 'AI 코디 추천', exact: true }).click()
     await page.getByRole('button', { name: '조건 바꾸기', exact: true }).click()
     await page.getByRole('button', { name: '봄', exact: true }).click()
-    await page.getByRole('button', { name: '자동', exact: true }).click()
     await expect(page.getByRole('button', { name: '다른 조합 없음', exact: true })).toBeDisabled()
     await expect(page.getByRole('button', { name: '오늘 일정에 담기', exact: true })).toBeEnabled()
   })

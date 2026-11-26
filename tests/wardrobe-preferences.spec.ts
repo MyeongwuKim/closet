@@ -72,7 +72,6 @@ test('보류한 옷의 과거 추천을 자동 복원하지 않고 설정 변경
   const sheet = page.getByRole('dialog', { name: '오늘의 AI 코디 추천' })
   await sheet.getByRole('button', { name: '조건 바꾸기', exact: true }).click()
   await sheet.getByRole('button', { name: '봄', exact: true }).click()
-  await sheet.getByRole('button', { name: '자동', exact: true }).click()
   await expect(sheet.getByText('보류를 반영한 새 추천', { exact: true })).toBeVisible()
   await expect(sheet.getByText('보류 전 추천', { exact: true })).toHaveCount(0)
   expect(requests).toBe(1)

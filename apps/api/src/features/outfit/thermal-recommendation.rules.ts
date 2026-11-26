@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import type { ThermalRecommendationContext, WearFeeling } from '@closet/types'
 
 /** 체감 근거의 범위·가중치·보정 상한이 바뀌면 revision도 달라지도록 갱신한다. */
-export const THERMAL_RECOMMENDATION_RULES_VERSION = 'thermal-recommendation-v1'
+export const THERMAL_RECOMMENDATION_RULES_VERSION = 'thermal-recommendation-v2'
 /** 비슷한 날씨의 개인 체감을 계산할 때 조회·사용하는 최대 착용 기록 수. */
 export const THERMAL_RECOMMENDATION_SAMPLE_LIMIT = 30
 /** 비교할 과거 착용 기록의 최대 경과일. */

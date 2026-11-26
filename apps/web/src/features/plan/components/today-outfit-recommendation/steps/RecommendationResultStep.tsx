@@ -1,6 +1,5 @@
 import type { Season, WeatherSnapshot } from '@closet/types'
 import { ChevronLeft } from 'lucide-react'
-import type { ColorScheme } from '../../../data/colorSchemes'
 import { RecommendationQuickReply } from '../RecommendationChatUi'
 import { TodayOutfitRecommendationResult } from '../TodayOutfitRecommendationResult'
 import type { RecommendationMode } from '../recommendationFlow'
@@ -9,12 +8,11 @@ interface RecommendationResultStepProps {
   viewerId: string
   date: string
   season: Season
-  colorScheme: ColorScheme
   hasScheduledOutfit: boolean
   mode: RecommendationMode
   baseItemId?: string
   weather?: WeatherSnapshot | null
-  onBack: () => void
+  onBack?: () => void
   onOpenCloset: () => void
   onOpenLookbook?: () => void
   onApplied?: () => void
@@ -24,7 +22,6 @@ export function RecommendationResultStep({
   viewerId,
   date,
   season,
-  colorScheme,
   hasScheduledOutfit,
   mode,
   baseItemId,
@@ -38,11 +35,11 @@ export function RecommendationResultStep({
     <section className="flex h-full min-h-0 flex-col gap-2 py-1">
       <div className="min-h-0 flex-1">
         <TodayOutfitRecommendationResult
-          key={`${viewerId}:${date}:${season}:${colorScheme}:${baseItemId ?? 'all'}`}
+          key={`${viewerId}:${date}:${season}:${baseItemId ?? 'all'}`}
           viewerId={viewerId}
           date={date}
           season={season}
-          colorScheme={colorScheme}
+          colorScheme="auto"
           hasScheduledOutfit={hasScheduledOutfit}
           mode={mode}
           baseItemId={baseItemId}
@@ -52,13 +49,15 @@ export function RecommendationResultStep({
           onApplied={onApplied}
         />
       </div>
-      <div className="flex shrink-0 justify-end">
-        <RecommendationQuickReply secondary delayMs={440} onClick={onBack}>
-          <span className="inline-flex items-center gap-1">
-            <ChevronLeft size={13} /> 뒤로가기
-          </span>
-        </RecommendationQuickReply>
-      </div>
+      {onBack && (
+        <div className="flex shrink-0 justify-end">
+          <RecommendationQuickReply secondary delayMs={440} onClick={onBack}>
+            <span className="inline-flex items-center gap-1">
+              <ChevronLeft size={13} /> 뒤로가기
+            </span>
+          </RecommendationQuickReply>
+        </div>
+      )}
     </section>
   )
 }

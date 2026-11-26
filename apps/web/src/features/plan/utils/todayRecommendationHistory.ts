@@ -22,6 +22,7 @@ export interface TodayRecommendationHistoryEntry {
 }
 
 const MAX_TODAY_RECOMMENDATION_HISTORY = 10
+export const MAX_SEEN_RECOMMENDATIONS = 51
 const TODAY_RECOMMENDATION_STORAGE_PREFIX =
   'closet:today-outfit-recommendation:v8'
 
@@ -117,6 +118,7 @@ export function readTodayRecommendationHistory(
   baseItemId?: string,
   colorScheme: ColorScheme = 'auto',
   thermalContextRevision?: string,
+  limit = MAX_TODAY_RECOMMENDATION_HISTORY,
 ): TodayRecommendationHistoryEntry[] {
   try {
     const rawValue = window.localStorage.getItem(
@@ -133,7 +135,7 @@ export function readTodayRecommendationHistory(
         entry.colorRulesVersion === OUTFIT_COLOR_RULES_VERSION &&
         (thermalContextRevision === undefined || matchesThermalRecommendationContext(entry.recommendation, thermalContextRevision)),
       )
-      .slice(0, MAX_TODAY_RECOMMENDATION_HISTORY)
+      .slice(0, limit)
       .map((entry) => ({
         ...entry,
         recommendation: normalizeRecommendationText({
@@ -150,6 +152,7 @@ function readRecentRecommendationHistory(
   viewerId: string,
   date: string,
   scope?: { baseItemId?: string },
+  limit = MAX_TODAY_RECOMMENDATION_HISTORY,
 ): TodayRecommendationHistoryEntry[] {
   const storageKeyPrefix = `${TODAY_RECOMMENDATION_STORAGE_PREFIX}:${viewerId}:${date}:`
   const entries: TodayRecommendationHistoryEntry[] = []
@@ -223,7 +226,7 @@ function readRecentRecommendationHistory(
         new Date(right.createdAt).getTime() -
         new Date(left.createdAt).getTime(),
     )
-    .slice(0, MAX_TODAY_RECOMMENDATION_HISTORY)
+    .slice(0, limit)
 }
 
 export function readRecentTodayRecommendationHistory(
@@ -237,8 +240,9 @@ export function readRecentTodayRecommendationHistory(
 export function readAllRecentTodayRecommendationHistory(
   viewerId: string,
   date: string,
+  limit = MAX_TODAY_RECOMMENDATION_HISTORY,
 ): TodayRecommendationHistoryEntry[] {
-  return readRecentRecommendationHistory(viewerId, date)
+  return readRecentRecommendationHistory(viewerId, date, undefined, limit)
 }
 
 /** 추천 조합과 체감 근거를 색감별 최근 기록에 저장한다. 같은 아이템·체감 버전은 최신 설명으로 교체하며 다른 버전의 결과는 과거 기록으로 남긴다. */
@@ -259,6 +263,8 @@ export function storeTodayRecommendation(
     style,
     baseItemId,
     colorScheme,
+    undefined,
+    MAX_SEEN_RECOMMENDATIONS,
   )
   if (
     !recommendation.ready ||
@@ -300,7 +306,7 @@ export function storeTodayRecommendation(
       (historyEntry) =>
         !isSameResult(historyEntry),
     ),
-  ].slice(0, MAX_TODAY_RECOMMENDATION_HISTORY)
+  ].slice(0, MAX_SEEN_RECOMMENDATIONS)
 
   try {
     window.localStorage.setItem(

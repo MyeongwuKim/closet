@@ -159,8 +159,10 @@ export function TodayOutfitRecommendationResult({
         <p className="mt-2 text-xs leading-5 text-muted" role="alert">
           {errorMessage}
         </p>
-        <button
-          type="button"
+        <AiCreditActionButton
+          kind="recommendation"
+          label="다시 시도"
+          adLabel="광고 보고 추천받기"
           onClick={() => void recommendationQuery.refetch()}
           disabled={recommendationQuery.isFetching}
           className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-2 text-xs font-bold disabled:opacity-50"
@@ -168,9 +170,8 @@ export function TodayOutfitRecommendationResult({
           <RefreshCw
             className={recommendationQuery.isFetching ? 'animate-spin' : ''}
             size={14}
-          />{' '}
-          다시 시도
-        </button>
+          />
+        </AiCreditActionButton>
       </section>
     )
   }

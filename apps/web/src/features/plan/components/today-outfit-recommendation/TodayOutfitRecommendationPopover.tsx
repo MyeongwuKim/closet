@@ -8,7 +8,6 @@ import { useUiStore } from '../../../../stores/useUiStore'
 import { useTodayOutfitRecommendationFlow } from '../../hooks/useTodayOutfitRecommendationFlow'
 import { RecommendationHistoryDialog } from './RecommendationHistoryDialog'
 import { RecommendationPlannerStatus } from './RecommendationPlannerStatus'
-import { RecommendationColorSchemeStep } from './steps/RecommendationColorSchemeStep'
 import { RecommendationIntroStep } from './steps/RecommendationIntroStep'
 import { RecommendationResultStep } from './steps/RecommendationResultStep'
 import { RecommendationSeasonStep } from './steps/RecommendationSeasonStep'
@@ -24,7 +23,7 @@ interface TodayOutfitRecommendationPopoverProps {
   onApplied?: () => void
 }
 
-/** 상단·옷 상세·플래너의 추천 시트다. 내일 플래너에서 열면 해당 날짜의 예보와 자동 색감으로 추천을 시작한다. */
+/** 기준 옷 또는 날짜의 날씨로 코디를 추천하고, 열린 시트에서 해당 날짜의 추천 기록을 확인한다. */
 export function TodayOutfitRecommendationPopover({
   date,
   baseItem,
@@ -39,7 +38,6 @@ export function TodayOutfitRecommendationPopover({
   const {
     step,
     seasonChoice,
-    colorScheme,
     selectedSeason,
     meQuery,
     plannerWeekQuery,
@@ -75,13 +73,13 @@ export function TodayOutfitRecommendationPopover({
   }
 
   let stepContent
-  const isWeatherShortcut = step === 'weather-result'
+  const usesWeather = seasonChoice === 'current-weather'
 
   if (step === 'intro') {
     stepContent = (
       <RecommendationIntroStep
         dayLabel={dayLabel}
-        onRecommendWithWeather={actions.recommendWithWeather}
+        onRecommendWithWeather={() => actions.selectSeason('current-weather')}
         onChooseConditions={actions.showSeasons}
       />
     )
@@ -89,24 +87,15 @@ export function TodayOutfitRecommendationPopover({
     stepContent = (
       <RecommendationSeasonStep
         mode={mode}
-        availableSeasons={baseItem?.seasons}
-        onBack={baseItem ? onClose : actions.showIntro}
+        onBack={actions.showIntro}
         onSelect={actions.selectSeason}
-      />
-    )
-  } else if (step === 'color-scheme' || !colorScheme) {
-    stepContent = (
-      <RecommendationColorSchemeStep
-        requiresCredit={!baseItem}
-        onBack={actions.showSeasons}
-        onSelect={actions.selectColorScheme}
       />
     )
   } else if (
     !meQuery.data || meQuery.isError ||
-    (seasonChoice === 'current-weather' && (!weather || locationWeather.isLoading))
+    (usesWeather && (!weather || locationWeather.isLoading))
   ) {
-    const weatherError = seasonChoice === 'current-weather' ? locationWeather.errorMessage : null
+    const weatherError = usesWeather ? locationWeather.errorMessage : null
     stepContent = (
       <RecommendationReadinessStatus
         isLoading={meQuery.isLoading || locationWeather.isLoading}
@@ -115,8 +104,8 @@ export function TodayOutfitRecommendationPopover({
           if (weatherError) locationWeather.actions.retry()
           else void meQuery.refetch()
         }}
-        onBack={isWeatherShortcut ? actions.showSeasons : actions.showColorSchemes}
-        backLabel={isWeatherShortcut ? '조건 바꾸기' : '색감 다시 선택'}
+        onBack={baseItem ? onClose : actions.showSeasons}
+        backLabel={baseItem ? '닫기' : '조건 바꾸기'}
         loadingMessage={mode === 'tomorrow' ? '내일 예보와 추천에 필요한 정보를 확인하고 있어요' : undefined}
       />
     )
@@ -135,14 +124,13 @@ export function TodayOutfitRecommendationPopover({
         viewerId={meQuery.data.id}
         date={date}
         season={selectedSeason}
-        colorScheme={colorScheme}
         hasScheduledOutfit={hasScheduledOutfit}
         mode={mode}
         baseItemId={baseItem?.id}
-        weather={seasonChoice === 'current-weather' ? weather : null}
+        weather={usesWeather ? weather : null}
         onOpenCloset={openCloset}
         onOpenLookbook={onClose}
-        onBack={isWeatherShortcut ? actions.showIntro : actions.showColorSchemes}
+        onBack={baseItem ? undefined : usesWeather ? actions.showIntro : actions.showSeasons}
         onApplied={onApplied ?? onClose}
       />
     )

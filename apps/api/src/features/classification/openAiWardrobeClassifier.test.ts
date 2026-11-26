@@ -230,6 +230,17 @@ test('분석 요청은 옷 이름 대신 관찰 가능한 형태 속성을 요�
   assert.match(systemPrompt, /세부 종류 이름을 그대로 복사하지 말고/)
 })
 
+test('사진에 보이는 스탠드칼라를 접힌 칼라와 다른 형태로 분류한다', async (t) => {
+  const request = mockClassification(t, { ...fashionAttributes, necklineStyle: 'standCollar' })
+  const result = await classifyWardrobeImageWithOpenAi(Buffer.from('test-image'), 'image/png')
+  const body = JSON.parse(String(request.mock.calls[0]?.arguments[1]?.body))
+  const neckline = body.text.format.schema.properties.fashionAttributes.properties.necklineStyle
+
+  assert.ok(neckline.enum.includes('standCollar'))
+  assert.match(body.input[0].content, /짧게 위로 서는 칼라는 standCollar/)
+  assert.equal(result.fashionAttributes?.necklineStyle, 'standCollar')
+})
+
 test('새 분석 응답은 시보리 필드의 누락·null·잘못된 값을 허용하지 않는다', async (t) => {
   for (const field of trimFields) {
     for (const invalid of [undefined, null, 'ribbed', true]) {

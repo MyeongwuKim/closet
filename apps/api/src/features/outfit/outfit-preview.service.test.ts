@@ -48,7 +48,7 @@ test('저장된 총장을 키에 맞춰 유지하고 모든 상의를 자연스�
   assert.match(lookbookGarmentLengthGuide, /scale that length against the saved model heightCm/)
   assert.match(lookbookGarmentLengthGuide, /Keep every top fully untucked/)
   assert.match(lookbookGarmentLengthGuide, /measured shoulder-to-hem length as the garment’s unstretched proportion/)
-  assert.match(lookbookGarmentLengthGuide, /A closed-front outer may naturally cover an inner hem/)
+  assert.match(lookbookGarmentLengthGuide, /A pullover or another layer that cannot open fully may naturally cover an inner hem/)
   assert.match(lookbookGarmentLengthGuide, /with an open front, show the natural inner hem/)
   assert.match(lookbookGarmentLengthGuide, /If a knit has a separate ribbed bottom band clearly visible/)
   assert.match(lookbookGarmentLengthGuide, /a small, soft fold of knit fabric just above the band/)
@@ -79,6 +79,29 @@ test('룩북은 선택하지 않은 이너를 추가하지 않고 원본 브이�
   assert.match(prompt, /A shallow V-neck must stay shallow/)
   assert.match(prompt, /If an inner top was selected, preserve that specific layer/)
   assert.doesNotMatch(prompt, /Add one plain lightweight white crew-neck T-shirt/)
+})
+
+test('룩북 이미지 요청은 코트별 스탠드칼라 구조를 구분하고 기존 코트는 원본을 따른다', async (t) => {
+  const inputCoats = [
+    { ...createPreviewItem('stand', 'outer', { necklineStyle: 'standCollar' }), name: '듀크 코트' },
+    { ...createPreviewItem('legacy', 'outer', { necklineStyle: 'collar' }), name: '스탠드카라 코트' },
+    { ...createPreviewItem('folded', 'outer', { necklineStyle: 'collar' }), name: '싱글 코트' },
+  ]
+  for (const coat of inputCoats) {
+    await t.test(coat.name, async (t) => {
+      const form = await requestMockPreview(t, { necklineStyle: 'collar' }, [coat])
+      const prompt = String(form.get('prompt'))
+      const knitLine = prompt.split('\n').find((line) => line.startsWith('참조 이미지 1 /'))
+      const coatLine = prompt.split('\n').find((line) => line.startsWith('참조 이미지 3 /'))
+
+      assert.match(prompt, /keep that stand collar upright even with the front open/)
+      assert.match(prompt, /Preserve real folded collars and lapels where they are visible/)
+      assert.match(prompt, /transfer an inner polo or shirt collar onto the outerwear/)
+      assert.doesNotMatch(knitLine!, /Stand collar:/)
+      if (coat.id === 'folded') assert.doesNotMatch(coatLine!, /Stand collar:/)
+      else assert.match(coatLine!, /Stand collar:.*Keep this band upright even when the garment is worn open.*or lapels/)
+    })
+  }
 })
 
 test('코듀로이는 세로 골과 입체 음영을 생성 지침으로 전달한다', () => {
@@ -459,7 +482,7 @@ test('기존 아이템의 누락·null·잘못된 판정은 골지 원단이어�
   }
 })
 
-test('같은 조합의 후속 컷은 이전 이미지를 첨부하고 옷에 맞는 연출을 한 번만 요청한다', async (t) => {
+test('코트와 이너의 후속 컷은 겉옷을 열어 둔 채 각도만 바꾸는 지침을 한 번 요청한다', async (t) => {
   const previousUrl = 'https://lookbook.example.test/previous.png'
   const coat = createPreviewItem('coat', 'outer', { frontOpeningStyle: 'buttons' })
   const dress = createPreviewItem('dress', 'dress')
@@ -496,7 +519,15 @@ test('같은 조합의 후속 컷은 이전 이미지를 첨부하고 옷에 맞
 
   previous = { deliveryUrl: previousUrl, metadata: {} }
   assert.equal((await generate()).lookbookShotIndex, 1)
-  assert.match(String(requests[1]?.get('prompt')), /Change the fastening of garment reference 3/)
+  for (const request of requests.slice(0, 2)) {
+    const prompt = String(request.get('prompt'))
+    assert.match(prompt, /wear it unfastened from collar to hem/)
+    assert.match(prompt, /the inner layer is visible down to its own natural hem/)
+    assert.match(prompt, /For pullovers and half-zips, keep their original construction/)
+    assert.doesNotMatch(prompt, /Change the fastening|fastened outer layer may naturally hide/)
+  }
+  assert.match(String(requests[1]?.get('prompt')), /straight-on front view/)
+  assert.match(String(requests[1]?.get('prompt')), /Use it only to vary the pose and camera angle. Do not copy its fastening/)
   assert.match(String(requests[1]?.get('prompt')), /Supplementary image 4 is the previous lookbook shot/)
   assert.equal(requests[1]?.getAll('image[]').length, 4)
 

@@ -131,7 +131,7 @@ function isCoolNeutralFabricPixel(pixel: Rgb) {
  * AI가 고른 서로 다른 원단 표본 세 곳이 일치할 때, 인접 색 계열과 어두운 무채색의 오인식을 보완한다.
  * 패턴은 밝은 크림 추정의 바탕 세 곳에 노란 기운이 없을 때만 화이트로 보완한다. 단색용 색상 축 교정은 적용하지 않는다.
  * 표본이 불안정하거나 다색이면 원래 분석을 유지하고, 큰 색상 충돌도 자동 보정하지 않는다.
- * 밝기를 그대로 복사하지 않도록 AI 추정의 밝기는 유지한다. 저채도 원단은 중립화하고 유채색은 색상 축만 교정한다.
+ * 저채도 원단은 중립화하고 유채색은 색상 축을 교정한다. 그린·올리브 계열은 세 표본에서 확인된 올리브 원단색을 보존한다.
  */
 export async function refineGarmentColor(
   imageBuffer: Buffer,
@@ -192,7 +192,19 @@ export async function refineGarmentColor(
       const channel = Math.round(estimated.value * 255)
       return { colorName: '화이트', colorDetailName: '화이트 바탕', colorHex: `#${channel.toString(16).padStart(2, '0').repeat(3).toUpperCase()}` }
     }
-    const sampled = toHsv([0, 1, 2].map((channel) => median(samples.map((pixel) => pixel[channel]))) as Rgb)
+    const sampledRgb = [0, 1, 2].map((channel) => median(samples.map((pixel) => pixel[channel]))) as Rgb
+    const sampled = toHsv(sampledRgb)
+    // 어두운 올리브도 세 표본에 노란빛 녹색이 일관되게 있으면 무채색으로 보정하지 않는다.
+    if ((color.colorName === '그린' || color.colorName === '올리브') &&
+      Math.abs(estimated.value - sampled.value) <= 0.15 &&
+      samples.every((pixel) => {
+        const { hue, saturation } = toHsv(pixel)
+        return hue >= 50 && hue <= 100 && saturation >= 0.16 && saturation <= 0.45 &&
+          hueDistance(hue, sampled.hue) <= 15
+      })) {
+      const colorHex = `#${sampledRgb.map((channel) => channel.toString(16).padStart(2, '0')).join('').toUpperCase()}`
+      return { colorName: '올리브', colorDetailName: sampled.value < 0.5 ? '짙은 올리브' : '올리브', colorHex }
+    }
     // 워싱 검정의 약한 푸른 기운은 색상 축보다 저채도라는 근거를 우선한다. 실제 짙은 청록·네이비는 제외한다.
     if (estimated.value <= 0.5 && estimated.saturation <= 0.55 &&
       samples.every((pixel) => { const hsv = toHsv(pixel); return hsv.saturation <= 0.25 && hsv.value <= 0.45 }) &&

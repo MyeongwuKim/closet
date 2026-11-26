@@ -58,6 +58,42 @@ test.describe('옷장', () => {
     await expect(page.getByRole('button', { name: '수정한 셔츠 옷 상세 보기' })).toBeVisible()
   })
 
+  test('미등록 대표색을 표시하고 HEX를 직접 수정하거나 지울 수 있다', async ({ page, mockApi }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    mockApi.wardrobeItems = [createWardrobeItem({ colorName: '올리브', colorHex: null })]
+    await page.goto('/closet/item-1')
+    await expect(page.getByText('미등록', { exact: true })).toHaveCount(2)
+    const openEditor = page.getByRole('button', { name: '옷 정보 수정' })
+    await openEditor.click()
+    const editor = page.getByRole('dialog', { name: '옷 정보 수정' })
+    const hex = editor.getByRole('textbox', { name: '대표 색상값 (HEX)' })
+    const save = editor.getByRole('button', { name: '변경사항 저장' })
+    await expect(hex).toHaveValue('')
+    await save.click()
+    await expect(editor).toHaveCount(0)
+    expect(mockApi.wardrobeItems[0].colorHex).toBeNull()
+
+    await openEditor.click()
+    await hex.fill('#123')
+    await expect(save).toBeDisabled()
+    await hex.fill('#555845')
+    await expect(save).toBeEnabled()
+    await hex.evaluate((input) => input.scrollIntoView({ block: 'center' }))
+    await page.screenshot({ path: testInfo.outputPath('wardrobe-representative-color.png'), animations: 'disabled' })
+    await save.click()
+    await expect(editor).toHaveCount(0)
+    await page.reload()
+    await expect(page.getByText('#555845', { exact: true })).toBeVisible()
+
+    await openEditor.click()
+    await expect(hex).toHaveValue('#555845')
+    await hex.fill('')
+    await save.click()
+    await expect(editor).toHaveCount(0)
+    expect(mockApi.wardrobeItems[0].colorHex).toBeNull()
+    await expect(page.getByText('미등록', { exact: true })).toHaveCount(2)
+  })
+
   test('기존 사진에서 찾은 형태를 저장하면 색이 다른 새 옷과 겹치는 후보로 표시된다', async ({ page, mockApi }) => {
     const photo = readFileSync('tests/support/mock-shirt.png')
     const originalPhotoUrl = 'https://closet-test.invalid/original.png'
@@ -126,6 +162,41 @@ test.describe('옷장', () => {
     const match = analysisDialog.getByRole('button', { name: '아이보리 재킷 상세정보 보기' })
     await expect(match).toContainText(/형태 \d+%/)
     await expect(match).toContainText('색상 다름')
+  })
+
+  test('기존 사진으로 색상을 다시 분석하면 저장 전 HEX와 색상 견본이 바뀐다', async ({ page, mockApi }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    const photoUrl = 'https://closet-test.invalid/coat.png'
+    mockApi.wardrobeItems = [createWardrobeItem({
+      colorName: '그린', colorDetailName: '스페인 올리브', colorHex: null,
+      originalImageAsset: { deliveryUrl: photoUrl },
+    })]
+    await page.route(photoUrl, (route) => route.fulfill({
+      contentType: 'image/png', headers: { 'access-control-allow-origin': '*' }, body: readFileSync('tests/support/mock-shirt.png'),
+    }))
+    await page.route('**/graphql', async (route) => {
+      if (!route.request().postDataJSON().query.includes('mutation ClassifyWardrobeImage')) {
+        await route.fallback()
+        return
+      }
+      await route.fulfill({ json: { data: { classifyWardrobeImage: {
+        category: 'outer', colorName: '블랙', colorDetailName: '짙은 차콜', colorHex: '#322E31', colorMode: 'solid',
+      } } } })
+    })
+    await page.goto('/closet/item-1')
+    await page.getByRole('button', { name: '옷 정보 수정' }).click()
+    const editor = page.getByRole('dialog', { name: '옷 정보 수정' })
+    const analyze = editor.getByRole('button', { name: '기존 사진으로 색상 분석' })
+    await expect(analyze).toBeVisible({ timeout: 4000 })
+    await analyze.click()
+    await expect(editor.getByRole('textbox', { name: '대표 색상값 (HEX)' })).toHaveValue('#322E31')
+    await expect(editor.getByRole('textbox', { name: '색상 이름' })).toHaveValue('블랙')
+    await analyze.evaluate((button) => button.scrollIntoView({ block: 'center' }))
+    await page.screenshot({ path: testInfo.outputPath('wardrobe-color-reanalysis.png'), animations: 'disabled' })
+    expect(mockApi.operations).not.toContain('UpdateWardrobeItem')
+    await editor.getByRole('button', { name: '변경사항 저장' }).click()
+    await expect(editor).toHaveCount(0)
+    expect(mockApi.wardrobeItems[0]).toMatchObject({ category: 'top', colorName: '블랙', colorDetailName: '짙은 차콜', colorHex: '#322E31' })
   })
 
   test('옷을 보관 삭제하면 목록에서 사라지고 새로고침 후에도 다시 나타나지 않는다', async ({ page, mockApi }) => {

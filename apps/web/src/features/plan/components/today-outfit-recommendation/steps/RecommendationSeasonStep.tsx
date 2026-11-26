@@ -1,4 +1,3 @@
-import type { Season } from '@closet/types'
 import { ChevronLeft } from 'lucide-react'
 import { seasonOptions } from '../../../../../constants/seasons'
 import {
@@ -9,7 +8,6 @@ import type { RecommendationMode, SeasonChoice } from '../recommendationFlow'
 
 interface RecommendationSeasonStepProps {
   mode: RecommendationMode
-  availableSeasons?: Season[]
   onBack: () => void
   onSelect: (choice: SeasonChoice) => void
 }
@@ -17,13 +15,9 @@ interface RecommendationSeasonStepProps {
 /** 추천에 사용할 날짜의 예보 또는 옷에 등록된 계절을 고른다. */
 export function RecommendationSeasonStep({
   mode,
-  availableSeasons,
   onBack,
   onSelect,
 }: RecommendationSeasonStepProps) {
-  const options = availableSeasons
-    ? seasonOptions.filter((option) => availableSeasons.includes(option.value as Season))
-    : seasonOptions
   const weatherLabel = mode === 'tomorrow' ? '내일 예보' : '현재 날씨'
 
   return (
@@ -36,28 +30,24 @@ export function RecommendationSeasonStep({
           <RecommendationAssistantMessage>
             <p className="font-black">어떤 계절의 코디를 찾을까요?</p>
             <p className="mt-0.5 text-muted">
-              {availableSeasons
-                ? '기준 옷에 등록된 계절 중에서 골라주세요.'
-                : `${weatherLabel}를 선택하거나 계절을 직접 골라주세요.`}
+              {`${weatherLabel}를 선택하거나 계절을 직접 골라주세요.`}
             </p>
           </RecommendationAssistantMessage>
 
           <div className="ml-10 flex flex-wrap justify-end gap-2">
-            {!availableSeasons && (
-              <div className="flex w-full justify-end sm:w-auto">
-                <RecommendationQuickReply
-                  delayMs={80}
-                  onClick={() => onSelect('current-weather')}
-                >
-                  {weatherLabel}로 받기
-                </RecommendationQuickReply>
-              </div>
-            )}
-            {options.map((option, index) => (
+            <div className="flex w-full justify-end sm:w-auto">
+              <RecommendationQuickReply
+                delayMs={80}
+                onClick={() => onSelect('current-weather')}
+              >
+                {weatherLabel}로 받기
+              </RecommendationQuickReply>
+            </div>
+            {seasonOptions.map((option, index) => (
               <RecommendationQuickReply
                 key={option.value}
                 delayMs={130 + index * 45}
-                onClick={() => onSelect(option.value as Season)}
+                onClick={() => onSelect(option.value)}
               >
                 {option.label}
               </RecommendationQuickReply>

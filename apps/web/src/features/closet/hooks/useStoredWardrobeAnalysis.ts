@@ -4,10 +4,11 @@ import { getAccessToken } from '../../../lib/auth'
 import { classifyClothing } from '../api/classifyClothing'
 import { MAX_CLOTHING_IMAGE_SIZE, SUPPORTED_CLOTHING_IMAGE_TYPES } from '../constants'
 
-type ShapeAnalysisState =
-  | { status: 'idle' | 'analyzing' }
-  | { status: 'ready'; attributes: FashionItemAttributes }
-  | { status: 'error'; message: string }
+type AnalysisKind = 'shape' | 'color'
+type AnalysisState =
+  | { status: 'idle' }
+  | { status: 'analyzing' | 'ready'; kind: AnalysisKind }
+  | { status: 'error'; kind: AnalysisKind; message: string }
 
 const photoReadError = '기존 사진을 불러오지 못했어요. 다시 시도해주세요.'
 const sessionChangedError = '로그인 상태가 바뀌었어요. 옷 정보를 다시 열어 주세요.'
@@ -80,22 +81,24 @@ function mergeRecoveredAttributes(
   return { ...recovered, ...Object.fromEntries(known) }
 }
 
-/** 옷 정보 수정에서 기존 사진을 한 장씩 분석하고 현재 수정 화면에만 결과를 보관한다. */
-export function useStoredWardrobeShapeAnalysis(
+/** 옷 정보 수정에서 기존 사진으로 형태 또는 색상을 분석한다. 두 요청은 동시에 실행하지 않는다. */
+export function useStoredWardrobeAnalysis(
   item: WardrobeItem,
   category: ClothingCategory | '',
 ) {
-  const [state, setState] = useState<ShapeAnalysisState>({ status: 'idle' })
+  const [state, setState] = useState<AnalysisState>({ status: 'idle' })
+  const [recoveredAttributes, setRecoveredAttributes] = useState<FashionItemAttributes | null>(null)
   const [accessToken] = useState(getAccessToken)
   // 버튼의 비활성 상태가 화면에 반영되기 전에도 같은 사진의 중복 분석을 막는다.
   const activeRequest = useRef<AbortController | null>(null)
   const photoUrl = item.originalImageUrl || item.imageUrl
   const savedAttributes = category === item.category ? item.fashionAttributes : undefined
-  const canAnalyze = Boolean(photoUrl && category && !hasShapeEvidence(savedAttributes, category))
+  const canAnalyzeShape = Boolean(photoUrl && category && !recoveredAttributes && !hasShapeEvidence(savedAttributes, category))
 
   useEffect(() => () => {
     activeRequest.current?.abort()
     activeRequest.current = null
+    setRecoveredAttributes(null)
   }, [])
 
   /** 옷의 대표 카테고리를 바꾸면 이전 카테고리의 요청과 초안을 폐기한다. */
@@ -106,38 +109,40 @@ export function useStoredWardrobeShapeAnalysis(
   }
 
   /** 수정 화면을 열었던 계정에서만 사진 전송과 저장을 허용한다. */
-  const ensureCurrentSession = () => {
+  const ensureCurrentSession = (kind: AnalysisKind = 'shape') => {
     if (accessToken && accessToken === getAccessToken()) return true
-    setState({ status: 'error', message: sessionChangedError })
+    setState({ status: 'error', kind, message: sessionChangedError })
     return false
   }
 
-  /** 분류 결과의 대표 카테고리와 형태 단서를 확인한 뒤 저장 전 초안에 반영한다. */
-  const analyze = async () => {
-    if (!canAnalyze || !photoUrl || !category || activeRequest.current) return
-    if (!ensureCurrentSession() || !accessToken) return
+  /** 형태는 카테고리와 단서를 검증해 복구하고, 색상 요청은 카테고리를 수정하지 않고 색상 결과를 반환한다. */
+  const analyze = async (kind: AnalysisKind) => {
+    if (!photoUrl || activeRequest.current || (kind === 'shape' && (!canAnalyzeShape || !category))) return
+    if (!ensureCurrentSession(kind) || !accessToken) return
 
     const controller = new AbortController()
     activeRequest.current = controller
-    setState({ status: 'analyzing' })
+    setState({ status: 'analyzing', kind })
     try {
       const photo = await readStoredPhoto(photoUrl, controller.signal)
       const result = await classifyClothing(photo, { accessToken, signal: controller.signal })
-      if (controller.signal.aborted || !ensureCurrentSession()) return
-      if (result.category !== category) {
-        throw new Error('사진에서 찾은 카테고리가 현재 옷의 카테고리와 달라요.')
+      if (controller.signal.aborted || !ensureCurrentSession(kind)) return
+      if (kind === 'shape') {
+        if (result.category !== category) throw new Error('사진에서 찾은 카테고리가 현재 옷의 카테고리와 달라요.')
+        if (!category || !result.fashionAttributes || !hasShapeEvidence(result.fashionAttributes, category)) {
+          throw new Error('사진에서 비교할 형태 정보를 찾지 못했어요.')
+        }
+        setRecoveredAttributes(mergeRecoveredAttributes(savedAttributes, result.fashionAttributes))
+      } else if (!/^#[0-9a-f]{6}$/i.test(result.colorHex)) {
+        throw new Error('사진에서 대표 색상값을 찾지 못했어요.')
       }
-      if (!result.fashionAttributes || !hasShapeEvidence(result.fashionAttributes, category)) {
-        throw new Error('사진에서 비교할 형태 정보를 찾지 못했어요.')
-      }
-      setState({
-        status: 'ready',
-        attributes: mergeRecoveredAttributes(savedAttributes, result.fashionAttributes),
-      })
+      setState({ status: 'ready', kind })
+      return result
     } catch (error) {
-      if (controller.signal.aborted || !ensureCurrentSession()) return
+      if (controller.signal.aborted || !ensureCurrentSession(kind)) return
       setState({
         status: 'error',
+        kind,
         message: error instanceof Error && !(error instanceof TypeError)
           ? error.message
           : photoReadError,
@@ -147,5 +152,5 @@ export function useStoredWardrobeShapeAnalysis(
     }
   }
 
-  return { canAnalyze, state, analyze, reset, ensureCurrentSession }
+  return { canAnalyzeShape, canAnalyzeColor: Boolean(photoUrl), recoveredAttributes, state, analyze, reset, ensureCurrentSession }
 }

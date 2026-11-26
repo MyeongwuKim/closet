@@ -74,6 +74,22 @@ test('웹 옷장에 캡처 사진을 놓으면 파일 선택 없이 AI 분석 �
   expect(mockApi.operations).toContain('ClassifyWardrobeImage')
 })
 
+test('네이티브 WebView 사진 추가 창에 스크린샷을 놓으면 AI 분석으로 전달한다', async ({ page, mockApi }) => {
+  mockApi.wardrobeItems = []
+  await page.addInitScript(() => { window.ClosetRuntimeConfig = { isNativeWebView: true, routerMode: 'hash' } })
+  await page.goto('/#/closet')
+  await page.getByRole('button', { name: '옷장에 옷 추가' }).click()
+  const dialog = page.getByRole('dialog', { name: '옷 사진 추가' })
+  const screenshot = await page.evaluateHandle((bytes) => {
+    const dataTransfer = new DataTransfer()
+    dataTransfer.items.add(new File([new Uint8Array(bytes)], '스크린샷.png', { type: 'image/png' }))
+    return dataTransfer
+  }, Array.from(onePixelPng))
+  await dialog.dispatchEvent('drop', { dataTransfer: screenshot })
+  await expect(page.getByRole('dialog', { name: 'AI 분석 결과' })).toBeVisible({ timeout: 4000 })
+  expect(mockApi.operations).toContain('ClassifyWardrobeImage')
+})
+
 test('사진 분석 결과를 확인해 옷을 등록하고 새로고침 후에도 조회한다', async ({ page, mockApi }) => {
   mockApi.wardrobeItems = []
 

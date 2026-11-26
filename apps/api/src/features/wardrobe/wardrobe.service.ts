@@ -88,7 +88,7 @@ const fashionAttributeValues = {
   material: ['cotton', 'denim', 'knit', 'wool', 'leather', 'linen', 'synthetic', 'other', 'unknown'],
   texture: ['smooth', 'twill', 'corduroy', 'ribbed', 'cableKnit', 'fuzzy', 'boucle', 'quilted', 'suede', 'glossy', 'distressed', 'other', 'unknown'],
   trimPresence: ['present', 'absent', 'unknown'],
-  necklineStyle: ['crew', 'vNeck', 'mock', 'turtleneck', 'collar', 'hood', 'scoop', 'boat', 'square', 'other', 'unknown'],
+  necklineStyle: ['crew', 'vNeck', 'mock', 'turtleneck', 'standCollar', 'collar', 'hood', 'scoop', 'boat', 'square', 'other', 'unknown'],
   frontOpeningStyle: ['none', 'buttons', 'halfButtons', 'zipper', 'halfZip', 'wrap', 'other', 'unknown'],
   pocketStyle: ['none', 'slant', 'welt', 'patch', 'cargo', 'kangaroo', 'zippered', 'mixed', 'unknown'],
   bottomLegShape: ['skinny', 'straight', 'wide', 'tapered', 'flared', 'unknown'],

@@ -376,7 +376,6 @@ for (const entryPoint of ['composer', 'detail', 'recommendation'] as const) {
       const sheet = page.getByRole('dialog', { name: '오늘의 AI 코디 추천' })
       await sheet.getByRole('button', { name: '조건 바꾸기', exact: true }).click()
       await sheet.getByRole('button', { name: '봄', exact: true }).click()
-      await sheet.getByRole('button', { name: /자동/ }).click()
       await expect(sheet.getByText('영구 이미지 확인 코디', { exact: true })).toBeVisible()
       await sheet.getByRole('button', { name: '추천 코디 구성 변경하기', exact: true }).click()
       await page.getByRole('dialog', { name: '오늘의 추천 코디 상세', exact: true }).getByRole('button', { name: 'AI 룩북 보기', exact: true }).click()

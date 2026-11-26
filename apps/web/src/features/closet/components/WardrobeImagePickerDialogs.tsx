@@ -9,11 +9,13 @@ import {
 } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useWardrobeImageDialog } from '../hooks/useWardrobeImageDialog'
+import { useWardrobeImageDrop } from '../hooks/useWardrobeImageDrop'
 
 interface WardrobeImageSourceDialogProps {
   isCapturing: boolean
   onCapture: () => void
   onChooseAlbum: () => void
+  onImagesSelected: (files: File[]) => void
   onCancel: () => void
 }
 
@@ -28,12 +30,16 @@ export function WardrobeImageSourceDialog({
   isCapturing,
   onCapture,
   onChooseAlbum,
+  onImagesSelected,
   onCancel,
 }: WardrobeImageSourceDialogProps) {
   const titleId = useId()
   const descriptionId = useId()
   const dialogRef = useWardrobeImageDialog(onCancel, {
     dismissible: !isCapturing,
+  })
+  const { isDragging, handlePaste, dropZoneHandlers } = useWardrobeImageDrop((files) => {
+    if (!isCapturing) onImagesSelected(files)
   })
 
   return createPortal(
@@ -44,6 +50,9 @@ export function WardrobeImageSourceDialog({
       }}
     >
       <section
+        {...dropZoneHandlers}
+        onPaste={handlePaste}
+        data-dragging={isDragging}
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
@@ -51,7 +60,7 @@ export function WardrobeImageSourceDialog({
         aria-describedby={descriptionId}
         aria-busy={isCapturing}
         tabIndex={-1}
-        className="option-picker-enter w-full max-w-sm overflow-hidden rounded-3xl border border-line bg-surface shadow-2xl"
+        className={`option-picker-enter w-full max-w-sm overflow-hidden rounded-3xl border bg-surface shadow-2xl ${isDragging ? 'border-accent' : 'border-line'}`}
       >
         <header className="flex items-start gap-3 border-b border-line px-5 py-4">
           <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-sage">
@@ -62,7 +71,7 @@ export function WardrobeImageSourceDialog({
               옷 사진 추가
             </h2>
             <p id={descriptionId} className="mt-1 text-xs leading-5 text-muted">
-              사진을 추가할 방법을 선택해주세요.
+              사진을 끌어다 놓거나 붙여넣을 수도 있어요.
             </p>
           </div>
           <button

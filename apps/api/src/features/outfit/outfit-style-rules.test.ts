@@ -123,7 +123,7 @@ test('색감 기준은 주요 옷의 실제 색을 비교하고 신발의 중립
   ], 'accent'), 0)
 })
 
-test('원피스는 무채색 단품으로 인정하고 다른 색감은 신발과 두 색을 이룰 때만 인정한다', () => {
+test('원피스의 톤온톤과 톤인톤은 다른 주요 옷과 성립하며 신발만 더하면 성립하지 않는다', () => {
   const blackDress = createItem('black-dress', 'dress', '원피스', { colorHex: '#242424' })
   const blueDress = createItem('blue-dress', 'dress', '원피스', { colorHex: '#254F82' })
   const pinkDress = createItem('pink-dress', 'dress', '원피스', { colorHex: '#D77C7C' })
@@ -131,12 +131,15 @@ test('원피스는 무채색 단품으로 인정하고 다른 색감은 신발�
   const whiteShoes = createItem('white-shoes', 'shoes', '신발', { colorHex: '#F2F1EC' })
   const lightBlueShoes = createItem('light-blue-shoes', 'shoes', '신발', { colorHex: '#82ACE0' })
   const mutedBlueShoes = createItem('muted-blue-shoes', 'shoes', '신발', { colorHex: '#6B96C6' })
+  const mutedBlueCoat = createItem('muted-blue-coat', 'outer', '코트', { colorHex: '#6B96C6' })
   const redShoes = createItem('red-shoes', 'shoes', '신발', { colorHex: '#E43C45' })
 
   assert.equal(getColorSchemeFitScore([blackDress], 'achromatic'), 1)
   assert.equal(getColorSchemeFitScore([blackDress, whiteShoes], 'achromatic'), 1)
-  assert.equal(getColorSchemeFitScore([blueDress, lightBlueShoes], 'tone-on-tone'), 1)
-  assert.equal(getColorSchemeFitScore([pinkDress, mutedBlueShoes], 'tone-in-tone'), 1)
+  assert.equal(getColorSchemeFitScore([blueDress, lightBlueShoes], 'tone-on-tone'), 0)
+  assert.equal(getColorSchemeFitScore([blueDress, { ...lightBlueShoes, category: 'outer' }], 'tone-on-tone'), 1)
+  assert.equal(getColorSchemeFitScore([pinkDress, mutedBlueShoes], 'tone-in-tone'), 0)
+  assert.equal(getColorSchemeFitScore([pinkDress, mutedBlueCoat], 'tone-in-tone'), 1)
   assert.equal(getColorSchemeFitScore([whiteDress, redShoes], 'accent'), 1)
   for (const scheme of ['tone-on-tone', 'tone-in-tone', 'accent'] as const) {
     assert.equal(getColorSchemeFitScore([blackDress], scheme), 0)
@@ -377,6 +380,22 @@ test('체감 18도에는 가벼운 아우터만 추천 후보로 사용한다', 
       items.every((item) => item.id !== 'heavy-outer'),
     ),
   )
+})
+
+test('체감 영하 10도에는 따뜻한 겉옷과 이너 조합을 우선하고 다 보면 얇은 옷으로 돌아가지 않는다', () => {
+  const items = [
+    createItem('coat', 'outer', '울 코트', { fashionAttributes: { ...createLayerAttributes('outer', 'heavy'), material: 'wool' } }),
+    createItem('thin-top', 'top', '반팔'),
+    createItem('wool-knit', 'top', '울 니트'),
+    createItem('pants', 'bottom', '팬츠'),
+  ]
+  const severe = buildOutfitCombinations(items, 'winter', undefined, -10)
+  assert.ok(severe.length > 0)
+  assert.ok(severe.every(({ items }) => items.some(({ id }) => id === 'coat') && items.some(({ id }) => id === 'wool-knit')))
+  const exhausted = buildOutfitCombinations(items, 'winter', undefined, -10, 'auto', undefined, new Set(['["coat","pants","wool-knit"]']))
+  assert.deepEqual(exhausted, [])
+  const milder = buildOutfitCombinations(items, 'winter', undefined, 4)
+  assert.ok(milder.some(({ items }) => items.some(({ id }) => id === 'thin-top')))
 })
 
 test('체감 7도에는 아우터 조합을 아우터 없는 조합보다 높게 평가한다', () => {

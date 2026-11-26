@@ -404,6 +404,7 @@ function scoreCombination<T extends StyleRuleItem>(
  * 기준 옷은 점수와 무관하게 맨 앞에 두어 후보 제한으로 빠지지 않게 한다.
  * 색감을 선택했다면 기본 순위 4개와 다른 역할의 옷과 색 조합을 이루는 후보 최대 4개를 함께 남긴다.
  * 기준 옷이 있으면 제한된 후보 안에 그 옷과 색감이 맞는 옷을 먼저 포함한다.
+ * 재추천에서는 기존 색 후보에 최근 덜 나온 옷을 최대 네 벌 추가한다.
  */
 function sortPool<T extends StyleRuleItem>(
   items: T[],
@@ -411,6 +412,7 @@ function sortPool<T extends StyleRuleItem>(
   baseItemId?: string,
   colorScheme: TodayOutfitColorScheme = 'auto',
   thermalContext?: ThermalRecommendationContext,
+  repeatRanks?: ReadonlyMap<string, number>,
 ) {
   const baseItem = wardrobeItems.find((item) => item.id === baseItemId)
   const scores = new Map(items.map((item) => {
@@ -427,7 +429,11 @@ function sortPool<T extends StyleRuleItem>(
       Number(right.id === baseItemId) - Number(left.id === baseItemId) ||
       scores.get(right.id)! - scores.get(left.id)!,
     )
-  if (colorScheme === 'auto') return sorted.slice(0, 8)
+  // 기존 색·궁합 후보 외에 최근에 덜 나온 옷도 남겨 조합별로 비교한다.
+  const freshItems = repeatRanks?.size
+    ? [...sorted].sort((left, right) => (repeatRanks.get(left.id) ?? 0) - (repeatRanks.get(right.id) ?? 0)).slice(0, 4)
+    : []
+  if (colorScheme === 'auto') return [...new Set([...sorted.slice(0, 8), ...freshItems])]
 
   // 색감에 맞는 옷이 일반 색 궁합 순위에서 밀려도 역할별 후보 8개 안에 남긴다.
   const baseline = sorted.slice(0, 4)
@@ -440,8 +446,8 @@ function sortPool<T extends StyleRuleItem>(
       partner.category !== item.category &&
       getColorSchemeFitScore([item, partner], colorScheme) > 0,
   )).sort((left, right) => fitWithBase(right) - fitWithBase(left))
-  return [...new Map([...baseline, ...matching.slice(0, 4), ...sorted]
-    .map((item) => [item.id, item])).values()].slice(0, 8)
+  const balanced = [...new Set([...baseline, ...matching.slice(0, 4), ...sorted])].slice(0, 8)
+  return [...new Set([...balanced, ...freshItems])]
 }
 
 function selectDiverseCombinations<T extends StyleRuleItem>(
@@ -520,10 +526,41 @@ function selectDiverseCombinations<T extends StyleRuleItem>(
   return selected
 }
 
+/** 신발·액세서리를 제외한 핵심 옷 구성을 중복 판정과 후보 수에 사용한다. */
+export function getCoreCombinationKey(items: StyleRuleItem[]) {
+  return JSON.stringify(items.filter(({ category }) => category !== 'shoes' && category !== 'accessory').map(({ id }) => id).sort())
+}
+
+interface OutfitRepeatPreferences {
+  footwearRanks: ReadonlyMap<string, number>
+  coreUsage: ReadonlyMap<string, number>
+}
+
+/** 체감 영하 10도 이하에서 보온성 있는 겉옷과 안쪽 레이어를 함께 갖춘 조합을 우선한다. */
+function getSevereColdLayerRank(items: StyleRuleItem[], apparentTemperatureC?: number) {
+  if (apparentTemperatureC === undefined || apparentTemperatureC > -10) return 0
+  const outer = items.find((item) => item.category === 'outer') ?? items.find(isOuterLayer)
+  if (!outer) return 3
+  const insulatedOuter = getFashionAttributes(outer).warmth === 'heavy' || isInsulatingGarment(outer)
+  const warmInner = items.some((item) => item !== outer &&
+    (includesCategory(item, 'top') || isMidLayer(item) || includesCategory(item, 'dress')) &&
+    (getFashionAttributes(item).warmth === 'heavy' || isInsulatingGarment(item)))
+  if (insulatedOuter && warmInner) return 0
+  return insulatedOuter || warmInner ? 1 : 2
+}
+
+/** 신발·소품만 바꾼 코디의 반복을 막고, 상의·하의가 달라지는 조합을 신발 교체보다 먼저 고려한다. */
+export function getOutfitReuseRank(items: StyleRuleItem[], preferences: OutfitRepeatPreferences) {
+  const main = items.reduce((total, { id }) => total + (preferences.coreUsage.get(id) ?? 0), 0)
+  const shoes = Math.max(0, ...items.map(({ id }) => preferences.footwearRanks.get(id) ?? 0))
+  return main * (preferences.footwearRanks.size + 1) + shoes
+}
+
 /**
  * 이너와 하의 또는 원피스를 갖춘 옷장 조합을 만들고 색·핏 균형·레이어·착용 기록으로 정렬한다.
  * 계절은 겉옷과 두께 평가에 사용하고, 기온이 있으면 더운 날의 보온성 옷을 후보에서 제외한다.
  * baseItemId가 있으면 모든 결과에 포함하며 함께 입을 기본 구성이 없으면 빈 배열을 반환한다.
+ * 한파에는 가능한 최고 보온 단계로 제한한 뒤 본 코디를 제외한다.
  * 색감을 만족하는 조합에서 최대 18개를 반환하고, 개인 체감이 있으면 보온성 순위를 보조 보정한다.
  * 만족하는 조합이 없으면 일반 추천으로 돌아가며, 스타일 이름이나 선호 핏으로 옷을 제한하지 않는다.
  */
@@ -535,10 +572,12 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
   colorScheme: TodayOutfitColorScheme = 'auto',
   thermalContext?: ThermalRecommendationContext,
   excludedOutfitKeys?: ReadonlySet<string>,
+  repeats?: OutfitRepeatPreferences,
 ) {
   if (baseItemId !== undefined && !items.some((item) => item.id === baseItemId)) {
     return []
   }
+  const footwearRanks = repeats?.footwearRanks
   // 기온에 맞지 않는 옷을 후보 제한 전에 제외해, 착용 가능한 옷이 8개 제한 아래로 밀리지 않게 한다.
   const availableItems = apparentTemperatureC === undefined
     ? items
@@ -552,9 +591,10 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
     baseItemId,
     colorScheme,
     thermalContext,
+    repeats?.coreUsage,
   )
-  const bottoms = sortPool(availableItems.filter((item) => includesCategory(item, 'bottom')), availableItems, baseItemId, colorScheme, thermalContext)
-  const dresses = sortPool(availableItems.filter((item) => includesCategory(item, 'dress')), availableItems, baseItemId, colorScheme, thermalContext)
+  const bottoms = sortPool(availableItems.filter((item) => includesCategory(item, 'bottom')), availableItems, baseItemId, colorScheme, thermalContext, repeats?.coreUsage)
+  const dresses = sortPool(availableItems.filter((item) => includesCategory(item, 'dress')), availableItems, baseItemId, colorScheme, thermalContext, repeats?.coreUsage)
   const midlayers = sortPool(
     availableItems.filter(
       (item) =>
@@ -575,7 +615,7 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
     colorScheme,
     thermalContext,
   )
-  const shoes = sortPool(availableItems.filter((item) => includesCategory(item, 'shoes')), availableItems, baseItemId, colorScheme, thermalContext)
+  const shoes = sortPool(availableItems.filter((item) => includesCategory(item, 'shoes')), availableItems, baseItemId, colorScheme, thermalContext, footwearRanks)
   const accessories = sortPool(
     availableItems.filter((item) => includesCategory(item, 'accessory')),
     availableItems,
@@ -584,38 +624,35 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
     thermalContext,
   )
   const combinations = new Map<string, T[]>()
+  let warmestRank = Number.POSITIVE_INFINITY
 
   const push = (selectedItems: T[]) => {
     if (baseItemId !== undefined && !selectedItems.some((item) => item.id === baseItemId)) return
     const uniqueItems = [...new Map(selectedItems.map((item) => [item.id, item])).values()]
     if (uniqueItems.length !== selectedItems.length || uniqueItems.length > 5) return
-    // 신발·액세서리만 바꾼 조합도 같은 코디로 보고 순위를 매기기 전에 제외한다.
-    if (excludedOutfitKeys?.size && excludedOutfitKeys.has(JSON.stringify(
-      uniqueItems.filter((item) => item.category !== 'shoes' && item.category !== 'accessory').map((item) => item.id).sort(),
-    ))) return
-    if (
-      apparentTemperatureC !== undefined &&
-      !isWeatherCompatibleCombination(
-        uniqueItems,
-        apparentTemperatureC,
-        baseItemId,
-      )
-    ) {
-      return
+    if (apparentTemperatureC !== undefined &&
+      !isWeatherCompatibleCombination(uniqueItems, apparentTemperatureC, baseItemId)) return
+    // 한파에는 본 코디를 제외하기 전에 최상 보온 단계부터 정한다. 후보가 소진돼도 더 얇은 옷으로 내려가지 않는다.
+    const coldRank = getSevereColdLayerRank(uniqueItems, apparentTemperatureC)
+    if (coldRank > warmestRank) return
+    if (coldRank < warmestRank) {
+      warmestRank = coldRank
+      combinations.clear()
     }
+    // 신발·액세서리만 바꾼 조합도 같은 코디로 보고 순위를 매기기 전에 제외한다.
+    if (excludedOutfitKeys?.size && excludedOutfitKeys.has(getCoreCombinationKey(uniqueItems))) return
     const key = uniqueItems.map((item) => item.id).sort().join(':')
     combinations.set(key, uniqueItems)
   }
 
   const withShoes = (core: T[]) => {
     if (shoes.length === 0) return [core]
-    const rankedShoes = colorScheme === 'auto'
-      ? shoes
-      : [...shoes].sort((left, right) =>
-          Number(right.id === baseItemId) - Number(left.id === baseItemId) ||
-          getColorSchemeFitScore([...core, right], colorScheme) -
-            getColorSchemeFitScore([...core, left], colorScheme),
-        )
+    const rankedShoes = [...shoes].sort((left, right) =>
+      Number(right.id === baseItemId) - Number(left.id === baseItemId) ||
+      (colorScheme === 'auto' ? 0 : getColorSchemeFitScore([...core, right], colorScheme) -
+        getColorSchemeFitScore([...core, left], colorScheme)) ||
+      (footwearRanks?.get(left.id) ?? 0) - (footwearRanks?.get(right.id) ?? 0),
+    )
     return rankedShoes.slice(0, 3).map((item) => [...core, item])
   }
 
@@ -672,10 +709,22 @@ export function buildOutfitCombinations<T extends StyleRuleItem>(
         getColorSchemeFitScore(combination.items, colorScheme) > 0,
       )
   if (colorScheme !== 'auto' && matchingCombinations.length === 0) {
-    return buildOutfitCombinations(items, season, baseItemId, apparentTemperatureC, 'auto', thermalContext, excludedOutfitKeys)
+    return buildOutfitCombinations(items, season, baseItemId, apparentTemperatureC, 'auto', thermalContext, excludedOutfitKeys, repeats)
   }
 
-  return selectDiverseCombinations(matchingCombinations, 18)
+  let preferred = matchingCombinations
+  if (repeats && (repeats.footwearRanks.size || repeats.coreUsage.size)) {
+    const leastUsedRank = matchingCombinations.reduce((best, { items }) =>
+      Math.min(best, getOutfitReuseRank(items, repeats)), Number.POSITIVE_INFINITY)
+    preferred = matchingCombinations.filter(({ items }) => getOutfitReuseRank(items, repeats) === leastUsedRank)
+  }
+  const rankedCombinations = selectDiverseCombinations(preferred, 18)
+  if (preferred !== matchingCombinations && rankedCombinations.length < 18) {
+    const preferredSet = new Set(preferred)
+    const remaining = matchingCombinations.filter((combination) => !preferredSet.has(combination))
+    rankedCombinations.push(...selectDiverseCombinations(remaining, 18 - rankedCombinations.length))
+  }
+  return rankedCombinations
     .map((combination, index) => ({
       ...combination,
       id: `combination-${index + 1}`,

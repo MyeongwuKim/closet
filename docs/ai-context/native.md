@@ -22,6 +22,8 @@
 
 인증은 SecureStore와 웹 토큰의 동기화로 이어진다. 권한 상태 조회와 시스템 권한 요청은 분리되어 있고, 허용된 로그인 기기는 푸시 토큰을 등록한다. 카메라·위치 결과는 성공 외에 취소·거절·오류 등을 상태값으로 전달한다.
 
+옷 사진 추가창은 WebView로 전달된 이미지 드롭·붙여넣기도 기존 사진 검증과 분석으로 연결한다. macOS Finder에서 iOS 시뮬레이터 창으로 떨어뜨린 이미지는 Simulator가 사진 앱에 가져오므로 앱의 ‘앨범에서 선택’에서 사용할 수 있다.
+
 ## 준비 신호와 화면 이동
 
 브리지 설치 완료인 `closet:native-bridge-ready`와 웹 앱 준비 완료인 `closet:web-app-ready`는 별개다. WebView는 웹 앱 준비 전에 받은 이동 요청을 보관했다가 처리한다. 웹 준비 신호의 로드 키가 현재 WebView와 일치해야 번들을 확정하며, 신호 재요청·재로딩·이전 번들 복구는 `src/webBundle/webViewReadyRecovery.ts`와 `NativeWebViewScreen.tsx`에 있다.
@@ -29,6 +31,8 @@
 `closet:web-first-frame`은 네이티브가 현재 WebView에 주입한 코드에서 보내는 표시 전용 신호다. 같은 로드 키에서만 수락하며 로딩 화면을 닫는 데 사용한다. 번들 확정과 복구는 웹 앱 준비 신호를 기준으로 처리한다.
 
 앱 복귀 시 웹에 상태·재활성 이벤트를 전달해 작업과 날씨를 다시 확인한다. [notificationNavigation.ts](../../apps/native/src/notifications/notificationNavigation.ts)는 알림 경로를 정규화하고 실행 중 룩북 완료 알림의 자동 이동을 생략한다. 딥 링크는 [deepLinks.ts](../../apps/native/src/navigation/deepLinks.ts), hash/browser 이동은 `webViewNavigation.ts`, 외부 링크는 `externalLinkBridge.ts`에 있다.
+
+알림·딥 링크의 hash 이동은 History API로 주소를 바꾸고 `popstate`를 전달한다. 새 방문 기록에는 React Router가 이동 거리와 스크롤 복원에 사용하는 순번과 키를 저장한다. iOS WebView가 내부 화면 이동을 새 문서 로딩으로 처리하면 준비 화면이 다시 표시될 수 있다.
 
 `wardrobe-rediscovery` 푸시는 `/closet/rediscovery`만 허용하며 수신 즉시 화면을 바꾸지 않는다. 사용자가 누르면 기존 마지막 알림 복구·인증·웹 준비 대기 경로를 거쳐 전체 화면 재발견 목록을 연다. `notification-navigation.test.mjs`에서 전용 경로·외부 경로 거절·전면 자동 이동 생략을 검사한다.
 

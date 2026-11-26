@@ -29,11 +29,13 @@ const rules = {
   neutralChroma: 0.012,
   sameHueDegrees: 30,
   differentHueDegrees: 35,
+  toneInToneChroma: 0.025,
+  toneInToneColorDistance: 0.03,
   toneLightnessDifference: 0.08,
   similarLightnessDifference: 0.14,
   similarChromaDifference: 0.08,
   darkLightness: 0.45,
-  darkToneLightnessDifference: 0.18,
+  darkToneLightnessDifference: 0.16,
   accentChroma: 0.13,
   supportChroma: 0.08,
   relativeAccentChroma: 0.10,
@@ -86,11 +88,16 @@ function getPaletteColorName(color: OklchColor) {
 }
 
 function colorPairs(colors: OklchColor[]) {
-  return colors.flatMap((left, index) => colors.slice(index + 1).map((right) => ({
-    hue: hueDistance(left.hue, right.hue),
-    lightness: Math.abs(left.lightness - right.lightness),
-    chroma: Math.abs(left.chroma - right.chroma),
-  })))
+  return colors.flatMap((left, index) => colors.slice(index + 1).map((right) => {
+    const hue = hueDistance(left.hue, right.hue)
+    const chroma = Math.abs(left.chroma - right.chroma)
+    return {
+      hue,
+      lightness: Math.abs(left.lightness - right.lightness),
+      chroma,
+      colorDistance: Math.hypot(chroma, 2 * Math.sqrt(left.chroma * right.chroma) * Math.sin(hue * Math.PI / 360)),
+    }
+  }))
 }
 
 /** 밝은 선명색 또는 명도 대비 채도가 충분한 짙은 유채색 하나가 저채도 받침과 구분될 때 포인트로 인정한다. */
@@ -112,7 +119,9 @@ function getAccentColor(colors: OklchColor[]) {
 function matchesScheme(colors: OklchColor[], scheme: TodayOutfitColorScheme) {
   if (scheme === 'auto') return true
   if (colors.length === 0) return false
-  const chromatic = colors.filter((color) => color.chroma > rules.neutralChroma)
+  // 회색에 가까운 원단의 작은 색 틀어짐은 톤인톤의 색 차이로 세지 않는다.
+  const threshold = scheme === 'tone-in-tone' ? rules.toneInToneChroma : rules.neutralChroma
+  const chromatic = colors.filter((color) => color.chroma > threshold)
   if (scheme === 'achromatic') return chromatic.length === 0
   if (colors.length < 2) return false
   if (scheme === 'accent') return getAccentColor(colors) !== null
@@ -127,19 +136,25 @@ function matchesScheme(colors: OklchColor[], scheme: TodayOutfitColorScheme) {
   const lightnessLimit = chromatic.every((color) => color.lightness <= rules.darkLightness)
     ? rules.darkToneLightnessDifference : rules.similarLightnessDifference
   return pairs.every((pair) => pair.lightness <= lightnessLimit && pair.chroma <= rules.similarChromaDifference) &&
-    pairs.some((pair) => pair.hue >= rules.differentHueDegrees)
+    pairs.some((pair) => pair.hue >= rules.differentHueDegrees && pair.colorDistance >= rules.toneInToneColorDistance)
 }
 
 /**
  * 실제 HEX가 있는 단색의 주요 옷과 확인된 보조 아이템으로 색감 충족 여부를 반환한다.
  * 패턴·다색·색 구성 미확인은 대표색 하나로 조합을 확정하지 않는다. 보조 아이템의 미등록 색은 제외한다.
+ * 톤온톤과 톤인톤은 주요 옷의 실제 색 차이로 성립해야 하고 신발·소품의 색은 조합 충돌 여부에만 반영한다.
  */
 export function getColorSchemeFitScore(items: ColorRuleItem[], scheme: TodayOutfitColorScheme): number {
   if (scheme === 'auto') return 1
-  const main = items.filter((item) => item.category && mainCategories.has(item.category))
-  if (main.length === 0 || main.some((item) => isComplex(item) || !toOklch(item.colorHex))) return 0
   if (items.some(isComplex)) return 0
-  const colors = items.map((item) => toOklch(item.colorHex)).filter((color): color is OklchColor => color !== null)
+  const measured = items.map((item) => ({ category: item.category, color: toOklch(item.colorHex) }))
+  const mainColors = measured
+    .filter(({ category }) => category && mainCategories.has(category))
+    .map(({ color }) => color)
+  if (mainColors.length === 0 || !mainColors.every((color) => color !== null)) return 0
+  if ((scheme === 'tone-in-tone' || scheme === 'tone-on-tone') && !matchesScheme(mainColors, scheme)) return 0
+
+  const colors = measured.map(({ color }) => color).filter((color) => color !== null)
   return Number(matchesScheme(colors, scheme))
 }
 
@@ -186,8 +201,8 @@ export function getColorMatchEvidence(selected: ColorRuleItem[], candidate: Colo
   // 새 후보도 유채색일 때만 그 후보와의 톤 관계를 붙인다. 기존 선택끼리의 관계를 무채색 후보에 옮기지 않는다.
   const chromaticCandidate = candidateColor.chroma > rules.neutralChroma
   if (matchesScheme(known, 'achromatic')) return { relation: 'soft-balance', reason: '확인된 대표색은 검정·흰색·회색 범위의 무채색 조합이에요.' }
-  if (chromaticCandidate && matchesScheme(known, 'tone-on-tone')) return { relation: 'tone-on-tone', reason: '같은 색 계열에서 밝기를 달리한 톤온톤 조합이에요.' }
-  if (chromaticCandidate && matchesScheme(known, 'tone-in-tone')) return { relation: 'tone-in-tone', reason: '서로 다른 색 계열의 밝기와 채도가 비슷한 톤인톤 조합이에요.' }
+  if (chromaticCandidate && getColorSchemeFitScore(items, 'tone-on-tone')) return { relation: 'tone-on-tone', reason: '같은 색 계열에서 밝기를 달리한 톤온톤 조합이에요.' }
+  if (candidateColor.chroma > rules.toneInToneChroma && getColorSchemeFitScore(items, 'tone-in-tone')) return { relation: 'tone-in-tone', reason: '서로 다른 색 계열의 밝기와 채도가 비슷한 톤인톤 조합이에요.' }
   if (getAccentColor(known) === known.at(-1)) {
     return { relation: 'accent', reason: '차분한 색들에 이 아이템의 상대적으로 채도가 높은 색 하나가 포인트를 더해요.' }
   }
@@ -210,6 +225,21 @@ export function describeOutfitColors(items: ColorRuleItem[], scheme: TodayOutfit
       'tone-in-tone': '서로 다른 색 계열의 밝기와 채도가 비슷한 톤인톤 조합이에요.',
       achromatic: '확인된 대표색은 검정·흰색·회색 범위의 무채색 조합이에요.',
       accent: '차분한 색들을 바탕으로 한 아이템의 상대적으로 채도가 높은 색을 포인트로 사용했어요.',
+    }
+    if (scheme === 'tone-on-tone' || scheme === 'tone-in-tone') {
+      const garments = items
+        .filter(({ category }) => category && mainCategories.has(category))
+        .map(({ name, colorHex }) => ({ name, color: toOklch(colorHex)! }))
+        .sort((left, right) => left.color.lightness - right.color.lightness)
+      for (const [index, darker] of garments.entries()) {
+        const lighter = garments.slice(index + 1).reverse().find((right) =>
+          matchesScheme([darker.color, right.color], scheme),
+        )
+        if (!lighter) continue
+        return scheme === 'tone-on-tone'
+          ? `짙은 ${darker.name}에서 한층 밝은 ${lighter.name}까지, 같은 계열 안에서 밝기 차이를 줬어요.`
+          : `${darker.name}, ${lighter.name}의 서로 다른 색을 비슷한 밝기와 채도로 맞춰 차분하게 이어줬어요.`
+      }
     }
     return reasons[scheme]
   }

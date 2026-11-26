@@ -67,6 +67,59 @@ test('같은 날짜에 본 조합도 전날 조합과 함께 제외하고 후보
   assert.equal(reserve.mock.callCount(), 0)
 })
 
+test('기준 코트의 톤온톤 재추천은 본 조합과 최근 신발을 피하면서 색 조건을 우선한다', async (t) => {
+  setupWardrobe(t, [
+    createItem('coat', 'outer'),
+    createItem('top-a', 'top', { colorName: '블루', colorHex: '#254F82' }),
+    createItem('top-b', 'top', { colorName: '블루', colorHex: '#2B568C' }),
+    createItem('denim', 'bottom', { colorName: '블루', colorHex: '#85AEDA' }),
+    createItem('derby', 'shoes'),
+    createItem('sneaker', 'shoes', { colorName: '화이트', colorHex: '#EFEFEF' }),
+    createItem('red-boot', 'shoes', { colorName: '레드', colorHex: '#BD352D' }),
+  ])
+  const requested = {
+    ...input, baseItemId: 'coat', colorScheme: 'tone-on-tone',
+    seenOutfitItemIds: [['coat', 'top-a', 'denim']],
+    recentShoeItemIds: ['derby'],
+  }
+  const fresh = await todayOutfitRecommendationService.recommend(userId, requested)
+  assert.equal(fresh.colorSchemeApplied, true)
+  assert.deepEqual(fresh.items.map(({ id }) => id).sort(), ['coat', 'denim', 'sneaker', 'top-b'])
+  const rotated = await todayOutfitRecommendationService.recommend(userId, {
+    ...requested, recentShoeItemIds: ['sneaker', 'derby'],
+  })
+  assert.equal(rotated.colorSchemeApplied, true)
+  assert.deepEqual(rotated.items.map(({ id }) => id).sort(), ['coat', 'denim', 'derby', 'top-b'])
+  const exhausted = await todayOutfitRecommendationService.recommend(userId, {
+    ...requested, seenOutfitItemIds: [...requested.seenOutfitItemIds, ['coat', 'top-b', 'denim']],
+  })
+  assert.equal(exhausted.ready, false)
+  assert.equal('seenOutfitsOnly' in exhausted && exhausted.seenOutfitsOnly, true)
+})
+
+test('기준 코트 톤인톤은 아직 덜 나온 상하의를 고르고 톤인톤을 다 보면 사용권을 더 쓰지 않는다', async (t) => {
+  setupWardrobe(t, [
+    createItem('coat', 'outer', { colorHex: '#322E31' }),
+    createItem('navy', 'top', { colorHex: '#202D45' }),
+    createItem('blue', 'top', { colorHex: '#32445F' }),
+    createItem('olive', 'bottom', { colorHex: '#47482B' }),
+    createItem('forest', 'bottom', { colorHex: '#374A37' }),
+    createItem('gray', 'bottom', { colorHex: '#2B3531' }),
+  ])
+  const requested = { ...input, colorScheme: 'tone-in-tone', baseItemId: 'coat' }
+  const firstSeen = ['coat', 'navy', 'olive']
+  const retry = await todayOutfitRecommendationService.recommend(userId, { ...requested, seenOutfitItemIds: [firstSeen] })
+  assert.equal(retry.colorSchemeApplied, true)
+  assert.deepEqual(retry.items.map(({ id }) => id).sort(), ['blue', 'coat', 'forest'])
+  assert.ok(retry.reasons.some((reason) => reason.includes('blue') && reason.includes('forest')))
+  const reserve = t.mock.method(recommendationCreditRepository, 'reserve', async () => { throw new Error('빈 결과는 사용권을 예약하지 않는다') })
+  const allSeen = [firstSeen, ['coat', 'navy', 'forest'], ['coat', 'blue', 'olive'], ['coat', 'blue', 'forest']]
+  const exhausted = await todayOutfitRecommendationService.recommend(userId, { ...requested, seenOutfitItemIds: allSeen })
+  assert.equal(exhausted.ready, false)
+  assert.equal(exhausted.headline, '톤인톤으로 맞춘 새 코디가 없어요')
+  assert.equal(reserve.mock.callCount(), 0)
+})
+
 function createItem(
   id: string,
   category: ClothingCategory,
@@ -211,7 +264,7 @@ test('옷과 날씨가 같아도 체감 기록이 바뀌면 이전 추천 설명
 function groundedAiResponse(options: RequestInit) {
   const body = JSON.parse(String(options.body))
   const prompt = JSON.parse(body.input.find((message: { role: string }) => message.role === 'user').content)
-  if (prompt.groundedExplanation) return Response.json({ output_text: JSON.stringify(prompt.groundedExplanation) })
+  if (prompt.wardrobe) return Response.json({ output_text: JSON.stringify({ candidateId: prompt.candidates[0].id }) })
   const grounded = prompt.groundedRecommendation
   return Response.json({ output_text: JSON.stringify({
     ...grounded,
@@ -316,8 +369,35 @@ test('선택한 색감 조합이 있으면 그 조합을 추천하고 충족 여
 
   assert.equal(result.ready, true)
   assert.equal(result.colorSchemeApplied, true)
+  assert.equal(result.headline, '톤온톤 · blue-top 중심 코디')
   assert.ok(result.items.some((item) => item.id === 'blue-top'))
   assert.ok(result.items.some((item) => item.id === 'blue-bottom'))
+})
+
+test('톤인톤으로 맞춘 조합의 제목 앞에 선택한 색감을 표시한다', async (t) => {
+  setupWardrobe(t, [
+    createItem('blue-top', 'top', { colorHex: '#a8b3c5' }),
+    createItem('purple-bottom', 'bottom', { colorHex: '#b5a4bb' }),
+  ])
+  const result = await todayOutfitRecommendationService.recommend(userId, { ...input, colorScheme: 'tone-in-tone' })
+
+  assert.equal(result.colorSchemeApplied, true)
+  assert.equal(result.headline, '톤인톤 · blue-top 중심 코디')
+})
+
+test('신발이 만들어낸 색상 차이만 있는 코디에는 톤인톤 제목을 붙이지 않는다', async (t) => {
+  setupWardrobe(t, [
+    createItem('charcoal-coat', 'outer', { colorHex: '#2E2B2E' }),
+    createItem('blue-hoodie', 'top', { colorHex: '#315970' }),
+    createItem('blue-denim', 'bottom', { colorHex: '#354654' }),
+    createItem('brown-boots', 'shoes', { colorHex: '#725C3C' }),
+  ])
+  const result = await todayOutfitRecommendationService.recommend(userId, {
+    ...input, baseItemId: 'charcoal-coat', colorScheme: 'tone-in-tone',
+  })
+
+  assert.equal(result.colorSchemeApplied, false)
+  assert.equal(result.headline, '기본 추천 · charcoal-coat 중심 코디')
 })
 
 test('색감 조합이 없으면 기준 옷을 유지하고 일반 추천으로 돌아간다', async (t) => {
@@ -333,6 +413,7 @@ test('색감 조합이 없으면 기준 옷을 유지하고 일반 추천으로 
 
   assert.equal(result.ready, true)
   assert.equal(result.colorSchemeApplied, false)
+  assert.equal(result.headline, '기본 추천 · base-black-top 중심 코디')
   assert.ok(result.items.some((item) => item.id === 'base-black-top'))
   assert.doesNotMatch(result.summary, /톤온톤/)
 })
@@ -360,11 +441,11 @@ test('색감 선택을 생략하거나 자동으로 고르면 기존 추천과 �
   assert.equal(automatic.colorSchemeApplied, true)
 })
 
-test('AI 설명에 기준 아이템을 전달하고 응답에도 같은 기준 옷을 유지한다', async (t) => {
+test('AI 후보에 기준 아이템을 전달하고 응답에도 같은 기준 옷을 유지한다', async (t) => {
   const baseItem = createItem('base-outer', 'outer')
   setupWardrobe(t, [baseItem, createItem('top', 'top'), createItem('bottom', 'bottom')])
   process.env.OPENAI_API_KEY = 'test-key'
-  let prompt: { baseItemId: string; outfit: { items: Array<{ id: string }> } } | undefined
+  let prompt: { baseItemNumber: number; wardrobe: Array<{ number: number; 이름: string }>; candidates: Array<{ itemNumbers: number[] }> } | undefined
   t.mock.method(globalThis, 'fetch', async (_url: unknown, options: RequestInit) => {
     const body = JSON.parse(String(options.body)) as { input: Array<{ role: string; content: string }> }
     const userMessage = body.input.find((message) => message.role === 'user')
@@ -377,8 +458,10 @@ test('AI 설명에 기준 아이템을 전달하고 응답에도 같은 기준 �
     baseItemId: baseItem.id,
   })
 
-  assert.equal(prompt?.baseItemId, baseItem.id)
-  assert.ok(prompt?.outfit.items.some((item) => item.id === baseItem.id))
+  assert.ok(prompt)
+  const { baseItemNumber, wardrobe, candidates } = prompt
+  assert.equal(wardrobe.find(({ number }) => number === baseItemNumber)?.이름, baseItem.name)
+  assert.ok(candidates.every(({ itemNumbers }) => itemNumbers.includes(baseItemNumber)))
   assert.equal(result.source, 'ai')
   assert.equal(result.headline, 'base-outer 중심 코디')
   assert.match(result.summary, /겉에는 base-outer까지 매치했어요/)
@@ -386,33 +469,96 @@ test('AI 설명에 기준 아이템을 전달하고 응답에도 같은 기준 �
   assert.ok(result.items.some((item) => item.id === baseItem.id))
 })
 
-test('AI 설명에 코드·반복 기호·과도한 길이가 있으면 옷 구성은 유지하고 설명만 대체한다', async (t) => {
+test('AI가 목록 밖 후보를 반환하면 서버 코디를 유지하고 사용권을 반환한다', async (t) => {
   setupWardrobe(t, [createItem('top', 'top'), createItem('bottom', 'bottom')])
   process.env.OPENAI_API_KEY = 'test-key'
-  const invalidReasons = [
-    '기본 핏을 연결해요. 」java.lang.String;}}}}}}}}',
-    '기본 핏을 연결해요. }}}}}}}}',
-    '재킷의 비율을 정리합니다. }}}}}',
-    '색을 연결해요. }',
-    '색'.repeat(161),
-  ]
-  let reason = invalidReasons[0]
-  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({
-    output_text: JSON.stringify({
-      headline: '차분한 옷장 조합',
-      summary: '상하의 색을 연결했어요.',
-      reasons: [reason],
-    }),
-  }), { status: 200 }))
+  const settle = t.mock.method(recommendationCreditRepository, 'settle', async () => true)
+  t.mock.method(globalThis, 'fetch', async () => Response.json({
+    output_text: JSON.stringify({ candidateId: 'combination-99' }),
+  }))
 
-  for (reason of invalidReasons) {
-    const result = await todayOutfitRecommendationService.recommend(userId, input)
-    assert.equal(result.source, 'fallback')
-    assert.equal(result.ready, true)
-    assert.deepEqual(result.items.map((item) => item.id).sort(), ['bottom', 'top'])
-    assert.ok(result.reasons.length > 0)
-    assert.doesNotMatch(result.reasons.join(' '), /java\.lang|\}{6,}/u)
+  const result = await todayOutfitRecommendationService.recommend(userId, input)
+  assert.equal(result.source, 'fallback')
+  assert.equal(result.ready, true)
+  assert.deepEqual(result.items.map((item) => item.id).sort(), ['bottom', 'top'])
+  assert.ok(result.reasons.length > 0)
+  assert.equal(settle.mock.calls[0].arguments[3], null)
+})
+
+test('코디 후보를 한 번에 보내고 AI가 고른 옷 구성과 설명을 재사용한다', async (t) => {
+  const items = [
+    createItem('coat', 'outer', { name: '듀크 코트' }),
+    createItem('hoodie', 'top', { name: '후드' }),
+    createItem('knit', 'top', { name: '울 니트' }),
+    createItem('fleece', 'bottom', { name: '플리스 팬츠' }),
+    createItem('denim', 'bottom', { name: '데님' }),
+    createItem('shoe', 'shoes', { name: '가죽 더비' }),
+    createItem('sneaker', 'shoes', { name: '스니커즈' }),
+    createItem('seen', 'bottom', { name: '이미 본 하의' }),
+  ]
+  setupWardrobe(t, items)
+  process.env.OPENAI_API_KEY = 'test-key'
+  let resultText: string | null = null
+  t.mock.method(recommendationCreditRepository, 'reserve', async () => ({ id: 'credit-test', token: 'token', resultText }))
+  const settle = t.mock.method(recommendationCreditRepository, 'settle', async (_user: string, _id: string, _token: string, text: string | null) => {
+    resultText = text
+    return true
+  })
+  const fetch = t.mock.method(globalThis, 'fetch', async (_url: unknown, options: RequestInit) => {
+    const body = JSON.parse(String(options.body))
+    const prompt = JSON.parse(body.input.find(({ role }: { role: string }) => role === 'user').content) as {
+      wardrobe: Array<{ number: number; 이름: string }>
+      candidates: Array<{ id: string; itemNumbers: number[] }>
+    }
+    assert.ok(prompt.candidates.length > 1 && prompt.candidates.length <= 6)
+    assert.equal(new Set(prompt.wardrobe.map(({ 이름 }) => 이름)).size, prompt.wardrobe.length)
+    assert.ok(prompt.wardrobe.some(({ 이름 }) => 이름 === '스니커즈'))
+    assert.ok(!prompt.wardrobe.some(({ 이름 }) => 이름 === '이미 본 하의'))
+    const chosen = prompt.candidates.find(({ itemNumbers }) => {
+      const names = prompt.wardrobe.filter(({ number }) => itemNumbers.includes(number)).map(({ 이름 }) => 이름)
+      return names.includes('울 니트') && names.includes('데님')
+    })
+    assert.ok(chosen)
+    assert.notEqual(chosen.id, prompt.candidates[0].id)
+    return Response.json({ output_text: JSON.stringify({ candidateId: chosen.id }) })
+  })
+
+  const requested = {
+    ...input, baseItemId: 'coat', colorScheme: 'achromatic',
+    seenOutfitItemIds: [['coat', 'hoodie', 'seen'], ['coat', 'knit', 'seen']],
   }
+  const result = await todayOutfitRecommendationService.recommend(userId, requested)
+  assert.equal(result.source, 'ai')
+  assert.equal(result.headline, '무채색 · 듀크 코트 중심 코디')
+  assert.match(result.summary, /울 니트에 데님/)
+  assert.ok(result.items.some(({ id }) => id === 'knit'))
+  assert.ok(result.items.some(({ id }) => id === 'denim'))
+  assert.deepEqual(await todayOutfitRecommendationService.recommend(userId, requested), result)
+  assert.equal(fetch.mock.callCount(), 1)
+  assert.equal(settle.mock.callCount(), 1)
+})
+
+test('OpenAI 응답이 시간 제한을 넘기면 재시도 없이 서버 조합으로 돌아간다', async (t) => {
+  setupWardrobe(t, [createItem('top', 'top'), createItem('bottom', 'bottom')])
+  process.env.OPENAI_API_KEY = 'test-key'
+  const settle = t.mock.method(recommendationCreditRepository, 'settle', async () => true)
+  const controller = new AbortController()
+  t.mock.method(AbortSignal, 'timeout', (ms: number) => {
+    assert.equal(ms, 5_000)
+    return controller.signal
+  })
+  const fetch = t.mock.method(globalThis, 'fetch', async (_url: unknown, options: RequestInit) => {
+    assert.equal(options.signal, controller.signal)
+    controller.abort()
+    options.signal?.throwIfAborted()
+    throw new Error('fixture must abort')
+  })
+
+  const result = await todayOutfitRecommendationService.recommend(userId, input)
+  assert.equal(result.source, 'fallback')
+  assert.deepEqual(result.items.map(({ id }) => id), ['top', 'bottom'])
+  assert.equal(fetch.mock.callCount(), 1)
+  assert.equal(settle.mock.calls[0].arguments[3], null)
 })
 
 test('기준을 지정하지 않은 기존 추천은 null 입력과 동일하게 동작한다', async (t) => {
@@ -438,6 +584,22 @@ test('추천 카드에서는 실제 옷을 말하고 색 대비 설명에서도 
   assert.equal(result.headline, '올리브 코트 중심 코디')
   assert.equal(result.summary, '아이보리 니트에 브라운 팬츠, 겉에는 올리브 코트까지 매치했어요.')
   assert.ok(result.reasons.includes('아이보리 니트에 더 짙은 브라운 팬츠까지 매치했어요.'))
+})
+
+test('요청한 톤온톤 설명은 색의 차이를 설명하고 같은 핏과 레이어 구성을 반복하지 않는다', async (t) => {
+  const regular = {
+    silhouette: 'regular', pattern: 'solid', material: 'cotton',
+    texture: 'smooth', warmth: 'medium', formality: 0.5, confidence: 0.9,
+  }
+  setupWardrobe(t, [
+    createItem('knit', 'top', { name: '회색 니트', colorHex: '#909090', fashionAttributes: { ...regular, layerRole: 'base' } }),
+    createItem('denim', 'bottom', { name: '워시드 블루 데님', colorHex: '#6F8CAA', fashionAttributes: { ...regular, layerRole: 'single' } }),
+    createItem('coat', 'outer', { name: '네이비 피코트', colorHex: '#25344A' }),
+  ])
+
+  const result = await todayOutfitRecommendationService.recommend(userId, { ...input, baseItemId: 'coat', colorScheme: 'tone-on-tone' })
+  assert.equal(result.colorSchemeApplied, true)
+  assert.deepEqual(result.reasons, ['짙은 네이비 피코트에서 한층 밝은 워시드 블루 데님까지, 같은 계열 안에서 밝기 차이를 줬어요.'])
 })
 
 test('현재 위치 날씨를 추천 결과에 유지한다', async (t) => {
@@ -537,7 +699,7 @@ test('이전 스타일 입력과 저장된 취향을 읽지 않고 같은 옷장
   assert.doesNotMatch(ordinary.summary + ordinary.reasons.join(' '), /빈티지|스포티|캐주얼|선호/)
 })
 
-test('AI 설명에는 목표 스타일과 선호 핏 없이 선택된 옷의 관찰 속성만 전달한다', async (t) => {
+test('AI 후보에는 목표 스타일과 선호 핏 없이 등록된 옷의 관찰 속성만 전달한다', async (t) => {
   setupWardrobe(t, [createItem('top', 'top'), createItem('bottom', 'bottom')])
   process.env.OPENAI_API_KEY = 'test-key'
   t.mock.method(globalThis, 'fetch', async (_url: unknown, options: RequestInit) => {
@@ -547,8 +709,8 @@ test('AI 설명에는 목표 스타일과 선호 핏 없이 선택된 옷의 관
     assert.equal(prompt.targetStyle, undefined)
     assert.equal(prompt.styleGuide, undefined)
     assert.equal(prompt.profile, undefined)
-    assert.equal(prompt.outfit.items.length, 2)
-    assert.equal(prompt.outfit.items[0].관찰속성, null)
+    assert.equal(prompt.wardrobe.length, 2)
+    assert.equal(prompt.wardrobe[0].관찰속성, null)
     return groundedAiResponse(options)
   })
   const result = await todayOutfitRecommendationService.recommend(userId, input)
@@ -720,8 +882,11 @@ test('검증된 추천은 재사용하고 후보 옷의 색이 바뀌면 다시 
 })
 
 
-test('만들 수 있는 기본 조합이 하나면 재추천을 막을 수 있도록 후보 수를 반환한다', async (t) => {
-  setupWardrobe(t, [createItem('top', 'top'), createItem('bottom', 'bottom')])
+test('상의와 하의가 같으면 신발·액세서리만 다른 조합을 한 벌로 센다', async (t) => {
+  setupWardrobe(t, [
+    createItem('top', 'top'), createItem('bottom', 'bottom'),
+    createItem('shoe-a', 'shoes'), createItem('shoe-b', 'shoes'), createItem('accessory', 'accessory'),
+  ])
   const result = await todayOutfitRecommendationService.recommend(userId, input)
   assert.equal(result.ready, true)
   assert.equal(result.combinationCount, 1)
@@ -743,7 +908,7 @@ test('완성 가능한 추천 조합이 없으면 추천권을 예약하지 않�
   assert.equal(reserve.mock.callCount(), 0)
 })
 
-test('오늘의 코디는 색 판정과 모순되는 AI 설명을 버리고 검증된 근거를 반환한다', async (t) => {
+test('오늘의 코디는 유효한 후보 번호에 별도 AI 문구가 섞여도 서버 근거로 돌아간다', async (t) => {
   setupWardrobe(t, [
     createItem('black-top', 'top', { colorHex: '#242424' }),
     createItem('white-bottom', 'bottom', { colorHex: '#F2F1EC' }),
@@ -751,9 +916,8 @@ test('오늘의 코디는 색 판정과 모순되는 AI 설명을 버리고 검�
   process.env.OPENAI_API_KEY = 'test-key'
   const settle = t.mock.method(recommendationCreditRepository, 'settle', async () => true)
   t.mock.method(globalThis, 'fetch', async () => Response.json({ output_text: JSON.stringify({
-    headline: '같은 파랑 계열의 톤온톤',
+    candidateId: 'combination-1',
     summary: '검정 상의와 흰 하의는 같은 밝기의 파란색이에요.',
-    reasons: ['같은 파란색의 톤온톤 조합이에요.'],
   }) }))
   const result = await todayOutfitRecommendationService.recommend(userId, { ...input, colorScheme: 'tone-on-tone' })
   assert.equal(result.source, 'fallback')

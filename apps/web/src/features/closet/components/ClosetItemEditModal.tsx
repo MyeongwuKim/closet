@@ -16,7 +16,7 @@ import { WardrobeStorageLocationField } from './WardrobeStorageLocationField'
 import { FashionAttributeFields } from './FashionAttributeFields'
 import { WardrobeBrandField } from './WardrobeBrandField'
 import { closetSubcategoryOptions } from '../constants'
-import { useStoredWardrobeShapeAnalysis } from '../hooks/useStoredWardrobeShapeAnalysis'
+import { useStoredWardrobeAnalysis } from '../hooks/useStoredWardrobeAnalysis'
 import { useClosetStore } from '../stores/useClosetStore'
 import {
   GarmentSizeFields,
@@ -41,7 +41,9 @@ export interface ClosetItemUpdates {
   additionalCategories: ClothingCategory[]
   subcategory: string
   colorName: string
-  colorHex: string
+  colorDetailName?: string
+  colorMode?: WardrobeItem['colorMode']
+  colorHex?: string | null
   fashionAttributes: FashionItemAttributes
   seasons: Season[]
   tags: string[]
@@ -72,12 +74,15 @@ export function ClosetItemEditModal({
   )
   const [subcategory, setSubcategory] = useState(item.subcategory ?? '')
   const [colorName, setColorName] = useState(item.colorName)
+  // 비워 두거나 지운 대표색은 화면용 기본색으로 바꾸지 않는다.
+  const [colorHex, setColorHex] = useState(item.colorHex.toUpperCase())
+  const [analyzedColor, setAnalyzedColor] = useState<Pick<ClosetItemUpdates, 'colorDetailName' | 'colorMode'> | null>(null)
+  const isColorHexValid = colorHex === '' || /^#[0-9a-f]{6}$/i.test(colorHex)
   const [seasons, setSeasons] = useState<Season[]>(item.seasons)
-  const shapeAnalysis = useStoredWardrobeShapeAnalysis(item, category)
-  const isAnalyzing = shapeAnalysis.state.status === 'analyzing'
-  const baseAttributes = shapeAnalysis.state.status === 'ready'
-    ? shapeAnalysis.state.attributes
-    : item.fashionAttributes
+  const analysis = useStoredWardrobeAnalysis(item, category)
+  const isAnalyzing = analysis.state.status === 'analyzing'
+  const isAnalyzingColor = analysis.state.status === 'analyzing' && analysis.state.kind === 'color'
+  const baseAttributes = analysis.recoveredAttributes ?? item.fashionAttributes
   // 사진 분석 중 직접 바꾼 소재나 보온감도 저장할 때 우선한다.
   const [fashionEdits, setFashionEdits] = useState<Partial<EditableFashionAttributes>>({})
   const fashionAttributes = { ...fashionAttributesFromItem(baseAttributes), ...fashionEdits }
@@ -109,8 +114,9 @@ export function ClosetItemEditModal({
       !category ||
       !subcategory.trim() ||
       !colorName.trim() ||
+      !isColorHexValid ||
       seasons.length === 0 ||
-      !shapeAnalysis.ensureCurrentSession()
+      !analysis.ensureCurrentSession()
     ) {
       return
     }
@@ -125,7 +131,10 @@ export function ClosetItemEditModal({
         additionalCategories,
         subcategory: subcategory.trim(),
         colorName: colorName.trim(),
-        colorHex: item.colorHex,
+        ...analyzedColor,
+        ...(colorHex.toUpperCase() === item.colorHex.toUpperCase()
+          ? {}
+          : { colorHex: colorHex.toUpperCase() || null }),
         fashionAttributes: mergeEditableFashionAttributes(
           baseAttributes,
           fashionAttributes,
@@ -144,7 +153,7 @@ export function ClosetItemEditModal({
     const [nextCategory, ...nextAdditionalCategories] = nextCategories
     if (!nextCategory) return
 
-    if (nextCategory !== category) shapeAnalysis.reset()
+    if (nextCategory !== category) analysis.reset()
     setCategory(nextCategory)
     setAdditionalCategories(nextAdditionalCategories)
     if (!closetSubcategoryOptions[nextCategory].includes(subcategory)) {
@@ -158,6 +167,15 @@ export function ClosetItemEditModal({
       ...(next.material !== fashionAttributes.material ? { material: next.material } : {}),
       ...(next.warmth !== fashionAttributes.warmth ? { warmth: next.warmth } : {}),
     }))
+  }
+
+  /** 분석 결과를 입력란에만 채운다. 변경사항 저장 전에는 기존 대표색을 변경하지 않는다. */
+  const analyzeColor = async () => {
+    const result = await analysis.analyze('color')
+    if (!result) return
+    setColorName(result.colorName)
+    setColorHex(result.colorHex.toUpperCase())
+    setAnalyzedColor({ colorDetailName: result.colorDetailName, colorMode: result.colorMode })
   }
 
   return (
@@ -197,24 +215,24 @@ export function ClosetItemEditModal({
             </div>
 
             <div className="grid content-start gap-4">
-              {shapeAnalysis.canAnalyze && shapeAnalysis.state.status !== 'ready' && (
+              {analysis.canAnalyzeShape && (
                 <button
                   type="button"
-                  onClick={() => void shapeAnalysis.analyze()}
+                  onClick={() => void analysis.analyze('shape')}
                   disabled={isSaving || isAnalyzing}
                   className="min-h-12 rounded-xl border border-line bg-surface px-3 text-sm font-bold disabled:opacity-50"
                 >
-                  {isAnalyzing ? '형태 분석 중…' : '기존 사진으로 형태 분석'}
+                  {isAnalyzing && !isAnalyzingColor ? '형태 분석 중…' : '기존 사진으로 형태 분석'}
                 </button>
               )}
-              {shapeAnalysis.state.status === 'ready' && (
+              {analysis.recoveredAttributes && (
                 <p role="status" className="text-sm text-muted">
                   형태 정보를 찾았어요. 저장하면 옷장에 반영돼요.
                 </p>
               )}
-              {shapeAnalysis.state.status === 'error' && (
+              {analysis.state.status === 'error' && analysis.state.kind === 'shape' && (
                 <p role="alert" className="text-sm text-red-700">
-                  {shapeAnalysis.state.message}
+                  {analysis.state.message}
                 </p>
               )}
               <label className="grid gap-2 text-sm font-bold">
@@ -258,20 +276,58 @@ export function ClosetItemEditModal({
               />
 
               <label className="grid gap-2 text-sm font-bold">
-                대표 색상
+                색상 이름
                 <input
                   type="text"
                   value={colorName}
+                  disabled={isAnalyzingColor}
                   onChange={(event) => setColorName(event.target.value)}
                   placeholder="예: 차콜, 크림, 네이비"
                   maxLength={30}
                   className="h-12 rounded-xl border border-line bg-white px-3 outline-none focus:border-accent"
                   required
                 />
-                <span className="text-xs font-normal leading-5 text-muted">
-                  AI가 찾은 색상이며 원하는 표현으로 직접 바꿀 수 있어요.
-                </span>
               </label>
+              <div className="grid gap-2 text-sm font-bold">
+                <label htmlFor="closet-edit-color-hex">대표 색상값 (HEX)</label>
+                <div className="flex items-center gap-3">
+                  <span
+                    aria-hidden="true"
+                    className={`size-12 shrink-0 rounded-xl border border-line ${!colorHex || !isColorHexValid ? 'border-dashed' : ''}`}
+                    style={{ backgroundColor: isColorHexValid && colorHex ? colorHex : undefined }}
+                  />
+                  <input
+                    id="closet-edit-color-hex"
+                    type="text"
+                    value={colorHex}
+                    disabled={isAnalyzingColor}
+                    onChange={(event) => setColorHex(event.target.value.trim())}
+                    placeholder="#RRGGBB"
+                    maxLength={7}
+                    autoComplete="off"
+                    autoCapitalize="characters"
+                    spellCheck={false}
+                    aria-invalid={isColorHexValid ? undefined : true}
+                    aria-describedby="closet-edit-color-hex-help"
+                    className="h-12 min-w-0 flex-1 rounded-xl border border-line bg-white px-3 font-mono outline-none focus:border-accent"
+                  />
+                </div>
+                <span id="closet-edit-color-hex-help" className="text-xs font-normal leading-5 text-muted">
+                  {isColorHexValid ? '코디 추천에 사용하는 대표색이에요.' : '#으로 시작하는 6자리 색상값을 입력해주세요.'}
+                </span>
+                {analysis.canAnalyzeColor && (
+                  <button type="button" onClick={() => void analyzeColor()} disabled={isSaving || isAnalyzing}
+                    className="min-h-11 rounded-xl border border-line bg-surface px-3 text-sm font-bold disabled:opacity-50">
+                    {isAnalyzingColor ? '색상 분석 중…' : '기존 사진으로 색상 분석'}
+                  </button>
+                )}
+                {analysis.state.status === 'ready' && analysis.state.kind === 'color' && (
+                  <p role="status" className="text-xs font-normal text-muted">새로 찾은 색상이에요. 저장하면 옷장에 반영돼요.</p>
+                )}
+                {analysis.state.status === 'error' && analysis.state.kind === 'color' && (
+                  <p role="alert" className="text-xs font-normal text-red-700">{analysis.state.message}</p>
+                )}
+              </div>
 
               <fieldset>
                 <legend className="text-sm font-bold">입을 계절</legend>
@@ -323,6 +379,7 @@ export function ClosetItemEditModal({
                 !category ||
                 !subcategory.trim() ||
                 !colorName.trim() ||
+                !isColorHexValid ||
                 seasons.length === 0
               }
               className="flex items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3 text-sm font-bold text-white disabled:opacity-40"

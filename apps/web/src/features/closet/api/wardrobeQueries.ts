@@ -66,7 +66,7 @@ export function toWardrobeItem(item: WardrobeItemPayload): WardrobeItem {
     subcategory: item.subcategory ?? undefined,
     colorName: item.colorName ?? '',
     colorDetailName: item.colorDetailName ?? undefined,
-    colorHex: item.colorHex ?? '#d9d5cc',
+    colorHex: item.colorHex ?? '',
     colorMode: item.colorMode ?? undefined,
     fashionAttributes: item.fashionAttributes ?? undefined,
     seasons: item.seasons,
@@ -182,7 +182,7 @@ export interface UpdateWardrobeItemVariables {
     subcategory?: string
     colorName?: string
     colorDetailName?: string | null
-    colorHex?: string
+    colorHex?: string | null
     colorMode?: ColorMode | null
     fashionAttributes?: FashionItemAttributes
     seasons?: Season[]

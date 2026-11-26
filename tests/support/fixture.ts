@@ -22,7 +22,7 @@ type WardrobeItem = {
   subcategory: string | null
   colorName: string
   colorDetailName: string | null
-  colorHex: string
+  colorHex: string | null
   colorMode: string | null
   fashionAttributes: Record<string, unknown> | null
   seasons: string[]

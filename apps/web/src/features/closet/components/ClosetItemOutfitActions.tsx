@@ -42,7 +42,7 @@ export function ClosetItemOutfitActions({
             className="flex min-w-0 items-center justify-center gap-1.5 rounded-xl bg-accent px-3 py-3.5 text-xs font-bold text-white transition hover:bg-accent/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
           >
             <Sparkles className="shrink-0" size={17} />
-            <span className="truncate">AI 코디 추천</span>
+            <span className="truncate">이 옷으로 코디 추천</span>
           </button>
           <button
             type="button"

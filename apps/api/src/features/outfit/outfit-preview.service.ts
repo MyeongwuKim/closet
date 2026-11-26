@@ -5,8 +5,8 @@ import { requestAiJson } from '../../lib/ai/ai-http.js'
  * 옷장 아이템과 사용자 체형 정보를 바탕으로 착장형 룩북 이미지를 생성한다.
  *
  * 요청 흐름:
- * 원본 옷과 실측 도식을 이미지 편집 API에 전달한다. 같은 조합의 후속 생성에는 이전 컷과 새 연출 지침을 함께 전달하고,
- * 저장 가능한 생성 이미지와 사용 모델 정보를 반환한다.
+ * 원본 옷과 실측 도식을 이미지 편집 API에 전달한다. 같은 조합의 후속 생성에서는 이전 컷을 참고해 각도와 자세를 바꾸고,
+ * 이너를 가리는 방향으로 겉옷의 여밈을 바꾸지 않는다. 저장 가능한 이미지와 사용 모델을 반환한다.
  */
 import type {
   BodyBuild,
@@ -34,7 +34,6 @@ import {
 } from './lookbook-proportion-guide.js'
 import {
   buildLookbookLayerLayout,
-  canOpenFront,
   renderLookbookLayerLayout,
 } from './lookbook-layer-layout.js'
 
@@ -111,7 +110,7 @@ const ribbedTrimPreservationGuide = [
 export const lookbookGarmentLengthGuide = [
   'Treat each saved totalLengthCm as a mandatory garment proportion, not a loose styling suggestion.',
   'Interpret it from the normal measurement anchor for that garment category to its hem, and scale that length against the saved model heightCm while also following the reference image.',
-  'Do not shorten, crop, deliberately hike up, roll, or tuck a measured hem to reveal or hide it. A closed-front outer may naturally cover an inner hem; with an open front, show the natural inner hem where selected layers allow it.',
+  'Do not shorten, crop, deliberately hike up, roll, or tuck a measured hem to reveal or hide it. A pullover or another layer that cannot open fully may naturally cover an inner hem; with an open front, show the natural inner hem where selected layers allow it.',
   'Keep every top fully untucked. Use the measured shoulder-to-hem length as the garment’s unstretched proportion. Wherever the top overlaps the trousers, it stays in front and may cover the waistband, fly and buttons. Preserve genuinely cropped references without lengthening them.',
   'If a knit has a separate ribbed bottom band clearly visible in its reference, let that band settle naturally against the body. Allow a small, soft fold of knit fabric just above the band and slight blousing outside the trousers instead of pulling the hem straight down or stretching it flat. Keep its original band visible. Do not roll it inward, fold it into a crop, or invent a band or gathers if the reference does not show one.',
   'Never use a full tuck, half tuck, French tuck, bloused tuck, or invisible waistband tuck.',
@@ -142,6 +141,24 @@ function describeRibbedTrims(value: unknown) {
   ].join(', ')
 }
 
+/**
+ * 스탠드칼라가 저장됐거나 이름·세부 종류에 명시된 오래된 옷은 해당 참조에 구조를 지정한다.
+ * 기존의 일반 칼라·미등록 값만으로 칼라 구조를 추정하는 일은 피한다.
+ */
+function describeLookbookCollar(item: {
+  name: string
+  subcategory: string | null
+  category: ClothingCategory | null
+  fashionAttributes: unknown
+}) {
+  if (item.category !== 'outer' && item.category !== 'midlayer') return null
+  const attributes = item.fashionAttributes as { necklineStyle?: unknown } | null
+  const label = `${item.name} ${item.subcategory ?? ''}`
+  const explicitlyNamed = /스탠드[ -]*(?:카라|칼라|넥)|\bstand(?:ing)?[ -]+collar\b/iu.test(label)
+  if (attributes?.necklineStyle !== 'standCollar' && !explicitlyNamed) return null
+  return 'Stand collar: keep the original short upright band and its height and front opening in the reference. Keep this band upright even when the garment is worn open. Do not fold the band outward or add pointed collar tips, a spread collar, or lapels.'
+}
+
 function describeGarment(
   item: Awaited<
     ReturnType<typeof wardrobeRepository.findManyOwnedWithImagesByIds>
@@ -169,6 +186,7 @@ function describeGarment(
     item.name,
     item.colorDetailName ?? item.colorName,
     describeLookbookFabric(item),
+    describeLookbookCollar(item),
     describeRibbedTrims(item.fashionAttributes),
     getLookbookHemTarget(
       item.category,
@@ -324,20 +342,14 @@ function buildPrompt(
     ? 'Use only the referenced footwear. Do not replace it with generic sneakers or add another pair.'
     : 'No footwear was selected. Show the model barefoot, with natural bare feet visible. Do not invent shoes, sneakers, sandals or socks to complete the outfit.'
 
-  const closureIndex = alternateShot?.index === 1 && alternateShot.previousReferenceIndex !== null
-    ? items.findIndex((item) => (item.category === 'outer' || item.category === 'midlayer') && canOpenFront(item.fashionAttributes))
-    : -1
-  const varyClosure = closureIndex >= 0
   const poseGuide = alternateShot
-    ? varyClosure
-      ? `Keep a clear front-facing view at approximately the same angle as the previous shot. Change the fastening of garment reference ${closureIndex + 1}: if it was open, close it naturally using the visible original fastening; if it was closed, open it to show the layers already selected. Keep the existing garment construction and other layers. If the actual garment cannot be naturally fastened in the opposite way, use a straight-on angle or a different natural stance instead. The layer diagram guides hem lengths only; its open front does not specify the closure for this shot.`
-      : alternateShots[alternateShot.index - 1]
+    ? alternateShots[alternateShot.index - 1]
     : "Show the model in a three-quarter front view like a clean apparel catalog photo. Keep the model centered, then rotate the torso, hips, knees, feet, neck, and implied gaze together about 20 to 30 degrees away from straight-on toward the left edge of the final image from the viewer's perspective (image-left). Keep this same image-left orientation in every generation. Never turn or mirror the pose toward image-right, and never alternate the pose direction. Do not use a full side profile. Keep the torso upright, shoulders level, legs uncrossed, and both feet flat with a small natural gap. Use a neutral standing-at-attention pose, not an editorial fashion pose."
   const poseArmGuide = alternateShot
     ? 'Keep arms and hands relaxed, visible and outside pockets. Keep any selected bag visible without blocking garment details.'
     : armsGuide
   const previousShotGuide = alternateShot?.previousReferenceIndex
-    ? `Supplementary image ${alternateShot.previousReferenceIndex} is the previous lookbook shot, provided only for visual comparison. Use it only to vary the pose, angle or fastening. Do not copy extra layers, garment details, or fit from the previous image. The selected garment references, current body guide, and measured lengths take priority.`
+    ? `Supplementary image ${alternateShot.previousReferenceIndex} is the previous lookbook shot, provided only for visual comparison. Use it only to vary the pose and camera angle. Do not copy its fastening, extra layers, garment details, or fit. The selected garment references, current body guide, and measured lengths take priority.`
     : ''
 
   return `Create a photorealistic fashion lookbook image using every garment from the first ${items.length} reference images exactly once, subject to the worn-accessory rules below.
@@ -348,6 +360,10 @@ Critical model body size, taking priority over a default lean fashion model and 
 Model body guide: ${describeBody(profile)}. Honor the model gender together with the saved stature, body volume and regional dimensions.
 Body proportion preservation: ${getLookbookBodyProportionGuide(profile?.styleProfile)}
 The reference images and measured layer diagram describe the garments, not the wearer's body or body width. Preserve the requested body's visible outline and volume beneath the garments. Let fabric drape and tension follow that body. Do not substitute a change in clothing size, camera angle or image zoom for a change in body size.
+
+Garment identity at the neck and front: inspect each original garment reference separately. Copy the visible collar construction, collar height, fold direction and front opening before choosing the styling or fastening. If the outerwear reference shows an upright band at the neck with no folded collar or lapels, keep that stand collar upright even with the front open. Preserve real folded collars and lapels where they are visible in the original. Never create lapels or transfer an inner polo or shirt collar onto the outerwear just to frame the neckline. Previous lookbook shots cannot override the original construction.
+
+Outerwear styling for every shot: when a selected coat or jacket can open fully and is worn over a selected inner garment, wear it unfastened from collar to hem. Keep the front panels apart so that the inner layer is visible down to its own natural hem. Preserve the original fasteners and upright collar where present. Follow this rule even when a product photo or previous lookbook shows the outerwear closed. For pullovers and half-zips, keep their original construction and allow natural overlap.
 
 ${measuredFitGuide}
 Critical measured-layer composition, taking priority over generic styling conventions:
@@ -384,9 +400,7 @@ ${poseGuide} ${poseArmGuide}
 
 Frame the complete outfit from the neck to the feet, keeping the model's face entirely outside the image. Use a warm off-white studio background, soft natural light, realistic fabric folds, and a clean Korean fashion lookbook composition. Do not add any unselected garments. Do not add text, captions, logos, duplicate items, shopping UI, borders, or a collage. Do not infer or reproduce a real person's identity or face.
 
-Final hem check: ${varyClosure
-  ? "Keep every inner hem untucked. The fastened outer layer may naturally hide the inner hem."
-  : "show the untucked inner hem through the existing open front wherever it is naturally visible."} Respect natural coverage by other selected layers. No part of the inner hem may disappear into the trouser waistband. Do not lift it to reveal a trouser button or fly. Preserve the relative garment lengths while allowing the natural ribbed-knit drape described above.`
+Final hem check: show the untucked inner hem through the existing open front wherever it is naturally visible. Respect natural coverage by other selected layers. No part of the inner hem may disappear into the trouser waistband. Do not lift it to reveal a trouser button or fly. Preserve the relative garment lengths while allowing the natural ribbed-knit drape described above.`
 }
 
 async function downloadReferenceImage(url: string, index: number) {
