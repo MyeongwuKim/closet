@@ -8,7 +8,7 @@ import { imageRepository } from '../image/image.repository.js'
 import { pushService } from '../push/push.service.js'
 import { outfitPreviewService } from './outfit-preview.service.js'
 import { previewJobRepository } from './preview-job.repository.js'
-import { processPreviewJob, recoverPreviewJobs } from './preview-job.worker.js'
+import { processPreviewJob, recoverPreviewJobs, startPreviewWorker } from './preview-job.worker.js'
 
 const job: AiPreviewJob & { leaseToken: string } = {
   creditDayId: null, creditSource: null, creditState: null,
@@ -18,8 +18,10 @@ const job: AiPreviewJob & { leaseToken: string } = {
   acknowledgedAt: null, createdAt: new Date(), updatedAt: new Date(), expiresAt: new Date(Date.now() + 86_400_000),
 }
 
-test('이미지 저장이 끝난 작업만 완료 알림을 보내며 저장 코디와 자산을 결과 경로에 넣는다', async (t) => {
+test('앱의 상태 조회 없이 워커가 대기 작업을 가져와 이미지를 저장하고 완료 알림을 보낸다', async (t) => {
   t.mock.method(aiExecutor, 'run', createAiExecutor().run)
+  t.mock.method(previewJobRepository, 'expired', async () => [])
+  t.mock.method(previewJobRepository, 'claim', async () => ({ ...job, sourceOutfitId: 'outfit-test' }))
   t.mock.method(previewJobRepository, 'markRequestStarted', async () => ({ count: 1 }))
   t.mock.method(outfitPreviewService, 'generate', async (...[_user, _ids, _style, options]: Parameters<typeof outfitPreviewService.generate>) => {
     assert.equal(options?.varyPreviousShot, true)
@@ -32,8 +34,12 @@ test('이미지 저장이 끝난 작업만 완료 알림을 보내며 저장 코
     assert.equal(input.metadata?.lookbookShotIndex, 2)
     return { id: 'asset-test', retention: 'permanent', expiresAt: null } as Awaited<ReturnType<typeof imageService.storeGeneratedImage>>
   })
-  const completed = t.mock.method(previewJobRepository, 'complete', async () => ({ count: 1 }))
+  const completed = t.mock.method(previewJobRepository, 'complete', async () => {
+    assert.equal(stored.mock.callCount(), 1)
+    return { count: 1 }
+  })
   const push = t.mock.method(pushService, 'sendCompletion', async (userId: string, kind: string, data?: Record<string, string>) => {
+    assert.equal(completed.mock.callCount(), 1)
     assert.equal(userId, job.userId)
     assert.equal(kind, 'outfit-preview')
     assert.equal(data?.previewAssetId, 'asset-test')
@@ -44,7 +50,8 @@ test('이미지 저장이 끝난 작업만 완료 알림을 보내며 저장 코
     assert.equal(path.searchParams.get('previewItems'), 'top,bottom')
     return true
   })
-  await processPreviewJob({ ...job, sourceOutfitId: 'outfit-test' })
+  const stop = startPreviewWorker()
+  await stop()
   assert.equal(completed.mock.callCount(), 1)
   assert.equal(completed.mock.calls[0].arguments.length, 3)
   assert.equal(stored.mock.callCount(), 1)

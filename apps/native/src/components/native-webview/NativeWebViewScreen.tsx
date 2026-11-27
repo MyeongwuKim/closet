@@ -14,15 +14,16 @@ import WebView from 'react-native-webview'
 import { resolveWebBundle, markResolvedWebBundleReady, rollbackResolvedWebBundle, type ResolvedWebBundle } from '../../webBundle/webBundleLoader'
 import { createWebViewReadyRecoveryController, type WebViewReadyRecoveryController } from '../../webBundle/webViewReadyRecovery'
 import { useDeepLinkNavigation } from '../../navigation/useDeepLinkNavigation'
-import { createWebViewNavigationScript } from '../../navigation/webViewNavigation'
+import { createWebViewNavigationQueue, createWebViewNavigationScript, WEB_VIEW_NAVIGATION_DELIVERED } from '../../navigation/webViewNavigation'
 import {
-  CLOSET_WEBVIEW_BRIDGE_SCRIPT,
+  createClosetWebViewBridgeScript,
   handleNativeBridgeMessage,
 } from '../../webview/bridge'
 import {
   openExternalUrl,
   shouldKeepUrlInWebView,
 } from '../../webview/bridge/externalLinkBridge'
+import { supportsPreviewSubmissionInBackground } from '../../webview/bridge/previewSubmissionBackgroundTask'
 import { INITIAL_WEB_BUNDLE_PROGRESS } from '../../webBundle/webBundleProgress'
 import type { WebBundleProgress } from '../../webBundle/webBundleTypes'
 import { NativeWebViewLoading } from './NativeWebViewLoading'
@@ -49,7 +50,7 @@ export function NativeWebViewScreen({
 }: NativeWebViewScreenProps) {
   const webViewRef = useRef<WebView>(null)
   const webReadyRef = useRef(false)
-  const pendingWebPathRef = useRef<string | null>(null)
+  const webNavigation = useMemo(createWebViewNavigationQueue, [])
   const [bundle, setBundle] = useState<ResolvedWebBundle | null>(null)
   const bundleRef = useRef<ResolvedWebBundle | null>(null)
   bundleRef.current = bundle
@@ -77,10 +78,18 @@ export function NativeWebViewScreen({
           ${JSON.stringify(accessToken)}
         );
       } catch (error) {}
-      ${CLOSET_WEBVIEW_BRIDGE_SCRIPT}
+      ${createClosetWebViewBridgeScript(supportsPreviewSubmissionInBackground)}
     `,
     [accessToken, loadKey],
   )
+
+  const flushWebNavigation = useCallback((isActive = AppState.currentState === 'active') => {
+    const webView = webViewRef.current
+    if (!webView) return
+    webNavigation.flush({ isActive, isReady: webReadyRef.current }, (path, id) => {
+      webView.injectJavaScript(createWebViewNavigationScript(path, id))
+    })
+  }, [webNavigation])
 
   const flushPendingNavigation = useCallback(() => {
     webReadyRef.current = true
@@ -95,12 +104,8 @@ export function NativeWebViewScreen({
     webViewRef.current?.injectJavaScript(
       `window.dispatchEvent(new CustomEvent('closet:native-app-state', { detail: { isActive: ${AppState.currentState === 'active'} } })); true;`,
     )
-    const path = pendingWebPathRef.current
-    if (!path) return
-
-    pendingWebPathRef.current = null
-    webViewRef.current?.injectJavaScript(createWebViewNavigationScript(path))
-  }, [])
+    flushWebNavigation()
+  }, [flushWebNavigation])
 
   // 기존 번들의 준비 신호는 라우터가 첫 본문을 그리기 전에 도착할 수 있다.
   useEffect(() => {
@@ -131,13 +136,9 @@ export function NativeWebViewScreen({
   }, [firstFrameKey, isLoading, loadError, loadKey])
 
   const navigateToWebPath = useCallback((path: string) => {
-    if (!webReadyRef.current) {
-      pendingWebPathRef.current = path
-      return
-    }
-
-    webViewRef.current?.injectJavaScript(createWebViewNavigationScript(path))
-  }, [])
+    webNavigation.enqueue(path)
+    flushWebNavigation()
+  }, [flushWebNavigation, webNavigation])
 
   useDeepLinkNavigation(navigateToWebPath)
 
@@ -151,13 +152,14 @@ export function NativeWebViewScreen({
     const subscription = AppState.addEventListener('change', (state) => {
       recoveryRef.current?.setAppActive(state === 'active')
       if (!webReadyRef.current) return
+      if (state === 'active') flushWebNavigation(true)
       // 웹은 백그라운드에서 완료 팝업을 멈추고, 복귀하면 저장된 작업을 다시 확인한다.
       webViewRef.current?.injectJavaScript(
         `window.dispatchEvent(new CustomEvent('closet:native-app-state', { detail: { isActive: ${state === 'active'} } })); ${state === 'active' ? "window.dispatchEvent(new Event('closet:native-app-active'));" : ''} true;`,
       )
     })
     return () => subscription.remove()
-  }, [])
+  }, [flushWebNavigation])
 
   useEffect(() => {
     mountedRef.current = true
@@ -275,6 +277,10 @@ export function NativeWebViewScreen({
             const message = JSON.parse(event.nativeEvent.data)
             if (message.type === FIRST_FRAME_MESSAGE) {
               if (message.loadKey === loadKey && webReadyRef.current) setFirstFrameKey(loadKey)
+              return
+            }
+            if (message.type === WEB_VIEW_NAVIGATION_DELIVERED) {
+              if (message.loadKey === loadKey && Number.isSafeInteger(message.id)) webNavigation.acknowledge(message.id)
               return
             }
             if (message.type === 'closet:web-app-ready' && message.loadKey !== loadKey) return

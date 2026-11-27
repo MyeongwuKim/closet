@@ -2,6 +2,7 @@ import * as Application from 'expo-application'
 import { Platform } from 'react-native'
 import { supportsRewardedAds } from '../../ads/rewardedAds'
 import { getNativePermissionStatuses } from './permissionBridge'
+import { supportsPreviewSubmissionInBackground } from './previewSubmissionBackgroundTask'
 import { postNativeBridgeResponse } from './responses'
 import type { NativeAppInfoRequest, WebViewRef } from './types'
 
@@ -21,6 +22,7 @@ export async function handleNativeAppInfoRequest(
       permissions,
       capabilities: [
         ...(supportsRewardedAds() ? ['rewarded-ad', 'ad-privacy'] : []),
+        ...(supportsPreviewSubmissionInBackground ? ['preview-submission-in-background'] : []),
         'app-info',
         'app-permissions',
         'notification-permission',

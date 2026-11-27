@@ -46,14 +46,18 @@ export type CurrentLocationResult =
   | { status: 'services-disabled' }
   | { status: 'error'; code?: string; message: string }
 
+type NativeGraphqlTransport = (
+  query: string,
+  variables?: object,
+  signal?: AbortSignal,
+) => Promise<{ ok: boolean; status: number; payload: unknown }>
+
 export interface ClosetNativeBridge {
   showRewardedAd?: (sessionId: string) => Promise<{ status: 'earned' | 'cancelled' | 'unavailable'; sessionId: string; message?: string }>
   openAdPrivacyOptions?: () => Promise<void>
-  requestGraphql: (
-    query: string,
-    variables?: object,
-    signal?: AbortSignal,
-  ) => Promise<{ ok: boolean; status: number; payload: unknown }>
+  requestGraphql: NativeGraphqlTransport
+  /** 지원하는 iOS 빌드가 룩북 접수의 HTTP 응답까지 백그라운드 실행 시간을 확보한다. */
+  requestPreviewStart?: NativeGraphqlTransport
   getAppInfo: () => Promise<NativeAppInfo>
   openAppSettings: () => Promise<void>
   requestPermission: (

@@ -1,7 +1,9 @@
 import type { OutfitPreviewJob } from '../packages/types/src/index'
+import type { ClosetNativeBridge } from '../apps/web/src/native-bridge/types'
 import { createOutfit, test, expect } from './support/fixture'
 import { readFileSync } from 'node:fs'
-import { createWebViewNavigationScript } from '../apps/native/src/navigation/webViewNavigation'
+import { createWebViewNavigationQueue, createWebViewNavigationScript, WEB_VIEW_NAVIGATION_DELIVERED } from '../apps/native/src/navigation/webViewNavigation'
+import { getNotificationWebPath } from '../apps/native/src/notifications/notificationNavigation'
 
 const imageUrl = `data:image/png;base64,${readFileSync('tests/support/mock-shirt.png').toString('base64')}`
 const savedPreviewPath = '/lookbook?outfit=outfit-1&preview=open&previewAssetId=preview-asset-one&previewItems=item-1%2Citem-2&previewStyle=casual'
@@ -73,6 +75,117 @@ test('전송 후 중단된 작업은 안내를 표시하고 자동으로 새 생
   expect(startCalls).toBe(0)
   expect(mockApi.operations).not.toContain('GenerateOutfitPreview')
 })
+
+test('iOS에서는 새 룩북 버튼을 누르면 추가 조회 없이 백그라운드 접수로 바로 넘긴다', async ({ page, mockApi }) => {
+  await page.addInitScript(() => {
+    const request = async (query: string, variables?: object, signal?: AbortSignal, backgroundSubmission = false) => {
+      if (backgroundSubmission) window.dispatchEvent(new CustomEvent('closet:native-app-state', { detail: { isActive: false } }))
+      const response = await fetch('http://127.0.0.1:49999/graphql', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ query, variables, backgroundSubmission }), signal,
+      })
+      return { ok: response.ok, status: response.status, payload: await response.json() }
+    }
+    window.ClosetNative = {
+      requestGraphql: request,
+      requestPreviewStart: (query: string, variables?: object, signal?: AbortSignal) => request(query, variables, signal, true),
+    } as ClosetNativeBridge
+  })
+
+  let clicking = false
+  let job: OutfitPreviewJob | undefined
+  let acceptBackgroundSubmission!: () => void
+  const backgroundSubmission = new Promise<void>((resolve) => { acceptBackgroundSubmission = resolve })
+  await page.route('**/graphql', async (route) => {
+    const { query, variables, backgroundSubmission } = route.request().postDataJSON()
+    if (query.includes('mutation StartOutfitPreview')) {
+      expect(backgroundSubmission).toBe(true)
+      expect(variables.input).toMatchObject({ selectedItemIds: ['item-1', 'item-2'], requestId: expect.any(String) })
+      job = makeJob('completed')
+      acceptBackgroundSubmission()
+      await route.fulfill({ json: { data: { startOutfitPreview: makeJob('queued') } } })
+    } else if (query.includes('query OutfitPreviewJobs')) {
+      expect(!clicking || job).toBeTruthy()
+      await route.fulfill({ json: { data: { outfitPreviewJobs: job ? [job] : [] } } })
+    } else if (query.includes('query OutfitPreviewJob(')) {
+      await route.fulfill({ json: { data: { outfitPreviewJob: job } } })
+    } else if (query.includes('query OutfitPreviewAsset')) {
+      await route.fulfill({ json: { data: { outfitPreviewAsset: { assetId: 'preview-asset-one', imageUrl, mimeType: 'image/png', model: 'fixture-model' } } } })
+    } else {
+      if (query.includes('query PreviewCredits')) expect(!clicking || job).toBeTruthy()
+      await route.fallback()
+    }
+  })
+
+  await page.goto('/lookbook/new?items=item-1,item-2')
+  const button = page.getByRole('button', { name: 'AI 룩북 만들기', exact: true })
+  await expect(button).toBeEnabled()
+  clicking = true
+  await button.click()
+  await backgroundSubmission
+  await page.evaluate(() => window.dispatchEvent(new Event('closet:native-app-active')))
+  await expect(page.getByRole('heading', { name: 'AI 룩북 미리보기', exact: true })).toBeVisible()
+  expect(mockApi.operations).not.toContain('GenerateOutfitPreview')
+})
+
+for (const acceptedBeforeDisconnect of [false, true]) {
+  test(`백그라운드 전환으로 접수 응답이 끊겨도 같은 생성 요청을 이어간다 (${acceptedBeforeDisconnect ? '서버에 접수됨' : '서버에 도달하지 않음'})`, async ({ page, mockApi }) => {
+    const requestIds: string[] = []
+    let job: OutfitPreviewJob | undefined
+    let acceptedCount = 0
+    await page.addInitScript(() => {
+      window.ClosetNative = {
+        requestGraphql: async (query, variables) => {
+          const response = await fetch('http://127.0.0.1:49999/graphql', {
+            method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ query, variables }),
+          })
+          if (response.headers.has('x-test-native-disconnect')) {
+            window.dispatchEvent(new CustomEvent('closet:native-app-state', { detail: { isActive: false } }))
+            throw new Error('API 서버에 연결하지 못했어요.')
+          }
+          return { ok: response.ok, status: response.status, payload: await response.json() }
+        },
+      } as ClosetNativeBridge
+    })
+    await page.route('**/graphql', async (route) => {
+      const { query, variables } = route.request().postDataJSON()
+      if (query.includes('mutation StartOutfitPreview')) {
+        const requestId = variables.input.requestId as string
+        requestIds.push(requestId)
+        if (requestIds.length === 1) {
+          if (acceptedBeforeDisconnect) {
+            acceptedCount += 1
+            job = makeJob('processing')
+          }
+          await route.fulfill({ headers: { 'access-control-expose-headers': 'x-test-native-disconnect', 'x-test-native-disconnect': '1' }, json: { data: null } })
+          return
+        }
+        if (!job || requestId !== requestIds[0]) acceptedCount += 1
+        job = makeJob('completed')
+        await route.fulfill({ json: { data: { startOutfitPreview: job } } })
+      } else if (query.includes('query OutfitPreviewJobs')) {
+        await route.fulfill({ json: { data: { outfitPreviewJobs: job ? [job] : [] } } })
+      } else if (query.includes('query OutfitPreviewJob(')) {
+        await route.fulfill({ json: { data: { outfitPreviewJob: job } } })
+      } else if (query.includes('query OutfitPreviewAsset')) {
+        await route.fulfill({ json: { data: { outfitPreviewAsset: { assetId: 'preview-asset-one', imageUrl, mimeType: 'image/png', model: 'fixture-model' } } } })
+      } else await route.fallback()
+    })
+
+    await page.goto('/lookbook/new?items=item-1,item-2')
+    await page.evaluate(() => {
+      window.addEventListener('closet:native-app-state', () => document.documentElement.setAttribute('data-test-backgrounded', ''), { once: true })
+    })
+    await page.getByRole('button', { name: 'AI 룩북 만들기', exact: true }).click()
+    await expect(page.locator('html')).toHaveAttribute('data-test-backgrounded', '')
+    await expect(page.getByRole('heading', { name: 'AI가 룩북을 만들고 있어요' })).toBeVisible()
+    expect(requestIds).toHaveLength(1)
+    await page.evaluate(() => window.dispatchEvent(new Event('closet:native-app-active')))
+    await expect(page.getByRole('heading', { name: 'AI 룩북 미리보기', exact: true })).toBeVisible()
+    expect(requestIds).toEqual([requestIds[0], requestIds[0]])
+    expect(acceptedCount).toBe(1)
+    expect(mockApi.operations).not.toContain('GenerateOutfitPreview')
+  })
+}
 
 test('백그라운드에서 생성이 실패하면 복귀 시 잔액을 갱신하고 코디를 열 수 있다', async ({ page, mockApi }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 })
@@ -192,6 +305,70 @@ test('푸시의 결과 경로로 이미 진입했으면 완료 팝업을 겹쳐 
   await expect.poll(() => acknowledged).toBe(true)
   await expect(page.getByRole('dialog', { name: 'AI 룩북이 완성됐어요', exact: true })).toHaveCount(0)
   expect(mockApi.operations).not.toContain('StartOutfitPreview')
+})
+
+test('백그라운드에서 누른 완료 푸시는 복귀 직후 기존 생성 화면을 같은 작업의 결과로 바꾼다', async ({ page, mockApi }) => {
+  const processing = makeJob('processing')
+  const completed = makeJob('completed')
+  let job: OutfitPreviewJob | undefined
+  let startCalls = 0
+  let releaseAssetResponse!: () => void
+  const assetResponse = new Promise<void>((resolve) => { releaseAssetResponse = resolve })
+  await page.route('**/graphql', async (route) => {
+    const { query, variables } = route.request().postDataJSON()
+    if (query.includes('mutation StartOutfitPreview')) {
+      startCalls += 1
+      job = processing
+      await route.fulfill({ json: { data: { startOutfitPreview: processing } } })
+    } else if (query.includes('query OutfitPreviewJobs')) {
+      await route.fulfill({ json: { data: { outfitPreviewJobs: job ? [job] : [] } } })
+    } else if (query.includes('query OutfitPreviewJob(')) {
+      // 백그라운드에 가기 전 시작한 상태 조회가 계속 예전 진행 상태를 반환해도 푸시 결과를 열어야 한다.
+      await route.fulfill({ json: { data: { outfitPreviewJob: processing } } })
+    } else if (query.includes('query OutfitPreviewAsset')) {
+      expect(variables.id).toBe(completed.imageAssetId)
+      await assetResponse
+      await route.fulfill({ json: { data: { outfitPreviewAsset: { assetId: completed.imageAssetId, imageUrl, mimeType: 'image/png', model: 'fixture-model' } } } })
+    } else await route.fallback()
+  })
+
+  await page.addInitScript(() => { window.ClosetRuntimeConfig = { isNativeWebView: true, routerMode: 'hash' } })
+  await page.goto('/#/lookbook/new?items=item-1,item-2')
+  await page.getByRole('button', { name: 'AI 룩북 만들기', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'AI가 룩북을 만들고 있어요' })).toBeVisible()
+  await expect.poll(() => startCalls).toBe(1)
+  await page.evaluate((deliveryType) => {
+    Reflect.set(window, '__closetBundleLoadKey', 'current-webview')
+    window.ReactNativeWebView = {
+      postMessage(raw) {
+        const data = JSON.parse(raw)
+        if (data.type === deliveryType) document.documentElement.setAttribute('data-test-navigation-delivery', JSON.stringify(data))
+      },
+    }
+    window.dispatchEvent(new CustomEvent('closet:native-app-state', { detail: { isActive: false } }))
+  }, WEB_VIEW_NAVIGATION_DELIVERED)
+  job = completed
+
+  const path = getNotificationWebPath({ type: 'ai-completion', kind: 'outfit-preview', path: completed.path, previewAssetId: completed.imageAssetId })
+  expect(path).toBe(completed.path)
+  const queue = createWebViewNavigationQueue()
+  queue.enqueue(path!)
+  let script: string | undefined
+  const prepareDelivery = (path: string, id: number) => { script = createWebViewNavigationScript(path, id) }
+  queue.flush({ isReady: true, isActive: false }, prepareDelivery)
+  expect(script).toBeUndefined()
+  queue.flush({ isReady: true, isActive: true }, prepareDelivery)
+  await page.evaluate((script) => {
+    window.eval(script!)
+    window.dispatchEvent(new Event('closet:native-app-active'))
+  }, script)
+  await expect(page.locator('html')).toHaveAttribute('data-test-navigation-delivery', JSON.stringify({ type: WEB_VIEW_NAVIGATION_DELIVERED, id: 1, loadKey: 'current-webview' }))
+  await expect(page.getByRole('heading', { name: '완성된 AI 룩북을 불러오고 있어요' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'AI가 룩북을 만들고 있어요' })).toHaveCount(0)
+  releaseAssetResponse()
+  await expect(page.getByRole('heading', { name: 'AI 룩북 미리보기', exact: true })).toBeVisible()
+  expect(startCalls).toBe(1)
+  expect(mockApi.operations).not.toContain('GenerateOutfitPreview')
 })
 
 test('저장된 룩북 재생성 화면에서 진행 중 작업을 이어받고 푸시 경로에서 완료 이미지를 연다', async ({ page, mockApi }) => {

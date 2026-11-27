@@ -1,6 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import { useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { OutfitPreview, OutfitPreviewJob, StoredOutfitPreview } from '@closet/types'
+import { getAccessToken } from '../../../lib/auth'
 import { GraphqlRequestError, graphqlRequest } from '../../../lib/graphql'
 import { useMeQuery } from '../../settings/api/profileQueries'
 import { clearPendingPreview, getPendingPreviewSnapshot, previewRequestKey, readPendingPreview, subscribePendingPreview, writePendingPreview } from '../utils/pendingPreviewRequest'
@@ -11,6 +12,7 @@ import { queryKeys } from '../../../lib/queryKeys'
 import { matchesExistingPreview as matchesPreview, resumeExistingPreview } from '../utils/resumeExistingPreview'
 import { rememberCompletedOutfitPreview, useCompletedOutfitPreview } from '../hooks/useCompletedOutfitPreview'
 import { clearCompletedPreviewPointer } from '../utils/completedPreviewPointer'
+import { createPreviewRequestRetry } from '../utils/previewRequestRetry'
 
 const fields = 'id status selectedItemIds style imageAssetId model errorCode errorMessage createdAt path'
 export const previewJobKeys = { all: ['outfit-preview-jobs'] as const, list: (viewerId: string) => ['outfit-preview-jobs', viewerId] as const, detail: (id: string) => ['outfit-preview-job', id] as const }
@@ -62,8 +64,10 @@ export function useAcknowledgePreviewJob() {
 }
 
 /**
- * 새 요청은 잔액·광고 지급 확인 후 요청 번호를 기록하고 서버 작업을 접수한다. 완료 이미지 URL까지 기다린다.
- * 새로고침·연결 실패 후 재시도는 같은 작업에 연결하며, 서버가 완료·실패를 확정한 뒤의 만들기만 새 요청이다.
+ * 새 요청 번호를 기록하고 서버 작업을 접수한 뒤 완료 이미지 URL까지 기다린다.
+ * 지원하는 iOS는 서버 접수에서 잔액을 검증하고, 다른 환경은 접수 전에 잔액을 조회한다.
+ * 백그라운드 전환 중 접수 응답을 잃으면 복귀 후 같은 요청 번호로 접수 결과를 확인한다.
+ * 새로고침·재시도 시에도 진행 작업을 이어받으며, 종료된 작업 뒤의 새 만들기는 새 요청으로 접수한다.
  * 호출 화면에서 완성 코디의 inputScope를 넘기면 같은 계정·조합의 복원 확인과 진행 작업도 isPending에 포함한다.
  */
 export function useGenerateOutfitPreviewJobMutation(inputScope?: PreviewInput) {
@@ -100,28 +104,45 @@ export function useGenerateOutfitPreviewJobMutation(inputScope?: PreviewInput) {
       const key = previewRequestKey(viewerId, input.selectedItemIds, input.style)
       const existingRequest = inFlightPreviews.get(key)
       if (existingRequest) return existingRequest
+      const canSubmitInBackground = Boolean(window.ClosetNative?.requestPreviewStart)
+      const accessToken = getAccessToken()
+      const assertSameAccount = () => {
+        if (client.getQueryData<{ id: string }>(queryKeys.me)?.id !== viewerId || getAccessToken() !== accessToken) {
+          throw new Error('계정이 바뀌었어요. 현재 계정에서 다시 확인해주세요.')
+        }
+      }
+      const retry = createPreviewRequestRetry(assertSameAccount)
       const request = (async (): Promise<OutfitPreview> => {
         let previous = readPendingPreview(key)
         if (!previous?.jobId) {
-          // 화면·앱을 다시 열어도 서버에 이미 진행 중인 같은 조합은 잔액 확인·새 접수 없이 이어받는다.
-          const serverJobs = await client.fetchQuery({ queryKey: previewJobKeys.list(viewerId), queryFn: getPreviewJobs, staleTime: 0 })
-          const active = serverJobs.find((job) => matchesPreview(job, input) && isActiveJob(job))
+          const queryKey = previewJobKeys.list(viewerId)
+          // iOS의 즉시 접수 경로는 이미 읽은 진행 작업을 사용한다. 접수 시 서버도 중복 작업과 잔액을 검사한다.
+          const serverJobs = canSubmitInBackground
+            ? client.getQueryData<OutfitPreviewJob[]>(queryKey)
+            : await retry.run(() => client.fetchQuery({ queryKey, queryFn: getPreviewJobs, staleTime: 0 }))
+          const active = serverJobs?.find((job) => matchesPreview(job, input) && isActiveJob(job))
           if (active) previous = { requestId: previous?.requestId ?? crypto.randomUUID(), createdAt: Date.now(), jobId: active.id }
         }
         // 복원할 요청이 없을 때만 새 작업의 횟수를 확인한다. 진행 중·완료 작업 복원은 추가 광고를 요구하지 않는다.
-        if (!previous && !await requireAiCredit(client, viewerId, 'preview')) throw new Error('잔액을 확인한 뒤 만들기 버튼을 다시 눌러주세요.')
+        const confirmCredit = () => retry.run(() => requireAiCredit(client, viewerId, 'preview'))
+        if (!previous && !canSubmitInBackground && !await confirmCredit()) throw new Error('잔액을 확인한 뒤 만들기 버튼을 다시 눌러주세요.')
         const pending = previous ?? { requestId: crypto.randomUUID(), createdAt: Date.now() }
         writePendingPreview(key, pending)
         try {
-          const start = async () => (await graphqlRequest<{ startOutfitPreview: OutfitPreviewJob }>(
-            `mutation StartOutfitPreview($input: StartOutfitPreviewInput!) { startOutfitPreview(input: $input) { ${fields} } }`, { input: { ...input, requestId: pending.requestId } },
-          )).startOutfitPreview
+          const start = () => retry.run(async () => {
+            assertSameAccount()
+            const data = await graphqlRequest<{ startOutfitPreview: OutfitPreviewJob }>(
+              `mutation StartOutfitPreview($input: StartOutfitPreviewInput!) { startOutfitPreview(input: $input) { ${fields} } }`,
+              { input: { ...input, requestId: pending.requestId } }, undefined, 'preview-start',
+            )
+            return data.startOutfitPreview
+          })
           let initial
           try { initial = pending.jobId ? await getPreviewJob(pending.jobId) : await start() }
           catch (error) {
             if (!(error instanceof GraphqlRequestError) || error.code !== 'PREVIEW_CREDITS_EXHAUSTED') throw error
             void client.invalidateQueries({ queryKey: previewCreditKeys.all })
-            if (!await requireAiCredit(client, viewerId, 'preview')) throw new Error('잔액을 확인한 뒤 만들기 버튼을 다시 눌러주세요.', { cause: error })
+            if (!await confirmCredit()) throw new Error('잔액을 확인한 뒤 만들기 버튼을 다시 눌러주세요.', { cause: error })
             initial = await start()
           }
           writePendingPreview(key, { ...pending, jobId: initial.id })
@@ -129,7 +150,7 @@ export function useGenerateOutfitPreviewJobMutation(inputScope?: PreviewInput) {
           void client.invalidateQueries({ queryKey: previewJobKeys.all })
           void client.invalidateQueries({ queryKey: previewCreditKeys.all })
           const job = await waitForPreviewJob(initial, getPreviewJob)
-          const data = await graphqlRequest<{ outfitPreviewAsset: StoredOutfitPreview }>('query OutfitPreviewAsset($id: ID!) { outfitPreviewAsset(id: $id) { assetId imageUrl mimeType model } }', { id: job.imageAssetId })
+          const data = await retry.run(() => graphqlRequest<{ outfitPreviewAsset: StoredOutfitPreview }>('query OutfitPreviewAsset($id: ID!) { outfitPreviewAsset(id: $id) { assetId imageUrl mimeType model } }', { id: job.imageAssetId }))
           rememberCompletedOutfitPreview(client, viewerId, key, job, { ...data.outfitPreviewAsset, imageBase64: '' })
           clearPendingPreview(key)
           return { ...data.outfitPreviewAsset, imageBase64: '' }
@@ -140,7 +161,7 @@ export function useGenerateOutfitPreviewJobMutation(inputScope?: PreviewInput) {
           void client.invalidateQueries({ queryKey: previewJobKeys.all })
           void client.invalidateQueries({ queryKey: previewCreditKeys.all })
         }
-      })()
+      })().finally(retry.dispose)
       inFlightPreviews.set(key, request)
       try { return await request } finally { if (inFlightPreviews.get(key) === request) inFlightPreviews.delete(key) }
     },

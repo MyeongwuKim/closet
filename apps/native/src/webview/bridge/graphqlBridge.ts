@@ -12,6 +12,7 @@ export async function handleNativeGraphqlRequest(
   request: NativeGraphqlRequest,
   webViewRef: WebViewRef,
   accessToken?: string,
+  beginPreviewSubmission?: () => Promise<(() => Promise<void>) | undefined>,
 ) {
   if (pendingRequests.has(request.id)) return
 
@@ -19,8 +20,14 @@ export async function handleNativeGraphqlRequest(
   pendingRequests.set(request.id, controller)
   // Also bound requests whose WebView was closed before it could cancel them.
   const timeout = setTimeout(() => controller.abort(), 180_000)
+  let endBackgroundTask: (() => Promise<void>) | undefined
 
   try {
+    if (request.finishPreviewInBackground && beginPreviewSubmission) {
+      endBackgroundTask = await beginPreviewSubmission()
+      // 실행 시간 연장을 기다리는 동안 WebView에서 취소할 수 있다.
+      if (controller.signal.aborted) throw new Error('Preview submission was cancelled')
+    }
     const response = await fetchNativeGraphql(
       request.query,
       request.variables,
@@ -42,5 +49,6 @@ export async function handleNativeGraphqlRequest(
   } finally {
     clearTimeout(timeout)
     pendingRequests.delete(request.id)
+    await endBackgroundTask?.()
   }
 }

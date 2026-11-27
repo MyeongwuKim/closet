@@ -5,10 +5,10 @@ import {
   cancelNativeGraphqlRequest,
   handleNativeGraphqlRequest,
 } from '../src/webview/bridge/graphqlBridge.ts'
-import { CLOSET_WEBVIEW_BRIDGE_SCRIPT } from '../src/webview/bridge/injectedScript.ts'
+import { createClosetWebViewBridgeScript } from '../src/webview/bridge/injectedScript.ts'
 import { parseNativeBridgeRequest } from '../src/webview/bridge/messageGuards.ts'
 
-function createBridge() {
+function createBridge(beginPreviewSubmission) {
   const messages = []
   const inFlight = []
   const timers = new Map()
@@ -30,15 +30,56 @@ function createBridge() {
       const message = parseNativeBridgeRequest(raw)
       messages.push(message)
       if (message?.type === 'closet:native-graphql') {
-        inFlight.push(handleNativeGraphqlRequest(message, webViewRef, 'native-session-token'))
+        inFlight.push(handleNativeGraphqlRequest(message, webViewRef, 'native-session-token', beginPreviewSubmission))
       } else if (message?.type === 'closet:native-cancel-graphql') {
         cancelNativeGraphqlRequest(message.id)
       }
     },
   }
-  runInContext(CLOSET_WEBVIEW_BRIDGE_SCRIPT, context)
+  runInContext(createClosetWebViewBridgeScript(Boolean(beginPreviewSubmission)), context)
   return { native: context.window.ClosetNative, context, messages, timers, inFlight }
 }
+
+const startPreview = 'mutation StartOutfitPreview($input: StartOutfitPreviewInput!) { startOutfitPreview(input: $input) { id } }'
+const previewVariables = { input: { requestId: 'preview-request-1', selectedItemIds: ['top', 'bottom'] } }
+
+test('룩북 접수 응답을 받을 때까지 iOS 백그라운드 실행 시간을 유지한다', async (t) => {
+  const steps = []
+  const bridge = createBridge(async () => {
+    steps.push('begin')
+    return async () => { steps.push('end') }
+  })
+  t.mock.method(globalThis, 'fetch', async (_url, options) => {
+    assert.deepEqual(steps, ['begin'])
+    assert.deepEqual(JSON.parse(options.body), { query: startPreview, variables: previewVariables })
+    steps.push('fetch')
+    return Response.json({ data: { startOutfitPreview: { id: 'queued-job' } } })
+  })
+
+  const response = await bridge.native.requestPreviewStart(startPreview, previewVariables)
+  await Promise.all(bridge.inFlight)
+  assert.equal(response.payload.data.startOutfitPreview.id, 'queued-job')
+  assert.deepEqual(steps, ['begin', 'fetch', 'end'])
+  assert.equal(bridge.timers.size, 0)
+})
+
+test('룩북 접수 전에 웹이 취소하면 API 전송 없이 백그라운드 실행 시간을 반환한다', async (t) => {
+  let grantTime
+  const started = new Promise((resolve) => { grantTime = resolve })
+  const release = t.mock.fn(async () => {})
+  const bridge = createBridge(() => started)
+  const send = t.mock.method(globalThis, 'fetch', async () => { throw new Error('요청을 보내면 안 됨') })
+  const controller = new AbortController()
+  const pending = bridge.native.requestPreviewStart(startPreview, previewVariables, controller.signal)
+  controller.abort()
+  grantTime(release)
+
+  await assert.rejects(pending, { name: 'AbortError' })
+  await Promise.all(bridge.inFlight)
+  assert.equal(send.mock.callCount(), 0)
+  assert.equal(release.mock.callCount(), 1)
+  assert.equal(bridge.timers.size, 0)
+})
 
 test('WebView 요청을 고정된 API로 보내고 네이티브 세션과 조회 결과를 전달한다', async (t) => {
   let sent
@@ -122,6 +163,8 @@ test('잘못된 GraphQL 브리지 메시지를 거부한다', () => {
     { ...valid, query: 1 },
     { ...valid, variables: [] },
     { ...valid, variables: null },
+    { ...valid, finishPreviewInBackground: true },
+    { ...valid, query: startPreview, variables: previewVariables, finishPreviewInBackground: 'true' },
   ]) {
     assert.equal(parseNativeBridgeRequest(JSON.stringify(invalid)), null)
   }

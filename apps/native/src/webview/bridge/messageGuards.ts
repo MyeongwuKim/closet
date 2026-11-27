@@ -152,7 +152,9 @@ export function isNativeGraphqlRequest(value: unknown): value is NativeGraphqlRe
     typeof value.query === 'string' &&
     value.query.trim().length > 0 &&
     (value.variables === undefined ||
-      (isRecord(value.variables) && !Array.isArray(value.variables)))
+      (isRecord(value.variables) && !Array.isArray(value.variables))) &&
+    (value.finishPreviewInBackground === undefined ||
+      (value.finishPreviewInBackground === true && /^\s*mutation\s+StartOutfitPreview\s*\(/.test(value.query)))
   )
 }
 

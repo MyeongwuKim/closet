@@ -1,6 +1,44 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { getForegroundNotificationWebPath, getNotificationWebPath } from '../src/notifications/notificationNavigation.ts'
+import { createWebViewNavigationQueue } from '../src/navigation/webViewNavigation.ts'
+
+test('완료 푸시를 누른 응답은 앱이 활성화되고 웹뷰가 준비될 때까지 유지한다', () => {
+  const queue = createWebViewNavigationQueue()
+  const paths = []
+  const deliver = (path, id) => paths.push({ path, id })
+  const resultPath = '/lookbook/new?items=item-1,item-2&preview=open&previewAssetId=asset-1'
+  queue.enqueue(resultPath)
+
+  queue.flush({ isReady: true, isActive: false }, deliver)
+  queue.flush({ isReady: false, isActive: true }, deliver)
+  assert.deepEqual(paths, [])
+
+  queue.flush({ isReady: true, isActive: true }, deliver)
+  assert.deepEqual(paths, [{ path: resultPath, id: 1 }])
+  queue.acknowledge(1)
+  queue.flush({ isReady: true, isActive: true }, deliver)
+  assert.equal(paths.length, 1)
+})
+
+test('웹 수신 확인을 잃으면 준비된 웹뷰에 다시 전달하고 이전 확인으로 새 알림을 지우지 않는다', () => {
+  const queue = createWebViewNavigationQueue()
+  const ready = { isReady: true, isActive: true }
+  const paths = []
+  const deliver = (path, id) => paths.push([path, id])
+
+  queue.enqueue('/lookbook?previewAssetId=first')
+  queue.flush(ready, deliver)
+  queue.flush(ready, deliver)
+  queue.enqueue('/lookbook?previewAssetId=latest')
+  queue.acknowledge(1)
+  queue.flush(ready, deliver)
+  assert.deepEqual(paths, [
+    ['/lookbook?previewAssetId=first', 1],
+    ['/lookbook?previewAssetId=first', 1],
+    ['/lookbook?previewAssetId=latest', 2],
+  ])
+})
 
 test('재발견 알림은 누르면 전용 목록으로 이동하고 실행 중 수신만으로는 화면을 바꾸지 않는다', () => {
   const data = { type: 'wardrobe-rediscovery', path: '/closet/rediscovery' }

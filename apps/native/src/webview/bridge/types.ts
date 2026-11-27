@@ -81,6 +81,8 @@ export interface NativeGraphqlRequest {
   id: string
   query: string
   variables?: Record<string, unknown>
+  /** iOS에서 룩북 접수 응답을 받을 때까지 실행 시간을 연장한다. */
+  finishPreviewInBackground?: true
 }
 
 export interface NativeCancelGraphqlRequest {

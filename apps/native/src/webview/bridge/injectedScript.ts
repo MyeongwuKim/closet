@@ -1,4 +1,6 @@
-export const CLOSET_WEBVIEW_BRIDGE_SCRIPT = `
+/** iOS 실행 시간 연장 기능이 설치된 경우 웹에 룩북 접수용 전송 함수를 함께 제공한다. */
+export function createClosetWebViewBridgeScript(supportsPreviewSubmissionInBackground: boolean) {
+  return `
   (function () {
     if (window.ClosetNative) {
       return true;
@@ -115,6 +117,14 @@ export const CLOSET_WEBVIEW_BRIDGE_SCRIPT = `
       }
     };
 
+    ${supportsPreviewSubmissionInBackground ? `
+    window.ClosetNative.requestPreviewStart = function (query, variables, signal) {
+      return request('closet:native-graphql', {
+        query: query, variables: variables, finishPreviewInBackground: true
+      }, 180000, signal);
+    };
+    ` : ''}
+
     if (window.ReactNativeWebView) {
       window.ReactNativeWebView.postMessage(JSON.stringify({
         type: 'closet:native-bridge-ready'
@@ -125,3 +135,6 @@ export const CLOSET_WEBVIEW_BRIDGE_SCRIPT = `
   })();
   true;
 `
+}
+
+export const CLOSET_WEBVIEW_BRIDGE_SCRIPT = createClosetWebViewBridgeScript(false)

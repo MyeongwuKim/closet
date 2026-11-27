@@ -29,9 +29,10 @@ const apiBaseUrl = import.meta.env?.VITE_API_URL ?? 'http://localhost:4000'
 export async function graphqlRequest<
   TData,
   TVariables extends object = object,
->(query: string, variables?: TVariables, signal?: AbortSignal) {
+>(query: string, variables?: TVariables, signal?: AbortSignal, transport: 'default' | 'preview-start' = 'default') {
   // The native transport can reach a local HTTP API from our HTTPS WebView.
-  const nativeRequest = window.ClosetNative?.requestGraphql
+  const native = window.ClosetNative
+  const nativeRequest = (transport === 'preview-start' ? native?.requestPreviewStart : undefined) ?? native?.requestGraphql
   const response = nativeRequest
     ? await nativeRequest(query, variables, signal)
     : await fetch(`${apiBaseUrl}/graphql`, {

@@ -1,5 +1,5 @@
 src/generated/webBundle.ts
-ios/
+/ios/
 ios-dev/
 ios-prod/
 android/

@@ -8,7 +8,7 @@ import { cancelNativeGraphqlRequest, handleNativeGraphqlRequest } from './graphq
 import { handleNativeOpenExternalUrlRequest } from './externalLinkBridge'
 import { handleNativeCurrentLocationRequest } from './locationBridge'
 import { handleNativeRequestPermission } from './permissionBridge'
-import { CLOSET_WEBVIEW_BRIDGE_SCRIPT } from './injectedScript'
+import { beginPreviewSubmissionBackgroundTask } from './previewSubmissionBackgroundTask'
 import {
   isNativeAppInfoRequest,
   isNativeRewardedAdRequest,
@@ -27,7 +27,7 @@ import {
 } from './messageGuards'
 import type { WebViewRef } from './types'
 
-export { CLOSET_WEBVIEW_BRIDGE_SCRIPT }
+export { createClosetWebViewBridgeScript } from './injectedScript'
 
 interface NativeBridgeHandlers {
   accessToken?: string
@@ -66,7 +66,7 @@ export async function handleNativeBridgeMessage(
   }
 
   if (isNativeGraphqlRequest(request)) {
-    await handleNativeGraphqlRequest(request, webViewRef, handlers.accessToken)
+    await handleNativeGraphqlRequest(request, webViewRef, handlers.accessToken, beginPreviewSubmissionBackgroundTask)
     return
   }
 
