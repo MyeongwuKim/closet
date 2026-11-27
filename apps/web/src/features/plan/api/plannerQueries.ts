@@ -22,6 +22,7 @@ interface PlannerWeekPayload {
     wornAt?: string | null
     wearFeeling?: WearFeeling | null
     wearTemperatureC?: number | null
+    wearForecastTemperatureC?: number | null
     manualWearTemperatureC?: number | null
     title: string | null
     occasion: string | null
@@ -186,6 +187,7 @@ function toPlanEntry(
     wornAt: entry.wornAt ?? null,
     wearFeeling: entry.wornAt ? entry.wearFeeling ?? null : null,
     wearTemperatureC: entry.wornAt ? entry.wearTemperatureC ?? null : null,
+    wearForecastTemperatureC: entry.wornAt ? entry.wearForecastTemperatureC ?? null : null,
     manualWearTemperatureC: entry.wornAt ? entry.manualWearTemperatureC ?? null : null,
     outfitStyle: entry.outfit?.style,
     plannerOnly: entry.outfit?.plannerOnly,
@@ -214,7 +216,7 @@ export function usePlannerWeekQuery(weekStartsOn: string, enabled = true) {
             plannerWeek(weekStartsOn: $weekStartsOn) {
               id weekStartsOn
               entries {
-                date title occasion weatherSummary temperatureC wornAt wearFeeling wearTemperatureC manualWearTemperatureC
+                date title occasion weatherSummary temperatureC wornAt wearFeeling wearTemperatureC wearForecastTemperatureC manualWearTemperatureC
                 outfit {
                   id name style plannerOnly
                   items { wardrobeItemId layerOrder slot isBaseLayer wardrobeItem { ${wardrobeItemFields} } }
@@ -251,7 +253,7 @@ export function usePlannerEntriesQuery(
         `
           query PlannerEntries($from: String!, $to: String!) {
             plannerEntries(from: $from, to: $to) {
-              date title occasion weatherSummary temperatureC wornAt wearFeeling wearTemperatureC manualWearTemperatureC
+              date title occasion weatherSummary temperatureC wornAt wearFeeling wearTemperatureC wearForecastTemperatureC manualWearTemperatureC
               outfit {
                   id name style plannerOnly
                 items { wardrobeItemId layerOrder slot isBaseLayer wardrobeItem { ${wardrobeItemFields} } }
@@ -315,7 +317,7 @@ export function useSetDirectPlannerEntryMutation() {
             setDirectPlannerEntry(input: $input) {
               id weekStartsOn
               entries {
-                date title occasion weatherSummary temperatureC wornAt wearFeeling wearTemperatureC manualWearTemperatureC
+                date title occasion weatherSummary temperatureC wornAt wearFeeling wearTemperatureC wearForecastTemperatureC manualWearTemperatureC
                 outfit {
                   id name style plannerOnly
                   items { wardrobeItemId layerOrder slot isBaseLayer wardrobeItem { ${wardrobeItemFields} } }
@@ -352,7 +354,7 @@ export function useSetPlannerEntryWornMutation() {
           setPlannerEntryWorn(input: $input) {
             id weekStartsOn
             entries {
-              date title occasion weatherSummary temperatureC wornAt wearFeeling wearTemperatureC manualWearTemperatureC
+              date title occasion weatherSummary temperatureC wornAt wearFeeling wearTemperatureC wearForecastTemperatureC manualWearTemperatureC
               outfit {
                 id name style plannerOnly
                 items { wardrobeItemId layerOrder slot isBaseLayer wardrobeItem { ${wardrobeItemFields} } }
@@ -389,7 +391,7 @@ export function useSetPlannerEntryWearFeelingMutation() {
           setPlannerEntryWearFeeling(input: $input) {
             id weekStartsOn
             entries {
-              date title occasion weatherSummary temperatureC wornAt wearFeeling wearTemperatureC manualWearTemperatureC
+              date title occasion weatherSummary temperatureC wornAt wearFeeling wearTemperatureC wearForecastTemperatureC manualWearTemperatureC
               outfit {
                 id name style plannerOnly
                 items { wardrobeItemId layerOrder slot isBaseLayer wardrobeItem { ${wardrobeItemFields} } }
@@ -425,7 +427,7 @@ export function useMovePlannerEntryMutation() {
             movePlannerEntry(input: $input) {
               id weekStartsOn
               entries {
-                date title occasion weatherSummary temperatureC wornAt wearFeeling wearTemperatureC manualWearTemperatureC
+                date title occasion weatherSummary temperatureC wornAt wearFeeling wearTemperatureC wearForecastTemperatureC manualWearTemperatureC
                 outfit {
                   id name style plannerOnly
                   items { wardrobeItemId layerOrder slot isBaseLayer wardrobeItem { ${wardrobeItemFields} } }
@@ -529,7 +531,7 @@ export function useSetPlannerEntryMutation() {
           setPlannerEntry(input: $input) {
             id weekStartsOn
             entries {
-              date title occasion weatherSummary temperatureC wornAt wearFeeling wearTemperatureC manualWearTemperatureC
+              date title occasion weatherSummary temperatureC wornAt wearFeeling wearTemperatureC wearForecastTemperatureC manualWearTemperatureC
               outfit {
                 id name style plannerOnly
                 items { wardrobeItemId layerOrder slot isBaseLayer wardrobeItem { ${wardrobeItemFields} } }

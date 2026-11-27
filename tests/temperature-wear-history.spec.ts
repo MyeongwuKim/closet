@@ -47,8 +47,9 @@ async function installHistory(page: Page, api: MockApi, pageSize = 12) {
           entry.outfit.items.every((item) => input.compositionItemIds.includes(item.wardrobeItemId)))))
       const records = entries.map(entry => ({
         date: entry.date, outfitId: entry.outfit!.id, wornAt: entry.wornAt!,
-        automaticTemperatureC: entry.wearTemperatureC ?? null, manualTemperatureC: entry.manualWearTemperatureC ?? null,
-        temperatureC: entry.manualWearTemperatureC ?? entry.wearTemperatureC ?? null, feeling: entry.wearFeeling ?? null,
+        automaticTemperatureC: entry.wearTemperatureC ?? null, forecastTemperatureC: entry.wearForecastTemperatureC ?? null,
+        manualTemperatureC: entry.manualWearTemperatureC ?? null,
+        temperatureC: entry.manualWearTemperatureC ?? entry.wearTemperatureC ?? entry.wearForecastTemperatureC ?? null, feeling: entry.wearFeeling ?? null,
       }))
       const matched = records.find(record => (!input.feeling || input.feeling === record.feeling)
         && (input.unrecordedOnly ? record.temperatureC === null : input.minTemperatureC == null && input.maxTemperatureC == null
@@ -74,6 +75,38 @@ async function chooseFeeling(page: Page, label: string) {
   await expect(picker).toHaveCount(0)
   await expect(feelingFilter(page)).toBeFocused()
 }
+
+test('오늘 착용을 확인하고 기온을 비워두면 예보 평균으로 바로 조회된다', async ({ page, mockApi }) => {
+  seed(mockApi)
+  const today = '2026-11-13'
+  const entry = mockApi.plannerEntries[0]
+  mockApi.plannerEntries = [{ ...entry, date: today, wornAt: null, wearFeeling: null, wearTemperatureC: null }]
+  await installHistory(page, mockApi)
+  await page.route('**/graphql', async route => {
+    const { query, variables } = route.request().postDataJSON()
+    if (query.includes('mutation SetPlannerEntryWorn(') && variables.input.worn) {
+      mockApi.plannerEntries[0].wearForecastTemperatureC = 12.5
+    }
+    await route.fallback()
+  })
+
+  await page.goto(`/plan?view=today&date=${today}`)
+  await page.getByRole('button', { name: '입었어요', exact: true }).click()
+  await page.getByRole('dialog', { name: '입었을 때 어땠나요?' }).getByRole('button', { name: '적당했어요', exact: true }).click()
+  const temperature = page.getByRole('dialog', { name: '몇 도에 입었나요?' })
+  await expect(temperature.getByText('비워두면 착용일의 예보 평균 12.5℃를 사용해요.')).toBeVisible()
+  await expect(temperature.getByLabel('착용 기온 (선택)')).toHaveValue('')
+  await temperature.getByRole('button', { name: '저장', exact: true }).click()
+  await expect(temperature).toHaveCount(0)
+  expect(mockApi.plannerEntries[0].manualWearTemperatureC).toBeNull()
+
+  await page.goto('/wear-history')
+  await page.getByRole('radio', { name: '10~15℃ 미만', exact: true }).click()
+  const card = page.getByRole('button', { name: '셔츠와 데님 착용 기록 보기', exact: true })
+  await expect(card.getByText('12.5℃ · 예보', { exact: true })).toBeVisible()
+  await card.click()
+  await expect(page.getByRole('region', { name: '날짜별 착용 기록' }).getByText('12.5℃ · 예보', { exact: true })).toBeVisible()
+})
 
 for (const edit of [false, true]) {
   test(`착용 기록에서 ${edit ? '옷을 바꿔' : '그대로'} 오늘 입은 코디로 저장해도 과거 기록은 유지한다`, async ({ page, mockApi }, testInfo) => {

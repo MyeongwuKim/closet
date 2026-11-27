@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client'
+import type { PlannerEntry, Prisma } from '@prisma/client'
 import { prisma } from '../../lib/prisma.js'
 import { confirmedWearWhere } from './planner-wear.js'
 
@@ -15,6 +15,8 @@ export async function ensureWearWeatherStorage() {
 const missingTemperature = {
   OR: [{ wearTemperatureC: null }, { wearTemperatureC: { isSet: false } }],
 } satisfies Prisma.PlannerEntryWhereInput
+
+type WearWeatherEntry = Pick<PlannerEntry, 'id' | 'outfitId' | 'date' | 'wornAt' | 'weatherLatitude' | 'weatherLongitude'>
 
 function readyForRetry(now: Date): Prisma.PlannerEntryWhereInput {
   return { OR: [{ wearWeatherRetryAt: null }, { wearWeatherRetryAt: { isSet: false } }, { wearWeatherRetryAt: { lte: now } }] }
@@ -56,11 +58,25 @@ export const wearWeatherRepository = {
   },
 
   /** 조회 중 삭제·재배정·지역 변경·착용 취소가 발생하면 저장하지 않는다. 다시 확인한 일정도 이전 작업의 결과와 구분한다. */
-  async record(entry: { id: string; outfitId: string | null; date: Date; wornAt: Date | null; weatherLatitude: number | null; weatherLongitude: number | null }, temperatureC: number, now: Date) {
+  async record(entry: WearWeatherEntry, temperatureC: number, now: Date) {
     if (!entry.wornAt) return false
     const result = await prisma.plannerEntry.updateMany({
       where: { id: entry.id, outfitId: entry.outfitId, date: entry.date, wornAt: entry.wornAt, weatherLatitude: entry.weatherLatitude, weatherLongitude: entry.weatherLongitude, ...missingTemperature },
       data: { wearTemperatureC: temperatureC, wearWeatherRecordedAt: now, wearWeatherRetryAt: null },
+    })
+    return result.count === 1
+  },
+
+  /** 같은 착용과 날씨 지역이 유지되고 실제 기온이 비어 있을 때만 예보 평균을 저장한다. */
+  async recordForecast(entry: WearWeatherEntry, temperatureC: number) {
+    const { id, outfitId, date, wornAt, weatherLatitude, weatherLongitude } = entry
+    if (!wornAt) return false
+    const result = await prisma.plannerEntry.updateMany({
+      where: {
+        id, outfitId, date, wornAt, weatherLatitude, weatherLongitude,
+        AND: [missingTemperature, { OR: [{ wearForecastTemperatureC: null }, { wearForecastTemperatureC: { isSet: false } }] }],
+      },
+      data: { wearForecastTemperatureC: temperatureC },
     })
     return result.count === 1
   },

@@ -1,4 +1,6 @@
+import type { PlannerEntry } from '@prisma/client'
 import { ServiceError } from '../../graphql/errors.js'
+import { toDateOnly } from '../../lib/date.js'
 import { getKoreaTodayUtc } from '../wardrobe/wardrobe.service.js'
 import { weatherService } from '../weather/weather.service.js'
 import { wearWeatherRepository, type WearWeatherLocation } from './wear-weather.repository.js'
@@ -11,6 +13,23 @@ export async function syncWearWeatherLocation(userId: string, location: WearWeat
   const rounded = location ? { latitude: Math.round(location.latitude * 100) / 100, longitude: Math.round(location.longitude * 100) / 100 } : null
   await wearWeatherRepository.saveLocation(userId, rounded, getKoreaTodayUtc())
   return true
+}
+
+/** 오늘 착용을 확인하면 저장된 지역의 예보 평균을 남긴다. 날씨 조회가 실패해도 착용은 유지한다. */
+export async function recordTodayWearForecast(entry: PlannerEntry) {
+  const { date, outfitId, wornAt, weatherLatitude, weatherLongitude } = entry
+  if (!outfitId || !wornAt || date.getTime() !== getKoreaTodayUtc().getTime()
+    || weatherLatitude == null || weatherLongitude == null
+    || entry.wearTemperatureC != null || entry.wearForecastTemperatureC != null) return null
+  try {
+    const forecast = await weatherService.getForecast({ latitude: weatherLatitude, longitude: weatherLongitude, date: toDateOnly(date) })
+    const average = forecast.meanTemperatureC
+    if (average == null || !Number.isFinite(average)) return null
+    return await wearWeatherRepository.recordForecast(entry, average) ? average : null
+  } catch {
+    console.warn('[wear-weather] same-day forecast recording failed')
+    return null
+  }
 }
 
 /** 실제 착용을 확인한 지난 코디의 평균 기온을 확정한다. 제공자 오류는 기온을 만들지 않고 한 시간 뒤 재시도한다. */

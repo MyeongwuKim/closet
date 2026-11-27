@@ -64,6 +64,7 @@ type PlannerEntry = {
   weatherSummary: string | null
   temperatureC: number | null
   wearTemperatureC?: number | null
+  wearForecastTemperatureC?: number | null
   manualWearTemperatureC?: number | null
   outfit: {
     id: string
@@ -398,6 +399,7 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
       entry.wornAt = input.worn ? entry.wornAt ?? new Date().toISOString() : null
       if (!input.worn) {
         entry.wearTemperatureC = null
+        if (entry.wearForecastTemperatureC !== undefined) entry.wearForecastTemperatureC = null
         if (entry.manualWearTemperatureC !== undefined) entry.manualWearTemperatureC = null
       }
       for (const item of api.wardrobeItems) {

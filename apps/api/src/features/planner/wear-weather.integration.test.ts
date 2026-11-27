@@ -5,6 +5,7 @@ import { getKoreaTodayUtc } from '../wardrobe/wardrobe.service.js'
 import { weatherService } from '../weather/weather.service.js'
 import { plannerRepository } from './planner.repository.js'
 import { plannerService } from './planner.service.js'
+import { getTemperatureWearHistory } from './temperature-history.service.js'
 import { ensureWearWeatherStorage, wearWeatherRepository } from './wear-weather.repository.js'
 import { recordPendingWearWeather, syncWearWeatherLocation } from './wear-weather.service.js'
 
@@ -55,6 +56,22 @@ test('별도 MongoDB에서 일정 배정·날짜 경과·중복 처리·삭제�
   const records = await plannerService.getOutfitWearHistory(user.id, [outfit.id])
   assert.equal(records.find((record) => record.date.getTime() === yesterday.getTime())?.wearTemperatureC, 16.2)
   assert.deepEqual(await plannerService.getOutfitWearHistory(otherUser.id, [outfit.id]), [])
+
+  const todayDate = today.toISOString().slice(0, 10)
+  const todayEntry = week.entries[0]
+  assert.ok(todayEntry.outfitId)
+  const forecast = t.mock.method(weatherService, 'getForecast', async () => ({ meanTemperatureC: 12.5, temperatureC: 8 }))
+  const confirmed = await plannerService.setEntryWorn(user.id, { weekStartsOn, date: todayDate, outfitId: todayEntry.outfitId, worn: true })
+  assert.equal(confirmed.entries.find(entry => entry.id === todayEntry.id)?.wearForecastTemperatureC, 12.5)
+  assert.deepEqual(forecast.mock.calls[0].arguments, [{ latitude: 35.18, longitude: 129.08, date: todayDate }])
+  const todayStored = await prisma.plannerEntry.findUniqueOrThrow({ where: { id: todayEntry.id } })
+  assert.equal(todayStored.wearForecastTemperatureC, 12.5)
+  assert.equal(todayStored.wearTemperatureC, null)
+  assert.equal(todayStored.manualWearTemperatureC, null)
+  const filtered = await getTemperatureWearHistory(user.id, { minTemperatureC: 10, maxTemperatureC: 15 })
+  assert.equal(filtered.items[0]?.matchingDate, todayDate)
+  assert.equal(filtered.items[0]?.records[0]?.temperatureC, 12.5)
+
   const wornDate = yesterday.toISOString().slice(0, 10)
   await assert.rejects(plannerService.clearEntry(user.id, weekStartsOn, wornDate), { code: 'PLANNER_WEAR_CONFIRMED' })
   assert.equal((await prisma.plannerEntry.findUniqueOrThrow({ where: { id: worn.id } })).wearTemperatureC, 16.2)

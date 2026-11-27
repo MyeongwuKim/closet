@@ -4,7 +4,7 @@
  *
  * 동작 방식:
  * 날짜와 사용자 소유 코디를 확인하고 날짜마다 독립된 코디 복사본을 저장하며,
- * 오늘 이후 배정에는 허용된 마지막 날씨 지역을 연결해 날짜가 지난 뒤 기온을 기록할 수 있게 한다.
+ * 날씨 지역이 있는 오늘 착용에는 예보 평균을 저장하며 지난 날짜의 실제 평균은 별도로 기록한다.
  * 최근 착용 검사는 설정된 기간 안의 기록만 조회해 우선순위가 가장 높은 결과를 반환한다.
  */
 
@@ -20,6 +20,7 @@ import { plannerRepository } from './planner.repository.js'
 import { getKoreaTodayUtc } from '../wardrobe/wardrobe.service.js'
 import { findRecentWearConflict } from './recent-wear-conflict.js'
 import { wearWeatherRepository } from './wear-weather.repository.js'
+import { recordTodayWearForecast } from './wear-weather.service.js'
 
 export interface SetPlannerEntryInput {
   weekStartsOn: string
@@ -161,6 +162,18 @@ function parseWeekAndDate(weekStartsOnValue: string, dateValue: string) {
   return { weekStartsOn, date, dayOffset }
 }
 
+type PlannerWeek = NonNullable<Awaited<ReturnType<typeof plannerRepository.findWeek>>>
+
+/** 응답에도 오늘의 예보 기온을 포함해 확인 직후 체감 입력에 표시한다. */
+async function includeWearForecast(week: PlannerWeek, date: Date) {
+  const entry = week.entries.find(candidate => candidate.date.getTime() === date.getTime())
+  if (entry) {
+    const forecast = await recordTodayWearForecast(entry)
+    if (forecast !== null) entry.wearForecastTemperatureC = forecast
+  }
+  return week
+}
+
 export const plannerService = {
   /** 확인된 내 코디의 체감과 직접 입력한 기온을 저장한다. 직접 입력을 생략하면 기존 값을 유지한다. */
   async setEntryWearFeeling(userId: string, input: SetPlannerEntryWearFeelingInput) {
@@ -193,7 +206,7 @@ export const plannerService = {
     if (!updatedWeek) {
       throw new ServiceError('착용 기록이 바뀌었어요. 다시 확인해주세요.', 'PLANNER_WEAR_CHANGED')
     }
-    return updatedWeek
+    return includeWearForecast(updatedWeek, date)
   },
   /** 오늘 또는 지난 날짜의 내 배정을 실제 착용으로 확인하거나 취소한다. 배정 없는 날짜와 교체된 코디는 거절한다. */
   async setEntryWorn(userId: string, input: SetPlannerEntryWornInput) {
@@ -213,7 +226,7 @@ export const plannerService = {
     if (!updatedWeek) {
       throw new ServiceError('코디가 바뀌었어요. 다시 확인해주세요.', 'PLANNER_OUTFIT_CHANGED')
     }
-    return updatedWeek
+    return input.worn ? includeWearForecast(updatedWeek, date) : updatedWeek
   },
   getWeek(userId: string, weekStartsOnValue: string) {
     return plannerRepository.findWeek(
@@ -328,7 +341,7 @@ export const plannerService = {
         .remove(userId, previousOutfit.id)
         .catch(() => undefined)
     }
-    return updatedWeek
+    return updatedWeek && confirmWornAt ? includeWearForecast(updatedWeek, date) : updatedWeek
   },
 
   async setDirectEntry(userId: string, input: SetDirectPlannerEntryInput) {
@@ -369,7 +382,7 @@ export const plannerService = {
         .remove(userId, previousOutfit.id)
         .catch(() => undefined)
     }
-    return updatedWeek
+    return updatedWeek && confirmWornAt ? includeWearForecast(updatedWeek, date) : updatedWeek
   },
 
   savePlannerOutfitToLookbook(

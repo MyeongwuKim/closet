@@ -1,4 +1,4 @@
-import type { TemperatureWearHistoryInput } from '@closet/types'
+import type { TemperatureWearHistoryInput, TemperatureWearRecord } from '@closet/types'
 import { getOutfitComposerBackPath } from '../../lookbook/utils/outfitComposerNavigation'
 import { formatWearDate } from '../../../utils/wearDate'
 
@@ -20,9 +20,12 @@ export function formatWearTemperature(value: number | null) {
   return value === null ? '기온 미기록' : `평균 ${Math.round(value * 10) / 10}℃`
 }
 
-/** 확정된 표시 기온을 숫자와 단위로만 보여준다. */
-export function formatWearRecordTemperature(value: number | null) {
-  return value === null ? '기온 미기록' : `${Math.round(value * 10) / 10}℃`
+/** 예보가 표시 기온으로 쓰였을 때는 출처를 함께 보여준다. */
+export function formatWearRecordTemperature(record: TemperatureWearRecord) {
+  if (record.temperatureC === null) return '기온 미기록'
+  const isForecast = record.manualTemperatureC == null && record.automaticTemperatureC == null && record.forecastTemperatureC != null
+  const temperature = `${Math.round(record.temperatureC * 10) / 10}℃`
+  return isForecast ? `${temperature} · 예보` : temperature
 }
 
 /** 여러 해의 착용 기록에서 같은 월·일을 구분하도록 연도를 항상 표시한다. */

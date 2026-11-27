@@ -12,7 +12,7 @@ import { outfitService } from '../outfit/outfit.service.js'
 const owner = '000000000000000000000001'
 const foreign = '000000000000000000000002'
 const id = (value: number) => value.toString(16).padStart(24, '0')
-type Row = { date: Date; wornAt: Date | null; wearTemperatureC: number | null; manualWearTemperatureC?: number | null; wearFeeling: 'cold' | 'comfortable' | 'hot' | null; owner: string; outfit: { id: string; items: { wardrobeItemId: string }[] } | null }
+type Row = { date: Date; wornAt: Date | null; wearTemperatureC: number | null; wearForecastTemperatureC?: number | null; manualWearTemperatureC?: number | null; wearFeeling: 'cold' | 'comfortable' | 'hot' | null; owner: string; outfit: { id: string; items: { wardrobeItemId: string }[] } | null }
 function record(day: string, outfit: number, itemIds: string[], temperature: number | null, feeling: Row['wearFeeling'] = null): Row {
   return { date: new Date(day), wornAt: new Date(`${day}T10:00:00Z`), owner, wearTemperatureC: temperature, wearFeeling: feeling, outfit: { id: id(outfit), items: itemIds.map(wardrobeItemId => ({ wardrobeItemId })) } }
 }
@@ -50,13 +50,30 @@ test('순서가 다른 같은 조합을 묶고 실제 평균·체감만 남기�
   assert.equal(page.totalCount, 1)
   assert.equal(page.items[0].id, id(10))
   assert.deepEqual(page.items[0].records, [
-    { date: '2026-11-10', outfitId: id(10), wornAt: '2026-11-10T10:00:00.000Z', temperatureC: 16.2, automaticTemperatureC: 16.2, manualTemperatureC: null, feeling: 'comfortable' },
-    { date: '2026-11-09', outfitId: id(11), wornAt: '2026-11-09T10:00:00.000Z', temperatureC: 12, automaticTemperatureC: 12, manualTemperatureC: null, feeling: 'cold' },
+    { date: '2026-11-10', outfitId: id(10), wornAt: '2026-11-10T10:00:00.000Z', temperatureC: 16.2, automaticTemperatureC: 16.2, forecastTemperatureC: null, manualTemperatureC: null, feeling: 'comfortable' },
+    { date: '2026-11-09', outfitId: id(11), wornAt: '2026-11-09T10:00:00.000Z', temperatureC: 12, automaticTemperatureC: 12, forecastTemperatureC: null, manualTemperatureC: null, feeling: 'cold' },
   ])
   assert.deepEqual(calls.records[0].where.wornAt, { isSet: true, not: null })
   assert.equal(calls.records[0].where.outfit.is.userId, owner)
   assert.equal(calls.records[0].where.date.lte.toISOString(), '2026-11-13T00:00:00.000Z')
   assert.deepEqual(calls.outfits[0].where, { userId: owner, id: { in: [id(10)] } })
+})
+
+test('오늘의 예보도 기온 범위에 포함하고 실제 평균이나 직접 입력이 들어오면 우선한다', async t => {
+  const today = { ...record('2026-11-13', 10, ['top'], null), wearForecastTemperatureC: 12.5, manualWearTemperatureC: null as number | null }
+  fixture(t, [today])
+  const range = { minTemperatureC: 10, maxTemperatureC: 15 }
+  const forecast = (await getTemperatureWearHistory(owner, range)).items[0]?.records[0]
+  assert.equal(forecast?.temperatureC, 12.5)
+  assert.equal(forecast?.forecastTemperatureC, 12.5)
+  assert.equal(forecast?.automaticTemperatureC, null)
+  today.wearTemperatureC = 16
+  assert.equal((await getTemperatureWearHistory(owner, range)).totalCount, 0)
+  assert.equal((await getTemperatureWearHistory(owner)).items[0]?.records[0]?.temperatureC, 16)
+  today.manualWearTemperatureC = 11
+  assert.equal((await getTemperatureWearHistory(owner, range)).items[0]?.records[0]?.temperatureC, 11)
+  today.manualWearTemperatureC = null
+  assert.equal((await getTemperatureWearHistory(owner)).items[0]?.records[0]?.temperatureC, 16)
 })
 
 test('온도별 기록의 범위에는 직접 입력한 기온을 우선하고 실제 평균도 반환한다', async t => {

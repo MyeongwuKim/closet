@@ -24,10 +24,11 @@ export function WearHistoryRecords({ records }: { records: TemperatureWearRecord
     const saved = entries.find((entry) => entry.date === date && entry.outfitId === outfitId && entry.wornAt === wornAt)
     if (!saved) throw new Error('착용 기록을 다시 확인해주세요.')
     const automaticTemperatureC = saved.wearTemperatureC ?? null
+    const forecastTemperatureC = saved.wearForecastTemperatureC ?? null
     const manual = saved.manualWearTemperatureC ?? null
     setUpdatedRecords((previous) => ({ ...previous, [wornAt + date]: {
-      ...editingRecord, feeling: saved.wearFeeling ?? null, automaticTemperatureC,
-      manualTemperatureC: manual, temperatureC: manual ?? automaticTemperatureC,
+      ...editingRecord, feeling: saved.wearFeeling ?? null, automaticTemperatureC, forecastTemperatureC,
+      manualTemperatureC: manual, temperatureC: manual ?? automaticTemperatureC ?? forecastTemperatureC,
     } }))
   }
 
@@ -41,7 +42,7 @@ export function WearHistoryRecords({ records }: { records: TemperatureWearRecord
       <ol className="mt-3 divide-y divide-line">
         {displayedRecords.map(record => <li key={record.date} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
           <time dateTime={record.date} className="text-muted">{formatTemperatureWearDate(record.date)}</time>
-          <span className="ml-auto text-right"><strong className="block font-semibold">{formatWearRecordTemperature(record.temperatureC)}</strong><span className="mt-0.5 block text-xs text-muted">{record.feeling ? wearFeelingLabels[record.feeling] : '체감 미기록'}</span></span>
+          <span className="ml-auto text-right"><strong className="block font-semibold">{formatWearRecordTemperature(record)}</strong><span className="mt-0.5 block text-xs text-muted">{record.feeling ? wearFeelingLabels[record.feeling] : '체감 미기록'}</span></span>
           {record.outfitId && record.wornAt && <button type="button" onClick={() => setEditingRecord(record)}
             aria-label={`${formatTemperatureWearDate(record.date)} 착용 기록 수정`}
             className="min-h-11 shrink-0 rounded-lg px-2 text-xs font-semibold text-accent hover:bg-sage disabled:opacity-50">수정</button>}
@@ -50,6 +51,7 @@ export function WearHistoryRecords({ records }: { records: TemperatureWearRecord
     </section>
       {editingRecord && <PlannerWearFeelingDialog isEditing isSaving={recordMutation.isPending}
         initialFeeling={editingRecord.feeling} automaticTemperatureC={editingRecord.automaticTemperatureC}
+        forecastTemperatureC={editingRecord.forecastTemperatureC}
         manualTemperatureC={editingRecord.manualTemperatureC} onSave={saveRecord} onClose={() => setEditingRecord(null)} />}
   </>)
 }

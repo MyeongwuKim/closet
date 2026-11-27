@@ -7,6 +7,7 @@ import { authService } from '../auth/auth.service.js'
 import { outfitRepository, type outfitInclude } from '../outfit/outfit.repository.js'
 import { outfitService } from '../outfit/outfit.service.js'
 import { wardrobeRepository } from '../wardrobe/wardrobe.repository.js'
+import { weatherService } from '../weather/weather.service.js'
 import { plannerRepository } from './planner.repository.js'
 import { plannerService, type SetPlannerEntryInput, type SetDirectPlannerEntryInput } from './planner.service.js'
 import { wearWeatherRepository } from './wear-weather.repository.js'
@@ -80,6 +81,50 @@ test('오늘의 내 코디만 확인하며 취소도 저장소로 전달한다',
   assert.deepEqual(saved.map((args) => args.slice(0, 4)), [[plannerWeekId, date, outfitId, true], [plannerWeekId, date, outfitId, false]])
 })
 
+test('오늘 착용을 확인하면 해당 지역의 예보 평균을 따로 저장하고 응답으로 돌려준다', async (t) => {
+  freezeToday(t)
+  t.mock.method(plannerRepository, 'findWeek', async () => week())
+  const saved = week()
+  Object.assign(saved.entries[0], { id: 'entry', wornAt: confirmedAt, weatherLatitude: 37.56, weatherLongitude: 126.98 })
+  t.mock.method(plannerRepository, 'setEntryWorn', async () => saved)
+  const forecast = t.mock.method(weatherService, 'getForecast', async () => ({ temperatureC: 9, meanTemperatureC: 12.5 }))
+  const write = t.mock.fn(async () => ({ count: 1 }))
+  const originalWrite = prisma.plannerEntry.updateMany
+  prisma.plannerEntry.updateMany = write as unknown as typeof originalWrite
+  t.after(() => { prisma.plannerEntry.updateMany = originalWrite })
+
+  const updated = await plannerService.setEntryWorn(userId, { weekStartsOn, date: '2026-11-04', outfitId, worn: true })
+
+  assert.deepEqual(forecast.mock.calls[0].arguments, [{ latitude: 37.56, longitude: 126.98, date: '2026-11-04' }])
+  assert.equal(updated.entries[0].wearForecastTemperatureC, 12.5)
+  assert.deepEqual(write.mock.calls[0].arguments, [{
+    where: {
+      id: 'entry', outfitId, date, wornAt: confirmedAt, weatherLatitude: 37.56, weatherLongitude: 126.98,
+      AND: [
+        { OR: [{ wearTemperatureC: null }, { wearTemperatureC: { isSet: false } }] },
+        { OR: [{ wearForecastTemperatureC: null }, { wearForecastTemperatureC: { isSet: false } }] },
+      ],
+    },
+    data: { wearForecastTemperatureC: 12.5 },
+  }])
+})
+
+test('날씨 제공자 오류가 나도 확인된 착용은 반환한다', async (t) => {
+  freezeToday(t)
+  t.mock.method(plannerRepository, 'findWeek', async () => week())
+  const saved = week()
+  Object.assign(saved.entries[0], { wornAt: confirmedAt, weatherLatitude: 37.56, weatherLongitude: 126.98 })
+  t.mock.method(plannerRepository, 'setEntryWorn', async () => saved)
+  t.mock.method(weatherService, 'getForecast', async () => { throw new Error('날씨 조회 실패') })
+  const warn = t.mock.method(console, 'warn', () => {})
+
+  const updated = await plannerService.setEntryWorn(userId, { weekStartsOn, date: '2026-11-04', outfitId, worn: true })
+
+  assert.equal(updated.entries[0].wornAt, confirmedAt)
+  assert.equal(updated.entries[0].wearForecastTemperatureC ?? null, null)
+  assert.equal(warn.mock.callCount(), 1)
+})
+
 test('한국 자정 전의 미래 날짜는 확인할 수 없고 자정 후에는 가능하다', async (t) => {
   freezeToday(t)
   const current = week()
@@ -129,7 +174,7 @@ test('최초 확인만 시각을 저장하고 중복 확인은 원래 시각을 
 test('착용 취소는 기온 결과·재시도도 초기화하고 중복 취소는 다시 쓰지 않는다', async (t) => {
   const fixture = repositoryFixture(t)
   await plannerRepository.setEntryWorn(plannerWeekId, date, outfitId, false, new Date())
-  assert.deepEqual(fixture.writes[0].args.data, { wornAt: null, wearFeeling: null, wearTemperatureC: null, manualWearTemperatureC: null, wearWeatherRecordedAt: null, wearWeatherRetryAt: null })
+  assert.deepEqual(fixture.writes[0].args.data, { wornAt: null, wearFeeling: null, wearTemperatureC: null, wearForecastTemperatureC: null, manualWearTemperatureC: null, wearWeatherRecordedAt: null, wearWeatherRetryAt: null })
   fixture.entries[0].wornAt = null
   await plannerRepository.setEntryWorn(plannerWeekId, date, outfitId, false, new Date())
   assert.equal(fixture.writes.length, 1)

@@ -740,6 +740,7 @@ export const typeDefs = `#graphql
     wornAt: String
     wearFeeling: WearFeeling
     wearTemperatureC: Float
+    wearForecastTemperatureC: Float
     manualWearTemperatureC: Float
     outfit: Outfit
     createdAt: String!
@@ -766,6 +767,7 @@ export const typeDefs = `#graphql
     outfitId: ID!
     wornAt: String!
     automaticTemperatureC: Float
+    forecastTemperatureC: Float
     manualTemperatureC: Float
   }
 

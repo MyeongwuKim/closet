@@ -36,9 +36,9 @@ API 진입점은 [planner.service.ts](../../apps/api/src/features/planner/planne
 
 코디북의 착용 이력·순위는 현재 옷 ID 집합과 정확히 같은 날짜 복사본만 연결한다. ABC를 ABD로 수정하면 ABC 착용을 ABD 횟수로 표시하지 않으며 이름·사진만 변경하면 같은 조합의 이력은 유지한다. 옷별 횟수·최근 착용·체감 추천은 날짜 복사본의 실제 구성과 확인 기록을 읽는다.
 
-실제 착용을 확인한 날짜에는 `wearFeeling`으로 체감을 남긴다. 값은 `cold`(추웠어요)·`comfortable`(적당했어요)·`hot`(더웠어요)이며 null·누락은 미기록이다. 하루 카드와 날짜 상세에서 ‘입었어요’를 저장하면 첫 단계에서 체감을, 둘째 단계에서 선택 기온을 묻는다. 두 번째 단계의 ‘저장’에서 함께 기록하며 전체를 건너뛰면 착용만 남긴다. 날짜 상세에서는 체감을, 코디북의 온도별 착용 기록에서는 날마다 체감·직접 입력 기온을 수정할 수 있다.
+실제 착용을 확인한 날짜에는 `wearFeeling`으로 체감을 남긴다. 값은 `cold`(추웠어요)·`comfortable`(적당했어요)·`hot`(더웠어요)이며 null·누락은 미기록이다. 하루 카드와 날짜 상세에서 ‘입었어요’를 저장하면 첫 단계에서 체감을, 둘째 단계에서 선택 기온을 묻는다. 두 번째 단계의 ‘저장’에서 체감과 직접 입력값을 함께 기록하며, 전체를 건너뛰어도 확인한 착용과 자동 기온은 유지한다. 날짜 상세에서는 체감을, 코디북의 온도별 착용 기록에서는 날마다 체감·직접 입력 기온을 수정할 수 있다.
 
-`setPlannerEntryWearFeeling`은 해당 주·날짜·코디 ID와 요청 시점의 `wornAt`을 검증해 지금도 같은 착용 완료 상태일 때만 저장한다. `manualTemperatureC`를 생략하면 직접 입력값을 유지하며 null이면 지운다. 직접 입력 기온은 온도별 착용 기록의 표시·필터에서 우선하고, AI 날씨 추천은 실제 일평균을 사용한다. 착용을 취소하면 체감과 두 기온을 초기화한다.
+`setPlannerEntryWearFeeling`은 해당 주·날짜·코디 ID와 요청 시점의 `wornAt`을 검증해 지금도 같은 착용 완료 상태일 때만 저장한다. `manualTemperatureC`를 생략하면 직접 입력값을 유지하며 null이면 지운다. 온도별 착용 기록의 표시·필터에는 직접 입력, 실제 일평균, 예보 일평균 순으로 적용한다. AI 날씨 추천은 실제 일평균을 사용한다. 착용을 취소하면 체감과 착용 기온을 초기화한다.
 
 실제 일평균 기온이 기록된 지난 착용의 체감은 이후 비슷한 예보 일평균의 날씨 코디 추천에 반영한다. `WeatherSnapshot.meanTemperatureC`는 현재 순간 기온과 별도로 보존한 예보 일평균이며, 기록이 없는 기온은 추정하지 않는다. 개인 보정의 범위·순위·캐시 계약은 [AI 기능](ai.md#개인-체감과-날씨-추천)에 있다.
 
@@ -76,13 +76,14 @@ API 진입점은 [planner.service.ts](../../apps/api/src/features/planner/planne
 | --- | --- |
 | `temperatureC` | 플래너 배정 시 전달받아 저장한 기온 |
 | `wearTemperatureC` | 지난 착용일의 하루 평균 기온 |
+| `wearForecastTemperatureC` | 오늘 실제 착용을 확인할 때 가져온 해당 지역의 하루 평균 예보 |
 | `manualWearTemperatureC` | 직접 입력한 해당 날짜의 착용 기온 |
 
 위치 설정은 웹의 [notificationWeatherPreferences.ts](../../apps/web/src/features/settings/utils/notificationWeatherPreferences.ts)에 로컬 저장된다. [useWearWeatherLocationSync.ts](../../apps/web/src/features/plan/hooks/useWearWeatherLocationSync.ts)는 허용된 위치를 진입·복귀 때 서버로 동기화하며 새 권한 팝업을 요청하지 않는다.
 
 서버는 좌표를 지역 단위로 반올림해 계정과 오늘 이후 일정에 반영한다. 신규 배정·날짜 이동도 오늘 이후에는 저장된 현재 지역을 연결하며, 과거 날짜의 기존 지역은 유지하고 새 과거 일정에 현재 위치를 소급 적용하지 않는다. 사용 해제·권한 거절은 해당 지역을 비우고, 지난 일정의 지역·기온은 새 위치로 덮어쓰지 않는다.
 
-[wear-weather.service.ts](../../apps/api/src/features/planner/wear-weather.service.ts)의 worker는 실제 착용을 확인한 지난 일정 중 코디·지역이 있고 아직 기온이 없는 기록만 처리한다. [wear-weather.repository.ts](../../apps/api/src/features/planner/wear-weather.repository.ts)는 중복 처리와 조회 중 삭제·재배정·지역 변경·확인 취소를 검사한다. 조회 때의 확인 시각이 바뀌어도 이전 결과는 저장하지 않는다. 제공자 오류 시 현재 날씨·예보를 대신 저장하지 않고 재시도한다.
+[wear-weather.service.ts](../../apps/api/src/features/planner/wear-weather.service.ts)는 오늘 착용을 확인하거나 수정할 때 연결된 지역에서 그날의 `meanTemperatureC`를 가져온다. 예보를 저장하면 확인 응답과 착용 기록에서 바로 사용하고, 지역이나 예보가 없어도 착용 확인은 유지한다. worker는 실제 착용을 확인한 지난 일정 중 코디·지역이 있고 실제 평균이 없는 기록을 처리한다. [wear-weather.repository.ts](../../apps/api/src/features/planner/wear-weather.repository.ts)는 중복 처리와 조회 중 삭제·재배정·지역 변경·확인 취소를 검사한다. 조회 때의 확인 시각이 바뀌면 이전 결과는 저장하지 않는다. 과거 실제 평균의 제공자 오류는 재시도한다.
 
 ## 관련 검사
 

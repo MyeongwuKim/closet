@@ -65,6 +65,7 @@ export const usePlanStore = create<PlanState>((set) => ({
               wornAt: null,
               wearFeeling: null,
               wearTemperatureC: null,
+              wearForecastTemperatureC: null,
               manualWearTemperatureC: null,
               plannerOnly: undefined,
               previewImageAssetId: undefined,

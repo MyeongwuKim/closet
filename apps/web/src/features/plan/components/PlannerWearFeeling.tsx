@@ -14,6 +14,7 @@ export function PlannerWearFeelingDialog({
   initialFeeling = null,
   manualTemperatureC = null,
   automaticTemperatureC = null,
+  forecastTemperatureC = null,
   isEditing = false,
   onSave,
   onClose,
@@ -22,6 +23,7 @@ export function PlannerWearFeelingDialog({
   initialFeeling?: WearFeeling | null
   manualTemperatureC?: number | null
   automaticTemperatureC?: number | null
+  forecastTemperatureC?: number | null
   isEditing?: boolean
   onSave: (feeling: WearFeeling | null, manualTemperatureC: number | null) => Promise<void>
   onClose: () => void
@@ -34,6 +36,7 @@ export function PlannerWearFeelingDialog({
   const [feeling, setFeeling] = useState(initialFeeling)
   const [temperatureInput, setTemperatureInput] = useState(String(manualTemperatureC ?? ''))
   const [error, setError] = useState<string | null>(null)
+  const defaultTemperatureC = automaticTemperatureC ?? forecastTemperatureC
 
   useLayoutEffect(() => {
     const dialog = dialogRef.current
@@ -90,13 +93,13 @@ export function PlannerWearFeelingDialog({
           <label htmlFor={inputId} className="mt-5 block text-sm font-semibold">착용 기온 (선택)</label>
           <div className="mt-2 flex items-center rounded-xl border border-line bg-canvas focus-within:border-accent">
             <input id={inputId} type="text" inputMode="decimal" value={temperatureInput} disabled={isSaving}
-              onChange={(event) => setTemperatureInput(event.target.value)} placeholder={automaticTemperatureC == null ? '예: 12.5' : String(automaticTemperatureC)}
+              onChange={(event) => setTemperatureInput(event.target.value)} placeholder={defaultTemperatureC === null ? undefined : String(defaultTemperatureC)}
               className="min-h-11 min-w-0 flex-1 bg-transparent px-3 text-base outline-none" />
             <span className="pr-3 text-sm text-muted" aria-hidden="true">℃</span>
           </div>
-          <p className="mt-2 text-xs leading-5 text-muted">{automaticTemperatureC == null
+          <p className="mt-2 text-xs leading-5 text-muted">{defaultTemperatureC === null
             ? '비워두면 날씨 정보가 있는 착용일의 평균 기온을 확인한 뒤 자동으로 채워요.'
-            : `비워두면 자동으로 기록한 ${automaticTemperatureC}℃를 사용해요.`}</p>
+            : `비워두면 착용일의 ${automaticTemperatureC === null ? '예보 평균' : '실제 평균'} ${defaultTemperatureC}℃를 사용해요.`}</p>
           {error && <p role="alert" className="mt-2 text-sm text-danger">{error}</p>}
           <div className="mt-5 grid grid-cols-[0.8fr_1.2fr] gap-2 text-sm font-semibold">
             <button type="button" disabled={isSaving} onClick={() => { setError(null); setStep(1) }} className="min-h-11 rounded-xl border border-line disabled:opacity-50">이전</button>

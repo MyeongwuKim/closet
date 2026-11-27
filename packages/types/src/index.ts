@@ -394,6 +394,7 @@ export interface TemperatureWearRecord {
   wornAt: string
   temperatureC: number | null
   automaticTemperatureC: number | null
+  forecastTemperatureC: number | null
   manualTemperatureC: number | null
   feeling: WearFeeling | null
 }

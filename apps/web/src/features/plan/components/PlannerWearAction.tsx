@@ -89,7 +89,8 @@ export function PlannerWearAction({ entry, showFeelingEditor = false }: PlannerW
         })
       }} />}
       {showPrompt && <PlannerWearFeelingDialog isSaving={isSaving} initialFeeling={entry.wearFeeling}
-        automaticTemperatureC={entry.wearTemperatureC} manualTemperatureC={entry.manualWearTemperatureC}
+        automaticTemperatureC={entry.wearTemperatureC} forecastTemperatureC={entry.wearForecastTemperatureC}
+        manualTemperatureC={entry.manualWearTemperatureC}
         onSave={saveFeeling} onClose={() => setPrompt(null)} />}
     </div>
   )

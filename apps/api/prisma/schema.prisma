@@ -541,10 +541,11 @@ model PlannerEntry {
   wornAt         DateTime?
   // 실제 착용을 확인한 코디에 남긴 체감. 확인 취소·코디 교체 시 함께 비운다.
   wearFeeling    WearFeeling?
-  // 예보와 구분한 착용일의 평균 기온. 날짜가 지난 뒤 저장하며 지역은 배정 시점에 연결한다.
+  // 지역은 배정 시점에 연결한다. 오늘의 예보 평균과 날짜가 지난 뒤 가져온 실제 평균을 따로 저장한다.
   weatherLatitude       Float?
   weatherLongitude      Float?
   wearTemperatureC      Float?
+  wearForecastTemperatureC Float?
   manualWearTemperatureC Float?
   wearWeatherRecordedAt DateTime?
   wearWeatherRetryAt    DateTime?

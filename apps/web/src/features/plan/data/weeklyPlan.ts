@@ -19,6 +19,7 @@ export interface PlanEntry {
   /** 착용 완료한 코디에 남긴 온도 체감. 착용을 취소하면 함께 비운다. */
   wearFeeling?: WearFeeling | null
   wearTemperatureC?: number | null
+  wearForecastTemperatureC?: number | null
   manualWearTemperatureC?: number | null
   outfitStyle?: string
   plannerOnly?: boolean
@@ -108,6 +109,7 @@ export function placePlanOutfitInDate(
     wornAt: dateEntry.outfitId === outfitEntry.outfitId ? dateEntry.wornAt : null,
     wearFeeling: dateEntry.outfitId === outfitEntry.outfitId && dateEntry.wornAt ? dateEntry.wearFeeling : null,
     wearTemperatureC: dateEntry.outfitId === outfitEntry.outfitId && dateEntry.wornAt ? dateEntry.wearTemperatureC : null,
+    wearForecastTemperatureC: dateEntry.outfitId === outfitEntry.outfitId && dateEntry.wornAt ? dateEntry.wearForecastTemperatureC : null,
     manualWearTemperatureC: dateEntry.outfitId === outfitEntry.outfitId && dateEntry.wornAt ? dateEntry.manualWearTemperatureC : null,
   }
 }

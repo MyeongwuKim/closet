@@ -46,13 +46,15 @@ export async function getTemperatureWearHistory(userId: string, input: Temperatu
     const key = outfitCompositionKey(entry.outfit.items.map(item => item.wardrobeItemId))
     if (!key || (composition && key !== composition)) continue
     const automaticTemperatureC = Number.isFinite(entry.wearTemperatureC) ? entry.wearTemperatureC : null
+    const forecastTemperatureC = Number.isFinite(entry.wearForecastTemperatureC) ? entry.wearForecastTemperatureC : null
     const manualTemperatureC = Number.isFinite(entry.manualWearTemperatureC) ? entry.manualWearTemperatureC : null
     const record: TemperatureWearRecord = {
       date: toDateOnly(entry.date),
       outfitId: entry.outfit.id,
       wornAt: entry.wornAt.toISOString(),
-      temperatureC: manualTemperatureC ?? automaticTemperatureC,
+      temperatureC: manualTemperatureC ?? automaticTemperatureC ?? forecastTemperatureC,
       automaticTemperatureC,
+      forecastTemperatureC,
       manualTemperatureC,
       feeling: entry.wearFeeling ?? null,
     }

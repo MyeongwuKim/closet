@@ -25,7 +25,7 @@ export function useTemperatureWearHistory(input: Omit<TemperatureWearHistoryInpu
           temperatureWearHistory(input: $input) {
             totalCount hasNextPage nextCursor
             items {
-              id matchingDate records { date outfitId wornAt temperatureC feeling automaticTemperatureC manualTemperatureC }
+              id matchingDate records { date outfitId wornAt temperatureC feeling automaticTemperatureC forecastTemperatureC manualTemperatureC }
               outfit {
                 id name style seasons createdAt
                 items { wardrobeItemId layerOrder slot isBaseLayer wardrobeItem { ${wardrobeItemFields} } }

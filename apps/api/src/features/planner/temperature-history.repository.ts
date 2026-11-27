@@ -24,7 +24,7 @@ export const temperatureHistoryRepository = {
         outfit: { is: outfitFilter },
       },
       select: {
-        date: true, wornAt: true, wearTemperatureC: true, manualWearTemperatureC: true, wearFeeling: true,
+        date: true, wornAt: true, wearTemperatureC: true, wearForecastTemperatureC: true, manualWearTemperatureC: true, wearFeeling: true,
         outfit: { select: { id: true, items: { select: { wardrobeItemId: true } } } },
       },
       orderBy: [{ date: 'desc' }, { id: 'desc' }],

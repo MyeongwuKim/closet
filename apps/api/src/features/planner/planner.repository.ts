@@ -62,6 +62,7 @@ const clearedWearData = {
   wornAt: null,
   wearFeeling: null,
   wearTemperatureC: null,
+  wearForecastTemperatureC: null,
   manualWearTemperatureC: null,
   wearWeatherRecordedAt: null,
   wearWeatherRetryAt: null,
