@@ -257,21 +257,29 @@ export function createLookbookProportionReferenceSvg(reference: ReferenceName) {
   return frame(`${silhouette}${collar}<g fill="none" stroke="${stroke}" stroke-width="3"><path d="M380 92V${hemY}M${leftBody} ${hemY - 10}H${rightBody}"/>${pockets}</g>${buttons}`)
 }
 
-/** 합성 PNG와 정확한 이미지 편집 endpoint만 허용하며 HTTP 오류도 자동 재요청하지 않는다. */
+const pngDataUrlPrefix = 'data:image/png;base64,'
+type SyntheticImageEditRequest = { prompt: string; images: { image_url: string }[] }
+
+/** 합성 PNG를 첨부한 이미지 편집 요청만 허용하며 HTTP 오류를 자동 재요청하지 않는다. */
 export function createLookbookProportionFetch(
   originalFetch: typeof globalThis.fetch,
-  beforeImageRequest: (form: FormData, requestNumber: number) => Promise<void>,
+  beforeImageRequest: (request: SyntheticImageEditRequest, requestNumber: number) => Promise<void>,
 ) {
   let requests = 0
   const fetch: typeof globalThis.fetch = async (input, init) => {
     const url = input instanceof Request ? input.url : String(input)
-    if (url.startsWith('data:image/png;base64,')) return originalFetch(input, init)
-    if (url !== 'https://api.openai.com/v1/images/edits' || init?.method !== 'POST' || !(init.body instanceof FormData)) {
-      throw new Error('합성 PNG 읽기와 OpenAI 이미지 편집 요청 외의 네트워크 접근은 허용하지 않습니다.')
+    if (url !== 'https://api.openai.com/v1/images/edits' || init?.method !== 'POST'
+      || typeof init.body !== 'string' || new Headers(init.headers).get('content-type') !== 'application/json') {
+      throw new Error('합성 이미지 편집 요청 외의 네트워크 접근은 허용하지 않습니다.')
+    }
+    const request = JSON.parse(init.body) as SyntheticImageEditRequest | null
+    if (typeof request?.prompt !== 'string' || !Array.isArray(request.images) || !request.images.length
+      || !request.images.every((image) => typeof image?.image_url === 'string' && image.image_url.startsWith(pngDataUrlPrefix))) {
+      throw new Error('이미지 입력에는 합성 PNG만 사용할 수 있습니다.')
     }
     if (requests >= MAX_IMAGE_REQUESTS) throw new Error('유료 이미지 요청 상한 3회에 도달했습니다.')
     requests += 1
-    await beforeImageRequest(init.body, requests)
+    await beforeImageRequest(request, requests)
     const response = await originalFetch(input, { ...init, redirect: 'error' })
     // requestAiJson이 429·5xx를 보고 재전송하지 않도록 이 평가에서는 HTTP 오류를 직접 던진다.
     if (!response.ok) throw new Error(`이미지 요청 실패(HTTP ${response.status}). 자동 재시도하지 않았습니다.`)
@@ -304,7 +312,7 @@ function makeSyntheticItem(reference: ReferenceName, png: Buffer): WardrobeImage
     displayImageAsset: {
       id: `fixture-${reference}`, userId: SYNTHETIC_USER_ID, createdAt: at, updatedAt: at, cloudflareImageId: `fixture-${reference}`,
       kind: 'wardrobeCutout', uploadStatus: 'ready', retention: 'permanent', expiresAt: null,
-      deliveryUrl: `data:image/png;base64,${png.toString('base64')}`, deliveryVariant: null, originalFilename: null, storageFilename: null,
+      deliveryUrl: `${pngDataUrlPrefix}${png.toString('base64')}`, deliveryVariant: null, originalFilename: null, storageFilename: null,
       mimeType: 'image/png', width: 760, height: 760, metadata: null, aiPreviewJobId: null,
     },
     originalImageAsset: null,
@@ -370,18 +378,17 @@ async function main() {
     if (userId !== SYNTHETIC_USER_ID || !currentCase) throw new Error('합성 평가 프로필이 없습니다.')
     return { styleProfile: { ...currentCase.body, preferredFit: 'regular' } } as ViewerRecord
   } })
-  const network = createLookbookProportionFetch(originalFetch, async (form, requests) => {
+  const network = createLookbookProportionFetch(originalFetch, async (request, requests) => {
     if (!currentCase || !currentResult) throw new Error('합성 평가 사례가 없습니다.')
     report.requests = requests
     currentResult.promptFile = `${currentCase.name}.prompt.txt`
-    await writeFile(resolve(output, currentResult.promptFile), String(form.get('prompt')))
-    const images = form.getAll('image[]')
-    currentResult.inputImageCount = images.length
-    const layout = images.find((image) => typeof image !== 'string' && image.name === 'measured-layer-layout.png')
-    if (layout && typeof layout !== 'string') {
+    await writeFile(resolve(output, currentResult.promptFile), request.prompt)
+    currentResult.inputImageCount = request.images.length
+    const layout = request.images[currentItems.length]?.image_url
+    if (layout) {
       // 실제 요청에 붙은 보조 도식을 저장해 생성 결과와 동일한 입력을 시각 검토한다.
       currentResult.layoutFile = `${currentCase.name}.layer-layout.png`
-      await writeFile(resolve(output, currentResult.layoutFile), Buffer.from(await layout.arrayBuffer()))
+      await writeFile(resolve(output, currentResult.layoutFile), Buffer.from(layout.slice(pngDataUrlPrefix.length), 'base64'))
     }
     await saveReport()
   })

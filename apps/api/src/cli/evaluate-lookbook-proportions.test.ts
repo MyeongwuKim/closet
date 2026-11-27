@@ -131,16 +131,20 @@ test('코트용 이너 도안도 55·70·85cm 총장에 따라 밑단이 달라�
   assert.equal(normalized[1], normalized[2])
 })
 
+const syntheticImageEdit = (imageUrl: string): RequestInit => ({
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ prompt: '합성 코디', images: [{ image_url: imageUrl }] }),
+})
+
 test('합성 PNG 외의 외부 주소·다른 API·잘못된 요청 본문은 원본 fetch에 전달하지 않는다', async () => {
   const calls: string[] = []
   const network = createLookbookProportionFetch(async (url) => { calls.push(String(url)); return Response.json({}) }, async () => {})
-  for (const url of ['https://imagedelivery.net/private', 'https://api.openai.com/v1/responses', 'https://api.openai.com.evil.test/v1/images/edits']) {
-    await assert.rejects(network.fetch(url, { method: 'POST', body: new FormData() }), /네트워크 접근/)
+  for (const url of ['https://imagedelivery.net/private', 'https://api.openai.com/v1/responses', 'https://api.openai.com.evil.test/v1/images/edits', 'data:image/png;base64,aGVsbG8=']) {
+    await assert.rejects(network.fetch(url, syntheticImageEdit('data:image/png;base64,aGVsbG8=')), /네트워크 접근/)
   }
   await assert.rejects(network.fetch('https://api.openai.com/v1/images/edits', { method: 'POST', body: '{}' }), /네트워크 접근/)
+  await assert.rejects(network.fetch('https://api.openai.com/v1/images/edits', syntheticImageEdit('https://imagedelivery.net/private')), /합성 PNG/)
   assert.deepEqual(calls, [])
-  await network.fetch('data:image/png;base64,aGVsbG8=')
-  assert.equal(calls.length, 1)
   assert.equal(network.requests, 0)
 })
 
@@ -152,7 +156,7 @@ test('이미지 호출은 3회 상한이며 다음 호출을 시작하지 않고
     assert.equal(options?.redirect, 'error')
     return Response.json({}, { status: calls === 1 ? 503 : 200 })
   }, async (_form, requestNumber) => { recorded.push(requestNumber) })
-  const options = { method: 'POST', body: new FormData() }
+  const options = syntheticImageEdit('data:image/png;base64,aGVsbG8=')
   await assert.rejects(network.fetch('https://api.openai.com/v1/images/edits', options), /HTTP 503.*자동 재시도/)
   assert.equal(calls, 1)
   await network.fetch('https://api.openai.com/v1/images/edits', options)

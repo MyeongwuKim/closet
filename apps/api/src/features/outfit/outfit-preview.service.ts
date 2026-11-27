@@ -5,7 +5,8 @@ import { requestAiJson } from '../../lib/ai/ai-http.js'
  * 옷장 아이템과 사용자 체형 정보를 바탕으로 착장형 룩북 이미지를 생성한다.
  *
  * 요청 흐름:
- * 원본 옷과 실측 도식을 이미지 편집 API에 전달한다. 같은 조합의 후속 생성에서는 이전 컷을 참고해 각도와 자세를 바꾸고,
+ * 보유 옷의 사진 URL과 서버에서 그린 실측 도식을 이미지 편집 API에 전달한다. 같은 조합의 후속 생성에서는
+ * 이전 컷을 참고해 각도와 자세를 바꾸고,
  * 이너를 가리는 방향으로 겉옷의 여밈을 바꾸지 않는다. 저장 가능한 이미지와 사용 모델을 반환한다.
  */
 import type {
@@ -92,12 +93,7 @@ const previewStyleGuides: Record<OutfitStyle, string> = {
     'Keep athletic and casual layers untucked and preserve an easy, functional silhouette.',
 }
 
-const MAX_REFERENCE_IMAGE_BYTES = 12 * 1024 * 1024
-const SUPPORTED_REFERENCE_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-])
+const LOOKBOOK_IMAGE_TIMEOUT_MS = 240_000
 
 const ribbedTrimPreservationGuide = [
   'For each reference garment, ribbedCuffs describes separate ribbed bands at the sleeve ends, ribbedHem at the body hem or trouser hems, and ribbedNeckline around the neck opening. Read each region independently.',
@@ -403,80 +399,23 @@ Frame the complete outfit from the neck to the feet, keeping the model's face en
 Final hem check: show the untucked inner hem through the existing open front wherever it is naturally visible. Respect natural coverage by other selected layers. No part of the inner hem may disappear into the trouser waistband. Do not lift it to reveal a trouser button or fly. Preserve the relative garment lengths while allowing the natural ribbed-knit drape described above.`
 }
 
-class ReferenceImageHttpError extends ServiceError {
-  constructor(index: number, readonly status: number) {
-    super(`${index + 1}번째 옷 이미지를 불러오지 못했어요.`, 'OUTFIT_PREVIEW_IMAGE_FAILED')
-  }
+/** 저장된 HTTPS 사진 URL을 전달한다. 로컬 합성 평가의 PNG는 데이터 URL을 사용한다. */
+function getReferenceImageUrl(value: string | null | undefined) {
+  if (value?.startsWith('data:image/png;base64,')) return value
+  if (!value || !URL.canParse(value)) return null
+  const url = new URL(value)
+  return url.protocol === 'https:' && !url.username && !url.password ? url.href : null
 }
 
-/** 응답 본문까지 같은 시간 제한을 적용하고 옷 사진 형식과 크기를 검사한다. */
-async function readReferenceImage(url: string, index: number, signal: AbortSignal) {
-  const response = await fetch(url, { signal })
-  if (!response.ok) {
-    void response.body?.cancel().catch(() => undefined)
-    throw new ReferenceImageHttpError(index, response.status)
-  }
-
-  const mimeType = response.headers.get('content-type')?.split(';')[0] ?? ''
-  // Content-Length가 없어도 읽는 도중 크기를 제한한다.
-  const reader = response.body?.getReader()
-  if (!reader) throw new ServiceError('옷 이미지가 비어 있어요.', 'OUTFIT_PREVIEW_IMAGE_FAILED')
-  const chunks: Uint8Array[] = []
-  let total = 0
+/** 이전 컷은 선택 참조이므로 본문 없이 접근 여부를 확인해 삭제된 이미지는 생략한다. */
+async function getPreviousReferenceUrl(value: string | null | undefined) {
+  const url = getReferenceImageUrl(value)
+  if (!url?.startsWith('https://')) return null
   try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      total += value.byteLength
-      if (total > MAX_REFERENCE_IMAGE_BYTES) {
-        await reader.cancel()
-        throw new ServiceError('옷 이미지가 너무 큽니다.', 'OUTFIT_PREVIEW_IMAGE_FAILED')
-      }
-      chunks.push(value)
-    }
-  } finally {
-    reader.releaseLock()
-  }
-  const bytes = new Uint8Array(total)
-  let offset = 0
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset)
-    offset += chunk.byteLength
-  }
-  if (
-    !SUPPORTED_REFERENCE_TYPES.has(mimeType) ||
-    bytes.byteLength === 0 ||
-    bytes.byteLength > MAX_REFERENCE_IMAGE_BYTES
-  ) {
-    throw new ServiceError(
-      '참조할 수 없는 옷 이미지가 포함되어 있어요.',
-      'OUTFIT_PREVIEW_IMAGE_FAILED',
-    )
-  }
-
-  return { bytes, mimeType }
-}
-
-/** 필수 사진의 일시적인 연결·응답 실패만 한 번 다시 읽는다. 이전 생성본을 준비할 때는 한 번만 조회한다. */
-async function downloadReferenceImage(url: string, index: number, maxAttempts = 2) {
-  for (let attempt = 1; ; attempt += 1) {
-    const signal = AbortSignal.timeout(15_000)
-    try {
-      return await readReferenceImage(url, index, signal)
-    } catch (error) {
-      if (error instanceof ReferenceImageHttpError) {
-        if (attempt < maxAttempts && (error.status === 408 || error.status === 429 || error.status >= 500)) continue
-        throw error
-      }
-      if (error instanceof ServiceError) throw error
-      const timedOut = signal.aborted || (error instanceof DOMException && error.name === 'TimeoutError')
-      if (!timedOut && !(error instanceof TypeError)) throw error
-      if (attempt < maxAttempts) continue
-      throw new ServiceError(
-        timedOut ? `${index + 1}번째 옷 이미지를 불러오는 시간이 초과됐어요.` : `${index + 1}번째 옷 이미지 연결이 끊겼어요.`,
-        timedOut ? 'OUTFIT_PREVIEW_IMAGE_TIMEOUT' : 'OUTFIT_PREVIEW_IMAGE_FAILED',
-      )
-    }
+    const response = await fetch(url, { method: 'HEAD', redirect: 'error', signal: AbortSignal.timeout(3000) })
+    return response.ok ? url : null
+  } catch {
+    return null
   }
 }
 
@@ -505,50 +444,35 @@ export const outfitPreviewService = {
       : null
     const lookbookShotIndex = previous ? nextShotIndex(previous.metadata) : null
 
-    // 원본 옷과 함께 이전 이미지를 조회한다. 이전 이미지를 읽을 수 없어도 다른 구도 지침은 유지한다.
-    const [references, previousReference] = await Promise.all([
-      Promise.all(items.map((item, index) => downloadReferenceImage(item.displayImageAsset!.deliveryUrl!, index))),
-      previous?.deliveryUrl ? downloadReferenceImage(previous.deliveryUrl, items.length, 1).catch(() => null) : null,
-    ])
-    // 공통 어깨선의 실측 도식을 사진 뒤에 추가한다. 인체 치수나 허리 위치를 새로 추정하지 않는다.
+    const images = items.map((item, index) => {
+      const imageUrl = getReferenceImageUrl(item.displayImageAsset?.deliveryUrl)
+      if (!imageUrl) throw new ServiceError(`${index + 1}번째 옷 이미지를 사용할 수 없어요.`, 'OUTFIT_PREVIEW_IMAGE_FAILED')
+      return { image_url: imageUrl }
+    })
+    // 공통 어깨선의 실측 도식은 서버에서 그린 PNG를 옷 사진 뒤에 붙인다.
     const layout = buildLookbookLayerLayout(items)
-    const layoutImage = layout ? await renderLookbookLayerLayout(layout) : null
+    const [layoutImage, previousUrl] = await Promise.all([
+      layout ? renderLookbookLayerLayout(layout) : null,
+      getPreviousReferenceUrl(previous?.deliveryUrl),
+    ])
     const prompt = buildPrompt(items, profile, style, layout
       ? `Supplementary image ${items.length + 1} is a measured layer layout, not another garment reference. ${layout.guide}`
       : null, lookbookShotIndex === null ? undefined : {
         index: lookbookShotIndex,
-        previousReferenceIndex: previousReference ? items.length + (layoutImage ? 2 : 1) : null,
+        previousReferenceIndex: previousUrl ? items.length + (layoutImage ? 2 : 1) : null,
       })
 
-    const createForm = () => {
-      const form = new FormData()
-      form.set('model', model)
-      form.set('prompt', prompt)
-      form.set('size', '1024x1536')
-      form.set('quality', 'medium')
-      form.set('output_format', 'png')
-      references.forEach((reference, index) => {
-        form.append(
-          'image[]',
-          new Blob([reference.bytes], { type: reference.mimeType }),
-          `garment-${index + 1}.${reference.mimeType.split('/')[1]}`,
-        )
-      })
-      if (layoutImage) {
-        form.append('image[]', new Blob([layoutImage.bytes], { type: layoutImage.mimeType }), 'measured-layer-layout.png')
-      }
-      if (previousReference) {
-        form.append('image[]', new Blob([previousReference.bytes], { type: previousReference.mimeType }), `previous-lookbook.${previousReference.mimeType.split('/')[1]}`)
-      }
-      return form
+    if (layoutImage) {
+      images.push({ image_url: `data:${layoutImage.mimeType};base64,${Buffer.from(layoutImage.bytes).toString('base64')}` })
     }
+    if (previousUrl) images.push({ image_url: previousUrl })
 
     await options.onBeforeRequest?.()
     const payload = await requestAiJson<OpenAiImageResponse>('https://api.openai.com/v1/images/edits', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: createForm(),
-    }, { timeoutMs: 120_000 })
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, prompt, images, size: '1024x1536', quality: 'medium', output_format: 'png' }),
+    }, { timeoutMs: LOOKBOOK_IMAGE_TIMEOUT_MS })
     const imageBase64 = payload.data?.[0]?.b64_json
 
     if (!imageBase64) {

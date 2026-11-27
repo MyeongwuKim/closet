@@ -65,16 +65,16 @@ test('키 165cm에 총장 68cm인 니트는 실측 비율을 전달하며 특정
 })
 
 test('신발을 고르지 않은 룩북에는 임의의 운동화나 양말을 추가하지 않는다', async (t) => {
-  const form = await requestMockPreview(t)
-  assert.match(String(form.get('prompt')), /No footwear was selected/)
-  assert.match(String(form.get('prompt')), /Show the model barefoot/)
-  assert.match(String(form.get('prompt')), /Do not invent shoes, sneakers, sandals or socks/)
-  assert.doesNotMatch(String(form.get('prompt')), /Critical garment-to-body fit|nominalWaistEaseCm=/)
+  const request = await requestMockPreview(t)
+  assert.match(request.prompt, /No footwear was selected/)
+  assert.match(request.prompt, /Show the model barefoot/)
+  assert.match(request.prompt, /Do not invent shoes, sneakers, sandals or socks/)
+  assert.doesNotMatch(request.prompt, /Critical garment-to-body fit|nominalWaistEaseCm=/)
 })
 
 test('룩북은 선택하지 않은 이너를 추가하지 않고 원본 브이넥 깊이와 밑단을 유지하도록 요청한다', async (t) => {
-  const form = await requestMockPreview(t)
-  const prompt = String(form.get('prompt'))
+  const request = await requestMockPreview(t)
+  const prompt = request.prompt
   assert.match(prompt, /do not add a T-shirt, collar, insert, or fabric edge at the neckline or below the hem/)
   assert.match(prompt, /A shallow V-neck must stay shallow/)
   assert.match(prompt, /If an inner top was selected, preserve that specific layer/)
@@ -89,8 +89,8 @@ test('룩북 이미지 요청은 코트별 스탠드칼라 구조를 구분하�
   ]
   for (const coat of inputCoats) {
     await t.test(coat.name, async (t) => {
-      const form = await requestMockPreview(t, { necklineStyle: 'collar' }, [coat])
-      const prompt = String(form.get('prompt'))
+      const request = await requestMockPreview(t, { necklineStyle: 'collar' }, [coat])
+      const prompt = request.prompt
       const knitLine = prompt.split('\n').find((line) => line.startsWith('참조 이미지 1 /'))
       const coatLine = prompt.split('\n').find((line) => line.startsWith('참조 이미지 3 /'))
 
@@ -149,6 +149,15 @@ function createPreviewItem(id: string, category: ClothingCategory, fashionAttrib
   }
 }
 
+type CapturedImageRequest = { prompt: string; quality: string; output_format: string; output_compression?: number; images: { image_url: string }[] }
+
+function readImageRequest(options: RequestInit | undefined): CapturedImageRequest {
+  assert.equal(options?.method, 'POST')
+  assert.equal(new Headers(options?.headers).get('content-type'), 'application/json')
+  assert.ok(typeof options?.body === 'string')
+  return JSON.parse(options.body) as CapturedImageRequest
+}
+
 async function requestMockPreview(
   t: TestContext,
   attributes?: unknown,
@@ -167,15 +176,10 @@ async function requestMockPreview(
     else process.env.OPENAI_API_KEY = previousKey
   })
 
-  const requests: FormData[] = []
+  const requests: CapturedImageRequest[] = []
   t.mock.method(globalThis, 'fetch', async (url: unknown, options?: RequestInit) => {
-    const item = items.find((item) => item.displayImageAsset.deliveryUrl === url)
-    if (item) {
-      return new Response(`mock-reference-${item.id}`, { headers: { 'content-type': 'image/png' } })
-    }
     assert.equal(url, 'https://api.openai.com/v1/images/edits')
-    assert.ok(options?.body instanceof FormData)
-    requests.push(options.body)
+    requests.push(readImageRequest(options))
     return Response.json({ data: [{ b64_json: Buffer.from('mock-preview').toString('base64') }] })
   })
 
@@ -184,7 +188,7 @@ async function requestMockPreview(
   return requests[0]!
 }
 
-test('필수 옷 이미지 전송이 중간에 끊기면 이미지만 다시 읽고 생성 요청은 한 번 보낸다', async (t) => {
+test('옷 사진을 서버에서 읽지 않고 선택 순서대로 이미지 URL을 넘긴다', async (t) => {
   const items = [createPreviewItem('top', 'top'), createPreviewItem('bottom', 'bottom')]
   t.mock.method(userRepository, 'findViewerById', async () => null)
   t.mock.method(wardrobeRepository, 'findManyOwnedWithImagesByIds', async () => items)
@@ -195,27 +199,48 @@ test('필수 옷 이미지 전송이 중간에 끊기면 이미지만 다시 읽
     else process.env.OPENAI_API_KEY = previousKey
   })
 
-  let referenceReads = 0
-  let providerCalls = 0
-  t.mock.method(globalThis, 'fetch', async (url: unknown) => {
-    if (url === items[0]!.displayImageAsset.deliveryUrl && ++referenceReads === 1) {
-      const response = new ReadableStream({
-        pull(controller) { controller.error(new TypeError('reference stream terminated')) },
-      })
-      return new Response(response, { headers: { 'content-type': 'image/png' } })
-    }
-    if (items.some((item) => item.displayImageAsset.deliveryUrl === url)) {
-      return new Response('mock-reference', { headers: { 'content-type': 'image/png' } })
-    }
+  const fetch = t.mock.method(globalThis, 'fetch', async (url: unknown, options?: RequestInit) => {
     assert.equal(url, 'https://api.openai.com/v1/images/edits')
-    providerCalls += 1
+    assert.deepEqual(readImageRequest(options).images, items.map(item => ({ image_url: item.displayImageAsset.deliveryUrl })))
     return Response.json({ data: [{ b64_json: Buffer.from('mock-preview').toString('base64') }] })
   })
   const onBeforeRequest = t.mock.fn(async () => {})
 
   await outfitPreviewService.generate('viewer', ['top', 'bottom'], undefined, { onBeforeRequest })
-  assert.equal(referenceReads, 2)
   assert.equal(onBeforeRequest.mock.callCount(), 1)
+  assert.equal(fetch.mock.callCount(), 1)
+})
+
+test('이미지 API가 2분을 넘겨 응답해도 기존 룩북 요청으로 결과를 받는다', async (t) => {
+  const items = [createPreviewItem('top', 'top'), createPreviewItem('bottom', 'bottom')]
+  t.mock.method(userRepository, 'findViewerById', async () => null)
+  t.mock.method(wardrobeRepository, 'findManyOwnedWithImagesByIds', async () => items)
+  const previousKey = process.env.OPENAI_API_KEY
+  process.env.OPENAI_API_KEY = 'test-key'
+  t.after(() => {
+    if (previousKey === undefined) delete process.env.OPENAI_API_KEY
+    else process.env.OPENAI_API_KEY = previousKey
+  })
+
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  t.mock.method(AbortSignal, 'timeout', (ms: number) => {
+    const controller = new AbortController()
+    setTimeout(() => controller.abort(new DOMException('Image request timed out', 'TimeoutError')), ms)
+    return controller.signal
+  })
+
+  let providerCalls = 0
+  t.mock.method(globalThis, 'fetch', async (url: unknown, options?: RequestInit) => {
+    assert.equal(url, 'https://api.openai.com/v1/images/edits')
+    providerCalls += 1
+    assert.ok(options?.signal)
+    t.mock.timers.tick(150_000)
+    options.signal.throwIfAborted()
+    return Response.json({ data: [{ b64_json: 'bW9jay1wcmV2aWV3' }] })
+  })
+
+  const preview = await outfitPreviewService.generate('viewer', ['top', 'bottom'])
+  assert.equal(preview.imageBase64, 'bW9jay1wcmV2aWV3')
   assert.equal(providerCalls, 1)
 })
 
@@ -228,12 +253,12 @@ test('실제 생성 요청에 최신 신체 수치·옷 여유·재킷과 이너
     },
   } as Awaited<ReturnType<typeof userRepository.findViewerById>>
   const jacket = { ...createPreviewItem('jacket', 'outer'), name: '짧은 재킷', subcategory: '재킷' }
-  const form = await requestMockPreview(t, undefined, [jacket], profile, {
+  const request = await requestMockPreview(t, undefined, [jacket], profile, {
     top: { totalLengthCm: 74, chestWidthCm: 55, shoulderWidthCm: 50, sleeveLengthCm: 56 },
     bottom: { totalLengthCm: 103, waistWidthCm: 50, hipWidthCm: 60, thighWidthCm: 35 },
     jacket: { totalLengthCm: 58, chestWidthCm: 60 },
   })
-  const prompt = String(form.get('prompt'))
+  const prompt = request.prompt
   assert.match(prompt, /키 180cm, 몸무게 85kg, 어깨너비 48cm, 가슴둘레 104cm/)
   assert.match(prompt, /허리둘레 82cm, 엉덩이둘레 100cm, 허벅지둘레 70cm, 인심 82cm/)
   assert.match(prompt, /naturally trained muscular build/)
@@ -271,12 +296,8 @@ test('같은 옷을 다시 생성하면 변경된 체형·키·둘레·선호 �
   t.mock.method(wardrobeRepository, 'findManyOwnedWithImagesByIds', async () => items)
   const prompts: string[] = []
   t.mock.method(globalThis, 'fetch', async (url: unknown, options?: RequestInit) => {
-    if (items.some((item) => item.displayImageAsset.deliveryUrl === url)) {
-      return new Response('mock-reference', { headers: { 'content-type': 'image/png' } })
-    }
     assert.equal(url, 'https://api.openai.com/v1/images/edits')
-    assert.ok(options?.body instanceof FormData)
-    prompts.push(String(options.body.get('prompt')))
+    prompts.push(readImageRequest(options).prompt)
     return Response.json({ data: [{ b64_json: Buffer.from('mock-preview').toString('base64') }] })
   })
   const previousKey = process.env.OPENAI_API_KEY
@@ -321,8 +342,8 @@ test('176cm·100kg의 보통 체형은 상세 둘레 없이도 옷 도안보다 
     shoulderWidthCm: null, chestCircumferenceCm: null, waistCircumferenceCm: null,
     hipCircumferenceCm: null, inseamCm: null, preferredFit: 'regular',
   } } as Awaited<ReturnType<typeof userRepository.findViewerById>>
-  const form = await requestMockPreview(t, undefined, [], profile)
-  const prompt = String(form.get('prompt'))
+  const request = await requestMockPreview(t, undefined, [], profile)
+  const prompt = request.prompt
   assert.match(prompt, /키 176cm, 몸무게 100kg/)
   assert.match(prompt, /heightCm=176; weightKg=100/)
   assert.match(prompt, /not a medium-weight or slim-waist preset/)
@@ -338,8 +359,8 @@ test('같은 여성 160cm·80kg 프로필에 상세 치수를 추가하면 요�
   const asViewer = (body: object) => ({ styleProfile: { ...styleProfile, ...body } }) as Awaited<ReturnType<typeof userRepository.findViewerById>>
 
   await t.test('기본 프로필은 체격을 표현하고 실측 핏을 추정하지 않는다', async (t) => {
-    const form = await requestMockPreview(t, undefined, [], asViewer({}), measurements)
-    const prompt = String(form.get('prompt'))
+    const request = await requestMockPreview(t, undefined, [], asViewer({}), measurements)
+    const prompt = request.prompt
     assert.match(prompt, /Model gender constraint: Use one adult woman only/)
     assert.match(prompt, /No detailed body measurements were saved/)
     assert.match(prompt, /visibly wider relative to the saved height/)
@@ -348,8 +369,8 @@ test('같은 여성 160cm·80kg 프로필에 상세 치수를 추가하면 요�
 
   await t.test('상세 프로필은 각 부위의 실측과 옷 여유를 함께 반영한다', async (t) => {
     const body = asViewer({ waistCircumferenceCm: 80, hipCircumferenceCm: 110, thighCircumferenceCm: 67 })
-    const form = await requestMockPreview(t, undefined, [], body, measurements)
-    const prompt = String(form.get('prompt'))
+    const request = await requestMockPreview(t, undefined, [], body, measurements)
+    const prompt = request.prompt
     assert.match(prompt, /Body profile basis: measured regional silhouette/)
     assert.match(prompt, /Waist-to-hip circumference ratio=72\.7%/)
     assert.doesNotMatch(prompt, /preserve a broad waist and a rounded abdomen/)
@@ -364,18 +385,19 @@ test('앞이 열리는 코트에는 실측 보조 도식을 사진 뒤에 추가
     ...createPreviewItem('coat', 'outer', { frontOpeningStyle: 'buttons' }),
     name: '롱 코트', subcategory: '코트',
   }
-  const form = await requestMockPreview(t, undefined, [coat], null, {
+  const request = await requestMockPreview(t, undefined, [coat], null, {
     top: { totalLengthCm: 70 }, coat: { totalLengthCm: 115 },
   })
-  const prompt = String(form.get('prompt'))
-  const images = form.getAll('image[]') as Blob[]
+  const prompt = request.prompt
+  const images = request.images
   assert.equal(images.length, 4)
-  assert.equal(form.get('quality'), 'medium')
-  assert.deepEqual(await Promise.all(images.slice(0, 3).map((image) => image.text())), [
-    'mock-reference-top', 'mock-reference-bottom', 'mock-reference-coat',
+  assert.equal(request.quality, 'medium')
+  assert.deepEqual(images.slice(0, 3).map((image) => image.image_url), [
+    'https://wardrobe.example.test/top.png', 'https://wardrobe.example.test/bottom.png', 'https://wardrobe.example.test/coat.png',
   ])
-  assert.equal(images[3]!.type, 'image/png')
-  const diagram = Buffer.from(await images[3]!.arrayBuffer())
+  const diagramUrl = images[3]!.image_url
+  assert.match(diagramUrl, /^data:image\/png;base64,/)
+  const diagram = Buffer.from(diagramUrl.slice('data:image/png;base64,'.length), 'base64')
   assert.ok(diagram.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])))
   assert.match(prompt, /first 3 reference images exactly once/)
   assert.match(prompt, /Supplementary image 4 is a measured layer layout, not another garment reference/)
@@ -400,9 +422,9 @@ test('백팩은 등에 메고 벨트·목도리는 착용 액세서리로 구분
 
 test('가방의 사진을 AI 룩북 요청에 포함하고 손으로 드는 자세를 허용한다', async (t) => {
   const bag = {...createPreviewItem('bag', 'accessory'), name: '데일리 캔버스 백', subcategory: '가방'}
-  const form = await requestMockPreview(t, undefined, [bag])
-  const prompt = String(form.get('prompt'))
-  assert.equal(form.getAll('image[]').length, 3)
+  const request = await requestMockPreview(t, undefined, [bag])
+  const prompt = request.prompt
+  assert.equal(request.images.length, 3)
   assert.match(prompt, /Reference image 3 is a carried bag/)
   assert.match(prompt, /Render each selected bag exactly once/)
   assert.match(prompt, /Allow one hand to hold a referenced bag handle/)
@@ -413,12 +435,12 @@ test('가방의 사진을 AI 룩북 요청에 포함하고 손으로 드는 자�
 test('룩북에 벨트 참조 두 개를 전달하되 허리에는 하나만 표현하도록 지시한다', async (t) => {
   const firstBelt = { ...createPreviewItem('first-belt', 'accessory'), name: '검정 벨트', subcategory: '벨트' }
   const secondBelt = { ...createPreviewItem('second-belt', 'accessory'), name: '갈색 벨트', subcategory: '벨트' }
-  const form = await requestMockPreview(t, undefined, [firstBelt, secondBelt])
-  const prompt = String(form.get('prompt'))
-  const images = form.getAll('image[]') as Blob[]
+  const request = await requestMockPreview(t, undefined, [firstBelt, secondBelt])
+  const prompt = request.prompt
+  const images = request.images
 
-  assert.deepEqual(await Promise.all(images.slice(2).map((image) => image.text())), [
-    'mock-reference-first-belt', 'mock-reference-second-belt',
+  assert.deepEqual(images.slice(2).map((image) => image.image_url), [
+    'https://wardrobe.example.test/first-belt.png', 'https://wardrobe.example.test/second-belt.png',
   ])
   assert.match(prompt, /subject to the worn-accessory rules below/)
   assert.match(prompt, /at most one belt at the waist, one scarf around the neck, and one matching pair of gloves/)
@@ -440,11 +462,7 @@ test('이미지 API의 빈 성공 응답은 중복 과금을 피하도록 자동
 
   let openAiRequestCount = 0
   t.mock.method(globalThis, 'fetch', async (url: unknown) => {
-    const item = items.find((item) => item.displayImageAsset.deliveryUrl === url)
-    if (item) {
-      return new Response(`mock-reference-${item.id}`, { headers: { 'content-type': 'image/png' } })
-    }
-
+    assert.equal(url, 'https://api.openai.com/v1/images/edits')
     openAiRequestCount += 1
     if (openAiRequestCount === 1) return Response.json({ data: [] })
     return Response.json({
@@ -457,24 +475,23 @@ test('이미지 API의 빈 성공 응답은 중복 과금을 피하도록 자동
 })
 
 test('실제 이미지 편집 요청에 참조 이미지별 시보리 판정과 원형 보존 규칙을 전달한다', async (t) => {
-  const form = await requestMockPreview(t, {
+  const request = await requestMockPreview(t, {
     material: 'knit',
     texture: 'ribbed',
     ribbedCuffs: 'present',
     ribbedHem: 'absent',
     ribbedNeckline: 'unknown',
   })
-  const prompt = String(form.get('prompt'))
+  const prompt = request.prompt
   const garmentLines = prompt.split('\n').filter((line) => line.startsWith('참조 이미지'))
-  const images = form.getAll('image[]')
+  const images = request.images
 
   assert.match(garmentLines[0]!, /참조 이미지 1.*그레이 니트.*ribbedCuffs=present, ribbedHem=absent, ribbedNeckline=unknown/)
   assert.match(garmentLines[1]!, /참조 이미지 2.*차콜 팬츠.*ribbedCuffs=unknown, ribbedHem=unknown, ribbedNeckline=unknown/)
   assert.equal(images.length, 2)
-  assert.ok(images[0] instanceof Blob && images[1] instanceof Blob)
-  assert.deepEqual(await Promise.all(images.map((image) => (image as Blob).text())), [
-    'mock-reference-top',
-    'mock-reference-bottom',
+  assert.deepEqual(images.map((image) => image.image_url), [
+    'https://wardrobe.example.test/top.png',
+    'https://wardrobe.example.test/bottom.png',
   ])
   assert.match(prompt, /present signal.*preserve that region's reference band/)
   assert.match(prompt, /absent signal.*non-ribbed cuff or elastic finish, including any existing gathers/)
@@ -494,9 +511,9 @@ test('실제 이미지 편집 요청에 참조 이미지별 시보리 판정과 
     /viewer's perspective \(image-left\).*same image-left orientation in every generation/,
   )
   assert.match(prompt, /Never turn or mirror the pose toward image-right/)
-  assert.equal(form.get('quality'), 'medium')
-  assert.equal(form.get('output_format'), 'png')
-  assert.equal(form.get('output_compression'), null)
+  assert.equal(request.quality, 'medium')
+  assert.equal(request.output_format, 'png')
+  assert.equal(request.output_compression, undefined)
 })
 
 test('기존 아이템의 누락·null·잘못된 판정은 골지 원단이어도 unknown으로 생성에 전달한다', async (t) => {
@@ -510,8 +527,8 @@ test('기존 아이템의 누락·null·잘못된 판정은 골지 원단이어�
 
   for (const example of cases) {
     await t.test(example.name, async (t) => {
-      const form = await requestMockPreview(t, example.attributes)
-      const garmentLine = String(form.get('prompt')).split('\n').find((line) => line.startsWith('참조 이미지 1'))
+      const request = await requestMockPreview(t, example.attributes)
+      const garmentLine = request.prompt.split('\n').find((line) => line.startsWith('참조 이미지 1'))
       assert.match(garmentLine!, /ribbedCuffs=unknown, ribbedHem=unknown, ribbedNeckline=unknown/)
     })
   }
@@ -523,6 +540,7 @@ test('코트와 이너의 후속 컷은 겉옷을 열어 둔 채 각도만 바�
   const dress = createPreviewItem('dress', 'dress')
   let items = [createPreviewItem('top', 'top'), createPreviewItem('bottom', 'bottom'), coat]
   let previous: { deliveryUrl: string; metadata: object } | null = null
+  let previousAvailable = true
   t.mock.method(userRepository, 'findViewerById', async () => null)
   t.mock.method(wardrobeRepository, 'findManyOwnedWithImagesByIds', async () => items)
   t.mock.method(imageRepository, 'findLatestGeneratedPreviewForItems', async (userId: string, ids: string[], style: string | null) => {
@@ -531,14 +549,14 @@ test('코트와 이너의 후속 컷은 겉옷을 열어 둔 채 각도만 바�
     assert.equal(style, null)
     return previous as Awaited<ReturnType<typeof imageRepository.findLatestGeneratedPreviewForItems>>
   })
-  const requests: FormData[] = []
+  const requests: CapturedImageRequest[] = []
   t.mock.method(globalThis, 'fetch', async (url: unknown, options?: RequestInit) => {
-    if (url === previousUrl || items.some(item => item.displayImageAsset.deliveryUrl === url)) {
-      return new Response('fixture', { headers: { 'content-type': 'image/png' } })
+    if (url === previousUrl) {
+      assert.equal(options?.method, 'HEAD')
+      return new Response(null, { status: previousAvailable ? 200 : 404 })
     }
     assert.equal(url, 'https://api.openai.com/v1/images/edits')
-    assert.ok(options?.body instanceof FormData)
-    requests.push(options.body)
+    requests.push(readImageRequest(options))
     return Response.json({ data: [{ b64_json: 'fixture' }] })
   })
   const previousKey = process.env.OPENAI_API_KEY
@@ -550,29 +568,34 @@ test('코트와 이너의 후속 컷은 겉옷을 열어 둔 채 각도만 바�
   const generate = () => outfitPreviewService.generate('viewer', items.map(item => item.id), null, { varyPreviousShot: true })
 
   assert.equal((await generate()).lookbookShotIndex, undefined)
-  assert.match(String(requests[0]?.get('prompt')), /same image-left orientation/)
+  assert.match(requests[0]!.prompt, /same image-left orientation/)
 
   previous = { deliveryUrl: previousUrl, metadata: {} }
   assert.equal((await generate()).lookbookShotIndex, 1)
   for (const request of requests.slice(0, 2)) {
-    const prompt = String(request.get('prompt'))
+    const prompt = request.prompt
     assert.match(prompt, /wear it unfastened from collar to hem/)
     assert.match(prompt, /the inner layer is visible down to its own natural hem/)
     assert.match(prompt, /For pullovers and half-zips, keep their original construction/)
     assert.doesNotMatch(prompt, /Change the fastening|fastened outer layer may naturally hide/)
   }
-  assert.match(String(requests[1]?.get('prompt')), /straight-on front view/)
-  assert.match(String(requests[1]?.get('prompt')), /Use it only to vary the pose and camera angle. Do not copy its fastening/)
-  assert.match(String(requests[1]?.get('prompt')), /Supplementary image 4 is the previous lookbook shot/)
-  assert.equal(requests[1]?.getAll('image[]').length, 4)
+  assert.match(requests[1]!.prompt, /straight-on front view/)
+  assert.match(requests[1]!.prompt, /Use it only to vary the pose and camera angle. Do not copy its fastening/)
+  assert.match(requests[1]!.prompt, /Supplementary image 4 is the previous lookbook shot/)
+  assert.equal(requests[1]?.images.length, 4)
+  assert.equal(requests[1]?.images[3]?.image_url, previousUrl)
 
   items = [dress]
   assert.equal((await generate()).lookbookShotIndex, 1)
-  assert.match(String(requests[2]?.get('prompt')), /straight-on front view/)
-  assert.doesNotMatch(String(requests[2]?.get('prompt')), /Change the fastening/)
+  assert.match(requests[2]!.prompt, /straight-on front view/)
+  assert.doesNotMatch(requests[2]!.prompt, /Change the fastening/)
 
   previous.metadata = { lookbookShotIndex: 1 }
   assert.equal((await generate()).lookbookShotIndex, 2)
-  assert.match(String(requests[3]?.get('prompt')), /toward image-right/)
-  assert.equal(requests.length, 4)
+  assert.match(requests[3]!.prompt, /toward image-right/)
+  previousAvailable = false
+  assert.equal((await generate()).lookbookShotIndex, 2)
+  assert.equal(requests[4]?.images.length, 1)
+  assert.doesNotMatch(requests[4]!.prompt, /previous lookbook shot/)
+  assert.equal(requests.length, 5)
 })
