@@ -403,13 +403,18 @@ Frame the complete outfit from the neck to the feet, keeping the model's face en
 Final hem check: show the untucked inner hem through the existing open front wherever it is naturally visible. Respect natural coverage by other selected layers. No part of the inner hem may disappear into the trouser waistband. Do not lift it to reveal a trouser button or fly. Preserve the relative garment lengths while allowing the natural ribbed-knit drape described above.`
 }
 
-async function downloadReferenceImage(url: string, index: number) {
-  const response = await fetch(url, { signal: AbortSignal.timeout(15_000) })
+class ReferenceImageHttpError extends ServiceError {
+  constructor(index: number, readonly status: number) {
+    super(`${index + 1}번째 옷 이미지를 불러오지 못했어요.`, 'OUTFIT_PREVIEW_IMAGE_FAILED')
+  }
+}
+
+/** 응답 본문까지 같은 시간 제한을 적용하고 옷 사진 형식과 크기를 검사한다. */
+async function readReferenceImage(url: string, index: number, signal: AbortSignal) {
+  const response = await fetch(url, { signal })
   if (!response.ok) {
-    throw new ServiceError(
-      `${index + 1}번째 옷 이미지를 불러오지 못했어요.`,
-      'OUTFIT_PREVIEW_IMAGE_FAILED',
-    )
+    void response.body?.cancel().catch(() => undefined)
+    throw new ReferenceImageHttpError(index, response.status)
   }
 
   const mimeType = response.headers.get('content-type')?.split(';')[0] ?? ''
@@ -452,6 +457,29 @@ async function downloadReferenceImage(url: string, index: number) {
   return { bytes, mimeType }
 }
 
+/** 필수 사진의 일시적인 연결·응답 실패만 한 번 다시 읽는다. 이전 생성본을 준비할 때는 한 번만 조회한다. */
+async function downloadReferenceImage(url: string, index: number, maxAttempts = 2) {
+  for (let attempt = 1; ; attempt += 1) {
+    const signal = AbortSignal.timeout(15_000)
+    try {
+      return await readReferenceImage(url, index, signal)
+    } catch (error) {
+      if (error instanceof ReferenceImageHttpError) {
+        if (attempt < maxAttempts && (error.status === 408 || error.status === 429 || error.status >= 500)) continue
+        throw error
+      }
+      if (error instanceof ServiceError) throw error
+      const timedOut = signal.aborted || (error instanceof DOMException && error.name === 'TimeoutError')
+      if (!timedOut && !(error instanceof TypeError)) throw error
+      if (attempt < maxAttempts) continue
+      throw new ServiceError(
+        timedOut ? `${index + 1}번째 옷 이미지를 불러오는 시간이 초과됐어요.` : `${index + 1}번째 옷 이미지 연결이 끊겼어요.`,
+        timedOut ? 'OUTFIT_PREVIEW_IMAGE_TIMEOUT' : 'OUTFIT_PREVIEW_IMAGE_FAILED',
+      )
+    }
+  }
+}
+
 export const outfitPreviewService = {
   async generate(
     userId: string,
@@ -475,17 +503,13 @@ export const outfitPreviewService = {
     const previous = options.varyPreviousShot
       ? await imageRepository.findLatestGeneratedPreviewForItems(userId, selectedItemIds, style ?? null)
       : null
-    // 이전 이미지가 정리됐거나 내려받을 수 없어도 원본 옷과 다른 구도 지침으로 생성한다.
-    const previousReference = previous?.deliveryUrl
-      ? await downloadReferenceImage(previous.deliveryUrl, items.length).catch(() => null)
-      : null
     const lookbookShotIndex = previous ? nextShotIndex(previous.metadata) : null
 
-    const references = await Promise.all(
-      items.map((item, index) =>
-        downloadReferenceImage(item.displayImageAsset!.deliveryUrl!, index),
-      ),
-    )
+    // 원본 옷과 함께 이전 이미지를 조회한다. 이전 이미지를 읽을 수 없어도 다른 구도 지침은 유지한다.
+    const [references, previousReference] = await Promise.all([
+      Promise.all(items.map((item, index) => downloadReferenceImage(item.displayImageAsset!.deliveryUrl!, index))),
+      previous?.deliveryUrl ? downloadReferenceImage(previous.deliveryUrl, items.length, 1).catch(() => null) : null,
+    ])
     // 공통 어깨선의 실측 도식을 사진 뒤에 추가한다. 인체 치수나 허리 위치를 새로 추정하지 않는다.
     const layout = buildLookbookLayerLayout(items)
     const layoutImage = layout ? await renderLookbookLayerLayout(layout) : null

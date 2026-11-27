@@ -38,6 +38,7 @@ export async function recoverPreviewJobs() {
 
 /** 임대한 작업 한 건을 생성·저장한다. 이미지 API 전송과 완료 저장마다 작업 토큰을 확인한다. */
 export async function processPreviewJob(job: AiPreviewJob & { leaseToken: string }) {
+  let stage = 'acquire-execution'
   let renewInProgress = false
   const heartbeat = setInterval(() => {
     if (renewInProgress) return
@@ -47,19 +48,23 @@ export async function processPreviewJob(job: AiPreviewJob & { leaseToken: string
   heartbeat.unref()
   try {
     const image = await aiExecutor.run(job.userId, 'preview', { jobId: job.id, attempt: job.attempts }, async () => {
+      stage = 'prepare-image-input'
       const preview = await outfitPreviewService.generate(job.userId, job.selectedItemIds, job.style, {
         varyPreviousShot: true,
         onBeforeRequest: async () => {
           const started = await previewJobRepository.markRequestStarted(job.id, job.leaseToken)
           if (started.count !== 1) throw new ServiceError('AI 생성 작업의 실행 권한이 만료됐어요.', 'AI_INTERRUPTED')
+          stage = 'generate-image'
         },
       })
+      stage = 'store-image'
       const asset = await imageService.storeGeneratedImage(job.userId, {
         ...preview, jobId: job.id,
         metadata: { purpose: 'outfitPreview', selectedItemIds: job.selectedItemIds, ...(job.style ? { style: job.style } : {}), ...(preview.lookbookShotIndex ? { lookbookShotIndex: preview.lookbookShotIndex } : {}) },
       })
       return { assetId: asset.id, model: preview.model }
     })
+    stage = 'complete-job'
     const saved = await previewJobRepository.complete(job, image.assetId, image.model)
     if (saved.count === 1) notifyReady(job, image.assetId)
   } catch (error) {
@@ -70,6 +75,8 @@ export async function processPreviewJob(job: AiPreviewJob & { leaseToken: string
     }
     const code = error instanceof ServiceError ? error.code : 'AI_FAILED'
     const message = error instanceof ServiceError ? error.message : 'AI 이미지를 완성하지 못했어요. 다시 만들기를 눌러주세요.'
+    // 요청 입력과 오류 원문에는 사용자 정보나 이미지 주소가 있을 수 있어 단계와 분류만 기록한다.
+    console.warn('[preview-job] generation failed', { jobId: job.id, stage, code, errorType: error instanceof Error ? error.name : 'unknown' })
     const failed = await previewJobRepository.fail(job, code === 'AI_INTERRUPTED' ? 'interrupted' : 'failed', code, message)
     if (failed.count === 1) notifyFailure(job.userId, 'outfit-preview', { path: getPreviewJobPath({ ...job, status: 'failed' }) })
   } finally {

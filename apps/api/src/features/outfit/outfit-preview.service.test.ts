@@ -184,6 +184,41 @@ async function requestMockPreview(
   return requests[0]!
 }
 
+test('필수 옷 이미지 전송이 중간에 끊기면 이미지만 다시 읽고 생성 요청은 한 번 보낸다', async (t) => {
+  const items = [createPreviewItem('top', 'top'), createPreviewItem('bottom', 'bottom')]
+  t.mock.method(userRepository, 'findViewerById', async () => null)
+  t.mock.method(wardrobeRepository, 'findManyOwnedWithImagesByIds', async () => items)
+  const previousKey = process.env.OPENAI_API_KEY
+  process.env.OPENAI_API_KEY = 'test-key'
+  t.after(() => {
+    if (previousKey === undefined) delete process.env.OPENAI_API_KEY
+    else process.env.OPENAI_API_KEY = previousKey
+  })
+
+  let referenceReads = 0
+  let providerCalls = 0
+  t.mock.method(globalThis, 'fetch', async (url: unknown) => {
+    if (url === items[0]!.displayImageAsset.deliveryUrl && ++referenceReads === 1) {
+      const response = new ReadableStream({
+        pull(controller) { controller.error(new TypeError('reference stream terminated')) },
+      })
+      return new Response(response, { headers: { 'content-type': 'image/png' } })
+    }
+    if (items.some((item) => item.displayImageAsset.deliveryUrl === url)) {
+      return new Response('mock-reference', { headers: { 'content-type': 'image/png' } })
+    }
+    assert.equal(url, 'https://api.openai.com/v1/images/edits')
+    providerCalls += 1
+    return Response.json({ data: [{ b64_json: Buffer.from('mock-preview').toString('base64') }] })
+  })
+  const onBeforeRequest = t.mock.fn(async () => {})
+
+  await outfitPreviewService.generate('viewer', ['top', 'bottom'], undefined, { onBeforeRequest })
+  assert.equal(referenceReads, 2)
+  assert.equal(onBeforeRequest.mock.callCount(), 1)
+  assert.equal(providerCalls, 1)
+})
+
 test('실제 생성 요청에 최신 신체 수치·옷 여유·재킷과 이너의 상대 기장을 함께 전달한다', async (t) => {
   const profile = {
     styleProfile: {
