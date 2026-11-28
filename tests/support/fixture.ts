@@ -42,7 +42,7 @@ type WardrobeItem = {
   wearCount: number
   lastWornAt: string | null
   displayImageAsset: { id?: string; deliveryUrl: string | null } | null
-  originalImageAsset: { deliveryUrl: string | null } | null
+  originalImageAsset: { id?: string; deliveryUrl: string | null } | null
 }
 
 type Outfit = {
@@ -96,6 +96,7 @@ export type MockApi = {
   operations: string[]
   uploadKinds: string[]
   classificationFailureMessage: string | null
+  classificationFailureCode?: string
   cutoutFailureMessage: string | null
   unexpectedRequests: string[]
   snapshotSequence: number
@@ -462,11 +463,17 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
     case 'CreateWardrobeItem': {
       const existing = input.registrationRequestId && api.wardrobeItems.find((item) => item.registrationRequestId === input.registrationRequestId)
       if (existing) return { createWardrobeItem: existing }
-      const item = createWardrobeItem({ ...input, id: `item-${api.wardrobeItems.length + 1}`, createdAt: new Date().toISOString(), displayImageAsset: { id: input.displayImageAssetId, deliveryUrl: null } })
+      const item = createWardrobeItem({ ...input, id: `item-${api.wardrobeItems.length + 1}`, createdAt: new Date().toISOString(),
+        displayImageAsset: { id: input.displayImageAssetId, deliveryUrl: null },
+        originalImageAsset: input.originalImageAssetId ? { id: input.originalImageAssetId, deliveryUrl: null } : null,
+      })
       api.wardrobeItems = [item, ...api.wardrobeItems]
       return { createWardrobeItem: item }
     }
     case 'ClassifyWardrobeImage': {
+      if (api.classificationFailureMessage && api.classificationFailureCode) {
+        throw new MockGraphqlError(api.classificationFailureMessage, api.classificationFailureCode)
+      }
       if (api.classificationFailureMessage) throw new Error(api.classificationFailureMessage)
       return { classifyWardrobeImage: {
       category: 'top', categoryLabel: '상의', subcategory: 'shirt', subcategoryLabel: '셔츠',
@@ -486,7 +493,7 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
     case 'PrepareImageUpload': {
       api.uploadKinds.push(input.kind)
       return { prepareImageUpload: {
-      asset: { id: 'e2e-upload-1', deliveryUrl: null },
+      asset: { id: `e2e-upload-${api.uploadKinds.length}`, deliveryUrl: null },
       uploadUrl: `${mockApiOrigin}/upload`, uploadFilename: 'e2e-item.png',
       } }
     }

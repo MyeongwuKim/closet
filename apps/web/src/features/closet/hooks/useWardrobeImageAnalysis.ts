@@ -1,11 +1,10 @@
 import { create } from 'zustand'
+import type { ClothingClassificationResult } from '@closet/types'
 import { getAccessToken } from '../../../lib/auth'
 import { useUiStore } from '../../../stores/useUiStore'
 import {
   ClothingAnalysisError,
   classifyClothing,
-  removeClothingBackground,
-  type ClothingAnalysisResult,
 } from '../api/classifyClothing'
 import {
   MAX_CLOTHING_IMAGE_SIZE,
@@ -58,23 +57,11 @@ interface WardrobeImageAnalysis {
   resetAnalysis: () => void
 }
 
-/** 서버의 컷아웃 바이트를 확인 모달에서 읽을 수 있는 임시 URL로 바꾼다. */
-function createImageObjectUrl(base64: string, mimeType: string) {
-  const binary = window.atob(base64)
-  const bytes = new Uint8Array(binary.length)
-
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index)
-  }
-
-  return URL.createObjectURL(new Blob([bytes], { type: mimeType }))
-}
-
-/** 분류와 컷아웃을 한 사진 단위로 처리한다. 분류만 실패하고 컷아웃을 받을 수 있으면 수동 등록으로 이어진다. */
+/** 사진을 분류하고, 분류 결과가 없어도 등록할 수 있는 원본이면 수동 입력으로 이어간다. */
 async function analyzePhoto(file: File, session: PhotoAnalysisSession) {
   const { signal } = session.controller
   const request = { signal, accessToken: session.accessToken }
-  let classification: ClothingAnalysisResult | null = null
+  let classification: ClothingClassificationResult | null = null
   let classificationError: unknown
   try {
     classification = await classifyClothing(file, request)
@@ -86,18 +73,7 @@ async function analyzePhoto(file: File, session: PhotoAnalysisSession) {
     classificationError = error
   }
 
-  let cutout
-  try {
-    cutout = classification?.cutoutImageBase64 && classification.cutoutMimeType
-      ? { imageBase64: classification.cutoutImageBase64, mimeType: classification.cutoutMimeType }
-      : await removeClothingBackground(file, request)
-  } catch (error) {
-    if (error instanceof ClothingAnalysisError && error.code && stopClassificationCodes.has(error.code)) {
-      throw error
-    }
-    throw new Error('사진의 배경을 제거하지 못했어요.', { cause: error })
-  }
-  return { classification, classificationError, cutout }
+  return { classification, classificationError }
 }
 
 /**
@@ -114,17 +90,15 @@ export const useWardrobeImageAnalysis = create<WardrobeImageAnalysis>((set, get)
     return false
   }
 
-  /** 현재 세션에서만 컷아웃을 확인 대기열로 넘긴다. 그 전에 실패하면 임시 URL을 해제한다. */
+  /** 현재 세션에서만 원본 사진을 등록 확인 대기열로 넘긴다. */
   async function processPhoto(session: PhotoAnalysisSession, photo: QueuedPhoto) {
-    let imageUrl: string | undefined
     let originalImageUrl: string | undefined
     const { enqueueClassification, pushToast } = useUiStore.getState()
 
     try {
-      const { classification, classificationError, cutout } = await analyzePhoto(photo.file, session)
+      const { classification, classificationError } = await analyzePhoto(photo.file, session)
       if (!isCurrentSession(session)) return
 
-      imageUrl = createImageObjectUrl(cutout.imageBase64, cutout.mimeType)
       originalImageUrl = URL.createObjectURL(photo.file)
       const suggestedName = classification?.suggestedName.trim() ||
         [classification?.colorName, classification?.subcategoryLabel]
@@ -135,7 +109,7 @@ export const useWardrobeImageAnalysis = create<WardrobeImageAnalysis>((set, get)
       enqueueClassification({
         isBatch: photo.isBatch,
         itemId: photo.id,
-        imageUrl,
+        imageUrl: originalImageUrl,
         originalImageUrl,
         originalFilename: photo.file.name,
         itemName: suggestedName || '새 옷',
@@ -162,7 +136,6 @@ export const useWardrobeImageAnalysis = create<WardrobeImageAnalysis>((set, get)
         )
       }
     } catch (error) {
-      if (imageUrl) URL.revokeObjectURL(imageUrl)
       if (originalImageUrl) URL.revokeObjectURL(originalImageUrl)
       if (!isCurrentSession(session)) return
 
@@ -179,7 +152,7 @@ export const useWardrobeImageAnalysis = create<WardrobeImageAnalysis>((set, get)
     }
   }
 
-  /** 여러 번 사진을 추가해도 같은 배열 뒤에 붙인다. 사진의 컷아웃 처리까지 끝난 뒤 다음 사진을 요청한다. */
+  /** 여러 번 사진을 추가해도 같은 배열 뒤에 붙이고, 한 장씩 분류한다. */
   function queuePhotos(photos: QueuedPhoto[]) {
     const accessToken = getAccessToken()
     if (!accessToken) return false

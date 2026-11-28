@@ -188,8 +188,9 @@ async function requestMockPreview(
   return requests[0]!
 }
 
-test('옷 사진을 서버에서 읽지 않고 선택 순서대로 이미지 URL을 넘긴다', async (t) => {
-  const items = [createPreviewItem('top', 'top'), createPreviewItem('bottom', 'bottom')]
+test('룩북은 선택 순서대로 원본 URL을 우선 전달하고 없으면 표시 사진을 사용한다', async (t) => {
+  const original = 'https://wardrobe.example.test/original-top.jpg'
+  const items = [{ ...createPreviewItem('top', 'top'), originalImageAsset: { deliveryUrl: original } }, createPreviewItem('bottom', 'bottom')]
   t.mock.method(userRepository, 'findViewerById', async () => null)
   t.mock.method(wardrobeRepository, 'findManyOwnedWithImagesByIds', async () => items)
   const previousKey = process.env.OPENAI_API_KEY
@@ -201,7 +202,7 @@ test('옷 사진을 서버에서 읽지 않고 선택 순서대로 이미지 URL
 
   const fetch = t.mock.method(globalThis, 'fetch', async (url: unknown, options?: RequestInit) => {
     assert.equal(url, 'https://api.openai.com/v1/images/edits')
-    assert.deepEqual(readImageRequest(options).images, items.map(item => ({ image_url: item.displayImageAsset.deliveryUrl })))
+    assert.deepEqual(readImageRequest(options).images, [{ image_url: original }, { image_url: items[1].displayImageAsset.deliveryUrl }])
     return Response.json({ data: [{ b64_json: Buffer.from('mock-preview').toString('base64') }] })
   })
   const onBeforeRequest = t.mock.fn(async () => {})

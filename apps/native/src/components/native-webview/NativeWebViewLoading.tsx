@@ -6,12 +6,14 @@ import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, useWi
 import { WearroomWordmark } from '../branding/WearroomWordmark'
 import { WardrobeLoadingAnimation } from '../wardrobe/WardrobeLoadingAnimation'
 import { WARDROBE_HERO_SIZE, WardrobeProgressHero } from '../wardrobe/WardrobeProgressHero'
+import { getWardrobeSplashOffset } from '../wardrobe/wardrobeSplashLayout'
 
 const SLOW_LOADING_MESSAGE_DELAY_MS = 5_000
 
 interface NativeWebViewLoadingProps {
   visible: boolean
   canOpenWardrobe: boolean
+  onInitialFrameReady: () => void
   stage?: WebBundleProgressStage
   showUpdateSteps?: boolean
   error?: string | null
@@ -25,6 +27,7 @@ interface NativeWebViewLoadingProps {
 export function NativeWebViewLoading({
   visible,
   canOpenWardrobe,
+  onInitialFrameReady,
   stage = 'preparing',
   showUpdateSteps = false,
   error,
@@ -33,6 +36,7 @@ export function NativeWebViewLoading({
   const { height: screenHeight } = useWindowDimensions()
   const viewportRef = useRef<View>(null)
   const [viewportTop, setViewportTop] = useState<number | null>(null)
+  const [isClosedImageLoaded, setIsClosedImageLoaded] = useState(false)
   const progress = useRef(new Animated.Value(0)).current
   const opacity = useRef(new Animated.Value(1)).current
   const [isPresented, setIsPresented] = useState(true)
@@ -51,6 +55,13 @@ export function NativeWebViewLoading({
     }).catch(() => {})
     return () => { active = false; subscription.remove() }
   }, [])
+
+  // 로그인 직후에도 화면 좌표와 닫힌 이미지가 그려진 프레임까지 런치 화면을 유지한다.
+  useEffect(() => {
+    if (canOpenWardrobe || viewportTop === null || (!isClosedImageLoaded && !error)) return
+    const frame = requestAnimationFrame(onInitialFrameReady)
+    return () => cancelAnimationFrame(frame)
+  }, [canOpenWardrobe, error, isClosedImageLoaded, onInitialFrameReady, viewportTop])
 
   useEffect(() => {
     if (!canOpenWardrobe || reduceMotion === null || viewportTop === null) return
@@ -99,11 +110,11 @@ export function NativeWebViewLoading({
         style={styles.viewport}
       >
         <View style={!error && [styles.hero, viewportTop !== null && {
-          top: screenHeight / 2 - viewportTop - WARDROBE_HERO_SIZE / 2,
+          top: getWardrobeSplashOffset(screenHeight, viewportTop, WARDROBE_HERO_SIZE / 2),
         }]}>
           {error
             ? <WardrobeLoadingAnimation isAnimating={false} />
-            : <WardrobeProgressHero progress={progress} />}
+            : <WardrobeProgressHero progress={progress} onClosedImageLoad={() => setIsClosedImageLoaded(true)} />}
         </View>
         <View style={error ? styles.errorStatus : styles.status}>
           <WearroomWordmark width={236} />

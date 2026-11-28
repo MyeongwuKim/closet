@@ -455,7 +455,7 @@ export const wardrobeService = {
 
   /**
    * 새 옷을 저장하기 전에 이름·치수와 사용자 소유 이미지의 업로드 완료 여부를 확인한다.
-   * 표시 자산은 wardrobeCutout PNG, 원본은 wardrobeOriginal이어야 하며, 생성 룩북 자산을 옷 사진으로 연결하지 않는다.
+   * 표시 자산으로 원본 사진이나 누끼 PNG를 받는다. 별도로 연결한 원본은 wardrobeOriginal이어야 한다.
    */
   async create(userId: string, input: CreateWardrobeItemInput) {
     const name = input.name.trim()
@@ -492,11 +492,15 @@ export const wardrobeService = {
     }
 
     const displayAsset = assets.find((asset) => asset.id === input.displayImageAssetId)
-    if (displayAsset?.kind !== 'wardrobeCutout' || displayAsset.mimeType !== 'image/png') {
+    const displaysOriginal = displayAsset?.kind === 'wardrobeOriginal'
+    if (!displaysOriginal && (displayAsset?.kind !== 'wardrobeCutout' || displayAsset.mimeType !== 'image/png')) {
       throw new ServiceError(
-        '배경이 제거된 PNG 사진으로 다시 등록해주세요.',
-        'WARDROBE_CUTOUT_REQUIRED',
+        '업로드한 옷 사진으로 다시 등록해주세요.',
+        'INVALID_IMAGE_KIND',
       )
+    }
+    if (displaysOriginal && input.originalImageAssetId && input.originalImageAssetId !== input.displayImageAssetId) {
+      throw new ServiceError('표시 사진으로 선택한 원본과 같은 이미지를 연결해주세요.', 'INVALID_IMAGE_KIND')
     }
     if (input.originalImageAssetId && assets.find((asset) => asset.id === input.originalImageAssetId)?.kind !== 'wardrobeOriginal') {
       throw new ServiceError('옷 원본 사진으로 업로드한 이미지만 연결할 수 있어요.', 'INVALID_IMAGE_KIND')
@@ -505,6 +509,7 @@ export const wardrobeService = {
     return wardrobeRepository.create({
       userId,
       ...input,
+      originalImageAssetId: displaysOriginal ? input.displayImageAssetId : input.originalImageAssetId,
       registrationRequestId,
       name,
       brandName: normalizeBrandName(input.brandName),

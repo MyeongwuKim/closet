@@ -127,16 +127,14 @@ test('일시 보류는 유효한 미래 재개일을 저장하고 사유 해제 
   }
 })
 
-test('새 옷은 배경 제거 PNG를 표시 자산으로 확인한 뒤에만 저장한다', async (t) => {
+test('원본 하나로 새 옷을 저장하면 표시 사진과 원본이 같은 자산을 가리킨다', async (t) => {
   t.mock.method(imageRepository, 'findOwnedByIds', async () => [
     { id: 'display-image', uploadStatus: 'ready', kind: 'wardrobeOriginal', mimeType: 'image/jpeg' },
   ])
-  const create = t.mock.method(wardrobeRepository, 'create', async () => ({ id: 'saved-item' }) as never)
-
-  await assert.rejects(wardrobeService.create('viewer', createInput), (error: unknown) =>
-    error instanceof ServiceError && error.code === 'WARDROBE_CUTOUT_REQUIRED',
-  )
-  assert.equal(create.mock.callCount(), 0)
+  const create = t.mock.method(wardrobeRepository, 'create', async (data: CreateWardrobeItemData) => ({ id: 'saved-item', ...data }))
+  await wardrobeService.create('viewer', createInput)
+  assert.equal(create.mock.calls[0]?.arguments[0].displayImageAssetId, 'display-image')
+  assert.equal(create.mock.calls[0]?.arguments[0].originalImageAssetId, 'display-image')
 })
 
 test('생성 룩북 이미지를 옷 원본 사진으로 붙이지 못하게 해 고아 정리와의 새 참조 경합을 막는다', async (t) => {

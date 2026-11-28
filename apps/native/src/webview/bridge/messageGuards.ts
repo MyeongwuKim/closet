@@ -13,6 +13,7 @@ import type {
   NativeOpenExternalUrlRequest,
   NativeRequestPermissionRequest,
   NativeWebAppReadyMessage,
+  NativeWardrobeCutoutRequest,
 } from './types'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -21,6 +22,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function hasRequestId(value: Record<string, unknown>) {
   return typeof value.id === 'string' && value.id.length > 0
+}
+
+const MAX_WARDROBE_BASE64_LENGTH = Math.ceil((10 * 1024 * 1024) / 3) * 4
+
+/** 파일 경로 없이 등록 한도 이내의 사진 데이터만 Vision 모듈에 전달한다. */
+export function isNativeWardrobeCutoutRequest(value: unknown): value is NativeWardrobeCutoutRequest {
+  return isRecord(value) && value.type === 'closet:native-wardrobe-cutout' && hasRequestId(value)
+    && typeof value.imageBase64 === 'string' && value.imageBase64.length > 0
+    && value.imageBase64.length <= MAX_WARDROBE_BASE64_LENGTH
+    && value.imageBase64.length % 4 === 0 && /^[A-Za-z0-9+/]+={0,2}$/.test(value.imageBase64)
 }
 
 /** 광고 설정이나 URL은 받지 않고 서버가 발급한 세션 번호만 허용한다. */
@@ -133,6 +144,7 @@ export function parseNativeBridgeRequest(
     if (isNativeRequestPermissionRequest(value)) return value
     if (isNativeCurrentLocationRequest(value)) return value
     if (isNativeCaptureWardrobePhotoRequest(value)) return value
+    if (isNativeWardrobeCutoutRequest(value)) return value
     if (isNativeOpenExternalUrlRequest(value)) return value
     if (isNativeAuthSessionRequest(value)) return value
     if (isNativeGraphqlRequest(value)) return value

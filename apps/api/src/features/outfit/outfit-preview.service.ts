@@ -445,7 +445,9 @@ export const outfitPreviewService = {
     const lookbookShotIndex = previous ? nextShotIndex(previous.metadata) : null
 
     const images = items.map((item, index) => {
-      const imageUrl = getReferenceImageUrl(item.displayImageAsset?.deliveryUrl)
+      // 새 등록은 원본의 옷 윤곽을 참조하고, 원본이 없는 이전 등록은 표시 사진을 사용한다.
+      const imageUrl = getReferenceImageUrl(item.originalImageAsset?.deliveryUrl)
+        ?? getReferenceImageUrl(item.displayImageAsset?.deliveryUrl)
       if (!imageUrl) throw new ServiceError(`${index + 1}번째 옷 이미지를 사용할 수 없어요.`, 'OUTFIT_PREVIEW_IMAGE_FAILED')
       return { image_url: imageUrl }
     })

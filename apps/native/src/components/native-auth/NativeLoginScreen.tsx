@@ -29,6 +29,10 @@ import type {
 } from '../../auth/nativeAuthTypes'
 import { WearroomWordmark } from '../branding/WearroomWordmark'
 import { WardrobeProgressHero } from '../wardrobe/WardrobeProgressHero'
+import { getWardrobeSplashOffset } from '../wardrobe/wardrobeSplashLayout'
+
+const LOGIN_CONTENT_TOP = 16
+const LOGIN_WARDROBE_HEIGHT = 220
 
 interface NativeLoginScreenProps {
   isPreparing: boolean
@@ -149,7 +153,7 @@ export function NativeLoginScreen({
                   {
                     translateY: entrance.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [Math.max(0, screenHeight / 2 - (viewportTop ?? 0) - 126), 0],
+                      outputRange: [getWardrobeSplashOffset(screenHeight, viewportTop ?? 0, LOGIN_CONTENT_TOP + LOGIN_WARDROBE_HEIGHT / 2), 0],
                     }),
                   },
                   {
@@ -315,14 +319,14 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingTop: LOGIN_CONTENT_TOP,
     paddingBottom: 40,
   },
   hero: {
     zIndex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    height: 220,
+    height: LOGIN_WARDROBE_HEIGHT,
   },
   loginContent: {
     width: '100%',

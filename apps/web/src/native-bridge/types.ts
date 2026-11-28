@@ -67,6 +67,7 @@ export interface ClosetNativeBridge {
   openExternalUrl: (url: string) => Promise<void>
   setAuthSession: (accessToken: string | null) => Promise<void>
   captureWardrobePhoto: () => Promise<NativeCaptureWardrobePhotoResult>
+  removeWardrobePhotoBackground?: (imageBase64: string, signal?: AbortSignal) => Promise<{ imageBase64: string }>
 }
 
 export interface ClosetRuntimeConfig {

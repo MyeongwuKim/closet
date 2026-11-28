@@ -102,12 +102,13 @@ export default function App() {
   }
 
   return (
-    <SafeAreaView onLayout={releaseSplash} style={styles.signedInScreen}>
+    <SafeAreaView style={styles.signedInScreen}>
       <View pointerEvents="none" style={styles.topSafeAreaBackground} />
       <StatusBar style="dark" />
       <NativeWebViewScreen
         accessToken={auth.session.accessToken}
         isSplashHidden={isSplashHidden}
+        onInitialFrameReady={releaseSplash}
         notificationPath={notificationPath}
         onNotificationPathHandled={clearNotificationPath}
         onAuthSessionChange={auth.updateSession}

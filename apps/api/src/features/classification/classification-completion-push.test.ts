@@ -113,9 +113,9 @@ test('같은 사진의 중복 요청과 캐시 재조회는 분류와 완료 알
   const send = t.mock.method(pushService, 'sendCompletion', async () => true)
   const app = await buildApp()
   t.after(() => app.close())
-  const request = (filename: string) => app.inject({
+  const request = (filename: string, includeCutout = true) => app.inject({
     method: 'POST', url: '/graphql', headers: { authorization: 'Bearer local-test' },
-    payload: { query: `mutation { classifyWardrobeImage(input: { imageBase64: "dGVzdA==", mimeType: "image/jpeg", filename: "${filename}" }) { suggestedName } }` },
+    payload: { query: `mutation { classifyWardrobeImage(input: { imageBase64: "dGVzdA==", mimeType: "image/jpeg", filename: "${filename}", includeCutout: ${includeCutout} }) { suggestedName } }` },
   })
   for (const response of await Promise.all([request('one.jpg'), request('two.jpg')])) {
     assert.equal(response.json().data?.classifyWardrobeImage.suggestedName, '같은 셔츠')
@@ -123,4 +123,9 @@ test('같은 사진의 중복 요청과 캐시 재조회는 분류와 완료 알
   assert.equal((await request('three.jpg')).json().errors, undefined)
   assert.equal(classify.mock.callCount(), 1)
   assert.equal(send.mock.callCount(), 1)
+  assert.equal((await request('same.jpg', false)).json().errors, undefined)
+  assert.equal((await request('other.jpg', false)).json().errors, undefined)
+  assert.equal(classify.mock.callCount(), 2)
+  assert.equal((classify.mock.calls[1].arguments[0] as { includeCutout: boolean }).includeCutout, false)
+  assert.equal(send.mock.callCount(), 2)
 })

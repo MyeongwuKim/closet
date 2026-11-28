@@ -1,6 +1,7 @@
 import { test, expect, createWardrobeItem } from './support/fixture'
 import type { Page } from '@playwright/test'
 import { mkdirSync, readFileSync } from 'node:fs'
+import type { ClosetNativeBridge } from '../apps/web/src/native-bridge/types'
 
 const onePixelPng = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9s1gAAAABJRU5ErkJggg==',
@@ -92,6 +93,11 @@ test('네이티브 WebView 사진 추가 창에 스크린샷을 놓으면 AI 분
 
 test('사진 분석 결과를 확인해 옷을 등록하고 새로고침 후에도 조회한다', async ({ page, mockApi }) => {
   mockApi.wardrobeItems = []
+  await page.route('**/graphql', async (route) => {
+    const { query, variables } = route.request().postDataJSON()
+    if (query.includes('mutation ClassifyWardrobeImage')) expect(variables.input.includeCutout).toBe(false)
+    await route.fallback()
+  })
 
   await page.goto('/closet')
   await expect(page.getByText('옷장이 비어 있어요')).toBeVisible()
@@ -106,8 +112,9 @@ test('사진 분석 결과를 확인해 옷을 등록하고 새로고침 후에�
 
   await expect(classificationDialog).toHaveCount(0)
   await expect(page.getByRole('button', { name: '새로 등록한 셔츠 옷 상세 보기' })).toBeVisible()
-  expect(mockApi.operations).toContain('RemoveWardrobeImageBackground')
-  expect(mockApi.uploadKinds).toEqual(['wardrobeCutout'])
+  expect(mockApi.operations).not.toContain('RemoveWardrobeImageBackground')
+  expect(mockApi.uploadKinds).toEqual(['wardrobeOriginal'])
+  expect(mockApi.wardrobeItems[0].displayImageAsset?.id).toBe(mockApi.wardrobeItems[0].originalImageAsset?.id)
 
   await page.reload()
   await expect(page.getByRole('button', { name: '새로 등록한 셔츠 옷 상세 보기' })).toBeVisible()
@@ -261,9 +268,12 @@ test('신발의 형태 정보가 부족하면 색이 겹치는 후보만 보여�
   await expect(dialog.getByRole('button', { name: '검정 하이탑 상세정보 보기' })).toHaveCount(0)
 })
 
-test('신규 등록 전에 배경이 제거된 옷 미리보기를 보여준다', async ({ page, mockApi }) => {
+test('기기에서 만든 누끼는 확인 화면에 표시하고 저장하면 원본과 함께 연결한다', async ({ page, mockApi }) => {
   mockApi.wardrobeItems = []
   await page.setViewportSize({ width: 390, height: 844 })
+  await page.addInitScript((imageBase64) => {
+    window.ClosetNative = { removeWardrobePhotoBackground: async () => ({ imageBase64 }) } as unknown as ClosetNativeBridge
+  }, readFileSync('tests/support/mock-shirt.png').toString('base64'))
 
   await page.goto('/closet')
   await selectWardrobePhoto(page)
@@ -272,6 +282,12 @@ test('신규 등록 전에 배경이 제거된 옷 미리보기를 보여준다'
   await expect(classificationDialog.getByText('AI 분석 완료')).toBeVisible()
   const preview = classificationDialog.getByRole('img', { name: '새 셔츠' })
   await expect(preview).toBeVisible()
+  await expect(preview).toHaveJSProperty('naturalWidth', 1)
+  await classificationDialog.getByRole('button', { name: '배경 제거', exact: true }).click()
+  await expect(preview).toHaveJSProperty('naturalWidth', 280)
+  await classificationDialog.getByRole('button', { name: '원본으로 돌아가기' }).click()
+  await expect(preview).toHaveJSProperty('naturalWidth', 1)
+  await classificationDialog.getByRole('button', { name: '배경 제거', exact: true }).click()
   await expect(preview).toHaveJSProperty('naturalWidth', 280)
   expect(mockApi.operations).not.toContain('CreateWardrobeItem')
   expect(mockApi.uploadKinds).toEqual([])
@@ -279,9 +295,16 @@ test('신규 등록 전에 배경이 제거된 옷 미리보기를 보여준다'
   await expect(page.getByText('AI가 옷 사진을 살펴보고 있어요 👀')).toHaveCount(0)
   mkdirSync('.playwright-mcp', { recursive: true })
   await page.screenshot({ path: '.playwright-mcp/registration-cutout-preview.png', animations: 'disabled' })
+  await classificationDialog.getByRole('group', { name: '입을 계절' }).getByRole('button', { name: '봄' }).click()
+  await classificationDialog.getByRole('button', { name: '옷장에 추가' }).click()
+  await expect(classificationDialog).toHaveCount(0)
+  expect(mockApi.uploadKinds).toEqual(['wardrobeOriginal', 'wardrobeCutout'])
+  expect(mockApi.wardrobeItems[0].originalImageAsset?.id).toBe('e2e-upload-1')
+  expect(mockApi.wardrobeItems[0].displayImageAsset?.id).toBe('e2e-upload-2')
+  expect(mockApi.operations).not.toContain('RemoveWardrobeImageBackground')
 })
 
-test('AI 분류가 실패해도 컷아웃이 있으면 옷 정보를 직접 입력해 등록한다', async ({ page, mockApi }) => {
+test('AI 분류가 실패해도 옷 정보를 직접 입력해 원본으로 등록한다', async ({ page, mockApi }) => {
   mockApi.wardrobeItems = []
   mockApi.classificationFailureMessage = 'AI 분류 요청에 실패했습니다.'
 
@@ -302,21 +325,38 @@ test('AI 분류가 실패해도 컷아웃이 있으면 옷 정보를 직접 입�
   await classificationDialog.getByRole('button', { name: '옷장에 추가' }).click()
 
   await expect(page.getByRole('button', { name: '직접 등록한 셔츠 옷 상세 보기' })).toBeVisible()
-  expect(mockApi.uploadKinds).toEqual(['wardrobeCutout'])
+  expect(mockApi.uploadKinds).toEqual(['wardrobeOriginal'])
+})
+
+test('기기 배경 제거에 실패해도 원본으로 등록할 수 있다', async ({ page, mockApi }) => {
+  await page.addInitScript(() => {
+    window.ClosetNative = { removeWardrobePhotoBackground: async () => { throw new Error('Vision processing failed') } } as unknown as ClosetNativeBridge
+  })
+  await page.goto('/closet')
+  await selectWardrobePhoto(page)
+  const dialog = page.getByRole('dialog', { name: 'AI 분석 결과' })
+  await dialog.getByRole('button', { name: '배경 제거' }).click()
+  await expect(dialog.getByText('배경을 제거하지 못했어요. 원본으로 등록할 수 있어요.')).toBeVisible()
+  await dialog.getByRole('group', { name: '입을 계절' }).getByRole('button', { name: '봄' }).click()
+  await dialog.getByRole('button', { name: '옷장에 추가' }).click()
+  await expect(dialog).toHaveCount(0)
+  expect(mockApi.uploadKinds).toEqual(['wardrobeOriginal'])
+  expect(mockApi.operations).not.toContain('RemoveWardrobeImageBackground')
 })
 
 for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
-  test(`${viewport.width}px: 배경 제거 실패를 팝업으로 알리고 같은 사진을 다시 시도한다`, async ({ page, mockApi }, testInfo) => {
+  test(`${viewport.width}px: 일시 분류 실패를 팝업으로 알리고 같은 사진을 다시 시도한다`, async ({ page, mockApi }, testInfo) => {
     await page.setViewportSize(viewport)
-    mockApi.cutoutFailureMessage = '사진의 배경을 제거하지 못했어요. 사진을 다시 추가해주세요.'
+    mockApi.classificationFailureMessage = '다른 AI 작업이 진행 중이에요.'
+    mockApi.classificationFailureCode = 'AI_BUSY'
     await page.goto('/closet')
     await selectWardrobePhoto(page, 1, readFileSync('tests/support/mock-shirt.png'))
 
     const failure = page.getByRole('dialog', { name: '사진을 처리하지 못했어요' })
-    await expect(failure.getByText('사진의 배경을 제거하지 못했어요.')).toBeVisible()
+    await expect(failure.getByText('다른 AI 작업이 진행 중이에요.')).toBeVisible()
     await expect(failure.getByRole('img', { name: '선택한 옷 사진' })).toHaveJSProperty('naturalWidth', 280)
     await expect(page.getByRole('dialog', { name: 'AI 분석 결과' })).toHaveCount(0)
-    expect(mockApi.operations).toContain('RemoveWardrobeImageBackground')
+    expect(mockApi.operations).not.toContain('RemoveWardrobeImageBackground')
     expect(mockApi.uploadKinds).toEqual([])
     await page.screenshot({ path: testInfo.outputPath('wardrobe-photo-failure.png'), animations: 'disabled' })
 
@@ -327,18 +367,19 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     await expect(failure).toHaveCount(0)
     await page.getByRole('button', { name: '처리하지 못한 사진 1장' }).click()
     await expect(failure).toBeVisible()
-    mockApi.cutoutFailureMessage = null
+    mockApi.classificationFailureMessage = null
     await failure.getByRole('button', { name: 'e2e-shirt-0.png 다시 시도' }).click()
     await expect(failure).toHaveCount(0)
     await expect(page.getByRole('dialog', { name: 'AI 분석 결과' })).toBeVisible()
-    expect(mockApi.operations.filter((operation) => operation === 'RemoveWardrobeImageBackground')).toHaveLength(2)
+    expect(mockApi.operations.filter((operation) => operation === 'ClassifyWardrobeImage')).toHaveLength(2)
     expect(mockApi.operations).not.toContain('CreateWardrobeItem')
     expect(mockApi.uploadKinds).toEqual([])
   })
 }
 
 test('여러 사진을 처리하지 못하면 한 팝업에서 각각 제외할 수 있다', async ({ page, mockApi }) => {
-  mockApi.cutoutFailureMessage = '사진의 배경을 제거하지 못했어요.'
+  mockApi.classificationFailureMessage = '다른 AI 작업이 진행 중이에요.'
+  mockApi.classificationFailureCode = 'AI_BUSY'
   await page.goto('/closet')
   await selectWardrobePhoto(page, 2)
 
@@ -351,7 +392,7 @@ test('여러 사진을 처리하지 못하면 한 팝업에서 각각 제외할 
   await expect(page.getByRole('button', { name: /처리하지 못한 사진/ })).toHaveCount(0)
 })
 
-test('컷아웃이 없는 저장 후보는 업로드 전에 거절한다', async ({ page, mockApi }) => {
+test('원본 URL이 없는 저장 후보는 업로드 전에 거절한다', async ({ page, mockApi }) => {
   mockApi.wardrobeItems = []
   await page.goto('/closet')
   await page.evaluate(async () => {
@@ -381,7 +422,7 @@ test('컷아웃이 없는 저장 후보는 업로드 전에 거절한다', async
   await classificationDialog.getByRole('group', { name: '입을 계절' }).getByRole('button', { name: '봄' }).click()
   await classificationDialog.getByRole('button', { name: '옷장에 추가' }).click()
 
-  await expect(page.getByText('사진의 배경 제거가 끝나지 않았어요. 사진을 다시 추가해주세요.')).toBeVisible()
+  await expect(page.getByText('원본 사진을 읽지 못했어요. 사진을 다시 추가해주세요.')).toBeVisible()
   await expect(classificationDialog).toBeVisible()
   expect(mockApi.operations).not.toContain('PrepareImageUpload')
   expect(mockApi.operations).not.toContain('CreateWardrobeItem')

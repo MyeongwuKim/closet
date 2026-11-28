@@ -100,7 +100,11 @@ export class WardrobeSaveError extends Error {
 }
 
 interface SaveSession { token: string | null; signal?: AbortSignal }
-const uploadedImages = new WeakMap<ClassificationCandidate, { token: string | null; asset: ImageAssetPayload }>()
+const uploadedImages = new WeakMap<ClassificationCandidate, {
+  token: string | null
+  original?: ImageAssetPayload
+  cutout?: ImageAssetPayload
+}>()
 
 /** 각 업로드 단계와 결과 반영 전에 같은 로그인 세션인지 확인한다. */
 function assertSaveSession(session: SaveSession) {
@@ -196,8 +200,8 @@ async function uploadImage(
 }
 
 /**
- * 확인된 옷 후보의 투명 PNG 한 장을 wardrobeCutout 자산으로 업로드한 뒤 옷장 아이템을 생성한다.
- * originalImageUrl 표식이 없으면 업로드 전에 거절하며, 원본 사진은 이 저장 요청에서 전송하지 않는다.
+ * 원본은 항상 저장하며 누끼를 선택했을 때만 표시용 PNG를 추가로 저장한다.
+ * 같은 후보의 저장을 다시 시도하면 업로드를 마친 자산을 재사용한다.
  */
 export async function saveWardrobeItem(
   candidate: ClassificationCandidate,
@@ -208,21 +212,27 @@ export async function saveWardrobeItem(
   assertSaveSession(session)
   if (!candidate.originalImageUrl) {
     throw new WardrobeSaveError(
-      '사진의 배경 제거가 끝나지 않았어요. 사진을 다시 추가해주세요.',
-      'WARDROBE_CUTOUT_REQUIRED',
+      '원본 사진을 읽지 못했어요. 사진을 다시 추가해주세요.',
+      'WARDROBE_ORIGINAL_REQUIRED',
     )
   }
   const originalFilename =
     candidate.originalFilename ?? `${input.name.replaceAll(' ', '_')}.png`
-  const uploaded = uploadedImages.get(candidate)
-  const displayAsset = uploaded?.token === session.token ? uploaded.asset : await uploadImage(
-    candidate.imageUrl,
-    'wardrobeCutout',
-    originalFilename,
-    session,
-  )
+  let uploaded = uploadedImages.get(candidate)
+  if (!uploaded || uploaded.token !== session.token) {
+    uploaded = { token: session.token }
+    uploadedImages.set(candidate, uploaded)
+  }
+  const originalAsset = uploaded.original ?? await uploadImage(candidate.originalImageUrl, 'wardrobeOriginal', originalFilename, session)
   assertSaveSession(session)
-  uploadedImages.set(candidate, { token: session.token, asset: displayAsset })
+  uploaded.original = originalAsset
+
+  const hasCutout = candidate.imageUrl !== candidate.originalImageUrl
+  const displayAsset = hasCutout
+    ? uploaded.cutout ?? await uploadImage(candidate.imageUrl, 'wardrobeCutout', originalFilename, session)
+    : originalAsset
+  assertSaveSession(session)
+  if (hasCutout) uploaded.cutout = displayAsset
 
   const data = await graphqlRequest<{ createWardrobeItem: WardrobeItemPayload }>(
     `
@@ -248,6 +258,7 @@ export async function saveWardrobeItem(
       input: {
         ...input,
         displayImageAssetId: displayAsset.id,
+        originalImageAssetId: originalAsset.id,
         registrationRequestId: candidate.itemId,
         classificationStatus: 'classified',
         classificationConfidence: candidate.confidence,
@@ -310,9 +321,10 @@ export function useSaveWardrobeItemMutation(options: { deferInvalidation?: boole
       saveWardrobeItem(candidate, input, signal),
     onSuccess: (item, variables, session) => {
       if (session?.token !== getAccessToken()) return
-      // 영속 URL로 교체한 표시 이미지와 저장에 쓰지 않는 원본의 임시 URL을 해제한다.
-      if (variables.candidate.imageUrl.startsWith('blob:') && item.imageUrl !== variables.candidate.imageUrl) URL.revokeObjectURL(variables.candidate.imageUrl)
-      if (variables.candidate.originalImageUrl?.startsWith('blob:')) URL.revokeObjectURL(variables.candidate.originalImageUrl)
+      // 영속 URL로 교체된 임시 사진은 원본과 표시가 같아도 한 번만 해제한다.
+      for (const url of new Set([variables.candidate.imageUrl, variables.candidate.originalImageUrl])) {
+        if (url?.startsWith('blob:') && url !== item.imageUrl) URL.revokeObjectURL(url)
+      }
       advanceOutfitRecommendationRevision(queryClient)
       queryClient.setQueryData<WardrobeItem[]>(
         queryKeys.wardrobe.list(),

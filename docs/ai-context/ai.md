@@ -4,7 +4,7 @@
 
 웹의 [useWardrobeImageAnalysis.ts](../../apps/web/src/features/closet/hooks/useWardrobeImageAnalysis.ts)는 이미지 분석 흐름의 진입점이다. 분류·배경 제거 결과는 공통 분류 확인 대기열로 이어지고, 사용자 확인·수정 후 업로드·옷장 저장을 수행한다.
 
-[classification.service.ts](../../apps/api/src/features/classification/classification.service.ts)는 이미지 형식·크기를 검증하고 분류·배경 제거·사이즈표 분석을 연결한다. 분류 실패는 오류를 전달하고, 배경 제거만 실패하면 별도 재요청 경로가 있다. 스탠드칼라는 일반 접힌 칼라와 구분해 `necklineStyle: standCollar`로 내려주며, 기존 값과 함께 같은 옷장 형태 필드에 저장한다.
+[classification.service.ts](../../apps/api/src/features/classification/classification.service.ts)는 이미지 형식·크기를 검증하고 분류·배경 제거·사이즈표 분석을 연결한다. 새 웹의 옷 등록은 `includeCutout: false`로 분류만 요청한다. 이전 웹 번들이 사용하는 서버 배경 제거와 별도 재요청 경로는 유지한다. 분류 캐시는 서버 배경 제거 포함 여부를 구분한다. 스탠드칼라는 일반 접힌 칼라와 구분해 `necklineStyle: standCollar`로 내려주며, 기존 값과 함께 같은 옷장 형태 필드에 저장한다.
 
 [openAiWardrobeClassifier.ts](../../apps/api/src/features/classification/openAiWardrobeClassifier.ts)는 분류 결과에 `refineGarmentColor.ts`·`refineBlackColor.ts`의 대표색 보정을 연결한다. 그린·올리브 추정은 세 원단 표본에 올리브색이 일치하면 표본 대표색을 저장한다. 배경 제거는 [backgroundRemover.ts](../../apps/api/src/features/classification/backgroundRemover.ts)의 로컬 Transformers 모델을 별도로 사용한다. 공유 대기열에서 사진을 디코딩한 뒤 모델을 불러와 추론하고, 알파 채널을 검증해 투명 PNG로 인코딩한다. 실패 시 `[wardrobe-cutout]` 로그에 단계와 오류 유형을 기록한다.
 

@@ -24,6 +24,7 @@ import {
   shouldKeepUrlInWebView,
 } from '../../webview/bridge/externalLinkBridge'
 import { supportsPreviewSubmissionInBackground } from '../../webview/bridge/previewSubmissionBackgroundTask'
+import { supportsWardrobeCutout } from '../../webview/bridge/wardrobeCutoutBridge'
 import { INITIAL_WEB_BUNDLE_PROGRESS } from '../../webBundle/webBundleProgress'
 import type { WebBundleProgress } from '../../webBundle/webBundleTypes'
 import { NativeWebViewLoading } from './NativeWebViewLoading'
@@ -35,6 +36,7 @@ const WEB_ACCESS_TOKEN_KEY = 'closet-test-access-token'
 
 interface NativeWebViewScreenProps {
   isSplashHidden: boolean
+  onInitialFrameReady: () => void
   accessToken: string
   notificationPath?: string | null
   onNotificationPathHandled?: () => void
@@ -43,6 +45,7 @@ interface NativeWebViewScreenProps {
 
 export function NativeWebViewScreen({
   isSplashHidden,
+  onInitialFrameReady,
   accessToken,
   notificationPath,
   onNotificationPathHandled,
@@ -78,7 +81,7 @@ export function NativeWebViewScreen({
           ${JSON.stringify(accessToken)}
         );
       } catch (error) {}
-      ${createClosetWebViewBridgeScript(supportsPreviewSubmissionInBackground)}
+      ${createClosetWebViewBridgeScript(supportsPreviewSubmissionInBackground, supportsWardrobeCutout)}
     `,
     [accessToken, loadKey],
   )
@@ -301,7 +304,8 @@ export function NativeWebViewScreen({
 
       <NativeWebViewLoading
         canOpenWardrobe={isSplashHidden}
-        visible={isLoading || Boolean(loadError) || firstFrameKey !== loadKey}
+        onInitialFrameReady={onInitialFrameReady}
+        visible={!isSplashHidden || isLoading || Boolean(loadError) || firstFrameKey !== loadKey}
         stage={firstFrameKey !== loadKey && bundleProgress.stage === 'ready' ? 'loading' : bundleProgress.stage}
         showUpdateSteps={showUpdateSteps}
         error={loadError}

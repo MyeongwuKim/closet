@@ -877,6 +877,7 @@ export const typeDefs = `#graphql
     imageBase64: String!
     mimeType: String!
     filename: String
+    includeCutout: Boolean = true
   }
 
   input AnalyzeGarmentSizeChartInput {

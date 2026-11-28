@@ -49,6 +49,12 @@ export interface NativeCaptureWardrobePhotoRequest {
   id: string
 }
 
+export interface NativeWardrobeCutoutRequest {
+  type: 'closet:native-wardrobe-cutout'
+  id: string
+  imageBase64: string
+}
+
 export interface NativeWardrobePhotoAsset {
   base64: string
   mimeType: 'image/jpeg'
@@ -100,6 +106,7 @@ export type NativeBridgeRequest =
   | NativeRequestPermissionRequest
   | NativeCurrentLocationRequest
   | NativeCaptureWardrobePhotoRequest
+  | NativeWardrobeCutoutRequest
   | NativeOpenExternalUrlRequest
   | NativeAuthSessionRequest
   | NativeGraphqlRequest

@@ -7,10 +7,10 @@ import { usePreviewJobNotification } from '../hooks/usePreviewJobNotification'
 /** 모든 화면 위에 완료·실패 팝업을 한 번만 표시한다. 화면 흐름과 네이티브 푸시의 자동 이동은 훅에서 구분한다. */
 export function OutfitPreviewJobDialog() {
   const notification = usePreviewJobNotification()
-  return notification.job ? <PreviewJobDialogContent key={notification.job.id} job={notification.job} onClose={notification.close} onLater={notification.dismiss} onOpen={notification.openResult} /> : null
+  return notification.job ? <PreviewJobDialogContent key={notification.job.id} job={notification.job} onClose={notification.close} onOpen={notification.openResult} /> : null
 }
 
-function PreviewJobDialogContent({ job, onClose, onLater, onOpen }: { job: OutfitPreviewJob; onClose: () => void; onLater: () => void; onOpen: () => void }) {
+function PreviewJobDialogContent({ job, onClose, onOpen }: { job: OutfitPreviewJob; onClose: () => void; onOpen: () => void }) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const completed = job.status === 'completed'
@@ -40,7 +40,7 @@ function PreviewJobDialogContent({ job, onClose, onLater, onOpen }: { job: Outfi
         <h2 id="preview-job-notification-title" className="mt-4 text-lg font-semibold">{completed ? 'AI 룩북이 완성됐어요' : 'AI 룩북을 만들지 못했어요'}</h2>
         <p id="preview-job-notification-description" className="mt-2 break-keep text-sm leading-6 text-muted">{completed ? '완성된 이미지를 확인해주세요.' : 'AI 사용권을 돌려드렸어요. 코디를 열어 다시 만들 수 있어요.'}</p>
         <div className="mt-5 grid grid-cols-2 gap-2">
-          <button type="button" onClick={onLater} className="min-h-12 rounded-xl border border-line px-3 py-3 text-sm font-bold">나중에 보기</button>
+          <button type="button" onClick={onClose} className="min-h-12 rounded-xl border border-line px-3 py-3 text-sm font-bold">나중에 보기</button>
           <button type="button" onClick={onOpen} className="min-h-12 rounded-xl bg-accent px-3 py-3 text-sm font-bold text-white">{completed ? '보러 가기' : '코디 열기'}</button>
         </div>
       </div>

@@ -30,6 +30,7 @@ import { FashionAttributeFields } from '../features/closet/components/FashionAtt
 import { WardrobeStorageLocationField } from '../features/closet/components/WardrobeStorageLocationField'
 import type { WardrobeRegistrationDraft } from '../features/closet/utils/wardrobeRegistration'
 import { WardrobeBrandField } from '../features/closet/components/WardrobeBrandField'
+import { useWardrobePhotoCutout } from '../features/closet/hooks/useWardrobePhotoCutout'
 import {
   fashionAttributesFromItem,
   mergeEditableFashionAttributes,
@@ -113,6 +114,7 @@ export function ClassificationConfirmModal({
   const [garmentSize, setGarmentSize] =
     useState<GarmentSizeFormValue>(() => initialDraft ? garmentSizeFromItem(initialDraft) : emptyGarmentSize)
   const [isSaving, setIsSaving] = useState(false)
+  const cutout = useWardrobePhotoCutout(candidate)
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
@@ -135,6 +137,7 @@ export function ClassificationConfirmModal({
     event.preventDefault()
     if (
       isSaving ||
+      cutout.isProcessing ||
       !name.trim() ||
       !category ||
       !subcategory.trim() ||
@@ -266,6 +269,16 @@ export function ClassificationConfirmModal({
                 className="detail-image-enter h-full w-full object-contain p-3"
               />
             </div>
+            {cutout.canRemoveBackground && (
+              <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+                {cutout.error && <p role="status" className="flex-1 text-sm text-muted">{cutout.error}</p>}
+                <button type="button" disabled={isSaving || cutout.isProcessing}
+                  onClick={cutout.hasCutout ? cutout.useOriginal : () => void cutout.removeBackground()}
+                  className="min-h-11 rounded-xl border border-line bg-surface px-3 text-sm font-semibold text-accent disabled:opacity-50">
+                  {cutout.isProcessing ? '배경 제거 중…' : cutout.hasCutout ? '원본으로 돌아가기' : '배경 제거'}
+                </button>
+              </div>
+            )}
 
             <div className="grid gap-4">
               {!candidate.analysisFailed && (
@@ -458,6 +471,7 @@ export function ClassificationConfirmModal({
               type="submit"
               disabled={
                 isSaving ||
+                cutout.isProcessing ||
                 !name.trim() ||
                 !category ||
                 !subcategory.trim() ||

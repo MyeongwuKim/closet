@@ -45,6 +45,7 @@ interface UiState {
   recentWearConfirmationOwnerId: string | null
   recentWearConfirmationResolver: ((confirmed: boolean) => void) | null
   enqueueClassification: (candidate: ClassificationCandidate) => void
+  setClassificationDisplayImage: (itemId: string, imageUrl: string) => boolean
   /** 저장을 마친 사진만 대기열에서 제거한다. 이미 닫힌 사진의 늦은 응답은 다른 후보에 영향을 주지 않는다. */
   completeClassification: (itemId: string) => void
   /** 지정한 등록 후보의 임시 이미지를 해제하고 대기열에서 제거한다. */
@@ -71,6 +72,19 @@ export const useUiStore = create<UiState>((set, get) => ({
     set((state) => ({
       classificationQueue: [...state.classificationQueue, candidate],
     })),
+  /** 같은 후보의 표시 이미지만 바꾸고 이제 쓰지 않는 누끼 임시 URL은 해제한다. */
+  setClassificationDisplayImage: (itemId, imageUrl) => {
+    const candidate = get().classificationQueue.find((entry) => entry.itemId === itemId)
+    if (!candidate) return false
+    if (candidate.imageUrl === imageUrl) return true
+    if (candidate.imageUrl !== candidate.originalImageUrl && candidate.imageUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(candidate.imageUrl)
+    }
+    set((state) => ({
+      classificationQueue: state.classificationQueue.map((entry) => entry === candidate ? { ...entry, imageUrl } : entry),
+    }))
+    return true
+  },
   completeClassification: (itemId) =>
     set((state) => ({
       classificationQueue: state.classificationQueue.filter((candidate) => candidate.itemId !== itemId),
@@ -80,7 +94,7 @@ export const useUiStore = create<UiState>((set, get) => ({
     if (candidate?.imageUrl.startsWith('blob:')) {
       URL.revokeObjectURL(candidate.imageUrl)
     }
-    if (candidate?.originalImageUrl?.startsWith('blob:')) {
+    if (candidate?.originalImageUrl !== candidate?.imageUrl && candidate?.originalImageUrl?.startsWith('blob:')) {
       URL.revokeObjectURL(candidate.originalImageUrl)
     }
 
@@ -93,7 +107,7 @@ export const useUiStore = create<UiState>((set, get) => ({
       if (candidate.imageUrl.startsWith('blob:')) {
         URL.revokeObjectURL(candidate.imageUrl)
       }
-      if (candidate.originalImageUrl?.startsWith('blob:')) {
+      if (candidate.originalImageUrl !== candidate.imageUrl && candidate.originalImageUrl?.startsWith('blob:')) {
         URL.revokeObjectURL(candidate.originalImageUrl)
       }
     })

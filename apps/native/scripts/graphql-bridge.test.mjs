@@ -8,7 +8,7 @@ import {
 import { createClosetWebViewBridgeScript } from '../src/webview/bridge/injectedScript.ts'
 import { parseNativeBridgeRequest } from '../src/webview/bridge/messageGuards.ts'
 
-function createBridge(beginPreviewSubmission) {
+function createBridge(beginPreviewSubmission, supportsWardrobeCutout = false) {
   const messages = []
   const inFlight = []
   const timers = new Map()
@@ -36,9 +36,30 @@ function createBridge(beginPreviewSubmission) {
       }
     },
   }
-  runInContext(createClosetWebViewBridgeScript(Boolean(beginPreviewSubmission)), context)
+  runInContext(createClosetWebViewBridgeScript(Boolean(beginPreviewSubmission), supportsWardrobeCutout), context)
   return { native: context.window.ClosetNative, context, messages, timers, inFlight }
 }
+
+test('지원 빌드만 옷 배경 제거를 노출하고 취소 뒤 늦은 응답을 무시한다', async () => {
+  assert.equal(createBridge().native.removeWardrobePhotoBackground, undefined)
+  const bridge = createBridge(undefined, true)
+  const controller = new AbortController()
+  const pending = bridge.native.removeWardrobePhotoBackground('dGVzdA==', controller.signal)
+  const request = bridge.messages.at(-1)
+  assert.equal(request.type, 'closet:native-wardrobe-cutout')
+  assert.equal(request.imageBase64, 'dGVzdA==')
+  assert.equal(bridge.timers.size, 1)
+  controller.abort()
+  await assert.rejects(pending, { name: 'AbortError' })
+  bridge.context.window.__CLOSET_NATIVE_BRIDGE_RESPONSE__(request.id, { ok: true, data: { imageBase64: 'late' } })
+  assert.equal(bridge.timers.size, 0)
+
+  const next = bridge.native.removeWardrobePhotoBackground('dGVzdA==')
+  bridge.context.window.__CLOSET_NATIVE_BRIDGE_RESPONSE__(bridge.messages.at(-1).id, { ok: true, data: { imageBase64: 'cutout' } })
+  assert.equal((await next).imageBase64, 'cutout')
+  assert.equal(bridge.timers.size, 0)
+  assert.equal(parseNativeBridgeRequest(JSON.stringify({ ...request, imageBase64: 'file:///not-an-image' })), null)
+})
 
 const startPreview = 'mutation StartOutfitPreview($input: StartOutfitPreviewInput!) { startOutfitPreview(input: $input) { id } }'
 const previewVariables = { input: { requestId: 'preview-request-1', selectedItemIds: ['top', 'bottom'] } }

@@ -3,6 +3,7 @@ import { Platform } from 'react-native'
 import { supportsRewardedAds } from '../../ads/rewardedAds'
 import { getNativePermissionStatuses } from './permissionBridge'
 import { supportsPreviewSubmissionInBackground } from './previewSubmissionBackgroundTask'
+import { supportsWardrobeCutout } from './wardrobeCutoutBridge'
 import { postNativeBridgeResponse } from './responses'
 import type { NativeAppInfoRequest, WebViewRef } from './types'
 
@@ -23,6 +24,7 @@ export async function handleNativeAppInfoRequest(
       capabilities: [
         ...(supportsRewardedAds() ? ['rewarded-ad', 'ad-privacy'] : []),
         ...(supportsPreviewSubmissionInBackground ? ['preview-submission-in-background'] : []),
+        ...(supportsWardrobeCutout ? ['wardrobe-cutout'] : []),
         'app-info',
         'app-permissions',
         'notification-permission',

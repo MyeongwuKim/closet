@@ -245,7 +245,7 @@ test('백그라운드에서는 완료 팝업을 숨기고 복귀한 뒤 사용�
   await expect(popup).toHaveCount(0)
   await page.evaluate(() => window.dispatchEvent(new Event('closet:native-app-active')))
   await expect(popup).toHaveCount(0)
-  expect(mockApi.operations).not.toContain('AcknowledgeOutfitPreviewJob')
+  await expect.poll(() => mockApi.operations).toContain('AcknowledgeOutfitPreviewJob')
   expect(mockApi.operations).not.toContain('StartOutfitPreview')
 })
 
@@ -275,6 +275,7 @@ test('완료 팝업은 기존 실패 화면을 즉시 바꾸고 이미지 조회
   })
   await page.goto(earlier.path)
   await expect(page.getByRole('heading', { name: '미리보기를 만들지 못했어요' })).toBeVisible()
+  await expect(page.getByRole('dialog', { name: 'AI 룩북을 만들지 못했어요' })).toBeVisible()
   jobs = [completed, earlier]
   await page.evaluate(() => window.dispatchEvent(new Event('closet:native-app-active')))
   await page.getByRole('dialog', { name: 'AI 룩북이 완성됐어요' }).getByRole('button', { name: '보러 가기' }).click()
@@ -345,6 +346,52 @@ for (const status of ['completed', 'failed'] as const) {
     await expect(page.getByRole('dialog', { name: completed ? 'AI 룩북을 만들지 못했어요' : 'AI 룩북이 완성됐어요' })).toBeVisible()
     await expect(popup).toHaveCount(0)
     expect(acknowledged).toBe(true)
+    await expect(page).toHaveURL(/#\/plan$/)
+    expect(mockApi.operations).not.toContain('StartOutfitPreview')
+  })
+}
+
+for (const buttonName of ['나중에 보기', 'AI 룩북 안내 닫기']) {
+  test(`확인 전송이 끊겨도 앱을 다시 켜면 닫은 실패 안내를 건너뛴다 (${buttonName})`, async ({ page, mockApi }) => {
+    const failed = makeJob('interrupted')
+    const jobs = [failed]
+    const acknowledgementAttempts: string[] = []
+    let canAcknowledge = false
+    await page.route('**/restart-fixture', async (route) => {
+      await route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>WebView closed</title>' })
+    })
+    await page.route('**/graphql', async (route) => {
+      const { query, variables } = route.request().postDataJSON()
+      if (query.includes('query OutfitPreviewJobs')) {
+        await route.fulfill({ json: { data: { outfitPreviewJobs: jobs } } })
+      } else if (query.includes('mutation AcknowledgeOutfitPreviewJob')) {
+        acknowledgementAttempts.push(variables.id)
+        if (!canAcknowledge) {
+          await route.fulfill({ json: { errors: [{ message: 'AI 결과 확인을 저장하지 못했어요.', extensions: { code: 'INTERNAL_SERVER_ERROR' } }] } })
+          return
+        }
+        const index = jobs.findIndex((job) => job.id === variables.id)
+        if (index >= 0) jobs.splice(index, 1)
+        await route.fulfill({ json: { data: { acknowledgeOutfitPreviewJob: index >= 0 } } })
+      } else await route.fallback()
+    })
+
+    await page.addInitScript(() => { window.ClosetRuntimeConfig = { isNativeWebView: true, routerMode: 'hash' } })
+    await page.goto('/#/plan')
+    const popup = page.getByRole('dialog', { name: 'AI 룩북을 만들지 못했어요' })
+    await expect(popup).toBeVisible()
+    await popup.getByRole('button', { name: buttonName, exact: true }).click()
+    await expect(popup).toHaveCount(0)
+    await expect.poll(() => acknowledgementAttempts).toEqual([failed.id])
+
+    // 새 문서에서 앱을 다시 시작한다. 서버는 이전 실패를 여전히 미확인으로 반환한다.
+    await page.goto('/restart-fixture')
+    jobs.push({ ...makeJob('completed'), id: 'next-preview-job' })
+    canAcknowledge = true
+    await page.goto('/#/plan')
+    await expect(page.getByRole('dialog', { name: 'AI 룩북이 완성됐어요' })).toBeVisible()
+    await expect(popup).toHaveCount(0)
+    await expect.poll(() => acknowledgementAttempts).toEqual([failed.id, failed.id])
     await expect(page).toHaveURL(/#\/plan$/)
     expect(mockApi.operations).not.toContain('StartOutfitPreview')
   })

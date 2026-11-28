@@ -4,6 +4,8 @@
 
 [App.tsx](../../apps/native/src/App.tsx)는 Expo·React Native 앱의 권한 안내·인증·연결 오류·메인 화면을 전환한다. 초기 화면 준비와 스플래시 해제를 연결하며, 로그인 후 [NativeWebViewScreen.tsx](../../apps/native/src/components/native-webview/NativeWebViewScreen.tsx)가 웹 번들을 표시한다.
 
+iOS 런치 화면은 옷장 이미지를 창 중앙에 놓는다. 로그인과 WebView 로딩 화면도 안전 영역의 창 좌표를 빼서 같은 중앙에 첫 이미지를 놓고, 좌표와 닫힌 이미지가 준비된 프레임에서 런치 화면을 닫는다.
+
 [sync-web-build.mjs](../../apps/native/scripts/sync-web-build.mjs)는 웹 빌드에서 `apps/native/src/generated/webBundle.ts`를 생성한다. WebView의 기준 주소는 `https://closet.native/`다. 웹 개발 서버와 앱 안의 번들은 별개이며, `pnpm native:web:sync`는 번들 생성 후 실행 앱을 다시 불러온다.
 
 원격 웹 번들·강제 업데이트 정책·R2 경로·GitHub 설정·검증 명령은 [웹 번들·앱 업데이트](web-bundle-updates.md)에 있다. local은 내장 번들을, dev/prod는 채널·호환성·해시를 검사한 로컬 저장본을 사용한다. 현재 버전은 `apps/native/app-versions.json`, 스토어 강제 업데이트 정책은 `apps/native/minimum-app-versions.json`이다.
@@ -25,6 +27,8 @@ iOS 앱에 [PreviewSubmissionModule.swift](../../apps/native/modules/preview-sub
 인증은 SecureStore와 웹 토큰의 동기화로 이어진다. 권한 상태 조회와 시스템 권한 요청은 분리되어 있고, 허용된 로그인 기기는 푸시 토큰을 등록한다. 카메라·위치 결과는 성공 외에 취소·거절·오류 등을 상태값으로 전달한다.
 
 옷 사진 추가창은 WebView로 전달된 이미지 드롭·붙여넣기도 기존 사진 검증과 분석으로 연결한다. macOS Finder에서 iOS 시뮬레이터 창으로 떨어뜨린 이미지는 Simulator가 사진 앱에 가져오므로 앱의 ‘앨범에서 선택’에서 사용할 수 있다.
+
+iOS 17 이상에서 [WardrobeCutoutModule.swift](../../apps/native/modules/wardrobe-cutout/ios/WardrobeCutoutModule.swift)를 포함한 빌드는 `wardrobe-cutout`과 `removeWardrobePhotoBackground`를 제공한다. 등록 확인에서 사용자가 요청하면 Vision이 기기에서 투명 PNG를 만든다. WebView는 요청 시간 초과나 취소 뒤 도착한 결과를 무시하고, 미지원 환경과 실패에서는 원본으로 등록할 수 있다.
 
 ## 준비 신호와 화면 이동
 

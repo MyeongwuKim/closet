@@ -1,5 +1,5 @@
-/** iOS 실행 시간 연장 기능이 설치된 경우 웹에 룩북 접수용 전송 함수를 함께 제공한다. */
-export function createClosetWebViewBridgeScript(supportsPreviewSubmissionInBackground: boolean) {
+/** iOS 빌드에서 지원하는 실행 시간 연장과 옷 사진 배경 제거 기능을 웹에 노출한다. */
+export function createClosetWebViewBridgeScript(supportsPreviewSubmissionInBackground: boolean, supportsWardrobeCutout = false) {
   return `
   (function () {
     if (window.ClosetNative) {
@@ -122,6 +122,12 @@ export function createClosetWebViewBridgeScript(supportsPreviewSubmissionInBackg
       return request('closet:native-graphql', {
         query: query, variables: variables, finishPreviewInBackground: true
       }, 180000, signal);
+    };
+    ` : ''}
+
+    ${supportsWardrobeCutout ? `
+    window.ClosetNative.removeWardrobePhotoBackground = function (imageBase64, signal) {
+      return request('closet:native-wardrobe-cutout', { imageBase64: imageBase64 }, 30000, signal);
     };
     ` : ''}
 

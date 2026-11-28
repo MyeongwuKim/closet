@@ -40,6 +40,7 @@ export const classificationResolvers = {
         const viewer = await context.getViewer()
         return await aiExecutor.run(viewer.id, 'classification', {
           image: input.imageBase64, mimeType: input.mimeType,
+          ...(input.includeCutout === false ? { includeCutout: false } : {}),
         }, async () => {
           const classification = await classificationService.classify(input)
           notifyCompletion(viewer.id, 'wardrobe-classification')

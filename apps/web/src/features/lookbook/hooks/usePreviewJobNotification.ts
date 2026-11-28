@@ -4,11 +4,12 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useMeQuery } from '../../settings/api/profileQueries'
 import { previewCreditKeys } from '../api/previewCreditQueries'
 import { previewJobKeys, useAcknowledgePreviewJob, useOutfitPreviewJobsQuery } from '../api/previewJobQueries'
+import { rememberDismissedPreviewNotices, wasPreviewNoticeDismissed } from '../utils/dismissedPreviewNotices'
 import { matchesExistingPreview } from '../utils/resumeExistingPreview'
 
 /**
  * 앱이 열린 상태에서 미확인 생성 완료·실패를 팝업으로 알린다. 진행 작업은 레이아웃에 표시하지 않는다.
- * 닫은 안내는 서버에 확인 처리하고, 나중에 보기는 현재 실행 중에만 숨긴다.
+ * 닫은 작업 번호는 기기에 먼저 기록한다. 재실행 시 서버에 여전히 남은 같은 작업은 숨기고 확인을 다시 보낸다.
  * 완료 결과를 열면 실제 이미지가 표시된 뒤 확인 처리한다.
  * 이번 실행에서 이미 표시한 이미지도 계정별로 기억해, 늦게 조회된 완료 알림이 저장·닫기 뒤 다시 뜨지 않게 한다.
  * 네이티브 백그라운드·브라우저 숨김 상태에서는 팝업과 조회를 멈춘다.
@@ -93,9 +94,15 @@ export function usePreviewJobNotification() {
   }, [client])
 
   useEffect(() => {
-    if (!job || !jobKey || !isForeground || isGenerating) return
+    if (!ownerId || !job || !jobKey || !isForeground || isGenerating) return
+    const closedOnDevice = wasPreviewNoticeDismissed(ownerId, job.id)
     // 직접 생성한 이미지가 같은 프레임에서 열릴 수 있어 잠시 기다린 뒤 화면의 자산 번호를 확인한다.
     const timer = window.setTimeout(() => {
+      if (closedOnDevice) {
+        setDismissed((current) => new Set(current).add(jobKey))
+        acknowledge(job.id)
+        return
+      }
       const alreadyOpen = wasViewed || (job.imageAssetId && [...document.querySelectorAll<HTMLElement>('[data-ai-preview-asset-id]')]
         .some((element) => element.dataset.aiPreviewAssetId === job.imageAssetId))
       if (alreadyOpen) {
@@ -104,24 +111,22 @@ export function usePreviewJobNotification() {
           candidate.createdAt < job.createdAt &&
           matchesExistingPreview(candidate, { selectedItemIds: job.selectedItemIds, style: job.style ?? undefined }),
         )
-        setDismissed((current) => new Set([...current, jobKey, ...earlierFailures.map((candidate) => `${ownerId}:${candidate.id}`)]))
-        acknowledge(job.id)
-        for (const candidate of earlierFailures) acknowledge(candidate.id)
+        const confirmedIds = [job.id, ...earlierFailures.map((candidate) => candidate.id)]
+        rememberDismissedPreviewNotices(ownerId, confirmedIds)
+        setDismissed((current) => new Set([...current, ...confirmedIds.map((id) => `${ownerId}:${id}`)]))
+        for (const id of confirmedIds) acknowledge(id)
       } else if (!openingResult) setVisibleKey(jobKey)
-    }, wasViewed ? 0 : 500)
+    }, closedOnDevice || wasViewed ? 0 : 500)
     return () => window.clearTimeout(timer)
   }, [acknowledge, isForeground, isGenerating, job, jobKey, jobs.data, openingResult, ownerId, wasViewed])
 
-  /** 현재 실행 중에는 같은 작업을 다시 알리지 않는다. 서버의 미확인 기록은 다음 실행에서 확인할 수 있게 유지한다. */
-  const dismiss = () => {
-    if (jobKey) setDismissed((current) => new Set(current).add(jobKey))
-    setVisibleKey(null)
-  }
-
-  /** 안내를 즉시 닫고 서버 목록에서도 확인 처리해 WebView를 다시 불러올 때 복원되지 않게 한다. */
+  /** 닫기와 나중에 보기 모두 기기에 먼저 기록하고 서버에 확인을 전송한다. */
   const close = () => {
-    dismiss()
-    if (job) acknowledge(job.id)
+    if (!ownerId || !job || !jobKey) return
+    rememberDismissedPreviewNotices(ownerId, [job.id])
+    setDismissed((current) => new Set(current).add(jobKey))
+    setVisibleKey(null)
+    acknowledge(job.id)
   }
 
   /** 실패는 열 때 확인하고, 완료는 결과를 불러와 표시될 때까지 미확인으로 유지한다. */
@@ -132,5 +137,5 @@ export function usePreviewJobNotification() {
     navigate(job.path)
   }
 
-  return { job: isForeground && !isGenerating && !wasViewed && !openingResult && visibleKey === jobKey ? job : undefined, close, dismiss, openResult }
+  return { job: isForeground && !isGenerating && !wasViewed && !openingResult && visibleKey === jobKey ? job : undefined, close, openResult }
 }

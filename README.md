@@ -23,7 +23,19 @@
 - Fastify API와 Expo 앱의 실행 가능한 기본 골격
 - Web, API, Native에서 공유할 도메인 타입
 
-실제 로그인, 이미지 업로드, 데이터 저장, 날씨 조회, AI 분석은 아직 연결하지 않았다.
+옷 사진은 등록 전에 AI 분류 결과를 확인하고, 저장한 사진은 옷장과 AI 룩북에서 활용한다.
+
+## 트러블슈팅
+
+### 옷 사진 분석 중 Cloud Run 메모리 한도 초과
+
+약 125 KiB의 코트 사진이 로컬에서는 정상 처리됐지만 앱에서는 등록 전에 분석이 중단됐다. 같은 시각 Cloud Run 로그에서 메모리 한도 512 MiB에 사용량이 628 MiB까지 올라 컨테이너가 종료된 것을 확인했다. 같은 사진의 배경 제거를 Mac에서 세 번 실행해 보니 API 프로세스 메모리는 시작 전 240 MiB, 첫 실행 후 약 2.9 GiB, 두 번째와 세 번째 실행 후 약 4.9 GiB였다. Mac의 측정치는 Cloud Run의 필요 용량과 구분했다.
+
+메모리 한도를 높이는 대안도 검토했다. 옷장 표시용 누끼 때문에 사진 등록과 룩북 생성까지 의존하던 흐름을 바꾸기로 했다. 새 등록 흐름의 API는 원본에서 옷 정보를 분류하고, 지원되는 아이폰에서 사용자가 배경 제거를 선택하면 Apple Vision으로 투명 PNG를 만든다. 원본은 등록에 사용하고, 누끼가 있으면 옷장 표시용 사진으로 따로 저장한다. 룩북은 원본을 우선 참조하며 이전 등록처럼 원본이 없으면 표시용 사진을 사용한다.
+
+같은 코트 사진을 Mac의 Apple Vision으로 처리해 1000×1200 투명 PNG를 생성했다. 자동 테스트에서는 원본만 저장하는 흐름, 기기 누끼와 원본을 함께 저장하는 흐름, 기기 처리 실패 후 원본으로 등록하는 흐름을 확인했다. 실제 iPhone에서의 결과와 배포 후 Cloud Run 메모리 사용량은 아직 측정하지 않았다.
+
+관련 구현은 [옷 사진 분류 API](apps/api/src/features/classification/classification.service.ts), [iOS 배경 제거 모듈](apps/native/modules/wardrobe-cutout/ios/WardrobeCutoutProcessor.swift), [옷장 이미지 저장](apps/web/src/features/closet/api/saveWardrobeItem.ts)에 있다.
 
 ## 워크스페이스 구조
 
