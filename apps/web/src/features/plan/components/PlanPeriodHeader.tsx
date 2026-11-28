@@ -5,26 +5,30 @@ import type { PlanViewMode } from './PlanViewToggle'
 interface PlanPeriodHeaderProps {
   viewMode: PlanViewMode
   anchorDate: string
-  isToday: boolean
+  isCurrentPeriod: boolean
   onPrevious: () => void
   onNext: () => void
+  onCurrentPeriod: () => void
 }
 
-/** 플래너의 기간과 이동 버튼을 표시한다. 하루 보기에서 오늘을 선택하면 날짜 숫자 대신 ‘오늘’을 표시한다. */
+/** 이전·다음 기간과 현재 기간으로 이동한다. 일간 보기에서 오늘은 날짜 숫자 대신 ‘오늘’을 표시한다. */
 export function PlanPeriodHeader({
   viewMode,
   anchorDate,
-  isToday,
+  isCurrentPeriod,
   onPrevious,
   onNext,
+  onCurrentPeriod,
 }: PlanPeriodHeaderProps) {
   const start = new Date(`${anchorDate}T00:00:00`)
   const period = formatPlanPeriodLabel(viewMode, start)
   const unitLabel =
     viewMode === 'today' ? '날짜' : viewMode === 'week' ? '주' : '달'
+  const currentPeriodLabel = viewMode === 'today' ? '오늘' : viewMode === 'week' ? '이번 주' : '이번 달'
+  const isToday = viewMode === 'today' && isCurrentPeriod
 
   return (
-    <div className="plan-period-header mt-4 flex items-center justify-between gap-3 pb-1 sm:mt-6 sm:gap-4" data-view-mode={viewMode}>
+    <div className="plan-period-header mt-4 flex items-center justify-between gap-2 pb-1 sm:mt-6 sm:gap-4" data-view-mode={viewMode}>
       <div className="plan-period-label min-w-0">
         <p className="col-span-full text-[11px] font-medium leading-4 text-muted sm:text-xs">
           {period.eyebrow}
@@ -61,7 +65,15 @@ export function PlanPeriodHeader({
         )}
       </div>
 
-      <div className="flex shrink-0 gap-1.5 sm:gap-2">
+      <div className="flex shrink-0 gap-1 sm:gap-2">
+        <button
+          type="button"
+          onClick={onCurrentPeriod}
+          disabled={isCurrentPeriod}
+          className="min-h-11 min-w-11 whitespace-nowrap rounded-full border border-line bg-surface px-2 text-xs font-semibold text-accent enabled:hover:border-accent disabled:bg-sage disabled:text-muted sm:px-3"
+        >
+          {currentPeriodLabel}
+        </button>
         <button
           type="button"
           onClick={onPrevious}

@@ -49,7 +49,8 @@ test('월간 보기에서 같은 주로 돌아와도 저장한 코디가 주간�
   await expect(wednesdayRow.getByTitle('테스트 셔츠', { exact: true })).toBeVisible()
 })
 
-test('주간 플래너에 코디를 배치하고 비운 상태가 새로고침 후에도 유지된다', async ({ page, mockApi }) => {
+test('주간 플래너에 코디를 배치하고 비운 상태가 새로고침 후에도 유지된다', async ({ page, mockApi }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 })
   mockApi.outfits = [createOutfit({ id: '507f1f77bcf86cd799439011', name: '주간 테스트 코디' })]
 
   await page.goto('/plan?view=week')
@@ -72,9 +73,28 @@ test('주간 플래너에 코디를 배치하고 비운 상태가 새로고침 �
   firstDay = editor.getByLabel('설정할 요일').getByRole('button').first()
   await expect(firstDay).toHaveAttribute('aria-label', /주간 테스트 코디, 설정됨/)
 
-  await editor.getByRole('button', { name: '비우기' }).click()
+  const outfitCard = editor.getByRole('button').filter({ has: page.getByText('주간 테스트 코디', { exact: true }) })
+  await expect(outfitCard).toHaveAttribute('aria-pressed', 'true')
+  await outfitCard.click()
   await expect(firstDay).toHaveAttribute('aria-label', /저장된 코디 없음/)
-  expect(mockApi.operations).toContain('ClearPlannerEntry')
+  expect(mockApi.operations.filter((operation) => operation === 'SetPlannerEntry')).toHaveLength(1)
+
+  await expect(outfitCard).toHaveAttribute('aria-pressed', 'false')
+  await outfitCard.click()
+  await expect(firstDay).toHaveAttribute('aria-label', /주간 테스트 코디, 설정됨/)
+  const clearButton = editor.getByRole('button', { name: '코디 비우기', exact: true })
+  const searchButton = editor.getByRole('button', { name: '코디 검색', exact: true })
+  const filterButton = editor.getByRole('button', { name: '코디북 필터', exact: true })
+  await expect(clearButton).toHaveText('')
+  const toolPositions = await Promise.all([clearButton, searchButton, filterButton].map((button) => button.boundingBox()))
+  expect(toolPositions[0]!.x).toBeLessThan(toolPositions[1]!.x)
+  expect(toolPositions[1]!.x).toBeLessThan(toolPositions[2]!.x)
+  await page.screenshot({ path: testInfo.outputPath('weekly-outfit-actions.png'), animations: 'disabled' })
+
+  await clearButton.click()
+  await expect(firstDay).toHaveAttribute('aria-label', /저장된 코디 없음/)
+  await expect(clearButton).toBeDisabled()
+  expect(mockApi.operations.filter((operation) => operation === 'ClearPlannerEntry')).toHaveLength(2)
 
   await editor.getByRole('button', { name: '주간 옷 설정 닫기' }).click()
   await page.reload()
@@ -101,7 +121,7 @@ test('주간 편집에서는 착용 완료 날짜를 옮기거나 빠르게 비�
   await page.getByRole('button', { name: '일주일 코디 설정' }).click()
   const editor = page.getByRole('dialog', { name: '주간 코디 편집' })
   await expect(editor.getByText('코디를 바꾸거나 비우려면 날짜 상세에서 먼저 착용을 취소해주세요.')).toBeVisible()
-  await expect(editor.getByRole('button', { name: '비우기', exact: true })).toHaveCount(0)
+  await expect(editor.getByRole('button', { name: '코디 비우기', exact: true })).toHaveCount(0)
   expect(mockApi.operations).not.toContain('ClearPlannerEntry')
   expect(mockApi.operations).not.toContain('MovePlannerEntry')
   expect(mockApi.plannerEntries).toEqual([wornEntry])

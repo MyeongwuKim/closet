@@ -52,7 +52,7 @@ interface PlannerOutfitPickerProps {
   initialConfirmWorn?: boolean
 }
 
-/** 코디북 검색과 날짜별 배정을 제공한다. 착용 완료 날짜는 안내만 표시하고, 주간 편집에서는 다른 요일을 이어서 고를 수 있다. */
+/** 코디북 검색과 날짜별 배정을 제공한다. 주간 편집에서 선택된 코디를 다시 누르면 그날의 배정을 해제한다. 착용 완료 날짜는 편집할 수 없다. */
 export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScroll = true, initialConfirmWorn = false }: PlannerOutfitPickerProps) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -82,6 +82,8 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
   )
   const activeEntry = dayEntry ?? entries.find((entry) => entry.date === activeWeekDate)
   const isWearConfirmed = Boolean(activeEntry?.wornAt)
+  const hasAssignedOutfit = Boolean(activeEntry?.outfitId || activeEntry?.itemIds.length || activeEntry?.previewImageUrl)
+  const isOutfitChangePending = isCheckingRecentWear || setPlannerEntry.isPending || clearPlannerEntry.isPending
   const confirmWorn = Boolean(activeEntry && activeEntry.date <= today && saveIntent.date === activeEntry.date && saveIntent.confirmWorn)
   const formattedDay = dayEntry
     ? new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric' })
@@ -136,7 +138,7 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
   }, [isSavingDay, lockBodyScroll, onClose])
 
   const chooseOutfit = async (outfit: (typeof outfits)[number]) => {
-    if (!activeEntry || isWearConfirmed) return
+    if (!activeEntry || isWearConfirmed || isOutfitChangePending) return
     const { date, occasion } = activeEntry
     const weekStartsOn = dayEntry
       ? getCurrentWeekStart(new Date(`${date}T00:00:00`))
@@ -174,14 +176,16 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
     }
   }
 
+  /** 배정을 누른 시점의 날짜에서만 비우고, 요청 중 세션이 바뀌면 응답을 반영하지 않는다. */
   const removeOutfit = async () => {
-    if (!activeEntry || isWearConfirmed) return
-    if (activeEntry.outfitId && /^[a-f\d]{24}$/i.test(activeEntry.outfitId)) {
+    const weekStartsOn = entries[0]?.date
+    if (dayEntry || !activeEntry || !weekStartsOn || !hasAssignedOutfit || isWearConfirmed || isOutfitChangePending) return
+
+    const { date, outfitId } = activeEntry
+    const sessionToken = getAccessToken()
+    if (outfitId && /^[a-f\d]{24}$/i.test(outfitId)) {
       try {
-        await clearPlannerEntry.mutateAsync({
-          weekStartsOn: entries[0].date,
-          date: activeWeekDate,
-        })
+        await clearPlannerEntry.mutateAsync({ weekStartsOn, date })
       } catch (error) {
         pushToast(
           error instanceof Error ? error.message : '플래너를 비우지 못했어요.',
@@ -190,7 +194,7 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
         return
       }
     }
-    clearOutfit(activeWeekDate)
+    if (sessionToken === getAccessToken()) clearOutfit(date)
   }
 
   const toggleSearch = () => {
@@ -252,6 +256,18 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
               </p>}
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              {!isWearConfirmed && !dayEntry && (hasAssignedOutfit || outfits.length > 0) && (
+                <button
+                  type="button"
+                  onClick={() => void removeOutfit()}
+                  disabled={!hasAssignedOutfit || isOutfitChangePending}
+                  aria-label="코디 비우기"
+                  title="코디 비우기"
+                  className="collection-action disabled:opacity-40"
+                >
+                  <Trash2 size={19} aria-hidden="true" />
+                </button>
+              )}
               {!isWearConfirmed && outfits.length > 0 && (
                 <CollectionSearchButton label="코디 검색" isOpen={isSearchOpen} onToggle={toggleSearch} />
               )}
@@ -265,20 +281,11 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
                   onSortChange={setSortOrder}
                 />
               )}
-              {!isWearConfirmed && !dayEntry && activeEntry && activeEntry.itemIds.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => void removeOutfit()}
-                  className="flex shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-2 text-xs font-bold text-muted hover:border-ink hover:text-ink"
-                >
-                  <Trash2 size={14} /> 비우기
-                </button>
-              )}
             </div>
           </div>
 
           {!isWearConfirmed && activeEntry && outfits.length > 0 && <PlannerSaveIntent date={activeEntry.date} today={today}
-            confirmWorn={confirmWorn} disabled={isCheckingRecentWear || setPlannerEntry.isPending}
+            confirmWorn={confirmWorn} disabled={isOutfitChangePending}
             onChange={(value) => setSaveIntent({ date: activeEntry.date, confirmWorn: value })} />}
 
           {isWearConfirmed ? (
@@ -355,10 +362,8 @@ export function PlannerOutfitPicker({ dayEntry, onClose, onAssigned, lockBodyScr
                     return (
                       <button
                         type="button"
-                        onClick={() => void chooseOutfit(outfit)}
-                        disabled={
-                          isCheckingRecentWear || setPlannerEntry.isPending
-                        }
+                        onClick={() => void (!dayEntry && isAssigned ? removeOutfit() : chooseOutfit(outfit))}
+                        disabled={isOutfitChangePending}
                         className={`relative flex min-w-0 flex-col items-stretch overflow-hidden rounded-3xl border bg-surface p-2 text-left transition ${
                           isAssigned
                             ? 'border-accent ring-2 ring-accent/20'

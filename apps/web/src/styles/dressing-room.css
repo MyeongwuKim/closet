@@ -26,6 +26,13 @@
   margin-top: 8px;
 }
 
+/* 본문 안에서 따로 스크롤되는 카드에도 스와이프 방향을 적용한다. 드래그 핸들의 touch-none 유틸리티는 우선한다. */
+@layer components {
+  :where([data-plan-period-body], [data-plan-period-body] *) {
+    touch-action: pan-y pinch-zoom;
+  }
+}
+
 .collection-action.plan-week-edit {
   min-width: 0;
   height: 40px;
@@ -901,6 +908,13 @@
   .plan-week-rows {
     gap: 4px;
     margin-top: 4px;
+  }
+}
+
+@media (max-width: 360px) {
+  .plan-period-header[data-view-mode='week'] .plan-period-title {
+    gap: 4px;
+    font-size: 22px;
   }
 }
 

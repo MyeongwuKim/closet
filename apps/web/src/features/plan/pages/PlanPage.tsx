@@ -1,9 +1,9 @@
 /**
  * 진입 경로: 하단 플래너 탭
  *
- * 하루·주간·월간 범위의 플래너 데이터를 조회하고 선택한 보기의 카드나 달력을 조합한다.
- * 하루 보기는 선택한 날짜의 코디와 내일 예보·추천을 표시한다. 주간 보기는 착용 완료를 보호하며 코디를 옮기고, 월간 보기는 달력 범위를 조회한다.
- * 코디북 선택은 하루의 선택 날짜 또는 주간에서 고른 날짜에 코디를 배정한다.
+ * 일간·주간·월간 데이터를 조회하고, 버튼과 본문 스와이프로 기간을 이동한다.
+ * 일간 보기는 선택한 날짜의 코디와 내일 예보·추천을 표시한다. 주간 보기는 착용 완료를 보호하며 코디를 옮기고, 월간 보기는 달력 범위를 조회한다.
+ * 코디북 선택은 일간이나 주간에서 고른 날짜에 코디를 배정한다.
  */
 import {
   useCallback,
@@ -50,6 +50,7 @@ import {
 import { usePlanStore } from '../stores/usePlanStore'
 import { usePlannerLocationWeather } from '../hooks/usePlannerLocationWeather'
 import { useKoreaPlannerToday } from '../hooks/useKoreaPlannerToday'
+import { usePlanPeriodSwipe } from '../hooks/usePlanPeriodSwipe'
 import { getKoreaPlannerTomorrow } from '../utils/plannerWear'
 
 const weeklyPlanDndOptions = {
@@ -124,6 +125,12 @@ export function PlanPage() {
   const monthKey = /^\d{4}-\d{2}$/.test(requestedMonth ?? '')
     ? (requestedMonth as string)
     : today.slice(0, 7)
+  const periodStart = viewMode === 'today' ? selectedDate : viewMode === 'week' ? weekStartsOn : `${monthKey}-01`
+  const currentPeriodStart = viewMode === 'today'
+    ? today
+    : viewMode === 'week'
+      ? getCurrentWeekStart(new Date(`${today}T00:00:00`))
+      : `${today.slice(0, 7)}-01`
   const monthDays = createMonthCalendar(monthKey)
   const monthRangeStart = monthDays[0]?.date ?? ''
   const monthRangeEnd = monthDays.at(-1)?.date ?? ''
@@ -281,31 +288,31 @@ export function PlanPage() {
     [canMoveTo, entries, movePlannerEntry, pushToast, restoreDisplayRows, weekStartsOn],
   )
 
-  const moveWeek = (dayOffset: number) => {
-    setTransitionDirection(dayOffset < 0 ? 'backward' : 'forward')
-    const nextWeek = new Date(`${weekStartsOn}T00:00:00`)
-    nextWeek.setDate(nextWeek.getDate() + dayOffset)
-    setWeek(formatDateOnly(nextWeek))
+  /** 주간 날짜는 스토어에서, 일간과 월간 날짜는 URL에서 바꾸고 이동 방향을 기록한다. */
+  const goToPeriod = (nextStart: string) => {
+    if (nextStart === periodStart) return
+    setTransitionDirection(nextStart < periodStart ? 'backward' : 'forward')
+
+    if (viewMode === 'week') {
+      setWeek(nextStart)
+    } else if (viewMode === 'month') {
+      setSearchParams({ view: 'month', month: nextStart.slice(0, 7) })
+    } else {
+      setSearchParams(nextStart === today ? { view: 'today' } : { view: 'today', date: nextStart })
+    }
   }
 
-  const moveMonth = (monthOffset: number) => {
-    setTransitionDirection(monthOffset < 0 ? 'backward' : 'forward')
-    const nextMonth = new Date(`${monthKey}-01T00:00:00`)
-    nextMonth.setMonth(nextMonth.getMonth() + monthOffset)
-    setSearchParams({ view: 'month', month: formatMonthKey(nextMonth) })
+  /** 선택한 보기의 단위로 한 기간 이동한다. 월간 이동은 달의 첫날을 기준으로 계산한다. */
+  const movePeriod = (offset: -1 | 1) => {
+    const nextStart = new Date(`${periodStart}T00:00:00`)
+    if (viewMode === 'month') {
+      nextStart.setMonth(nextStart.getMonth() + offset)
+    } else {
+      nextStart.setDate(nextStart.getDate() + offset * (viewMode === 'week' ? 7 : 1))
+    }
+    goToPeriod(formatDateOnly(nextStart))
   }
-
-  const moveDay = (dayOffset: number) => {
-    setTransitionDirection(dayOffset < 0 ? 'backward' : 'forward')
-    const nextDate = new Date(`${selectedDate}T00:00:00`)
-    nextDate.setDate(nextDate.getDate() + dayOffset)
-    const nextDateValue = formatDateOnly(nextDate)
-    setSearchParams(
-      nextDateValue === today
-        ? { view: 'today' }
-        : { view: 'today', date: nextDateValue },
-    )
-  }
+  const periodSwipeHandlers = usePlanPeriodSwipe(movePeriod)
 
   const changeViewMode = (nextMode: PlanViewMode) => {
     if (nextMode === viewMode) return
@@ -365,7 +372,10 @@ export function PlanPage() {
     .filter((item) => item !== undefined)
 
   return (
-    <section className={`plan-page mx-auto w-full max-w-3xl ${viewMode === 'today' ? 'plan-today-page' : 'plan-overview-page'}`}>
+    <section
+      className={`plan-page mx-auto w-full max-w-3xl ${viewMode === 'today' ? 'plan-today-page' : 'plan-overview-page'}`}
+      {...periodSwipeHandlers}
+    >
       <PlanPageHeader
         weatherDate={weatherDate}
         forecast={forecast}
@@ -376,31 +386,15 @@ export function PlanPage() {
       <PlanViewToggle value={viewMode} onChange={changeViewMode} />
       <PlanPeriodHeader
         viewMode={viewMode}
-        isToday={viewMode === 'today' && selectedDate === today}
-        anchorDate={
-          viewMode === 'today'
-            ? selectedDate
-            : viewMode === 'week'
-              ? weekStartsOn
-              : `${monthKey}-01`
-        }
-        onPrevious={() =>
-          viewMode === 'today'
-            ? moveDay(-1)
-            : viewMode === 'week'
-              ? moveWeek(-7)
-              : moveMonth(-1)
-        }
-        onNext={() =>
-          viewMode === 'today'
-            ? moveDay(1)
-            : viewMode === 'week'
-              ? moveWeek(7)
-              : moveMonth(1)
-        }
+        isCurrentPeriod={periodStart === currentPeriodStart}
+        anchorDate={periodStart}
+        onPrevious={() => movePeriod(-1)}
+        onNext={() => movePeriod(1)}
+        onCurrentPeriod={() => goToPeriod(currentPeriodStart)}
       />
       <div
         key={periodTransitionKey}
+        data-plan-period-body=""
         className={`${periodTransitionClass} ${
           viewMode === 'today' ? 'flex min-h-0 flex-1 flex-col' : 'plan-overview-content'
         } ${isFutureDayView ? 'relative' : ''}`}

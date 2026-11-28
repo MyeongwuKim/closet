@@ -39,10 +39,14 @@ export function PlanRouteSkeleton() {
       <div className="plan-period-header mt-4 flex items-center justify-between gap-3 pb-1 sm:mt-6" aria-hidden="true">
         <span className="min-w-0 animate-pulse">
           <span className={`block h-3 w-30 ${block}`} />
-          <span className={`mt-1.5 block h-7 ${viewMode === 'week' ? 'w-42' : 'w-24'} ${block}`} />
+          <span className={`mt-1.5 block h-7 max-w-full ${viewMode === 'week' ? 'w-34' : 'w-24'} ${block}`} />
           {viewMode !== 'month' && <span className={`mt-1 block h-2.5 w-16 ${block}`} />}
         </span>
-        <span className="flex gap-1.5"><span className="size-11 rounded-full bg-line/40" /><span className="size-11 rounded-full bg-line/40" /></span>
+        <span className="flex shrink-0 gap-1 sm:gap-2">
+          <span className="h-11 w-13 rounded-full bg-line/40" />
+          <span className="size-11 rounded-full bg-line/40" />
+          <span className="size-11 rounded-full bg-line/40" />
+        </span>
       </div>
       <PlanPeriodSkeleton viewMode={viewMode} />
     </section>
