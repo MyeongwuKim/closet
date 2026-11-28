@@ -12,14 +12,14 @@ export function PlanOutfitThumbnails({ items }: PlanOutfitThumbnailsProps) {
 
   return (
     <span
-      className="grid w-full max-w-[196px] min-w-0 grid-cols-4 gap-1.5 sm:max-w-none sm:gap-2"
+      className="plan-week-thumbnails"
       aria-label="아우터, 상의, 하의, 신발"
     >
       {slots.map((item, index) => (
         <span
           className={`relative flex aspect-square min-w-0 items-center justify-center overflow-hidden rounded-lg sm:rounded-xl ${
             item
-              ? 'bg-canvas max-sm:[&>img]:p-1'
+              ? 'bg-canvas [&>img]:p-1 [&>svg]:size-3/4'
               : 'border border-dashed border-line bg-transparent text-muted'
           }`}
           key={item?.id ?? `empty-${index}`}

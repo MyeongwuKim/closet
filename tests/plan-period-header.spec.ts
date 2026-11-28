@@ -23,8 +23,8 @@ for (const viewport of [
     }
 
     await expect(header.getByText('2026년 · 하루 플래너')).toBeVisible()
-    await expect(title).toHaveText('09.02')
-    await expect(title).toHaveAttribute('aria-label', '2026년 9월 2일 수요일')
+    await expect(title).toHaveText('오늘')
+    await expect(title).toHaveAttribute('aria-label', '오늘')
     await expect(header.getByText('수요일')).toBeVisible()
     await checkTitleFits('이전 날짜')
     await testInfo.attach(`${viewport.name}-day-period`, {

@@ -1,5 +1,6 @@
 interface PlanPeriodSkeletonProps {
   viewMode: 'today' | 'week' | 'month'
+  monthWeekCount?: number
 }
 
 function PlanTodaySkeleton() {
@@ -15,10 +16,10 @@ function PlanTodaySkeleton() {
 
 function PlanWeekSkeleton() {
   return (
-    <div className="mt-3 grid animate-pulse gap-2 pb-2 sm:mt-4 sm:gap-3">
+    <div className="plan-week-rows animate-pulse">
       {Array.from({ length: 7 }, (_, index) => (
         <div
-          className="grid h-full min-h-15 grid-cols-[38px_minmax(0,1fr)_16px] items-center gap-2 rounded-2xl border border-line/70 bg-surface py-1.5 pr-10 pl-2 sm:min-h-23 sm:grid-cols-[58px_minmax(180px,0.85fr)_minmax(140px,1fr)_auto] sm:gap-3 sm:p-4"
+          className="plan-week-row-body rounded-2xl border border-line/70 bg-surface"
           aria-hidden="true"
           key={index}
         >
@@ -27,11 +28,11 @@ function PlanWeekSkeleton() {
             <span className="block h-3.5 w-2/3 rounded-full bg-line/55" />
             <span className="mt-2 block h-3 w-1/2 rounded-full bg-line/30" />
           </span>
-          <span className="grid w-full max-w-[196px] min-w-0 grid-cols-4 gap-1.5 sm:flex sm:max-w-none">
-            <span className="aspect-square rounded-lg bg-line/35 sm:size-12 sm:rounded-xl" />
-            <span className="aspect-square rounded-lg bg-line/25 sm:size-12 sm:rounded-xl" />
-            <span className="aspect-square rounded-lg bg-line/20 sm:size-12 sm:rounded-xl" />
-            <span className="aspect-square rounded-lg bg-line/20 sm:hidden" />
+          <span className="plan-week-thumbnails">
+            <span className="aspect-square rounded-lg bg-line/35" />
+            <span className="aspect-square rounded-lg bg-line/25" />
+            <span className="aspect-square rounded-lg bg-line/20" />
+            <span className="aspect-square rounded-lg bg-line/20" />
           </span>
           <span className="block size-3 rounded-full bg-line/45" />
         </div>
@@ -40,31 +41,32 @@ function PlanWeekSkeleton() {
   )
 }
 
-function PlanMonthSkeleton() {
+function PlanMonthSkeleton({ weekCount }: { weekCount: number }) {
   return (
-    <section className="mt-4 animate-pulse overflow-hidden rounded-3xl border border-line bg-surface">
+    <section className="plan-month-calendar animate-pulse overflow-hidden rounded-3xl border border-line bg-surface">
       <div className="grid grid-cols-7 border-b border-line bg-canvas/70">
         {Array.from({ length: 7 }, (_, index) => (
           <span
-            className="mx-auto my-3 block h-2.5 w-4 rounded-full bg-line/50"
+            className="mx-auto my-[9px] block h-2.5 w-4 rounded-full bg-line/50"
             aria-hidden="true"
             key={index}
           />
         ))}
       </div>
 
-      <div className="grid grid-cols-7">
-        {Array.from({ length: 42 }, (_, index) => (
+      <div className="plan-month-calendar-days grid grid-cols-7"
+        style={{ gridTemplateRows: `repeat(${weekCount}, minmax(var(--plan-month-row-min), 1fr))` }}>
+        {Array.from({ length: weekCount * 7 }, (_, index) => (
           <div
-            className={`min-h-20 min-w-0 p-1.5 sm:min-h-32 sm:p-2.5 ${
+            className={`plan-month-calendar-day ${
               index % 7 !== 6 ? 'border-r border-line' : ''
             } ${index >= 7 ? 'border-t border-line' : ''}`}
             aria-hidden="true"
             key={index}
           >
-            <span className="block size-6 rounded-full bg-line/45 sm:size-7" />
+            <span className="plan-month-calendar-date shrink-0 rounded-full bg-line/45" />
             {index % 3 !== 1 && (
-              <span className="mt-1 block h-10 rounded-lg bg-line/25 sm:h-16 sm:rounded-xl" />
+              <span className="plan-month-calendar-preview rounded-md bg-line/25" />
             )}
           </div>
         ))}
@@ -74,7 +76,7 @@ function PlanMonthSkeleton() {
 }
 
 /** 선택한 플래너 보기와 같은 카드 구조를 유지하며 조회 중 상태를 표시한다. */
-export function PlanPeriodSkeleton({ viewMode }: PlanPeriodSkeletonProps) {
+export function PlanPeriodSkeleton({ viewMode, monthWeekCount = 6 }: PlanPeriodSkeletonProps) {
   const loadingLabel =
     viewMode === 'today'
       ? '하루 플래너를 불러오는 중'
@@ -86,9 +88,7 @@ export function PlanPeriodSkeleton({ viewMode }: PlanPeriodSkeletonProps) {
     <div
       role="status"
       aria-label={loadingLabel}
-      className={
-        viewMode !== 'month' ? 'flex min-h-0 flex-1 flex-col' : undefined
-      }
+      className={`flex flex-1 flex-col${viewMode === 'today' ? ' min-h-0' : ''}`}
     >
       <span className="sr-only">{loadingLabel}</span>
       {viewMode === 'today' ? (
@@ -96,7 +96,7 @@ export function PlanPeriodSkeleton({ viewMode }: PlanPeriodSkeletonProps) {
       ) : viewMode === 'week' ? (
         <PlanWeekSkeleton />
       ) : (
-        <PlanMonthSkeleton />
+        <PlanMonthSkeleton weekCount={monthWeekCount} />
       )}
     </div>
   )

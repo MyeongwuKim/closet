@@ -24,9 +24,9 @@ export function PlanPeriodHeader({
     viewMode === 'today' ? '날짜' : viewMode === 'week' ? '주' : '달'
 
   return (
-    <div className="plan-period-header mt-4 flex items-center justify-between gap-3 pb-1 sm:mt-6 sm:gap-4">
-      <div className="min-w-0">
-        <p className="text-[11px] font-medium leading-4 text-muted sm:text-xs">
+    <div className="plan-period-header mt-4 flex items-center justify-between gap-3 pb-1 sm:mt-6 sm:gap-4" data-view-mode={viewMode}>
+      <div className="plan-period-label min-w-0">
+        <p className="col-span-full text-[11px] font-medium leading-4 text-muted sm:text-xs">
           {period.eyebrow}
         </p>
         <div className="w-fit max-w-full">

@@ -44,14 +44,14 @@ export function PlanDayRowDragLayer() {
               : 'border-ink'
           }`}
         >
-          <div className="grid h-full min-h-11 grid-cols-[38px_minmax(0,1fr)_16px] items-center gap-2 rounded-[inherit] py-1.5 pr-10 pl-2 sm:grid-cols-[58px_minmax(220px,0.85fr)_minmax(180px,1fr)_auto] sm:gap-3 sm:p-4 sm:pr-12">
+          <div className="plan-week-row-body rounded-[inherit]">
             <PlanDayRowContent
               entry={item.entry}
               items={item.items}
               isToday={item.isToday}
             />
           </div>
-          <span className="absolute top-1/2 right-1.5 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg text-ink sm:right-2">
+          <span className="plan-week-row-handle rounded-lg text-ink">
             <GripVertical className="size-4" />
           </span>
         </div>

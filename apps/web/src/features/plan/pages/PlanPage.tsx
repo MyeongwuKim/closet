@@ -365,7 +365,7 @@ export function PlanPage() {
     .filter((item) => item !== undefined)
 
   return (
-    <section className={`plan-page mx-auto w-full max-w-3xl ${viewMode === 'today' ? 'plan-today-page' : viewMode === 'month' ? 'plan-month-page pb-8' : 'plan-week-page sm:pb-8'}`}>
+    <section className={`plan-page mx-auto w-full max-w-3xl ${viewMode === 'today' ? 'plan-today-page' : 'plan-overview-page'}`}>
       <PlanPageHeader
         weatherDate={weatherDate}
         forecast={forecast}
@@ -402,7 +402,7 @@ export function PlanPage() {
       <div
         key={periodTransitionKey}
         className={`${periodTransitionClass} ${
-          viewMode !== 'month' ? 'flex min-h-0 flex-1 flex-col' : 'plan-month-content'
+          viewMode === 'today' ? 'flex min-h-0 flex-1 flex-col' : 'plan-overview-content'
         } ${isFutureDayView ? 'relative' : ''}`}
       >
         {viewMode === 'today' && selectedDate === today && <PlannerWearReview today={today} />}
@@ -437,11 +437,11 @@ export function PlanPage() {
           <DndProvider backend={TouchBackend} options={weeklyPlanDndOptions}>
             <PlanDayRowDragLayer />
             {entries.some((entry) => entry.wornAt) && (
-              <p className="mt-2 text-xs text-muted">착용 완료 날짜를 포함한 범위는 옮길 수 없어요.</p>
+              <p className="plan-week-move-note text-xs text-muted">착용 완료 날짜를 포함한 범위는 옮길 수 없어요.</p>
             )}
             <div
               ref={rowListRef}
-              className="mt-3 grid gap-2 pb-2 sm:mt-4 sm:gap-3"
+              className="plan-week-rows"
             >
               {currentWeekRows.map((row, index) => {
                 const dateEntry = entries[index] ?? row.entry
@@ -491,7 +491,7 @@ export function PlanPage() {
             </button>
           </div>
         ) : plannerEntriesQuery.isPending ? (
-          <PlanPeriodSkeleton viewMode="month" />
+          <PlanPeriodSkeleton viewMode="month" monthWeekCount={monthDays.length / 7} />
         ) : (
           <PlanMonthCalendar
             days={monthDays}

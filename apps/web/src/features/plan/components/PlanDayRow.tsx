@@ -63,10 +63,10 @@ export function PlanDayRowContent({
   return (
     <>
       <span className="text-center">
-        <strong className="block font-editorial text-2xl leading-none tracking-[-.05em] sm:text-3xl sm:leading-normal">
+        <strong className="block font-editorial text-[22px] leading-none tracking-[-.04em] sm:text-[26px]">
           {entry.dayNumber}
         </strong>
-        <span className="mt-1 flex items-center justify-center gap-1 sm:mt-0 sm:flex-col">
+        <span className="mt-0.5 flex items-center justify-center gap-1">
           <span
             className={`text-[11px] leading-none sm:text-xs sm:leading-normal ${
               isToday ? 'font-bold text-accent' : 'text-muted'
@@ -87,7 +87,7 @@ export function PlanDayRowContent({
         <strong className="block truncate text-sm">
           {entry.title || '코디를 설정해주세요'}
         </strong>
-        <span className="mt-1 block text-xs text-muted">
+        <span className="mt-0.5 block truncate text-xs text-muted">
           {[entry.occasion, entry.weather].filter(Boolean).join(' · ') ||
             (entry.outfitId ? entry.wornAt ? '착용 완료' : '착용 확인 전' : '저장된 코디 없음')}
         </span>
@@ -211,7 +211,7 @@ export function PlanDayRow({
   return (
     <div
       ref={connectRow}
-      className={`relative h-full min-h-15 rounded-2xl border sm:min-h-18 ${
+      className={`relative h-full min-h-0 rounded-2xl border ${
         isDragging ? 'opacity-0 transition-none' : 'opacity-100 transition'
       } ${
         isOver && !isDragging
@@ -225,7 +225,7 @@ export function PlanDayRow({
     >
       <Link
         to={`/plan/${entry.date}?from=${encodeURIComponent(backPath)}`}
-        className="grid h-full min-h-15 grid-cols-[38px_minmax(0,1fr)_16px] items-center gap-2 rounded-[inherit] py-1.5 pr-10 pl-2 transition hover:bg-canvas/35 sm:min-h-18 sm:grid-cols-[58px_minmax(180px,0.85fr)_minmax(140px,1fr)_auto] sm:gap-3 sm:p-4 sm:pr-12 sm:hover:-translate-y-0.5"
+        className="plan-week-row-body rounded-[inherit] transition hover:bg-canvas/35"
         aria-current={isToday ? 'date' : undefined}
       >
         <PlanDayRowContent entry={entry} items={items} isToday={isToday} />
@@ -235,7 +235,7 @@ export function PlanDayRow({
         ref={connectDragHandle}
         type="button"
         disabled={!canDrag}
-        className={`absolute top-1/2 right-1.5 flex size-8 -translate-y-1/2 touch-none items-center justify-center rounded-lg text-muted transition hover:bg-canvas hover:text-ink focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-20 sm:right-2 ${
+        className={`plan-week-row-handle touch-none rounded-lg text-muted transition hover:bg-canvas hover:text-ink focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-20 ${
           isDragging ? 'cursor-grabbing' : 'cursor-grab'
         }`}
         aria-label={

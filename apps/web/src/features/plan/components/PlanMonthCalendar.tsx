@@ -40,11 +40,11 @@ export function PlanMonthCalendar({
 
   return (
     <section aria-label={selection ? '담을 날짜' : undefined}
-      className={selection ? 'mt-3 overflow-hidden rounded-xl border border-line bg-surface' : 'plan-month-calendar mt-4 overflow-hidden rounded-3xl border border-line bg-surface'}>
+      className={selection ? 'mt-3 overflow-hidden rounded-xl border border-line bg-surface' : 'plan-month-calendar overflow-hidden rounded-3xl border border-line bg-surface'}>
       <div className="grid shrink-0 grid-cols-7 border-b border-line bg-canvas/70">
         {weekdayLabels.map((label, index) => (
           <span
-            className={`py-2.5 text-center text-xs font-semibold ${
+            className={`${selection ? 'py-2.5' : 'py-1.5'} text-center text-xs font-semibold ${
               index === 6 ? 'text-accent' : 'text-muted'
             }`}
             key={label}
@@ -55,7 +55,7 @@ export function PlanMonthCalendar({
       </div>
 
       <div className={selection ? 'grid grid-cols-7' : 'plan-month-calendar-days grid grid-cols-7'}
-        style={selection ? undefined : { gridTemplateRows: `repeat(${Math.ceil(days.length / 7)}, minmax(4.5rem, 1fr))` }}>
+        style={selection ? undefined : { gridTemplateRows: `repeat(${days.length / 7}, minmax(var(--plan-month-row-min), 1fr))` }}>
         {days.map((day, index) => {
           const entry = entryByDate.get(day.date)
           const isToday = day.date === today
@@ -85,7 +85,7 @@ export function PlanMonthCalendar({
           return (
             <Link
               to={`/plan/${day.date}?from=${encodeURIComponent(backPath)}`}
-              className={`plan-month-calendar-day group relative flex min-h-18 min-w-0 flex-col p-1 transition hover:bg-canvas sm:min-h-40 sm:p-2.5 ${
+              className={`plan-month-calendar-day relative transition hover:bg-canvas focus-visible:z-10 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent ${
                 index % 7 !== 6 ? 'border-r border-line' : ''
               } ${index >= 7 ? 'border-t border-line' : ''} ${
                 day.isCurrentMonth ? 'bg-surface' : 'bg-canvas/45 text-muted'
@@ -95,30 +95,30 @@ export function PlanMonthCalendar({
               key={day.date}
             >
               <span
-                className={`plan-month-calendar-date flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold sm:size-7 ${
+                className={`plan-month-calendar-date flex shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
                   isToday ? 'bg-accent text-white' : ''
                 }`}
               >
                 {day.dayNumber}
               </span>
-              {entry?.wornAt && <span className="absolute top-2 right-1.5 inline-flex size-4 items-center justify-center rounded-full bg-sage text-accent sm:right-2.5" role="img" aria-label="착용 완료"><Check size={11} aria-hidden="true" /></span>}
+              {entry?.wornAt && <span className="absolute top-1 right-1 inline-flex size-4 items-center justify-center rounded-full bg-sage text-accent sm:right-2" role="img" aria-label="착용 완료"><Check size={11} aria-hidden="true" /></span>}
 
               {firstItem ? (
                 <>
-                  <span className="plan-month-calendar-preview relative mt-1 flex min-h-6 flex-1 items-center justify-center overflow-hidden rounded-lg bg-canvas sm:min-h-16 sm:rounded-xl">
-                    <ClosetItemVisual item={firstItem} compact />
-                    {firstItem.archivedAt ? <span className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-ink/85 px-0.5 text-xs leading-4 text-white"><span>삭제</span><span aria-label={`${entry?.itemIds.length ?? 0}개 아이템`}>{entry?.itemIds.length ?? 0}</span></span>
-                      : <span className="absolute top-0 right-0 rounded-bl-md bg-ink px-1 text-xs leading-4 font-semibold text-white" aria-label={`${entry?.itemIds.length ?? 0}개 아이템`}>{entry?.itemIds.length ?? 0}개</span>}
+                  <span className="plan-month-calendar-preview relative flex overflow-hidden rounded-md bg-canvas sm:rounded-lg">
+                    <span className="relative min-w-0 flex-1">
+                      <span className="absolute inset-0 flex items-center justify-center [&>img]:p-0.5 [&>span]:max-h-full [&>svg]:size-full [&>svg]:max-w-9">
+                        <ClosetItemVisual item={firstItem} compact />
+                      </span>
+                    </span>
+                    {firstItem.archivedAt ? <span className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-ink/85 px-0.5 text-[10px] leading-3 text-white"><span>삭제</span><span aria-label={`${entry?.itemIds.length ?? 0}개 아이템`}>{entry?.itemIds.length ?? 0}</span></span>
+                      : <span className="shrink-0 self-start rounded-bl-md bg-ink px-0.5 text-[10px] leading-3 font-semibold text-white sm:px-1" aria-label={`${entry?.itemIds.length ?? 0}개 아이템`}>{entry?.itemIds.length ?? 0}개</span>}
                   </span>
-                  <strong className="plan-month-calendar-caption mt-1 block h-4 shrink-0 truncate text-xs leading-4 font-medium sm:h-8 sm:whitespace-normal sm:break-all" title={entry?.title ?? undefined}>
+                  <strong className="plan-month-calendar-caption shrink-0 truncate text-xs leading-4 font-medium" title={entry?.title ?? undefined}>
                     {entry?.title}
                   </strong>
                 </>
-              ) : (
-                <span className="mt-3 hidden text-xs text-muted sm:block">
-                  비어 있음
-                </span>
-              )}
+              ) : null}
             </Link>
           )
         })}

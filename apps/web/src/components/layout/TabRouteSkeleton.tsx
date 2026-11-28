@@ -27,7 +27,7 @@ export function PlanRouteSkeleton() {
 
   return (
     <section
-      className={`plan-page mx-auto w-full max-w-3xl ${viewMode === 'today' ? 'plan-today-page' : viewMode === 'month' ? 'plan-month-page pb-8' : 'pb-8'}`}
+      className={`plan-page mx-auto w-full max-w-3xl ${viewMode === 'today' ? 'plan-today-page' : 'plan-overview-page'}`}
       aria-busy="true"
     >
       <CollectionHeading title="플래너"
@@ -44,15 +44,7 @@ export function PlanRouteSkeleton() {
         </span>
         <span className="flex gap-1.5"><span className="size-11 rounded-full bg-line/40" /><span className="size-11 rounded-full bg-line/40" /></span>
       </div>
-      {viewMode === 'month' ? (
-        <div className="plan-month-content">
-          <PlanPeriodSkeleton viewMode="month" />
-        </div>
-      ) : (
-        <>
-          <PlanPeriodSkeleton viewMode={viewMode} />
-        </>
-      )}
+      <PlanPeriodSkeleton viewMode={viewMode} />
     </section>
   )
 }

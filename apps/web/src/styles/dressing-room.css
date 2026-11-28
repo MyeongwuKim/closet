@@ -750,12 +750,6 @@
   }
 }
 
-@media (width < 640px) {
-  .app-main:has(.plan-week-page) {
-    padding-bottom: 8px;
-  }
-}
-
 @media (max-width: 767px) and (max-height: 640px) {
   .plan-page .plan-period-header {
     margin-top: 4px;
@@ -778,63 +772,135 @@
   }
 }
 
-/* 모바일 달력은 제목과 개수를 읽을 수 있는 칸 높이를 유지하고, 넘친 주는 달력 안에서 스크롤한다. */
-@media (max-width: 767px) and (min-height: 700px) {
-  .app-main:has(.plan-month-page) {
-    display: flex;
-    flex-direction: column;
-    height: calc(100dvh - var(--app-header-height) - var(--app-bottom-space) - var(--app-shell-offset));
+/* 기간 전체에 남은 높이를 배분하고, 더 짧은 화면에서는 날짜의 최소 높이를 유지한 채 페이지가 늘어난다. */
+.app-main:has(.plan-overview-page) {
+  display: flex;
+  min-height: calc(100dvh - var(--app-header-height) - var(--app-bottom-space) - var(--app-shell-offset));
+  flex-direction: column;
+  padding-bottom: 8px;
+}
+
+.app-main:has(.plan-overview-page) > .room-page-enter,
+.plan-overview-page,
+.plan-overview-content,
+.plan-month-calendar {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+.plan-week-move-note {
+  margin-top: 6px;
+}
+
+.plan-week-rows {
+  display: grid;
+  flex: 1;
+  grid-template-rows: repeat(7, minmax(44px, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.plan-week-row-body {
+  display: grid;
+  height: 100%;
+  grid-template-columns: 38px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 46px 2px 8px;
+}
+
+.plan-week-row-handle {
+  position: absolute;
+  top: 50%;
+  right: 1px;
+  display: grid;
+  width: 44px;
+  height: min(44px, 100%);
+  place-items: center;
+  transform: translateY(-50%);
+}
+
+.plan-week-thumbnails {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(4, minmax(0, clamp(1.625rem, 5dvh, 3rem)));
+  gap: 4px;
+}
+
+.plan-month-calendar {
+  --plan-month-row-min: 3.375rem;
+  margin-top: 8px;
+}
+
+.plan-month-calendar-days {
+  flex: 1;
+}
+
+.plan-month-calendar-day {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px 2px;
+}
+
+.plan-month-calendar-date {
+  width: 20px;
+  height: 20px;
+}
+
+.plan-month-calendar-preview {
+  min-height: 14px;
+  flex: 1;
+}
+
+@media (min-width: 640px) {
+  .plan-week-row-body {
+    grid-template-columns: 54px minmax(0, .9fr) minmax(0, 1fr) 18px;
+    gap: 12px;
+    padding-inline: 12px 50px;
   }
-  .app-main:has(.plan-month-page) > .room-page-enter,
-  .plan-month-page {
-    display: flex;
-    min-height: 0;
-    flex: 1;
-    flex-direction: column;
-  }
-  .plan-month-page {
-    padding-bottom: 0;
-  }
-  .plan-month-page > div:first-child,
-  .plan-month-page .plan-view-tabs,
-  .plan-month-page .plan-period-header {
-    flex-shrink: 0;
-  }
-  .plan-month-content,
-  .plan-month-calendar {
-    display: flex;
-    min-height: 0;
-    flex: 1;
-    flex-direction: column;
-  }
-  .plan-month-calendar {
-    margin-top: 12px;
-  }
-  .plan-month-calendar-days {
-    min-height: 0;
-    flex: 1;
-    overflow-y: auto;
-    overscroll-behavior: contain;
+  .plan-week-thumbnails {
+    gap: 6px;
   }
   .plan-month-calendar-day {
-    display: flex;
-    min-height: 72px;
-    flex-direction: column;
-    padding: 4px;
+    padding-inline: 6px;
+  }
+}
+
+@media (max-height: 740px) {
+  .plan-overview-page .plan-view-tabs,
+  .plan-overview-page .plan-period-header {
+    margin-top: 4px;
+  }
+  .plan-overview-page .plan-period-header {
+    padding-bottom: 0;
+  }
+  .plan-overview-page .plan-period-title {
+    font-size: 24px;
+    line-height: 24px;
+  }
+  .plan-period-header[data-view-mode='month'] .plan-period-label {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: baseline;
+    column-gap: 8px;
+  }
+  .plan-month-calendar-day {
+    gap: 1px;
+    padding-block: 2px;
   }
   .plan-month-calendar-date {
-    width: 20px;
-    height: 20px;
-    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
   }
-  .plan-month-calendar-preview {
-    min-height: 24px;
-    height: auto;
-    flex: 1;
-    margin-top: 2px;
+  .plan-week-move-note {
+    margin-top: 4px;
   }
-  .plan-month-calendar-caption {
-    display: block;
+  .plan-week-rows {
+    gap: 4px;
+    margin-top: 4px;
   }
 }
 
