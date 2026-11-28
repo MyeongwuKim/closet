@@ -8,7 +8,8 @@ import { matchesExistingPreview } from '../utils/resumeExistingPreview'
 
 /**
  * 앱이 열린 상태에서 미확인 생성 완료·실패를 팝업으로 알린다. 진행 작업은 레이아웃에 표시하지 않는다.
- * 나중에 보기는 현재 실행 중에만 숨긴다. 완료 알림은 실제 이미지가 표시된 뒤 확인 처리한다.
+ * 닫은 안내는 서버에 확인 처리하고, 나중에 보기는 현재 실행 중에만 숨긴다.
+ * 완료 결과를 열면 실제 이미지가 표시된 뒤 확인 처리한다.
  * 이번 실행에서 이미 표시한 이미지도 계정별로 기억해, 늦게 조회된 완료 알림이 저장·닫기 뒤 다시 뜨지 않게 한다.
  * 네이티브 백그라운드·브라우저 숨김 상태에서는 팝업과 조회를 멈춘다.
  */
@@ -117,16 +118,19 @@ export function usePreviewJobNotification() {
     setVisibleKey(null)
   }
 
+  /** 안내를 즉시 닫고 서버 목록에서도 확인 처리해 WebView를 다시 불러올 때 복원되지 않게 한다. */
+  const close = () => {
+    dismiss()
+    if (job) acknowledge(job.id)
+  }
+
   /** 실패는 열 때 확인하고, 완료는 결과를 불러와 표시될 때까지 미확인으로 유지한다. */
   const openResult = () => {
     if (!job) return
     if (job.status === 'completed') setVisibleKey(null)
-    else {
-      dismiss()
-      acknowledge(job.id)
-    }
+    else close()
     navigate(job.path)
   }
 
-  return { job: isForeground && !isGenerating && !wasViewed && !openingResult && visibleKey === jobKey ? job : undefined, dismiss, openResult }
+  return { job: isForeground && !isGenerating && !wasViewed && !openingResult && visibleKey === jobKey ? job : undefined, close, dismiss, openResult }
 }

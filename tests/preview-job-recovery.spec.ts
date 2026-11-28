@@ -13,7 +13,7 @@ function makeJob(status: OutfitPreviewJob['status']): OutfitPreviewJob {
     errorCode: status === 'interrupted' ? 'AI_INTERRUPTED' : null,
     errorMessage: status === 'interrupted' ? '이전 생성 결과를 확인하지 못해 자동으로 다시 만들지 않았습니다.' : null,
     createdAt: '2026-10-30T00:00:00Z',
-    path: status === 'completed' ? '/lookbook/new?items=item-1,item-2&preview=open&previewAssetId=preview-asset-one' : status === 'interrupted' ? '/lookbook/new?items=item-1,item-2&preview=failed' : '/lookbook/new?items=item-1,item-2&previewJobId=preview-job-one',
+    path: status === 'completed' ? '/lookbook/new?items=item-1,item-2&preview=open&previewAssetId=preview-asset-one' : status === 'failed' || status === 'interrupted' ? '/lookbook/new?items=item-1,item-2&preview=failed' : '/lookbook/new?items=item-1,item-2&previewJobId=preview-job-one',
   }
 }
 
@@ -72,6 +72,8 @@ test('전송 후 중단된 작업은 안내를 표시하고 자동으로 새 생
   await expect(popup.getByText('AI 사용권을 돌려드렸어요. 코디를 열어 다시 만들 수 있어요.')).toBeVisible()
   await popup.getByRole('button', { name: '코디 열기', exact: true }).click()
   await expect(page.getByRole('heading', { name: '미리보기를 만들지 못했어요' })).toBeVisible()
+  await page.getByRole('button', { name: 'AI 룩북 미리보기 닫기' }).click()
+  await expect(page).not.toHaveURL(/[?&]preview=/)
   expect(startCalls).toBe(0)
   expect(mockApi.operations).not.toContain('GenerateOutfitPreview')
 })
@@ -195,7 +197,7 @@ test('백그라운드에서 생성이 실패하면 복귀 시 잔액을 갱신�
     const { query } = route.request().postDataJSON()
     const remaining = failed ? 5 : 4
     if (query.includes('query OutfitPreviewJobs')) {
-      const job = failed ? { ...makeJob('failed'), path: '/lookbook/new?items=item-1,item-2&preview=failed' } : makeJob('processing')
+      const job = makeJob(failed ? 'failed' : 'processing')
       await route.fulfill({ json: { data: { outfitPreviewJobs: acknowledged ? [] : [job] } } })
     } else if (query.includes('query PreviewCredits')) {
       await route.fulfill({ json: { data: { previewCredits: { freeRemaining: remaining, rewardRemaining: 0, totalRemaining: remaining, capacity: 5, nextRefillAt: null, serverNow: new Date().toISOString(), rewardMode: 'test', resetsAt: new Date(Date.now() + 86_400_000).toISOString(), pendingRewardSessionId: null } } } })
@@ -243,6 +245,7 @@ test('백그라운드에서는 완료 팝업을 숨기고 복귀한 뒤 사용�
   await expect(popup).toHaveCount(0)
   await page.evaluate(() => window.dispatchEvent(new Event('closet:native-app-active')))
   await expect(popup).toHaveCount(0)
+  expect(mockApi.operations).not.toContain('AcknowledgeOutfitPreviewJob')
   expect(mockApi.operations).not.toContain('StartOutfitPreview')
 })
 
@@ -304,8 +307,48 @@ test('푸시의 결과 경로로 이미 진입했으면 완료 팝업을 겹쳐 
   await expect(page.getByRole('heading', { name: 'AI 룩북 미리보기', exact: true })).toBeVisible()
   await expect.poll(() => acknowledged).toBe(true)
   await expect(page.getByRole('dialog', { name: 'AI 룩북이 완성됐어요', exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'AI 룩북 미리보기 닫기' }).click()
+  await expect(page).not.toHaveURL(/[?&]preview=/)
+  await expect(page).toHaveURL(/[?&]previewAssetId=preview-asset-one/)
   expect(mockApi.operations).not.toContain('StartOutfitPreview')
 })
+
+for (const status of ['completed', 'failed'] as const) {
+  test(`닫은 AI 룩북 결과 안내는 앱이 복귀해도 다시 열리지 않는다 (${status})`, async ({ page, mockApi }) => {
+    const completed = status === 'completed'
+    const job = makeJob(status)
+    const jobs = [job]
+    let acknowledged = false
+    await page.route('**/graphql', async (route) => {
+      const { query, variables } = route.request().postDataJSON()
+      if (query.includes('query OutfitPreviewJobs')) {
+        await route.fulfill({ json: { data: { outfitPreviewJobs: acknowledged ? jobs.filter((item) => item.id !== job.id) : jobs } } })
+      } else if (query.includes('mutation AcknowledgeOutfitPreviewJob')) {
+        acknowledged = variables.id === job.id
+        await route.fulfill({ json: { data: { acknowledgeOutfitPreviewJob: acknowledged } } })
+      } else await route.fallback()
+    })
+
+    await page.addInitScript(() => { window.ClosetRuntimeConfig = { isNativeWebView: true, routerMode: 'hash' } })
+    await page.goto('/#/plan')
+    const popup = page.getByRole('dialog', { name: completed ? 'AI 룩북이 완성됐어요' : 'AI 룩북을 만들지 못했어요' })
+    await expect(popup).toBeVisible()
+    await popup.getByRole('button', { name: 'AI 룩북 안내 닫기' }).click()
+    await expect(popup).toHaveCount(0)
+    await expect(page).toHaveURL(/#\/plan$/)
+
+    // WebView를 다시 로드하면 닫은 작업은 건너뛰고 새로운 결과를 알린다.
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('closet:native-app-state', { detail: { isActive: false } })))
+    jobs.push({ ...makeJob(completed ? 'failed' : 'completed'), id: 'preview-job-two' })
+    await page.reload()
+    await page.evaluate(() => window.dispatchEvent(new Event('closet:native-app-active')))
+    await expect(page.getByRole('dialog', { name: completed ? 'AI 룩북을 만들지 못했어요' : 'AI 룩북이 완성됐어요' })).toBeVisible()
+    await expect(popup).toHaveCount(0)
+    expect(acknowledged).toBe(true)
+    await expect(page).toHaveURL(/#\/plan$/)
+    expect(mockApi.operations).not.toContain('StartOutfitPreview')
+  })
+}
 
 test('백그라운드에서 누른 완료 푸시는 복귀 직후 기존 생성 화면을 같은 작업의 결과로 바꾼다', async ({ page, mockApi }) => {
   const processing = makeJob('processing')

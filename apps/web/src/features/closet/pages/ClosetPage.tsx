@@ -6,7 +6,7 @@ import type {
   WardrobeItem,
 } from '@closet/types'
 import { hasMinimumOutfitItems } from '@closet/types/outfit-items'
-import { Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { Outlet, useLocation, useMatch, useNavigate, useSearchParams } from 'react-router-dom'
 import { CatalogSearchField } from '../../../components/CatalogSearchField'
 import { CatalogCardSkeletonGrid } from '../../../components/CatalogCardSkeletonGrid'
 import { CatalogScrollRegion } from '../../../components/CatalogScrollRegion'
@@ -46,6 +46,7 @@ import { createOutfitComposerPath } from '../../lookbook/utils/outfitComposerNav
 export function ClosetPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const isWardrobeList = useMatch('/closet') !== null
   const [searchParams, setSearchParams] = useSearchParams()
   const items = useClosetStore((state) => state.items)
   const pushToast = useUiStore((state) => state.pushToast)
@@ -342,7 +343,7 @@ export function ClosetPage() {
           onReset={resetDetailFilters}
         />}
       />
-      <WardrobePhotoAnalysisStatus />
+      <WardrobePhotoAnalysisStatus canOpenFailureDialog={isWardrobeList && pickerStep === 'closed'} />
       <CatalogSearchField
         isOpen={isSearchOpen}
         value={searchQuery}

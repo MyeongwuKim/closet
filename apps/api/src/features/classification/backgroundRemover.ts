@@ -62,20 +62,36 @@ export async function removeImageBackground(
   }
 }
 
-/** 공유 모델을 사용하는 실제 추론. 호출 순서와 대기열 제한은 removeImageBackground가 담당한다. */
+/** 이미지 디코딩부터 PNG 인코딩까지 실행하고, 실패한 단계는 서버 로그에 남긴다. */
 async function performBackgroundRemoval(imageBuffer: Buffer, mimeType: string) {
-  const remover = await getBackgroundRemover()
-  const bytes = Uint8Array.from(imageBuffer)
-  const image = await RawImage.fromBlob(new Blob([bytes], { type: mimeType }))
-  const cutout = await remover(image)
-  const alpha = (await cutout.toSharp().ensureAlpha().stats()).channels[3]
-  if (!alpha || alpha.min > 8 || alpha.max < 64) {
-    throw new Error('배경 제거 결과에 투명한 배경과 옷 영역이 모두 필요합니다.')
-  }
-  const buffer = await cutout.toSharp().png().toBuffer()
+  let stage = 'decode-image'
+  try {
+    const bytes = Uint8Array.from(imageBuffer)
+    const image = await RawImage.fromBlob(new Blob([bytes], { type: mimeType }))
 
-  return {
-    base64: buffer.toString('base64'),
-    mimeType: 'image/png',
+    stage = 'load-model'
+    const remover = await getBackgroundRemover()
+    stage = 'run-model'
+    const cutout = await remover(image)
+
+    stage = 'validate-alpha'
+    const alpha = (await cutout.toSharp().ensureAlpha().stats()).channels[3]
+    if (!alpha || alpha.min > 8 || alpha.max < 64) {
+      throw new Error('배경 제거 결과에 투명한 배경과 옷 영역이 모두 필요합니다.')
+    }
+
+    stage = 'encode-png'
+    const buffer = await cutout.toSharp().png().toBuffer()
+    return {
+      base64: buffer.toString('base64'),
+      mimeType: 'image/png',
+    }
+  } catch (error) {
+    // 사진 내용, 파일명, 오류 원문은 로그에 포함하지 않는다.
+    console.warn('[wardrobe-cutout] background removal failed', {
+      stage,
+      errorType: error instanceof Error ? error.name : 'unknown',
+    })
+    throw error
   }
 }

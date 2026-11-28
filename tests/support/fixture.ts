@@ -477,7 +477,7 @@ function handleGraphql(api: MockApi, { query, variables = {} }: GraphqlRequest):
     } }
     }
     case 'RemoveWardrobeImageBackground': {
-      if (api.cutoutFailureMessage) throw new Error(api.cutoutFailureMessage)
+      if (api.cutoutFailureMessage) throw new MockGraphqlError(api.cutoutFailureMessage, 'BACKGROUND_REMOVAL_FAILED')
       return { removeWardrobeImageBackground: {
         imageBase64: mockShirtCutoutBase64,
         mimeType: 'image/png',

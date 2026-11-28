@@ -35,7 +35,7 @@ interface QueuedPhoto {
   isBatch?: boolean
 }
 
-interface FailedWardrobePhoto extends QueuedPhoto {
+export interface FailedWardrobePhoto extends QueuedPhoto {
   message: string
 }
 
@@ -49,6 +49,9 @@ interface WardrobeImageAnalysis {
   /** 지금 분석 중이거나 차례를 기다리는 사진 수다. */
   analyzingCount: number
   failedPhotos: FailedWardrobePhoto[]
+  /** 팝업을 닫아도 실패한 원본은 남고, 새 실패가 생기면 다시 표시한다. */
+  isFailureDialogOpen: boolean
+  setFailureDialogOpen: (isOpen: boolean) => void
   analyzeImages: (files: File[]) => boolean
   retryPhoto: (id: string) => void
   dismissPhoto: (id: string) => void
@@ -99,7 +102,7 @@ async function analyzePhoto(file: File, session: PhotoAnalysisSession) {
 
 /**
  * 선택·드롭·촬영으로 들어온 사진을 로그인 세션별로 대기시켜 한 장씩 분석한다.
- * 준비된 사진은 공통 확인 대기열에 넣고, 일시 실패한 파일은 옷장으로 돌아와 다시 시도할 수 있게 보관한다.
+ * 준비된 사진은 공통 확인 대기열에 넣고, 일시 실패한 파일은 옷장 팝업에서 다시 시도할 수 있게 보관한다.
  */
 export const useWardrobeImageAnalysis = create<WardrobeImageAnalysis>((set, get) => {
   let currentSession: PhotoAnalysisSession | null = null
@@ -169,7 +172,10 @@ export const useWardrobeImageAnalysis = create<WardrobeImageAnalysis>((set, get)
         return
       }
 
-      set((state) => ({ failedPhotos: [...state.failedPhotos, { ...photo, message }] }))
+      set((state) => ({
+        failedPhotos: [...state.failedPhotos, { ...photo, message }],
+        isFailureDialogOpen: true,
+      }))
     }
   }
 
@@ -201,6 +207,10 @@ export const useWardrobeImageAnalysis = create<WardrobeImageAnalysis>((set, get)
   return {
     analyzingCount: 0,
     failedPhotos: [],
+    isFailureDialogOpen: false,
+    setFailureDialogOpen: (isOpen) => set((state) => ({
+      isFailureDialogOpen: isOpen && state.failedPhotos.length > 0,
+    })),
     /** 크기와 형식이 허용된 파일을 대기열에 넣으면 true를 반환한다. 등록 확인과 저장은 이후 별도 단계다. */
     analyzeImages: (files) => {
       if (files.length === 0) return false
@@ -229,9 +239,10 @@ export const useWardrobeImageAnalysis = create<WardrobeImageAnalysis>((set, get)
       get().dismissPhoto(id)
       queuePhotos([{ id, file: photo.file, isBatch: photo.isBatch }])
     },
-    dismissPhoto: (id) => set((state) => ({
-      failedPhotos: state.failedPhotos.filter((photo) => photo.id !== id),
-    })),
+    dismissPhoto: (id) => set((state) => {
+      const failedPhotos = state.failedPhotos.filter((photo) => photo.id !== id)
+      return { failedPhotos, isFailureDialogOpen: state.isFailureDialogOpen && failedPhotos.length > 0 }
+    }),
     /** 로그아웃·계정 변경 시 진행 중 요청을 중단하고 대기 중이거나 실패한 원본을 비운다. */
     resetAnalysis: () => {
       if (currentSession) {
@@ -239,7 +250,7 @@ export const useWardrobeImageAnalysis = create<WardrobeImageAnalysis>((set, get)
         currentSession.controller.abort()
       }
       currentSession = null
-      set({ analyzingCount: 0, failedPhotos: [] })
+      set({ analyzingCount: 0, failedPhotos: [], isFailureDialogOpen: false })
       useUiStore.getState().disposeClassificationImages()
     },
   }

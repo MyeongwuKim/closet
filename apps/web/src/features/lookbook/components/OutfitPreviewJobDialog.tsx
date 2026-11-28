@@ -7,10 +7,10 @@ import { usePreviewJobNotification } from '../hooks/usePreviewJobNotification'
 /** 모든 화면 위에 완료·실패 팝업을 한 번만 표시한다. 화면 흐름과 네이티브 푸시의 자동 이동은 훅에서 구분한다. */
 export function OutfitPreviewJobDialog() {
   const notification = usePreviewJobNotification()
-  return notification.job ? <PreviewJobDialogContent key={notification.job.id} job={notification.job} onLater={notification.dismiss} onOpen={notification.openResult} /> : null
+  return notification.job ? <PreviewJobDialogContent key={notification.job.id} job={notification.job} onClose={notification.close} onLater={notification.dismiss} onOpen={notification.openResult} /> : null
 }
 
-function PreviewJobDialogContent({ job, onLater, onOpen }: { job: OutfitPreviewJob; onLater: () => void; onOpen: () => void }) {
+function PreviewJobDialogContent({ job, onClose, onLater, onOpen }: { job: OutfitPreviewJob; onClose: () => void; onLater: () => void; onOpen: () => void }) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const completed = job.status === 'completed'
@@ -31,11 +31,11 @@ function PreviewJobDialogContent({ job, onLater, onOpen }: { job: OutfitPreviewJ
   }, [])
 
   return createPortal(
-    <div className="fixed inset-0 z-[210] flex items-center justify-center bg-ink/40 px-5 py-8 backdrop-blur-[2px]" onMouseDown={(event) => { if (event.currentTarget === event.target) onLater() }}>
+    <div className="fixed inset-0 z-[210] flex items-center justify-center bg-ink/40 px-5 py-8 backdrop-blur-[2px]" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}>
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="preview-job-notification-title" aria-describedby="preview-job-notification-description" className="w-full max-w-sm rounded-3xl border border-line bg-surface p-5 shadow-2xl">
         <div className="flex items-start justify-between">
           <span className="flex size-12 items-center justify-center rounded-2xl bg-sage text-accent">{completed ? <CheckCircle2 size={25} /> : <AlertCircle size={25} />}</span>
-          <button ref={closeRef} type="button" aria-label="AI 룩북 안내 닫기" onClick={onLater} className="rounded-full p-2 text-muted hover:bg-canvas"><X size={20} /></button>
+          <button ref={closeRef} type="button" aria-label="AI 룩북 안내 닫기" onClick={onClose} className="rounded-full p-2 text-muted hover:bg-canvas"><X size={20} /></button>
         </div>
         <h2 id="preview-job-notification-title" className="mt-4 text-lg font-semibold">{completed ? 'AI 룩북이 완성됐어요' : 'AI 룩북을 만들지 못했어요'}</h2>
         <p id="preview-job-notification-description" className="mt-2 break-keep text-sm leading-6 text-muted">{completed ? '완성된 이미지를 확인해주세요.' : 'AI 사용권을 돌려드렸어요. 코디를 열어 다시 만들 수 있어요.'}</p>
