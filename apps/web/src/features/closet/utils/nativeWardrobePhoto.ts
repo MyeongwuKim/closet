@@ -1,4 +1,4 @@
-import type { NativeWardrobePhotoAsset } from '../../../native-bridge'
+import type { NativeWardrobePhotoFile } from '../../../native-bridge'
 
 const fileExtensions: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -27,21 +27,20 @@ function readBase64Payload(base64: string) {
   }
 }
 
-export function createFileFromNativeWardrobePhoto(
-  asset: NativeWardrobePhotoAsset,
-) {
+/** 카메라와 앨범에서 받은 사진을 등록 흐름에서 사용하는 File로 읽는다. */
+export function createFileFromNativeWardrobePhoto(asset: NativeWardrobePhotoFile) {
   const { encodedValue, dataUrlMimeType } = readBase64Payload(asset.base64)
   const mimeType = normalizeMimeType(asset.mimeType ?? dataUrlMimeType)
 
   if (!encodedValue) {
-    throw new Error('촬영한 사진 데이터를 읽지 못했어요.')
+    throw new Error('사진 데이터를 읽지 못했어요.')
   }
 
   let binary: string
   try {
     binary = window.atob(encodedValue)
   } catch {
-    throw new Error('촬영한 사진 데이터를 읽지 못했어요.')
+    throw new Error('사진 데이터를 읽지 못했어요.')
   }
 
   const bytes = new Uint8Array(binary.length)

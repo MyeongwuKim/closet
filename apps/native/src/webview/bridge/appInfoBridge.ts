@@ -31,6 +31,7 @@ export async function handleNativeAppInfoRequest(
         'location-permission',
         'current-location',
         'camera-capture',
+        'wardrobe-album',
         'app-settings',
         'external-url',
         'deep-link',

@@ -9,7 +9,7 @@ export function createClosetWebViewBridgeScript(supportsPreviewSubmissionInBackg
     var pendingRequests = {};
     var requestSequence = 0;
 
-    function request(type, payload, timeoutMs, signal) {
+    function request(type, payload, timeoutMs, signal, onPartial) {
       if (!window.ReactNativeWebView) {
         return Promise.reject(new Error('Native bridge is not available'));
       }
@@ -47,7 +47,8 @@ export function createClosetWebViewBridgeScript(supportsPreviewSubmissionInBackg
         pendingRequests[id] = {
           resolve: resolve,
           reject: reject,
-          cleanup: cleanup
+          cleanup: cleanup,
+          onPartial: onPartial
         };
 
         if (signal) signal.addEventListener('abort', onAbort, { once: true });
@@ -67,6 +68,16 @@ export function createClosetWebViewBridgeScript(supportsPreviewSubmissionInBackg
     window.__CLOSET_NATIVE_BRIDGE_RESPONSE__ = function (id, response) {
       var pending = pendingRequests[id];
       if (!pending) return;
+
+      if (response && response.ok && response.partial) {
+        try {
+          if (pending.onPartial) pending.onPartial(response.data);
+        } catch (error) {
+          pending.cleanup();
+          pending.reject(error);
+        }
+        return;
+      }
 
       pending.cleanup();
 
@@ -106,6 +117,9 @@ export function createClosetWebViewBridgeScript(supportsPreviewSubmissionInBackg
       },
       captureWardrobePhoto: function () {
         return request('closet:native-capture-wardrobe-photo', null, 180000);
+      },
+      selectWardrobePhotos: function (onPhoto, signal) {
+        return request('closet:native-select-wardrobe-photos', null, 180000, signal, onPhoto);
       },
       openExternalUrl: function (url) {
         return request('closet:native-open-external-url', { url: url });

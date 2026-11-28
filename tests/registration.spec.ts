@@ -91,6 +91,40 @@ test('네이티브 WebView 사진 추가 창에 스크린샷을 놓으면 AI 분
   expect(mockApi.operations).toContain('ClassifyWardrobeImage')
 })
 
+test('앱의 앨범 버튼은 네이티브 사진 선택기를 열고 고른 사진들을 분석한다', async ({ page, mockApi }) => {
+  mockApi.wardrobeItems = []
+  await page.addInitScript((base64) => {
+    window.ClosetRuntimeConfig = { isNativeWebView: true, routerMode: 'hash' }
+    let albumOpenCount = 0
+    Object.assign(window, { ClosetNative: {
+      async selectWardrobePhotos(onPhoto) {
+        albumOpenCount += 1
+        if (albumOpenCount === 1) return { status: 'cancelled' }
+
+        onPhoto({ base64, fileName: 'shirt.png', mimeType: 'image/png' })
+        onPhoto({ base64, fileName: 'coat.png', mimeType: 'image/png' })
+        return { status: 'selected', skippedCount: 0 }
+      },
+    } satisfies Pick<ClosetNativeBridge, 'selectWardrobePhotos'> })
+  }, onePixelPng.toString('base64'))
+  let browserFileChooserCount = 0
+  page.on('filechooser', () => { browserFileChooserCount += 1 })
+
+  await page.goto('/#/closet')
+  const addButton = page.getByRole('button', { name: '옷장에 옷 추가' })
+  const albumButton = page.getByRole('button', { name: /앨범에서 선택/ })
+  await addButton.click()
+  await albumButton.click()
+  await expect(addButton).toBeFocused()
+  expect(mockApi.operations).not.toContain('ClassifyWardrobeImage')
+
+  await addButton.click()
+  await albumButton.click()
+  await expect(page.getByRole('dialog', { name: '옷 여러 벌 등록' })).toBeVisible()
+  await expect.poll(() => mockApi.operations.filter((operation) => operation === 'ClassifyWardrobeImage').length).toBe(2)
+  expect(browserFileChooserCount).toBe(0)
+})
+
 test('사진 분석 결과를 확인해 옷을 등록하고 새로고침 후에도 조회한다', async ({ page, mockApi }) => {
   mockApi.wardrobeItems = []
   await page.route('**/graphql', async (route) => {

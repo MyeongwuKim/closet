@@ -16,4 +16,5 @@ export type {
   NativeCaptureWardrobePhotoResult,
   NativePermissionStatus,
   NativeWardrobePhotoAsset,
+  NativeWardrobePhotoFile,
 } from './types'

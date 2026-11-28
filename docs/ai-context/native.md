@@ -26,7 +26,7 @@ iOS 앱에 [PreviewSubmissionModule.swift](../../apps/native/modules/preview-sub
 
 인증은 SecureStore와 웹 토큰의 동기화로 이어진다. 권한 상태 조회와 시스템 권한 요청은 분리되어 있고, 허용된 로그인 기기는 푸시 토큰을 등록한다. 카메라·위치 결과는 성공 외에 취소·거절·오류 등을 상태값으로 전달한다.
 
-옷 사진 추가창은 WebView로 전달된 이미지 드롭·붙여넣기도 기존 사진 검증과 분석으로 연결한다. macOS Finder에서 iOS 시뮬레이터 창으로 떨어뜨린 이미지는 Simulator가 사진 앱에 가져오므로 앱의 ‘앨범에서 선택’에서 사용할 수 있다.
+옷 사진 추가창의 ‘앨범에서 선택’은 `selectWardrobePhotos`를 제공하는 앱에서 시스템 사진 보관함을 바로 연다. 선택한 사진은 [wardrobeAlbumBridge.ts](../../apps/native/src/webview/bridge/wardrobeAlbumBridge.ts)에서 한 장씩 전달하고 선택 완료 시 기존 등록 대기열에 넣는다. JPEG·PNG·WebP 파일은 그대로 읽으며 HEIC·HEIF는 JPEG로 변환한다. 브리지가 없는 앱과 웹에서는 파일 입력을 사용한다. 이미지 드롭·붙여넣기도 기존 사진 검증과 분석을 거친다. macOS Finder에서 iOS 시뮬레이터 창으로 떨어뜨린 이미지는 사진 앱에 가져오므로 앨범에서 선택할 수 있다.
 
 iOS 17 이상에서 [WardrobeCutoutModule.swift](../../apps/native/modules/wardrobe-cutout/ios/WardrobeCutoutModule.swift)를 포함한 빌드는 `wardrobe-cutout`과 `removeWardrobePhotoBackground`를 제공한다. 등록 확인에서 사용자가 요청하면 Vision이 기기에서 투명 PNG를 만든다. WebView는 요청 시간 초과나 취소 뒤 도착한 결과를 무시하고, 미지원 환경과 실패에서는 원본으로 등록할 수 있다.
 

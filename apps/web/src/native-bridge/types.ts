@@ -19,9 +19,13 @@ export interface NativeAppInfo {
   capabilities: string[]
 }
 
-export interface NativeWardrobePhotoAsset {
+export interface NativeWardrobePhotoFile {
   base64: string
   fileName: string
+  mimeType: string
+}
+
+export interface NativeWardrobePhotoAsset extends NativeWardrobePhotoFile {
   mimeType: 'image/jpeg'
   width: number
   height: number
@@ -33,6 +37,10 @@ export type NativeCaptureWardrobePhotoResult =
   | { status: 'cancelled' }
   | { status: 'permission-denied'; canAskAgain: boolean }
   | { status: 'error'; code?: string; message: string }
+
+type NativeSelectWardrobePhotosResult =
+  | { status: 'selected'; skippedCount: number }
+  | { status: 'cancelled' }
 
 export type CurrentLocationResult =
   | {
@@ -67,6 +75,11 @@ export interface ClosetNativeBridge {
   openExternalUrl: (url: string) => Promise<void>
   setAuthSession: (accessToken: string | null) => Promise<void>
   captureWardrobePhoto: () => Promise<NativeCaptureWardrobePhotoResult>
+  /** 시스템 앨범에서 선택한 사진을 한 장씩 받고, 취소 또는 선택 완료를 반환한다. */
+  selectWardrobePhotos?: (
+    onPhoto: (photo: NativeWardrobePhotoFile) => void,
+    signal?: AbortSignal,
+  ) => Promise<NativeSelectWardrobePhotosResult>
   removeWardrobePhotoBackground?: (imageBase64: string, signal?: AbortSignal) => Promise<{ imageBase64: string }>
 }
 

@@ -7,6 +7,7 @@ import type {
   NativeBridgeRequest,
   NativeCancelGraphqlRequest,
   NativeCaptureWardrobePhotoRequest,
+  NativeSelectWardrobePhotosRequest,
   NativeCurrentLocationRequest,
   NativeGraphqlRequest,
   NativeOpenAppSettingsRequest,
@@ -118,6 +119,12 @@ export function isNativeCaptureWardrobePhotoRequest(
   )
 }
 
+export function isNativeSelectWardrobePhotosRequest(
+  value: unknown,
+): value is NativeSelectWardrobePhotosRequest {
+  return isRecord(value) && value.type === 'closet:native-select-wardrobe-photos' && hasRequestId(value)
+}
+
 export function isNativeAuthSessionRequest(
   value: unknown,
 ): value is NativeAuthSessionRequest {
@@ -144,6 +151,7 @@ export function parseNativeBridgeRequest(
     if (isNativeRequestPermissionRequest(value)) return value
     if (isNativeCurrentLocationRequest(value)) return value
     if (isNativeCaptureWardrobePhotoRequest(value)) return value
+    if (isNativeSelectWardrobePhotosRequest(value)) return value
     if (isNativeWardrobeCutoutRequest(value)) return value
     if (isNativeOpenExternalUrlRequest(value)) return value
     if (isNativeAuthSessionRequest(value)) return value

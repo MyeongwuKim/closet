@@ -49,6 +49,11 @@ export interface NativeCaptureWardrobePhotoRequest {
   id: string
 }
 
+export interface NativeSelectWardrobePhotosRequest {
+  type: 'closet:native-select-wardrobe-photos'
+  id: string
+}
+
 export interface NativeWardrobeCutoutRequest {
   type: 'closet:native-wardrobe-cutout'
   id: string
@@ -106,6 +111,7 @@ export type NativeBridgeRequest =
   | NativeRequestPermissionRequest
   | NativeCurrentLocationRequest
   | NativeCaptureWardrobePhotoRequest
+  | NativeSelectWardrobePhotosRequest
   | NativeWardrobeCutoutRequest
   | NativeOpenExternalUrlRequest
   | NativeAuthSessionRequest
@@ -113,5 +119,5 @@ export type NativeBridgeRequest =
   | NativeCancelGraphqlRequest
 
 export type NativeBridgeResponse<T> =
-  | { ok: true; data: T }
+  | { ok: true; data: T; partial?: true }
   | { ok: false; error: string }

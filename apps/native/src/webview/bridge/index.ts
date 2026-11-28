@@ -4,6 +4,7 @@ import { handleNativeAdPrivacy, handleNativeRewardedAd } from './rewardedAdBridg
 import { handleNativeOpenAppSettingsRequest } from './appSettingsBridge'
 import { handleNativeAuthSessionRequest } from './authSessionBridge'
 import { handleNativeCaptureWardrobePhoto } from './cameraBridge'
+import { handleNativeSelectWardrobePhotos } from './wardrobeAlbumBridge'
 import { handleNativeWardrobeCutout } from './wardrobeCutoutBridge'
 import { cancelNativeGraphqlRequest, handleNativeGraphqlRequest } from './graphqlBridge'
 import { handleNativeOpenExternalUrlRequest } from './externalLinkBridge'
@@ -18,6 +19,7 @@ import {
   isNativeBridgeReadyMessage,
   isNativeCancelGraphqlRequest,
   isNativeCaptureWardrobePhotoRequest,
+  isNativeSelectWardrobePhotosRequest,
   isNativeCurrentLocationRequest,
   isNativeGraphqlRequest,
   isNativeOpenAppSettingsRequest,
@@ -99,6 +101,11 @@ export async function handleNativeBridgeMessage(
 
   if (isNativeCaptureWardrobePhotoRequest(request)) {
     await handleNativeCaptureWardrobePhoto(request, webViewRef)
+    return
+  }
+
+  if (isNativeSelectWardrobePhotosRequest(request)) {
+    await handleNativeSelectWardrobePhotos(request, webViewRef)
     return
   }
 

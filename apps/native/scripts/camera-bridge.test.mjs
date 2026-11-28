@@ -127,7 +127,7 @@ test('비정상 촬영 결과와 Expo 예외를 일반 취소와 구분한다', 
   })
 })
 
-test('주입된 API가 검증 가능한 카메라 요청을 보내고 상태 결과를 받는다', async () => {
+function createBridgeHarness() {
   const messages = []
   const timers = new Map()
   let timerSequence = 0
@@ -148,13 +148,17 @@ test('주입된 API가 검증 가능한 카메라 요청을 보내고 상태 결
     },
   }
   runInContext(CLOSET_WEBVIEW_BRIDGE_SCRIPT, context)
+  return { window: context.window, messages, timers }
+}
 
-  const pending = context.window.ClosetNative.captureWardrobePhoto()
+test('주입된 API가 검증 가능한 카메라 요청을 보내고 상태 결과를 받는다', async () => {
+  const { window, messages, timers } = createBridgeHarness()
+  const pending = window.ClosetNative.captureWardrobePhoto()
   const message = messages.at(-1)
   assert.equal(message.type, 'closet:native-capture-wardrobe-photo')
   assert.ok(message.id)
 
-  context.window.__CLOSET_NATIVE_BRIDGE_RESPONSE__(message.id, {
+  window.__CLOSET_NATIVE_BRIDGE_RESPONSE__(message.id, {
     ok: true,
     data: { status: 'cancelled' },
   })
@@ -170,4 +174,38 @@ test('주입된 API가 검증 가능한 카메라 요청을 보내고 상태 결
     ),
     null,
   )
+})
+
+test('앨범에서 고른 사진을 한 장씩 전달하고 완료 이후 응답은 무시한다', async () => {
+  const { window, messages, timers } = createBridgeHarness()
+  const photos = []
+  const pending = window.ClosetNative.selectWardrobePhotos((photo) => photos.push(photo))
+  const { id, type } = messages.at(-1)
+  assert.equal(type, 'closet:native-select-wardrobe-photos')
+  assert.equal(parseNativeBridgeRequest(JSON.stringify({ type, id: '' })), null)
+
+  const respond = (response) => window.__CLOSET_NATIVE_BRIDGE_RESPONSE__(id, response)
+  const png = { base64: 'YQ==', fileName: 'shirt.png', mimeType: 'image/png' }
+  const jpeg = { base64: 'Yg==', fileName: 'coat.jpg', mimeType: 'image/jpeg' }
+  respond({ ok: true, data: png, partial: true })
+  respond({ ok: true, data: jpeg, partial: true })
+  assert.equal(timers.size, 1)
+  respond({ ok: true, data: { status: 'selected', skippedCount: 0 } })
+  respond({ ok: true, data: png, partial: true })
+
+  assert.deepEqual(photos, [png, jpeg])
+  assert.deepEqual(await pending, { status: 'selected', skippedCount: 0 })
+  assert.equal(timers.size, 0)
+})
+
+test('앨범 요청 중 화면을 떠나면 타이머를 지우고 늦게 도착한 사진을 무시한다', async () => {
+  const { window, messages, timers } = createBridgeHarness()
+  const controller = new AbortController()
+  const pending = window.ClosetNative.selectWardrobePhotos(() => assert.fail(), controller.signal)
+  controller.abort()
+  await assert.rejects(pending, { name: 'AbortError' })
+  assert.equal(timers.size, 0)
+
+  const { id } = messages.at(-1)
+  window.__CLOSET_NATIVE_BRIDGE_RESPONSE__(id, { ok: true, data: {}, partial: true })
 })
